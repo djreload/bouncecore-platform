@@ -37,6 +37,9 @@ This scaffold includes:
 - Health endpoint
 - Mobile config endpoint
 - Initial Prisma schema stub
+- Phase 1 RBAC foundation with role and permission catalogue
+- Admin Users, Roles, and Permissions pages
+- Password/session/token helper scaffolding
 - Required planning, design, navigation, stream-boundary, and deployment docs
 
 ## Local Development
