@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ImageIcon, LogIn, MessageSquare, Search, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -33,6 +33,11 @@ type GifResult = {
   previewUrl: string;
   width: number | null;
   height: number | null;
+};
+
+type PolledMessages = {
+  roomId: string;
+  messages: PublicChatMessageRow[];
 };
 
 function formatTime(value: string) {
@@ -76,13 +81,78 @@ export function ChatRoomPanel({
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
+  const [polledMessages, setPolledMessages] = useState<PolledMessages | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const selectedRoomId = selectedRoom?.id;
+  const visibleMessages = polledMessages && polledMessages.roomId === selectedRoomId ? polledMessages.messages : messages;
+
+  const loadLatestMessages = useCallback(async (roomId: string) => {
+    const response = await fetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
+      cache: "no-store"
+    });
+    const payload = (await response.json()) as { messages?: PublicChatMessageRow[] };
+
+    if (response.ok && payload.messages) {
+      setPolledMessages({
+        roomId,
+        messages: payload.messages
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRoomId) {
+      return;
+    }
+
+    let active = true;
+    const roomId = selectedRoomId;
+
+    async function refreshMessages() {
+      if (!active) {
+        return;
+      }
+
+      try {
+        await loadLatestMessages(roomId);
+      } catch {
+        // Keep showing the current messages if a polling request fails.
+      }
+    }
+
+    const interval = window.setInterval(refreshMessages, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [loadLatestMessages, selectedRoomId]);
 
   useEffect(() => {
     if (state.status === "success" && textareaRef.current) {
       textareaRef.current.value = "";
     }
-  }, [state.status, state.message]);
+
+    if (state.status === "success" && selectedRoomId) {
+      const timer = window.setTimeout(() => {
+        void loadLatestMessages(selectedRoomId);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+  }, [loadLatestMessages, state.status, state.message, selectedRoomId]);
+
+  useEffect(() => {
+    if (!selectedRoomId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void loadLatestMessages(selectedRoomId);
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadLatestMessages, selectedRoomId]);
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
@@ -134,7 +204,7 @@ export function ChatRoomPanel({
             <Badge tone={selectedRoom ? roomTone(selectedRoom.type) : "muted"}>{selectedRoom?.type ?? "Chat"}</Badge>
             <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-black`}>{selectedRoom?.name ?? "Chat rooms"}</h2>
             <p className="mt-1 text-sm text-bc-muted">
-              {selectedRoom ? `${messages.length} visible messages in #${selectedRoom.slug}.` : "Create rooms from admin to start chat."}
+              {selectedRoom ? `${visibleMessages.length} visible messages in #${selectedRoom.slug}.` : "Create rooms from admin to start chat."}
             </p>
           </div>
           {currentUser ? (
@@ -170,7 +240,7 @@ export function ChatRoomPanel({
 
       <div className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto p-4`}>
         <div className="space-y-3">
-          {messages.map((message) => {
+          {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
 
             return (
@@ -205,7 +275,7 @@ export function ChatRoomPanel({
               </article>
             );
           })}
-          {!messages.length ? (
+          {!visibleMessages.length ? (
             <div className="grid min-h-40 place-items-center rounded-md border border-dashed border-bc-line bg-bc-ink p-6 text-center">
               <div>
                 <MessageSquare className="mx-auto h-7 w-7 text-bc-electric" aria-hidden="true" />

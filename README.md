@@ -46,6 +46,7 @@ This scaffold includes:
 - Account session directory with current-session sign out and other-session revoke controls
 - Native chat GIF search and media messages through the Tenor API
 - Automatic chat-history pruning for messages older than 24 hours
+- Auto-refreshing public and live chat message feeds
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs

@@ -269,6 +269,37 @@ export async function getPublicChatData(roomSlug?: string) {
   };
 }
 
+export async function getPublicChatMessages(roomId: string) {
+  await pruneExpiredChatHistory();
+
+  if (!roomId) {
+    return [];
+  }
+
+  await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: roomId
+    },
+    select: {
+      id: true
+    }
+  });
+
+  const messages = await prisma.chatMessage.findMany({
+    where: {
+      roomId,
+      deletedAt: null
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    take: 40
+  });
+  const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+
+  return messages.reverse().map((message) => toMessageSummary(message, authors));
+}
+
 export async function getAdminChatroomsData() {
   await pruneExpiredChatHistory();
 
