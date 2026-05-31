@@ -12,7 +12,11 @@ This slice creates the first concrete foundation for Bouncecore-owned identity a
 - Password hashing and verification helpers using Node `scrypt`.
 - Secret-token creation, hashing, and fingerprint helpers.
 - Session cookie token-hash helper.
+- Register, login, logout, and current-session API route scaffolding.
+- Form-backed login and register pages.
+- Dedicated account security page with session state and logout action.
 - Prisma singleton.
+- Prisma 7 PostgreSQL driver adapter setup with `@prisma/adapter-pg` and `pg`.
 - Prisma auth/session/token/settings/audit model expansion.
 - Seed script for roles, permissions, and baseline app setting.
 - Admin Users, Roles, and Permissions pages.
@@ -25,6 +29,7 @@ This slice creates the first concrete foundation for Bouncecore-owned identity a
 - Streamer users can manage and view only their own stream key.
 - Raw secrets should be stored hashed or encrypted.
 - Session tokens are represented by hashes, not raw tokens.
+- Session cookies are HTTP-only, same-site lax, secure in production, and scoped to `/`.
 - Audit logs include severity, actor, target, metadata, IP, and user-agent fields.
 
 ## Database Notes
@@ -53,7 +58,8 @@ Do not run migrations against unrelated databases.
 ## Still Needed
 
 - Choose final auth runtime implementation: Better Auth, Auth.js, or custom session service.
-- Wire register/login/logout routes to real persistence.
+- Apply migrations and seed the Bouncecore database so register/login/logout routes can persist real accounts.
+- Replace temporary database-unavailable fallbacks with observed error handling once staging database health checks exist.
 - Add server-side route guards for admin, streamer, producer, and account routes.
 - Add CSRF protection for state-changing forms.
 - Add rate limits for auth endpoints.

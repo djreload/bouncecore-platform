@@ -19,6 +19,7 @@ Bouncecore is a new all-in-one UK rave/music livestream platform foundation. It 
 - npm 11
 - Tailwind CSS 4
 - Prisma 7 with PostgreSQL target
+- Prisma PostgreSQL driver adapter
 - Redis planned for realtime, queues, and presence
 
 ## Current Status
@@ -40,6 +41,8 @@ This scaffold includes:
 - Phase 1 RBAC foundation with role and permission catalogue
 - Admin Users, Roles, and Permissions pages
 - Password/session/token helper scaffolding
+- Form-backed login, register, logout, and session route scaffolding
+- Dedicated account security page
 - Required planning, design, navigation, stream-boundary, and deployment docs
 
 ## Local Development

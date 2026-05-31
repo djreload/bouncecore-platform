@@ -11,6 +11,7 @@ Bouncecore starts as a TypeScript-first modular monolith:
 - npm 11 package manager
 - Tailwind CSS 4.3.0
 - Prisma 7.8.0 ORM
+- Prisma PostgreSQL adapter with `pg`
 - PostgreSQL 18 target database
 - Redis target cache, pub/sub, presence, and queue backing store
 - Zod 4.4.3 validation
@@ -157,6 +158,7 @@ No server services were configured in this pass. The VPS was inspected read-only
 - Keep stream-provider integrations behind the provider interface so the future Bouncecore Stream Core can replace mock or Owncast-derived providers.
 - Track security advisories with `npm audit`, but do not apply `npm audit fix --force` without reviewing breaking changes.
 - Prisma 7 keeps connection URLs in `prisma.config.ts`, not in `schema.prisma`. The scaffold uses a non-secret local fallback URL so `prisma generate` can run before a real `.env` exists.
+- Prisma 7 also requires constructing `PrismaClient` with a driver adapter; Bouncecore uses `@prisma/adapter-pg` and `pg`.
 
 ## Sources Checked
 
