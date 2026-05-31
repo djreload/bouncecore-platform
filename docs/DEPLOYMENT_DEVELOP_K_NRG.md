@@ -54,7 +54,7 @@ Current safer staging path: use isolated Docker containers because Docker is alr
 
 Bouncecore containers:
 
-- `bouncecore-postgres`, bound to `127.0.0.1:5432`
+- `bouncecore-postgres`, bound to `127.0.0.1:5432`, with its PostgreSQL 18 volume mounted at `/var/lib/postgresql`
 - `bouncecore-redis`, bound to `127.0.0.1:6379`
 - `bouncecore-app`, bound to `127.0.0.1:3000`
 
