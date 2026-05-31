@@ -44,6 +44,7 @@ This scaffold includes:
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
+- Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
 
 ## Local Development

@@ -50,6 +50,16 @@ apt install -y redis-server
 
 Do not run these commands until Plesk impact is reviewed.
 
+Current safer staging path: use isolated Docker containers because Docker is already installed and this avoids changing Plesk-managed system packages.
+
+Bouncecore containers:
+
+- `bouncecore-postgres`, bound to `127.0.0.1:5432`
+- `bouncecore-redis`, bound to `127.0.0.1:6379`
+- `bouncecore-app`, bound to `127.0.0.1:3000`
+
+These containers live in the Compose project defined by `docker-compose.staging.yml` and use Bouncecore-specific Docker volumes.
+
 ## Database Plan
 
 - Create a dedicated PostgreSQL database: `bouncecore_platform`.
@@ -131,13 +141,14 @@ Future deployment outline:
 mkdir -p /var/www/bouncecore-platform
 cd /var/www/bouncecore-platform
 git clone git@github.com:djreload/bouncecore-platform.git .
-git checkout feature/initial-bouncecore-platform
-npm ci
-npm run build
-npm run prisma:generate
-# Run migrations only after DATABASE_URL points to the Bouncecore database.
-npm run db:migrate
-npm run db:seed
+git checkout codex/phase-1-auth-foundation
+
+# Create .env.staging with server-only secrets before starting containers.
+docker compose -f docker-compose.staging.yml up -d postgres redis
+docker compose -f docker-compose.staging.yml build app
+docker compose -f docker-compose.staging.yml run --rm app npm run db:migrate
+docker compose -f docker-compose.staging.yml run --rm app npm run db:seed
+docker compose -f docker-compose.staging.yml up -d app
 ```
 
 After migrations and seed data are applied, open:
