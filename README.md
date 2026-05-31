@@ -43,6 +43,7 @@ This scaffold includes:
 - Password/session/token helper scaffolding
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
+- Account session directory with current-session sign out and other-session revoke controls
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
