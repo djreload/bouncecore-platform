@@ -246,6 +246,7 @@ STREAM_CORE_INTERNAL_TOKEN="$(prompt_optional_secret "Stream core internal token
 STREAM_CORE_INTERNAL_TOKEN="${STREAM_CORE_INTERNAL_TOKEN:-$(generate_secret)}"
 RTMP_INGEST_URL="$(prompt "Public RTMP ingest URL" "rtmp://develop.k-nrg.co.uk/live")"
 PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "https://develop.k-nrg.co.uk/hls/live.m3u8")"
+TENOR_API_KEY="$(prompt_optional_secret "Tenor API key")"
 OWNER_DISPLAY_NAME="$(prompt "First server owner display name" "Owner")"
 OWNER_EMAIL="$(prompt "First server owner email" "")"
 OWNER_PASSWORD="$(prompt_secret "First server owner password (min 12 chars)")"
@@ -301,6 +302,7 @@ STREAM_CORE_INTERNAL_URL=$STREAM_CORE_INTERNAL_URL
 STREAM_CORE_INTERNAL_TOKEN=$STREAM_CORE_INTERNAL_TOKEN
 RTMP_INGEST_URL=$RTMP_INGEST_URL
 PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
+TENOR_API_KEY=$TENOR_API_KEY
 NEXT_TELEMETRY_DISABLED=1
 ENV
 

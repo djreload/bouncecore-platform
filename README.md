@@ -44,6 +44,7 @@ This scaffold includes:
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
 - Account session directory with current-session sign out and other-session revoke controls
+- Native chat GIF search and media messages through the Tenor API
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
@@ -84,7 +85,7 @@ For a fresh Linux server with a checked-out copy of this repo, run:
 bash scripts/install-instance.sh
 ```
 
-The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, Tenor GIF API key, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
 
 ## Secrets Warning
 

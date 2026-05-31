@@ -15,6 +15,9 @@ export type AdminChatMessageRow = {
   roomName: string;
   roomSlug: string;
   body: string;
+  kind: string;
+  mediaPreviewUrl: string | null;
+  mediaAlt: string | null;
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;

@@ -244,13 +244,21 @@ model ChatRoom {
 }
 
 model ChatMessage {
-  id        String   @id @default(cuid())
-  roomId    String
-  userId    String?
-  body      String
-  deletedAt DateTime?
-  createdAt DateTime @default(now())
-  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  roomId          String
+  userId          String?
+  body            String
+  kind            String   @default("text")
+  mediaUrl        String?
+  mediaPreviewUrl String?
+  mediaAlt        String?
+  mediaSource     String?
+  mediaSourceId   String?
+  mediaWidth      Int?
+  mediaHeight     Int?
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  room            ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
 }
 
 model Product {

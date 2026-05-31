@@ -3,6 +3,7 @@ import { normalizeRoles } from "@/lib/auth/role-normalize";
 import type { Role } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
+import { registerTenorShare } from "@/lib/chat/tenor-service";
 
 export type ChatRoomInput = {
   roomId?: string;
@@ -24,10 +25,28 @@ export type ChatMessageSummary = {
   id: string;
   roomId: string;
   body: string;
+  kind: string;
+  mediaUrl: string | null;
+  mediaPreviewUrl: string | null;
+  mediaAlt: string | null;
+  mediaSource: string | null;
+  mediaSourceId: string | null;
+  mediaWidth: number | null;
+  mediaHeight: number | null;
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
   authorRoles: Role[];
+};
+
+export type ChatGifMessageInput = {
+  id: string;
+  url: string;
+  previewUrl: string;
+  alt: string;
+  searchTerm?: string;
+  width?: number | null;
+  height?: number | null;
 };
 
 type AuthorSummary = {
@@ -125,6 +144,14 @@ function toMessageSummary(
     roomId: string;
     userId: string | null;
     body: string;
+    kind: string;
+    mediaUrl: string | null;
+    mediaPreviewUrl: string | null;
+    mediaAlt: string | null;
+    mediaSource: string | null;
+    mediaSourceId: string | null;
+    mediaWidth: number | null;
+    mediaHeight: number | null;
     deletedAt: Date | null;
     createdAt: Date;
   },
@@ -136,6 +163,14 @@ function toMessageSummary(
     id: message.id,
     roomId: message.roomId,
     body: message.deletedAt ? "Message removed by moderation." : message.body,
+    kind: message.kind,
+    mediaUrl: message.deletedAt ? null : message.mediaUrl,
+    mediaPreviewUrl: message.deletedAt ? null : message.mediaPreviewUrl,
+    mediaAlt: message.deletedAt ? null : message.mediaAlt,
+    mediaSource: message.deletedAt ? null : message.mediaSource,
+    mediaSourceId: message.deletedAt ? null : message.mediaSourceId,
+    mediaWidth: message.deletedAt ? null : message.mediaWidth,
+    mediaHeight: message.deletedAt ? null : message.mediaHeight,
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
@@ -318,7 +353,7 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
 }
 
 export async function createChatMessage(roomId: string, body: string, userId: string) {
-  const normalizedBody = body.trim().replace(/\s+/g, " ");
+  const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
 
   if (normalizedBody.length < 1 || normalizedBody.length > 500) {
     throw new Error("Chat messages must be between 1 and 500 characters.");
@@ -337,9 +372,70 @@ export async function createChatMessage(roomId: string, body: string, userId: st
     data: {
       roomId,
       userId,
-      body: normalizedBody
+      body: normalizedBody,
+      kind: "text"
     }
   });
+}
+
+function assertTenorMediaUrl(value: string) {
+  const url = new URL(value);
+  const allowedHosts = new Set(["media.tenor.com", "c.tenor.com"]);
+
+  if (url.protocol !== "https:" || !allowedHosts.has(url.hostname)) {
+    throw new Error("GIF URL is not from Tenor.");
+  }
+}
+
+function normalizeGifDimension(value: number | null | undefined) {
+  if (!value || !Number.isFinite(value) || value < 1 || value > 2000) {
+    return null;
+  }
+
+  return Math.round(value);
+}
+
+export async function createChatGifMessage(roomId: string, userId: string, gif: ChatGifMessageInput) {
+  const gifId = gif.id.trim().slice(0, 120);
+  const mediaUrl = gif.url.trim();
+  const previewUrl = (gif.previewUrl || gif.url).trim();
+  const mediaAlt = gif.alt.trim().slice(0, 180) || "Tenor GIF";
+
+  if (!gifId || !mediaUrl || !previewUrl) {
+    throw new Error("Missing GIF data.");
+  }
+
+  assertTenorMediaUrl(mediaUrl);
+  assertTenorMediaUrl(previewUrl);
+
+  await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: roomId
+    },
+    select: {
+      id: true
+    }
+  });
+
+  const message = await prisma.chatMessage.create({
+    data: {
+      roomId,
+      userId,
+      body: mediaAlt,
+      kind: "gif",
+      mediaUrl,
+      mediaPreviewUrl: previewUrl,
+      mediaAlt,
+      mediaSource: "tenor",
+      mediaSourceId: gifId,
+      mediaWidth: normalizeGifDimension(gif.width),
+      mediaHeight: normalizeGifDimension(gif.height)
+    }
+  });
+
+  await registerTenorShare(gifId, gif.searchTerm ?? "");
+
+  return message;
 }
 
 export async function moderateChatMessage(messageId: string, actorId: string) {

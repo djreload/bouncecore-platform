@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
 import { MessageSquare, Plus, Radio, Save, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,13 @@ function roomTone(type: string) {
   }
 
   return "cyan" as const;
+}
+
+function imageSize() {
+  return {
+    width: 180,
+    height: 120
+  };
 }
 
 export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: AdminChatroomsPanelProps) {
@@ -232,7 +240,22 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
                     <p className="mt-1 text-xs text-bc-muted">#{message.roomSlug}</p>
                   </td>
                   <td className={`max-w-[360px] px-4 py-3 ${message.deletedAt ? "text-bc-muted line-through" : "text-white"}`}>
-                    {message.body}
+                    {message.kind === "gif" && message.mediaPreviewUrl && !message.deletedAt ? (
+                      <div>
+                        <Badge tone="cyan">GIF</Badge>
+                        <Image
+                          alt={message.mediaAlt ?? message.body}
+                          className="mt-2 h-auto max-h-28 w-auto rounded-md border border-bc-line object-contain"
+                          height={imageSize().height}
+                          src={message.mediaPreviewUrl}
+                          unoptimized
+                          width={imageSize().width}
+                        />
+                        <p className="mt-2 text-xs text-bc-muted">{message.mediaAlt ?? message.body}</p>
+                      </div>
+                    ) : (
+                      message.body
+                    )}
                   </td>
                   <td className="px-4 py-3 text-bc-muted">{formatDate(message.createdAt)}</td>
                   <td className="px-4 py-3">
