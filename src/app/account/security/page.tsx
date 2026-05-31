@@ -3,10 +3,11 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 
 export default async function AccountSecurityPage() {
-  const user = await getCurrentUser();
+  const [user, roleDisplayLabels] = await Promise.all([getCurrentUser(), getRoleDisplayNameOverrides()]);
 
   return (
     <DashboardShell
@@ -38,7 +39,7 @@ export default async function AccountSecurityPage() {
                   {user.roles.length ? (
                     user.roles.map((role) => (
                       <Badge key={role} tone={roleBadgeTone(role)}>
-                        {roleDisplayName(role)}
+                        {roleDisplayName(role, roleDisplayLabels)}
                       </Badge>
                     ))
                   ) : (

@@ -4,12 +4,17 @@ import type { AdminStreamKeyRow, AdminStreamKeyUserOption } from "@/app/admin/st
 import { getAdminStreamKeys, getAdminStreamKeyUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { hasPermission } from "@/lib/auth/rbac";
+import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminStreamKeysPage() {
   const actor = await requireUserPermission("stream.keys.manage.any");
-  const [streamKeys, users] = await Promise.all([getAdminStreamKeys(), getAdminStreamKeyUsers()]);
+  const [streamKeys, users, roleDisplayLabels] = await Promise.all([
+    getAdminStreamKeys(),
+    getAdminStreamKeyUsers(),
+    getRoleDisplayNameOverrides()
+  ]);
   const keyRows: AdminStreamKeyRow[] = streamKeys.map((key) => ({
     id: key.id,
     fingerprint: key.fingerprint,
@@ -38,6 +43,7 @@ export default async function AdminStreamKeysPage() {
       <AdminStreamKeysPanel
         canRevealRawKeys={hasPermission(actor, "stream.keys.view.raw.any")}
         keys={keyRows}
+        roleDisplayLabels={roleDisplayLabels}
         users={userOptions}
       />
     </AdminShell>

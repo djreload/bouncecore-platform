@@ -3,6 +3,7 @@ import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
+import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
@@ -10,10 +11,11 @@ import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 export const dynamic = "force-dynamic";
 
 export default async function LivePage() {
-  const [liveState, chatData, currentUser] = await Promise.all([
+  const [liveState, chatData, currentUser, roleDisplayLabels] = await Promise.all([
     getPublicLiveState(),
     getPublicChatData("live"),
-    getCurrentUser()
+    getCurrentUser(),
+    getRoleDisplayNameOverrides()
   ]);
   const { channel, status, playbackUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
@@ -79,6 +81,7 @@ export default async function LivePage() {
               compact
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName } : null}
               messages={messageRows}
+              roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}
               showRoomLinks={false}

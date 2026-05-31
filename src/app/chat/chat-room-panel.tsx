@@ -6,7 +6,7 @@ import { LogIn, MessageSquare, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import {
   initialPublicChatActionState,
   type PublicChatActionState,
@@ -20,6 +20,7 @@ type ChatRoomPanelProps = {
   selectedRoom: PublicChatRoomRow | null;
   messages: PublicChatMessageRow[];
   currentUser: PublicChatUser | null;
+  roleDisplayLabels: RoleDisplayNameMap;
   compact?: boolean;
   showRoomLinks?: boolean;
 };
@@ -45,6 +46,7 @@ export function ChatRoomPanel({
   selectedRoom,
   messages,
   currentUser,
+  roleDisplayLabels,
   compact = false,
   showRoomLinks = true
 }: ChatRoomPanelProps) {
@@ -95,7 +97,7 @@ export function ChatRoomPanel({
                   <span className="font-semibold">{message.authorDisplayName}</span>
                   {message.authorRoles.slice(0, 2).map((role) => (
                     <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
-                      {roleDisplayName(role)}
+                      {roleDisplayName(role, roleDisplayLabels)}
                     </Badge>
                   ))}
                 </div>

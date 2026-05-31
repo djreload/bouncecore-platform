@@ -5,7 +5,7 @@ import { MessageSquare, Plus, Radio, Save, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
@@ -17,6 +17,7 @@ import { chatRoomTypeOptions } from "@/lib/chat/chat-types";
 type AdminChatroomsPanelProps = {
   rooms: AdminChatRoomRow[];
   messages: AdminChatMessageRow[];
+  roleDisplayLabels: RoleDisplayNameMap;
 };
 
 function formatDate(value: string) {
@@ -39,7 +40,7 @@ function roomTone(type: string) {
   return "cyan" as const;
 }
 
-export function AdminChatroomsPanel({ rooms, messages }: AdminChatroomsPanelProps) {
+export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: AdminChatroomsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatroomsActionState, FormData>(
     adminChatroomsAction,
     initialAdminChatroomsActionState
@@ -221,7 +222,7 @@ export function AdminChatroomsPanel({ rooms, messages }: AdminChatroomsPanelProp
                     <div className="mt-2 flex flex-wrap gap-2">
                       {message.authorRoles.map((role) => (
                         <Badge key={role} tone={roleBadgeTone(role)}>
-                          {roleDisplayName(role)}
+                          {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>
                       ))}
                     </div>

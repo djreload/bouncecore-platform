@@ -5,7 +5,7 @@ import { Copy, KeyRound, RefreshCw, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminStreamKeyAction } from "@/app/admin/stream-keys/actions";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import {
   initialAdminStreamKeyActionState,
   type AdminStreamKeyActionState,
@@ -17,6 +17,7 @@ type AdminStreamKeysPanelProps = {
   keys: AdminStreamKeyRow[];
   users: AdminStreamKeyUserOption[];
   canRevealRawKeys: boolean;
+  roleDisplayLabels: RoleDisplayNameMap;
 };
 
 function formatDate(date: string | null) {
@@ -37,7 +38,7 @@ function statusTone(status: string) {
   return "muted" as const;
 }
 
-export function AdminStreamKeysPanel({ keys, users, canRevealRawKeys }: AdminStreamKeysPanelProps) {
+export function AdminStreamKeysPanel({ keys, users, canRevealRawKeys, roleDisplayLabels }: AdminStreamKeysPanelProps) {
   const [state, formAction, pending] = useActionState<AdminStreamKeyActionState, FormData>(
     adminStreamKeyAction,
     initialAdminStreamKeyActionState
@@ -162,7 +163,7 @@ export function AdminStreamKeysPanel({ keys, users, canRevealRawKeys }: AdminStr
                       <div className="mt-2 flex flex-wrap gap-2">
                         {key.userRoles.map((role) => (
                           <Badge key={role} tone={roleBadgeTone(role)}>
-                            {roleDisplayName(role)}
+                            {roleDisplayName(role, roleDisplayLabels)}
                           </Badge>
                         ))}
                       </div>

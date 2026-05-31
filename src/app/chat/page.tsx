@@ -1,6 +1,7 @@
 import { PublicShell } from "@/components/layout/public-shell";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
+import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getCurrentUser } from "@/lib/auth/session";
 
@@ -18,9 +19,10 @@ function firstParam(value: string | string[] | undefined) {
 
 export default async function ChatPage({ searchParams }: ChatPageProps) {
   const params = searchParams ? await searchParams : {};
-  const [{ rooms, selectedRoom, messages }, currentUser] = await Promise.all([
+  const [{ rooms, selectedRoom, messages }, currentUser, roleDisplayLabels] = await Promise.all([
     getPublicChatData(firstParam(params.room)),
-    getCurrentUser()
+    getCurrentUser(),
+    getRoleDisplayNameOverrides()
   ]);
   const roomRows: PublicChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
@@ -60,6 +62,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
         <ChatRoomPanel
           currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName } : null}
           messages={messageRows}
+          roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}
           selectedRoom={selectedRoomRow}
         />

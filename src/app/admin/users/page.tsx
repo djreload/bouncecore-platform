@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { getAdminUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,7 @@ function statusTone(status: string) {
 
 export default async function AdminUsersPage() {
   await requireUserPermission("admin.access");
-  const users = await getAdminUsers();
+  const [users, roleDisplayLabels] = await Promise.all([getAdminUsers(), getRoleDisplayNameOverrides()]);
   const activeUsers = users.filter((user) => user.status === "active").length;
   const ownerUsers = users.filter((user) => user.roles.some((userRole) => userRole.role.name === "owner")).length;
 
@@ -97,7 +98,7 @@ export default async function AdminUsersPage() {
                       {user.roles.length ? (
                         user.roles.map((userRole) => (
                           <Badge key={userRole.roleId} tone={roleBadgeTone(userRole.role.name)}>
-                            {roleDisplayName(userRole.role.name)}
+                            {roleDisplayName(userRole.role.name, roleDisplayLabels)}
                           </Badge>
                         ))
                       ) : (

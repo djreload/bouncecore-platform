@@ -3,12 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { getAdminPermissions } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPermissionsPage() {
   await requireUserPermission("admin.access");
-  const permissions = await getAdminPermissions();
+  const [permissions, roleDisplayLabels] = await Promise.all([getAdminPermissions(), getRoleDisplayNameOverrides()]);
   const groups = permissions.reduce<Record<string, typeof permissions>>((permissionGroups, permission) => {
     permissionGroups[permission.group] = [...(permissionGroups[permission.group] ?? []), permission];
     return permissionGroups;
@@ -35,7 +36,7 @@ export default async function AdminPermissionsPage() {
                     {permission.roles.length ? (
                       permission.roles.map(({ role }) => (
                         <Badge key={role.id} tone={roleBadgeTone(role.name)}>
-                          {roleDisplayName(role.name)}
+                          {roleDisplayName(role.name, roleDisplayLabels)}
                         </Badge>
                       ))
                     ) : (
