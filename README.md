@@ -47,6 +47,7 @@ This scaffold includes:
 - Native chat GIF search and media messages through the Tenor API
 - Automatic chat-history pruning for messages older than 24 hours
 - Auto-refreshing public and live chat message feeds
+- Database-backed admin system-health dashboard
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs

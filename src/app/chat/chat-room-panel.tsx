@@ -83,8 +83,22 @@ export function ChatRoomPanel({
   const [gifLoading, setGifLoading] = useState(false);
   const [polledMessages, setPolledMessages] = useState<PolledMessages | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
   const selectedRoomId = selectedRoom?.id;
   const visibleMessages = polledMessages && polledMessages.roomId === selectedRoomId ? polledMessages.messages : messages;
+  const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
+
+  const scrollToLatestMessage = useCallback(() => {
+    const viewport = messagesViewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      viewport.scrollTop = viewport.scrollHeight;
+    });
+  }, []);
 
   const loadLatestMessages = useCallback(async (roomId: string) => {
     const response = await fetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
@@ -153,6 +167,10 @@ export function ChatRoomPanel({
 
     return () => window.clearTimeout(timer);
   }, [loadLatestMessages, selectedRoomId]);
+
+  useEffect(() => {
+    scrollToLatestMessage();
+  }, [latestMessageId, scrollToLatestMessage]);
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
@@ -238,7 +256,11 @@ export function ChatRoomPanel({
         ) : null}
       </div>
 
-      <div className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto p-4`}>
+      <div
+        className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto p-4`}
+        data-testid="chat-message-list"
+        ref={messagesViewportRef}
+      >
         <div className="space-y-3">
           {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
@@ -263,6 +285,7 @@ export function ChatRoomPanel({
                       alt={message.mediaAlt ?? message.body}
                       className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
                       height={mediaSize.height}
+                      onLoad={scrollToLatestMessage}
                       sizes={compact ? "320px" : "520px"}
                       src={message.mediaUrl}
                       unoptimized
