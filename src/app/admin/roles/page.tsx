@@ -42,6 +42,7 @@ export default async function AdminRolesPage() {
                   name="displayName"
                   required
                 />
+                <span className="text-xs normal-case text-bc-muted">Original role: {role.name}</span>
               </label>
               <div className="flex items-end">
                 <Button size="sm" type="submit" variant="ghost">
