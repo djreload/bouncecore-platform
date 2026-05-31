@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db/prisma";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
+const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
+
 export type ChatRoomInput = {
   roomId?: string;
   name: string;
@@ -53,6 +55,36 @@ type AuthorSummary = {
   displayName: string;
   roles: Role[];
 };
+
+function chatHistoryCutoff() {
+  return new Date(Date.now() - chatHistoryRetentionMs);
+}
+
+export async function pruneExpiredChatHistory() {
+  const result = await prisma.chatMessage.deleteMany({
+    where: {
+      createdAt: {
+        lt: chatHistoryCutoff()
+      }
+    }
+  });
+
+  if (result.count > 0) {
+    await writeAuditLog({
+      action: "chat.history.prune",
+      target: "chat-message:expired",
+      severity: "info",
+      metadata: {
+        retentionHours: 24,
+        deletedMessages: result.count
+      }
+    }).catch(() => {
+      // Automatic retention should never block chat reads or writes.
+    });
+  }
+
+  return result.count;
+}
 
 function normalizeSlug(slug: string) {
   const normalized = slug
@@ -199,6 +231,8 @@ async function getRooms() {
 }
 
 export async function getPublicChatData(roomSlug?: string) {
+  await pruneExpiredChatHistory();
+
   const rooms = await getRooms();
   const roomSummaries = rooms.map(toRoomSummary);
   const preferredSlug = roomSlug ? normalizeSlug(roomSlug) : "live";
@@ -236,6 +270,8 @@ export async function getPublicChatData(roomSlug?: string) {
 }
 
 export async function getAdminChatroomsData() {
+  await pruneExpiredChatHistory();
+
   const [rooms, messages] = await Promise.all([
     getRooms(),
     prisma.chatMessage.findMany({
@@ -353,6 +389,8 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
 }
 
 export async function createChatMessage(roomId: string, body: string, userId: string) {
+  await pruneExpiredChatHistory();
+
   const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
 
   if (normalizedBody.length < 1 || normalizedBody.length > 500) {
@@ -396,6 +434,8 @@ function normalizeGifDimension(value: number | null | undefined) {
 }
 
 export async function createChatGifMessage(roomId: string, userId: string, gif: ChatGifMessageInput) {
+  await pruneExpiredChatHistory();
+
   const gifId = gif.id.trim().slice(0, 120);
   const mediaUrl = gif.url.trim();
   const previewUrl = (gif.previewUrl || gif.url).trim();

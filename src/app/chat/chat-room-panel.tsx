@@ -188,7 +188,7 @@ export function ChatRoomPanel({
                 </div>
 
                 {message.kind === "gif" && message.mediaUrl ? (
-                  <figure className="mt-3">
+                  <div className="mt-3">
                     <Image
                       alt={message.mediaAlt ?? message.body}
                       className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
@@ -198,8 +198,7 @@ export function ChatRoomPanel({
                       unoptimized
                       width={mediaSize.width}
                     />
-                    <figcaption className="mt-2 text-xs text-bc-muted">{message.mediaAlt ?? "GIF via Tenor"}</figcaption>
-                  </figure>
+                  </div>
                 ) : (
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.body}</p>
                 )}
