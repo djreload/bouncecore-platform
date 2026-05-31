@@ -45,7 +45,7 @@ export type NavigationItem = {
 
 export const publicNavigation: NavigationItem[] = [
   { label: "Home", href: "/", icon: "home" },
-  { label: "Live", href: "/live", icon: "radio", badge: "Mock" },
+  { label: "Live", href: "/live", icon: "radio" },
   { label: "Chat", href: "/chat", icon: "message" },
   { label: "DJs", href: "/djs", icon: "headphones" },
   { label: "Producers", href: "/producers", icon: "music" },
