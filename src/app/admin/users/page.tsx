@@ -1,11 +1,17 @@
-import { Clock, KeyRound, Mail, ShieldCheck, UserPlus } from "lucide-react";
+import { Clock, KeyRound, Mail, Plus, Save, ShieldCheck, UserPlus, X } from "lucide-react";
+import {
+  addAdminUserRoleAction,
+  removeAdminUserRoleAction,
+  updateAdminUserStatusAction
+} from "@/app/admin/users/actions";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getAdminUsers } from "@/lib/admin/admin-data";
+import { getAdminRoles, getAdminUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
+import { userStatusOptions } from "@/lib/auth/user-admin-service";
 
 export const dynamic = "force-dynamic";
 
@@ -26,8 +32,8 @@ function statusTone(status: string) {
 }
 
 export default async function AdminUsersPage() {
-  await requireUserPermission("admin.access");
-  const [users, roleDisplayLabels] = await Promise.all([getAdminUsers(), getRoleDisplayNameOverrides()]);
+  const actor = await requireUserPermission("admin.access");
+  const [users, roles, roleDisplayLabels] = await Promise.all([getAdminUsers(), getAdminRoles(), getRoleDisplayNameOverrides()]);
   const activeUsers = users.filter((user) => user.status === "active").length;
   const ownerUsers = users.filter((user) => user.roles.some((userRole) => userRole.role.name === "owner")).length;
 
@@ -66,7 +72,7 @@ export default async function AdminUsersPage() {
           </Button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
             <thead className="text-bc-muted">
               <tr>
                 <th className="px-4 py-3 font-semibold">User</th>
@@ -75,57 +81,126 @@ export default async function AdminUsersPage() {
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Sessions</th>
                 <th className="px-4 py-3 font-semibold">Last login</th>
+                <th className="px-4 py-3 font-semibold">Manage</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => (
-                <tr className="border-t border-bc-line" key={user.email}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-bc-electric" aria-hidden="true" />
-                      <span className="font-semibold">{user.displayName}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-bc-muted">{user.profile?.slug ? `/${user.profile.slug}` : "No profile slug"}</p>
-                  </td>
-                  <td className="px-4 py-3 text-bc-muted">
-                    <div className="flex items-center gap-2">
-                      <Mail className="h-4 w-4" aria-hidden="true" />
-                      {user.email}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      {user.roles.length ? (
-                        user.roles.map((userRole) => (
-                          <Badge key={userRole.roleId} tone={roleBadgeTone(userRole.role.name)}>
-                            {roleDisplayName(userRole.role.name, roleDisplayLabels)}
-                          </Badge>
-                        ))
+              {users.map((user) => {
+                const assignedRoleNames = new Set(user.roles.map((userRole) => userRole.role.name));
+                const assignableRoles = roles.filter((role) => !assignedRoleNames.has(role.name));
+                const isLastOwner = assignedRoleNames.has("owner") && ownerUsers <= 1;
+                const statusChoices = userStatusOptions.filter((status) => {
+                  if ((user.id === actor.id || isLastOwner) && (status === "suspended" || status === "banned")) {
+                    return false;
+                  }
+
+                  return true;
+                });
+
+                return (
+                  <tr className="border-t border-bc-line align-top" key={user.email}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                        <span className="font-semibold">{user.displayName}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-bc-muted">{user.profile?.slug ? `/${user.profile.slug}` : "No profile slug"}</p>
+                    </td>
+                    <td className="px-4 py-3 text-bc-muted">
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4" aria-hidden="true" />
+                        {user.email}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="grid gap-2">
+                        {user.roles.length ? (
+                          user.roles.map((userRole) => (
+                            <div className="flex flex-wrap items-center gap-2" key={userRole.roleId}>
+                              <Badge tone={roleBadgeTone(userRole.role.name)}>
+                                {roleDisplayName(userRole.role.name, roleDisplayLabels)}
+                              </Badge>
+                              {userRole.role.name === "owner" && isLastOwner ? (
+                                <Badge tone="amber">Required</Badge>
+                              ) : (
+                                <form action={removeAdminUserRoleAction}>
+                                  <input name="userId" type="hidden" value={user.id} />
+                                  <input name="role" type="hidden" value={userRole.role.name} />
+                                  <Button size="sm" type="submit" variant="dark">
+                                    <X className="h-4 w-4" aria-hidden="true" />
+                                    Remove
+                                  </Button>
+                                </form>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <Badge tone="muted">No roles</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge tone={statusTone(user.status)}>{user.status}</Badge>
+                      <form action={updateAdminUserStatusAction} className="mt-3 flex flex-wrap gap-2">
+                        <input name="userId" type="hidden" value={user.id} />
+                        <select
+                          className="min-h-9 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
+                          defaultValue={user.status}
+                          name="status"
+                        >
+                          {statusChoices.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                        <Button size="sm" type="submit" variant="ghost">
+                          <Save className="h-4 w-4" aria-hidden="true" />
+                          Save
+                        </Button>
+                      </form>
+                    </td>
+                    <td className="px-4 py-3 text-bc-muted">
+                      <div className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" aria-hidden="true" />
+                        {user._count.authSessions} sessions / {user._count.streamKeys} keys
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-bc-muted">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4" aria-hidden="true" />
+                        {formatDate(user.lastLoginAt)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {assignableRoles.length ? (
+                        <form action={addAdminUserRoleAction} className="flex flex-wrap gap-2">
+                          <input name="userId" type="hidden" value={user.id} />
+                          <select
+                            className="min-h-9 max-w-[220px] rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
+                            name="role"
+                          >
+                            {assignableRoles.map((role) => (
+                              <option key={role.id} value={role.name}>
+                                {roleDisplayName(role.name, roleDisplayLabels)} ({role.name})
+                              </option>
+                            ))}
+                          </select>
+                          <Button size="sm" type="submit" variant="primary">
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            Add role
+                          </Button>
+                        </form>
                       ) : (
-                        <Badge tone="muted">No roles</Badge>
+                        <Badge tone="muted">All roles assigned</Badge>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge tone={statusTone(user.status)}>{user.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-bc-muted">
-                    <div className="flex items-center gap-2">
-                      <KeyRound className="h-4 w-4" aria-hidden="true" />
-                      {user._count.authSessions} sessions / {user._count.streamKeys} keys
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-bc-muted">
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" aria-hidden="true" />
-                      {formatDate(user.lastLoginAt)}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
               {!users.length ? (
                 <tr className="border-t border-bc-line">
-                  <td className="px-4 py-8 text-center text-bc-muted" colSpan={6}>
+                  <td className="px-4 py-8 text-center text-bc-muted" colSpan={7}>
                     No users exist yet. Run owner setup to create the first account.
                   </td>
                 </tr>
