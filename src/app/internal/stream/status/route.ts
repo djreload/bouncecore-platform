@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
-import { getStreamProvider } from "@/lib/stream/stream-provider";
+import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 
 export async function GET() {
-  const provider = getStreamProvider();
-  const [status, health, playbackUrl, viewerCount] = await Promise.all([
-    provider.getStreamStatus(),
-    provider.getStreamHealth(),
-    provider.getPlaybackUrl(),
-    provider.getViewerCount()
-  ]);
+  const liveState = await getPublicLiveState();
 
   return NextResponse.json({
-    status,
-    health,
-    playbackUrl,
-    viewerCount
+    status: liveState.status,
+    health: liveState.health,
+    playbackUrl: liveState.playbackUrl,
+    viewerCount: liveState.viewerCount,
+    channel: liveState.channel,
+    provider: liveState.provider
   });
 }

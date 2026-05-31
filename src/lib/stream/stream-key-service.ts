@@ -28,6 +28,19 @@ function createRawStreamKey() {
   return createSecretToken("bc_live");
 }
 
+async function getPrimaryChannelId() {
+  const channel = await prisma.streamChannel.findFirst({
+    orderBy: {
+      slug: "asc"
+    },
+    select: {
+      id: true
+    }
+  });
+
+  return channel?.id;
+}
+
 function toSummary(key: {
   id: string;
   fingerprint: string;
@@ -87,10 +100,12 @@ export async function createStreamKeyForUser(
   const rawKey = createRawStreamKey();
   const keyHash = hashSecretToken(rawKey);
   const fingerprint = tokenFingerprint(rawKey);
+  const channelId = await getPrimaryChannelId();
 
   const key = await prisma.streamKey.create({
     data: {
       userId,
+      channelId,
       keyHash,
       fingerprint,
       status: activeStatus
@@ -130,6 +145,7 @@ export async function rotateStreamKeyForUser(
   const rawKey = createRawStreamKey();
   const keyHash = hashSecretToken(rawKey);
   const fingerprint = tokenFingerprint(rawKey);
+  const channelId = await getPrimaryChannelId();
 
   const key = await prisma.$transaction(async (tx) => {
     await tx.streamKey.updateMany({
@@ -147,6 +163,7 @@ export async function rotateStreamKeyForUser(
     return tx.streamKey.create({
       data: {
         userId,
+        channelId,
         keyHash,
         fingerprint,
         status: activeStatus
