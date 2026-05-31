@@ -66,7 +66,16 @@ export function ChatRoomPanel({
               {selectedRoom ? `${messages.length} visible messages in #${selectedRoom.slug}.` : "Create rooms from admin to start chat."}
             </p>
           </div>
-          {currentUser ? <Badge tone="acid">{currentUser.displayName}</Badge> : null}
+          {currentUser ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge tone="acid">{currentUser.displayName}</Badge>
+              {currentUser.roles.map((role) => (
+                <Badge key={role} tone={roleBadgeTone(role)}>
+                  {roleDisplayName(role, roleDisplayLabels)}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         {showRoomLinks && rooms.length ? (
@@ -95,7 +104,7 @@ export function ChatRoomPanel({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{message.authorDisplayName}</span>
-                  {message.authorRoles.slice(0, 2).map((role) => (
+                  {message.authorRoles.map((role) => (
                     <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
                       {roleDisplayName(role, roleDisplayLabels)}
                     </Badge>

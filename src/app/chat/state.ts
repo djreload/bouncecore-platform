@@ -20,6 +20,7 @@ export type PublicChatMessageRow = {
 export type PublicChatUser = {
   id: string;
   displayName: string;
+  roles: Role[];
 };
 
 export type PublicChatActionState = {

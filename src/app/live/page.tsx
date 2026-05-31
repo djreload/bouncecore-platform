@@ -79,7 +79,7 @@ export default async function LivePage() {
             </div>
             <ChatRoomPanel
               compact
-              currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName } : null}
+              currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
               messages={messageRows}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
