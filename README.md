@@ -75,6 +75,16 @@ http://localhost:3000
 
 The VPS currently appears to be Plesk-managed. Do not edit global nginx, Apache, mail, database, or unrelated site configs without confirming the Plesk domain layout first.
 
+## Interactive Server Install
+
+For a fresh Linux server with a checked-out copy of this repo, run:
+
+```bash
+bash scripts/install-instance.sh
+```
+
+The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+
 ## Secrets Warning
 
 Never commit:

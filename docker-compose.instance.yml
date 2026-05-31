@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${POSTGRES_CONTAINER:-bouncecore-postgres}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bouncecore_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-bouncecore_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bouncecore_app} -d ${POSTGRES_DB:-bouncecore_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: ${REDIS_CONTAINER:-bouncecore-redis}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${APP_IMAGE:-bouncecore-platform}:${APP_IMAGE_TAG:-instance}
+    container_name: ${APP_CONTAINER:-bouncecore-app}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.instance
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME:-bouncecore_postgres_data}
+  redis_data:
+    name: ${REDIS_VOLUME:-bouncecore_redis_data}
