@@ -1,27 +1,35 @@
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
-import { roleDefinitions, rolePermissions } from "@/lib/auth/rbac";
+import { getAdminRoles } from "@/lib/admin/admin-data";
+import { requireUserPermission } from "@/lib/auth/guards";
 
-export default function AdminRolesPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AdminRolesPage() {
+  await requireUserPermission("admin.access");
+  const roles = await getAdminRoles();
+
   return (
     <AdminShell
       title="Roles"
       description="System role map for Bouncecore account, admin, streaming, marketplace, commerce, and supporter access."
     >
       <div className="grid gap-4 lg:grid-cols-2">
-        {roleDefinitions.map((role) => (
-          <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={role.key}>
+        {roles.map((role) => (
+          <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={role.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <Badge tone={role.key === "owner" ? "pink" : role.key === "streamer" ? "cyan" : "muted"}>{role.label}</Badge>
-              <span className="text-xs font-semibold uppercase text-bc-muted">{rolePermissions[role.key].length} permissions</span>
+              <Badge tone={role.name === "owner" ? "pink" : role.name === "streamer" ? "cyan" : "muted"}>{role.name}</Badge>
+              <span className="text-xs font-semibold uppercase text-bc-muted">
+                {role.permissions.length} permissions / {role._count.users} users
+              </span>
             </div>
-            <h3 className="mt-4 text-xl font-black">{role.label}</h3>
+            <h3 className="mt-4 text-xl font-black">{role.name}</h3>
             <p className="mt-2 text-sm text-bc-muted">{role.description}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {rolePermissions[role.key].length ? (
-                rolePermissions[role.key].map((permission) => (
-                  <Badge key={permission} tone="muted">
-                    {permission}
+              {role.permissions.length ? (
+                role.permissions.map(({ permission }) => (
+                  <Badge key={permission.id} tone="muted">
+                    {permission.key}
                   </Badge>
                 ))
               ) : (
@@ -30,6 +38,12 @@ export default function AdminRolesPage() {
             </div>
           </article>
         ))}
+        {!roles.length ? (
+          <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+            <Badge tone="muted">Empty</Badge>
+            <p className="mt-3 text-sm text-bc-muted">No roles are seeded yet.</p>
+          </article>
+        ) : null}
       </div>
     </AdminShell>
   );

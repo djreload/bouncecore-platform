@@ -1,7 +1,9 @@
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { requireUserPermission } from "@/lib/auth/guards";
 
 export default async function AdminPlaceholderPage({ params }: { params: Promise<{ slug: string[] }> }) {
+  await requireUserPermission("admin.access");
   const { slug } = await params;
   const title = slug.map((part) => part.replaceAll("-", " ")).join(" / ");
 

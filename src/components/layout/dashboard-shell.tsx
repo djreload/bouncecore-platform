@@ -1,5 +1,7 @@
 import { GroupedNav } from "@/components/navigation/grouped-nav";
 import { accountNavigation, producerNavigation, streamerNavigation } from "@/config/navigation";
+import { filterNavigationByRoles, type Role } from "@/lib/auth/rbac";
+import { requireAnyRole, requireSignedInUser } from "@/lib/auth/guards";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -8,8 +10,16 @@ type DashboardShellProps = {
   mode?: "account" | "streamer" | "producer";
 };
 
-export function DashboardShell({ children, title, description, mode = "account" }: DashboardShellProps) {
+const workspaceRoles = {
+  account: null,
+  streamer: ["streamer", "admin", "owner"],
+  producer: ["producer", "admin", "owner"]
+} satisfies Record<NonNullable<DashboardShellProps["mode"]>, readonly Role[] | null>;
+
+export async function DashboardShell({ children, title, description, mode = "account" }: DashboardShellProps) {
+  const user = workspaceRoles[mode] ? await requireAnyRole(workspaceRoles[mode]) : await requireSignedInUser();
   const roleItems = mode === "streamer" ? streamerNavigation : mode === "producer" ? producerNavigation : [];
+  const visibleNavigation = filterNavigationByRoles([...accountNavigation, ...roleItems], user.roles);
 
   return (
     <main className="min-h-screen bg-bc-void text-white">
@@ -19,7 +29,7 @@ export function DashboardShell({ children, title, description, mode = "account" 
             <p className="text-xs font-semibold uppercase text-bc-electric">Bouncecore account</p>
             <h1 className="mt-1 text-xl font-black">{mode === "account" ? "Dashboard" : title}</h1>
           </div>
-          <GroupedNav items={[...accountNavigation, ...roleItems]} />
+          <GroupedNav items={visibleNavigation} />
         </aside>
         <section>
           <div className="mb-5 rounded-md border border-bc-line bg-bc-panel p-5">

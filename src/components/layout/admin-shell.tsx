@@ -1,6 +1,8 @@
 import { Search } from "lucide-react";
 import { adminNavigation } from "@/config/navigation";
 import { GroupedNav } from "@/components/navigation/grouped-nav";
+import { filterNavigationByRoles } from "@/lib/auth/rbac";
+import { requireUserPermission } from "@/lib/auth/guards";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -8,7 +10,10 @@ type AdminShellProps = {
   description: string;
 };
 
-export function AdminShell({ children, title, description }: AdminShellProps) {
+export async function AdminShell({ children, title, description }: AdminShellProps) {
+  const user = await requireUserPermission("admin.access");
+  const visibleNavigation = filterNavigationByRoles(adminNavigation, user.roles);
+
   return (
     <main className="min-h-screen bg-bc-void text-white">
       <div className="mx-auto grid max-w-[1500px] gap-6 px-4 py-6 xl:grid-cols-[320px_1fr]">
@@ -21,7 +26,7 @@ export function AdminShell({ children, title, description }: AdminShellProps) {
             <Search className="h-4 w-4" aria-hidden="true" />
             <span>Search users, orders, streams</span>
           </div>
-          <GroupedNav items={adminNavigation} />
+          <GroupedNav items={visibleNavigation} />
         </aside>
         <section>
           <div className="mb-5 rounded-md border border-bc-line bg-bc-panel p-5">

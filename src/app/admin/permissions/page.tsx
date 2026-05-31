@@ -1,9 +1,17 @@
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
-import { groupPermissionsByArea } from "@/lib/auth/rbac";
+import { getAdminPermissions } from "@/lib/admin/admin-data";
+import { requireUserPermission } from "@/lib/auth/guards";
 
-export default function AdminPermissionsPage() {
-  const groups = groupPermissionsByArea();
+export const dynamic = "force-dynamic";
+
+export default async function AdminPermissionsPage() {
+  await requireUserPermission("admin.access");
+  const permissions = await getAdminPermissions();
+  const groups = permissions.reduce<Record<string, typeof permissions>>((permissionGroups, permission) => {
+    permissionGroups[permission.group] = [...(permissionGroups[permission.group] ?? []), permission];
+    return permissionGroups;
+  }, {});
 
   return (
     <AdminShell
@@ -22,6 +30,17 @@ export default function AdminPermissionsPage() {
                 <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={permission.key}>
                   <Badge tone="muted">{permission.key}</Badge>
                   <p className="mt-3 text-sm text-bc-muted">{permission.description}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {permission.roles.length ? (
+                      permission.roles.map(({ role }) => (
+                        <Badge key={role.id} tone={role.name === "owner" ? "pink" : "muted"}>
+                          {role.name}
+                        </Badge>
+                      ))
+                    ) : (
+                      <Badge tone="amber">No role grants</Badge>
+                    )}
+                  </div>
                 </article>
               ))}
             </div>
