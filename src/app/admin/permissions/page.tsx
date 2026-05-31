@@ -2,6 +2,7 @@ import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { getAdminPermissions } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 
 export const dynamic = "force-dynamic";
 
@@ -33,8 +34,8 @@ export default async function AdminPermissionsPage() {
                   <div className="mt-3 flex flex-wrap gap-2">
                     {permission.roles.length ? (
                       permission.roles.map(({ role }) => (
-                        <Badge key={role.id} tone={role.name === "owner" ? "pink" : "muted"}>
-                          {role.name}
+                        <Badge key={role.id} tone={roleBadgeTone(role.name)}>
+                          {roleDisplayName(role.name)}
                         </Badge>
                       ))
                     ) : (

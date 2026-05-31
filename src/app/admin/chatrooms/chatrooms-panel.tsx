@@ -5,6 +5,7 @@ import { MessageSquare, Plus, Radio, Save, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
@@ -36,18 +37,6 @@ function roomTone(type: string) {
   }
 
   return "cyan" as const;
-}
-
-function roleTone(role: string) {
-  if (role === "owner") {
-    return "pink" as const;
-  }
-
-  if (role === "admin" || role === "moderator") {
-    return "amber" as const;
-  }
-
-  return "muted" as const;
 }
 
 export function AdminChatroomsPanel({ rooms, messages }: AdminChatroomsPanelProps) {
@@ -231,8 +220,8 @@ export function AdminChatroomsPanel({ rooms, messages }: AdminChatroomsPanelProp
                     <p className="font-semibold">{message.authorDisplayName}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {message.authorRoles.map((role) => (
-                        <Badge key={role} tone={roleTone(role)}>
-                          {role}
+                        <Badge key={role} tone={roleBadgeTone(role)}>
+                          {roleDisplayName(role)}
                         </Badge>
                       ))}
                     </div>

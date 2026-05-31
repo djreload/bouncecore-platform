@@ -3,13 +3,13 @@ import type { NavigationItem } from "@/config/navigation";
 export const roleDefinitions = [
   {
     key: "owner",
-    label: "Owner",
-    description: "Full platform control, owner-only settings, admin management, stream-key audit, and system ownership."
+    label: "Server Owner",
+    description: "Server-owner control, owner-only settings, admin management, stream-key audit, and system ownership."
   },
   {
     key: "admin",
-    label: "Admin",
-    description: "Operational platform management across users, streams, chat, shop, music, payments, rewards, mobile, and site settings."
+    label: "Stream Owner",
+    description: "Stream-owner operations across users, streams, chat, shop, music, payments, rewards, mobile, and site settings."
   },
   {
     key: "moderator",

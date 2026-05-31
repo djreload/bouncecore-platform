@@ -6,6 +6,7 @@ import { LogIn, MessageSquare, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import {
   initialPublicChatActionState,
   type PublicChatActionState,
@@ -37,22 +38,6 @@ function roomTone(type: string) {
   }
 
   return "cyan" as const;
-}
-
-function roleTone(role: string) {
-  if (role === "owner") {
-    return "pink" as const;
-  }
-
-  if (role === "admin" || role === "moderator") {
-    return "amber" as const;
-  }
-
-  if (role === "streamer" || role === "producer") {
-    return "cyan" as const;
-  }
-
-  return "muted" as const;
 }
 
 export function ChatRoomPanel({
@@ -109,8 +94,8 @@ export function ChatRoomPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold">{message.authorDisplayName}</span>
                   {message.authorRoles.slice(0, 2).map((role) => (
-                    <Badge className="py-0.5" key={role} tone={roleTone(role)}>
-                      {role}
+                    <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
+                      {roleDisplayName(role)}
                     </Badge>
                   ))}
                 </div>

@@ -2,6 +2,7 @@ import { KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getCurrentUser } from "@/lib/auth/session";
 
 export default async function AccountSecurityPage() {
@@ -36,8 +37,8 @@ export default async function AccountSecurityPage() {
                 <dd className="mt-2 flex flex-wrap gap-2">
                   {user.roles.length ? (
                     user.roles.map((role) => (
-                      <Badge key={role} tone="cyan">
-                        {role}
+                      <Badge key={role} tone={roleBadgeTone(role)}>
+                        {roleDisplayName(role)}
                       </Badge>
                     ))
                   ) : (

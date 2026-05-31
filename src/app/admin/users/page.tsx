@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,7 @@ export default async function AdminUsersPage() {
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="pink">Audit</Badge>
           <p className="mt-4 text-3xl font-black">{ownerUsers}</p>
-          <p className="mt-2 text-sm text-bc-muted">Owner role assignments controlling full platform access.</p>
+          <p className="mt-2 text-sm text-bc-muted">Server owner assignments controlling full platform access.</p>
         </article>
       </div>
 
@@ -95,8 +96,8 @@ export default async function AdminUsersPage() {
                     <div className="flex flex-wrap gap-2">
                       {user.roles.length ? (
                         user.roles.map((userRole) => (
-                          <Badge key={userRole.roleId} tone={userRole.role.name === "owner" ? "pink" : "muted"}>
-                            {userRole.role.name}
+                          <Badge key={userRole.roleId} tone={roleBadgeTone(userRole.role.name)}>
+                            {roleDisplayName(userRole.role.name)}
                           </Badge>
                         ))
                       ) : (

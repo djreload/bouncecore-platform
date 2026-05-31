@@ -5,6 +5,7 @@ import { Copy, KeyRound, RefreshCw, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminStreamKeyAction } from "@/app/admin/stream-keys/actions";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import {
   initialAdminStreamKeyActionState,
   type AdminStreamKeyActionState,
@@ -160,8 +161,8 @@ export function AdminStreamKeysPanel({ keys, users, canRevealRawKeys }: AdminStr
                       <p className="mt-1 text-xs text-bc-muted">{key.userEmail}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {key.userRoles.map((role) => (
-                          <Badge key={role} tone={role === "owner" ? "pink" : "muted"}>
-                            {role}
+                          <Badge key={role} tone={roleBadgeTone(role)}>
+                            {roleDisplayName(role)}
                           </Badge>
                         ))}
                       </div>
