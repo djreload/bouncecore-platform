@@ -24,7 +24,29 @@ Read-only SSH inspection of `root@77.68.103.65` found:
 
 ## Safety Decision
 
-No deployment changes were made because Plesk is present and actively managing nginx/Apache/PHP services. The safe next step is to confirm the Plesk subscription/domain layout for `develop.k-nrg.co.uk` before editing web server configs or installing platform services.
+Initial deployment changes have now been made only for the Bouncecore staging target. Plesk is present and actively managing nginx/Apache/PHP services, so the deployment uses isolated Docker services and a domain-specific Apache custom include for `develop.k-nrg.co.uk`.
+
+No unrelated domains, databases, mail settings, or existing containers were modified.
+
+## Current Staging Status
+
+As of this deployment slice:
+
+- Repository path: `/var/www/bouncecore-platform`
+- Deployed branch: `codex/phase-1-auth-foundation`
+- App container: `bouncecore-app`, bound to `127.0.0.1:3000`
+- PostgreSQL container: `bouncecore-postgres`, bound to `127.0.0.1:5432`
+- Redis container: `bouncecore-redis`, bound to `127.0.0.1:6379`
+- Existing unrelated Docker container left alone: `bouncecast`
+- Public URL: `https://develop.k-nrg.co.uk`
+- Health endpoint verified: `https://develop.k-nrg.co.uk/api/health`
+- Setup status verified: `https://develop.k-nrg.co.uk/api/setup/status`
+- Owner setup page verified: `https://develop.k-nrg.co.uk/setup/owner`
+- Initial Prisma migration applied.
+- RBAC seed completed.
+- Owner account not created yet.
+
+The server-side environment file is `/var/www/bouncecore-platform/.env.staging`. It contains generated secrets and must not be committed or displayed.
 
 ## Target Directory
 
@@ -85,6 +107,17 @@ Use Plesk-safe nginx configuration for only `develop.k-nrg.co.uk`:
 - Do not edit unrelated vhosts.
 - Back up Plesk-generated config before changes.
 - Test nginx config before reload.
+
+Actual proxy path used:
+
+- Plesk nginx continues to terminate HTTPS and proxy to the domain Apache vhost.
+- Domain-specific Apache custom file:
+  `/var/www/vhosts/system/develop.k-nrg.co.uk/conf/vhost_ssl.conf`
+- That file proxies the SSL Apache vhost to `http://127.0.0.1:3000/`.
+- Backups were written under:
+  `/var/www/vhosts/system/develop.k-nrg.co.uk/conf/bouncecore-backups/`
+- `apache2ctl configtest` returned `Syntax OK`.
+- `nginx -t` returned successful config validation.
 
 ## SSL Plan
 
