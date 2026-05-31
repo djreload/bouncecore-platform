@@ -144,11 +144,11 @@ git clone git@github.com:djreload/bouncecore-platform.git .
 git checkout codex/phase-1-auth-foundation
 
 # Create .env.staging with server-only secrets before starting containers.
-docker compose -f docker-compose.staging.yml up -d postgres redis
-docker compose -f docker-compose.staging.yml build app
-docker compose -f docker-compose.staging.yml run --rm app npm run db:migrate
-docker compose -f docker-compose.staging.yml run --rm app npm run db:seed
-docker compose -f docker-compose.staging.yml up -d app
+docker compose --env-file .env.staging -f docker-compose.staging.yml up -d postgres redis
+docker compose --env-file .env.staging -f docker-compose.staging.yml build app
+docker compose --env-file .env.staging -f docker-compose.staging.yml run --rm app npm run db:migrate
+docker compose --env-file .env.staging -f docker-compose.staging.yml run --rm app npm run db:seed
+docker compose --env-file .env.staging -f docker-compose.staging.yml up -d app
 ```
 
 After migrations and seed data are applied, open:
