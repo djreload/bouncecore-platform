@@ -1,12 +1,20 @@
 import type { Role } from "@/lib/auth/rbac";
 
-const roleDisplayNames: Partial<Record<Role, string>> = {
+export type RoleDisplayNameMap = Record<string, string>;
+
+const defaultRoleDisplayNames: Partial<Record<Role, string>> = {
   owner: "Server owner",
   admin: "Stream owner"
 };
 
-export function roleDisplayName(role: Role | string) {
-  return roleDisplayNames[role as Role] ?? role;
+export function roleDisplayName(role: Role | string, overrides?: RoleDisplayNameMap) {
+  const override = overrides?.[role];
+
+  if (override?.trim()) {
+    return override;
+  }
+
+  return defaultRoleDisplayNames[role as Role] ?? role;
 }
 
 export function roleBadgeTone(role: Role | string) {
