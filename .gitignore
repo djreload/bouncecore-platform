@@ -1,0 +1,47 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+generated-secrets/
+stream-keys/
+
+# Dependencies
+node_modules/
+vendor/
+
+# Next.js and build outputs
+.next/
+out/
+build/
+dist/
+coverage/
+
+# Logs and caches
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm/
+.eslintcache
+tsconfig.tsbuildinfo
+.turbo/
+.vercel/
+.codex-run/
+
+# Prisma/local data
+*.db
+*.db-journal
+prisma/dev.db
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

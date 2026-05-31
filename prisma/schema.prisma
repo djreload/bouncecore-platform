@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  displayName     String
+  passwordHash    String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  profile         Profile?
+  roles           UserRole[]
+  streamKeys      StreamKey[]
+  auditLogs       AuditLog[]
+  notifications   Notification[]
+  producerProfile ProducerProfile?
+  orders          Order[]
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String?
+  roles       RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  slug      String   @unique
+  bio       String?
+  avatarUrl String?
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StreamChannel {
+  id          String          @id @default(cuid())
+  slug        String          @unique
+  title       String
+  playbackUrl String?
+  status      String          @default("offline")
+  streamKeys  StreamKey[]
+  sessions    StreamSession[]
+  events      StreamEvent[]
+}
+
+model StreamKey {
+  id             String        @id @default(cuid())
+  userId         String
+  channelId      String?
+  keyHash        String
+  fingerprint    String        @unique
+  status         String        @default("active")
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel        StreamChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+}
+
+model StreamSession {
+  id        String        @id @default(cuid())
+  channelId String
+  startedAt DateTime
+  endedAt   DateTime?
+  peakViewers Int         @default(0)
+  channel   StreamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+}
+
+model StreamEvent {
+  id        String        @id @default(cuid())
+  channelId String
+  type      String
+  payload   Json?
+  createdAt DateTime      @default(now())
+  channel   StreamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+}
+
+model ChatRoom {
+  id        String        @id @default(cuid())
+  slug      String        @unique
+  name      String
+  type      String        @default("public")
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now())
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String?
+  body      String
+  deletedAt DateTime?
+  createdAt DateTime @default(now())
+  room      ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  id          String           @id @default(cuid())
+  slug        String           @unique
+  name        String
+  description String?
+  status      String           @default("draft")
+  variants    ProductVariant[]
+}
+
+model ProductVariant {
+  id        String  @id @default(cuid())
+  productId String
+  sku       String  @unique
+  name      String
+  pricePence Int
+  stock     Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id        String   @id @default(cuid())
+  userId    String
+  status    String   @default("pending")
+  totalPence Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProducerProfile {
+  id        String         @id @default(cuid())
+  userId    String         @unique
+  slug      String         @unique
+  name      String
+  bio       String?
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tracks    DigitalTrack[]
+}
+
+model DigitalTrack {
+  id          String          @id @default(cuid())
+  producerId  String
+  slug        String          @unique
+  title       String
+  genre       String?
+  bpm         Int?
+  musicalKey  String?
+  pricePence  Int
+  status      String          @default("draft")
+  producer    ProducerProfile @relation(fields: [producerId], references: [id], onDelete: Cascade)
+}
+
+model StarWallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  balance   Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
