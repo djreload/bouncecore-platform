@@ -136,8 +136,17 @@ npm ci
 npm run build
 npm run prisma:generate
 # Run migrations only after DATABASE_URL points to the Bouncecore database.
-npx prisma migrate deploy
+npm run db:migrate
+npm run db:seed
 ```
+
+After migrations and seed data are applied, open:
+
+```text
+https://develop.k-nrg.co.uk/setup/owner
+```
+
+Use it once to create the first Owner account. The route locks itself once an Owner role assignment exists.
 
 ## Rollback Plan
 

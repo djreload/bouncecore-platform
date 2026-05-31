@@ -43,6 +43,7 @@ This scaffold includes:
 - Password/session/token helper scaffolding
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
+- Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Required planning, design, navigation, stream-boundary, and deployment docs
 
 ## Local Development
@@ -55,6 +56,8 @@ npm.cmd run dev
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run build
+npm.cmd run db:migrate
+npm.cmd run db:seed
 ```
 
 Open the app locally at:

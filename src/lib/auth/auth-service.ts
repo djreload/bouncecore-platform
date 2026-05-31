@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
-import { randomBytes } from "node:crypto";
 import { Prisma, type UserStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { hashPassword, verifyPassword } from "@/lib/auth/passwords";
+import { makeProfileSlug } from "@/lib/auth/slugs";
 import { createSecretToken, hashSecretToken, tokenFingerprint } from "@/lib/auth/tokens";
 
 export const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
@@ -38,17 +38,6 @@ function sessionExpiry() {
 
 function allowedLoginStatus(status: UserStatus) {
   return status === "active" || status === "pending";
-}
-
-function makeProfileSlug(displayName: string) {
-  const base = displayName
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-
-  return `${base || "raver"}-${randomBytes(3).toString("hex")}`;
 }
 
 export async function registerUser(input: RegisterInput): Promise<AuthResult> {

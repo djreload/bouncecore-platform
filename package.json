@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

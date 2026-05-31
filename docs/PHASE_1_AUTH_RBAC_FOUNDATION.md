@@ -15,6 +15,9 @@ This slice creates the first concrete foundation for Bouncecore-owned identity a
 - Register, login, logout, and current-session API route scaffolding.
 - Form-backed login and register pages.
 - Dedicated account security page with session state and logout action.
+- Initial migration at `prisma/migrations/0001_initial_bouncecore_foundation/migration.sql`.
+- Owner bootstrap page and route at `/setup/owner` and `/api/setup/owner`.
+- Setup status endpoint at `/api/setup/status`.
 - Prisma singleton.
 - Prisma 7 PostgreSQL driver adapter setup with `@prisma/adapter-pg` and `pg`.
 - Prisma auth/session/token/settings/audit model expansion.
@@ -49,7 +52,7 @@ Run after a real Bouncecore PostgreSQL database exists:
 
 ```powershell
 npm.cmd run prisma:generate
-npx prisma migrate dev --name phase_1_auth_rbac_foundation
+npm.cmd run db:migrate
 npm.cmd run db:seed
 ```
 
@@ -60,6 +63,7 @@ Do not run migrations against unrelated databases.
 - Choose final auth runtime implementation: Better Auth, Auth.js, or custom session service.
 - Apply migrations and seed the Bouncecore database so register/login/logout routes can persist real accounts.
 - Replace temporary database-unavailable fallbacks with observed error handling once staging database health checks exist.
+- Use `/setup/owner` once after migration to create the first Owner account, then rely on normal admin user management.
 - Add server-side route guards for admin, streamer, producer, and account routes.
 - Add CSRF protection for state-changing forms.
 - Add rate limits for auth endpoints.
