@@ -18,6 +18,12 @@ export type StreamKeyMutationResult = {
   rawKey?: string;
 };
 
+type StreamKeyAuditOptions = {
+  action: string;
+  actorId: string;
+  metadata?: Record<string, string>;
+};
+
 function createRawStreamKey() {
   return createSecretToken("bc_live");
 }
@@ -41,6 +47,10 @@ function toSummary(key: {
 }
 
 export async function getOwnActiveStreamKey(userId: string): Promise<StreamKeySummary | null> {
+  return getActiveStreamKeyForUser(userId);
+}
+
+export async function getActiveStreamKeyForUser(userId: string): Promise<StreamKeySummary | null> {
   const key = await prisma.streamKey.findFirst({
     where: {
       userId,
@@ -56,7 +66,17 @@ export async function getOwnActiveStreamKey(userId: string): Promise<StreamKeySu
 }
 
 export async function createOwnStreamKey(userId: string, actorId: string): Promise<StreamKeyMutationResult> {
-  const existingKey = await getOwnActiveStreamKey(userId);
+  return createStreamKeyForUser(userId, {
+    action: "stream.key.create",
+    actorId
+  });
+}
+
+export async function createStreamKeyForUser(
+  userId: string,
+  audit: StreamKeyAuditOptions
+): Promise<StreamKeyMutationResult> {
+  const existingKey = await getActiveStreamKeyForUser(userId);
 
   if (existingKey) {
     return {
@@ -78,12 +98,14 @@ export async function createOwnStreamKey(userId: string, actorId: string): Promi
   });
 
   await writeAuditLog({
-    actorId,
-    action: "stream.key.create",
+    actorId: audit.actorId,
+    action: audit.action,
     target: `stream-key:${key.id}`,
     severity: "critical",
     metadata: {
-      fingerprint
+      fingerprint,
+      targetUserId: userId,
+      ...audit.metadata
     }
   });
 
@@ -94,6 +116,16 @@ export async function createOwnStreamKey(userId: string, actorId: string): Promi
 }
 
 export async function rotateOwnStreamKey(userId: string, actorId: string): Promise<StreamKeyMutationResult> {
+  return rotateStreamKeyForUser(userId, {
+    action: "stream.key.rotate",
+    actorId
+  });
+}
+
+export async function rotateStreamKeyForUser(
+  userId: string,
+  audit: StreamKeyAuditOptions
+): Promise<StreamKeyMutationResult> {
   const now = new Date();
   const rawKey = createRawStreamKey();
   const keyHash = hashSecretToken(rawKey);
@@ -123,12 +155,14 @@ export async function rotateOwnStreamKey(userId: string, actorId: string): Promi
   });
 
   await writeAuditLog({
-    actorId,
-    action: "stream.key.rotate",
+    actorId: audit.actorId,
+    action: audit.action,
     target: `stream-key:${key.id}`,
     severity: "critical",
     metadata: {
-      fingerprint
+      fingerprint,
+      targetUserId: userId,
+      ...audit.metadata
     }
   });
 
@@ -139,7 +173,7 @@ export async function rotateOwnStreamKey(userId: string, actorId: string): Promi
 }
 
 export async function revokeOwnStreamKey(userId: string, actorId: string): Promise<StreamKeyMutationResult> {
-  const activeKey = await getOwnActiveStreamKey(userId);
+  const activeKey = await getActiveStreamKeyForUser(userId);
 
   if (!activeKey) {
     return {
@@ -164,6 +198,49 @@ export async function revokeOwnStreamKey(userId: string, actorId: string): Promi
     severity: "critical",
     metadata: {
       fingerprint: activeKey.fingerprint
+    }
+  });
+
+  return {
+    key: null
+  };
+}
+
+export async function revokeStreamKeyById(
+  keyId: string,
+  audit: StreamKeyAuditOptions
+): Promise<StreamKeyMutationResult> {
+  const key = await prisma.streamKey.findUnique({
+    where: {
+      id: keyId
+    }
+  });
+
+  if (!key || key.revokedAt) {
+    return {
+      key: null
+    };
+  }
+
+  await prisma.streamKey.update({
+    where: {
+      id: key.id
+    },
+    data: {
+      status: "revoked",
+      revokedAt: new Date()
+    }
+  });
+
+  await writeAuditLog({
+    actorId: audit.actorId,
+    action: audit.action,
+    target: `stream-key:${key.id}`,
+    severity: "critical",
+    metadata: {
+      fingerprint: key.fingerprint,
+      targetUserId: key.userId,
+      ...audit.metadata
     }
   });
 

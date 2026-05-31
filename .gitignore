@@ -8,7 +8,7 @@
 *.pfx
 secrets/
 generated-secrets/
-stream-keys/
+/stream-keys/
 
 # Dependencies
 node_modules/

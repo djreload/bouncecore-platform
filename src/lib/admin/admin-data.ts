@@ -122,3 +122,60 @@ export async function getAdminAuditLogs() {
     take: 50
   });
 }
+
+export async function getAdminStreamKeys() {
+  return prisma.streamKey.findMany({
+    orderBy: {
+      createdAt: "desc"
+    },
+    include: {
+      user: {
+        include: {
+          roles: {
+            include: {
+              role: true
+            },
+            orderBy: {
+              createdAt: "asc"
+            }
+          }
+        }
+      }
+    },
+    take: 100
+  });
+}
+
+export async function getAdminStreamKeyUsers() {
+  return prisma.user.findMany({
+    where: {
+      status: {
+        in: ["active", "pending"]
+      }
+    },
+    orderBy: {
+      displayName: "asc"
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        },
+        orderBy: {
+          createdAt: "asc"
+        }
+      },
+      streamKeys: {
+        where: {
+          status: "active",
+          revokedAt: null
+        },
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 1
+      }
+    },
+    take: 100
+  });
+}
