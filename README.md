@@ -56,6 +56,7 @@ This scaffold includes:
 - Data-backed streamer profile editor and public DJ directory
 - Data-backed producer profiles, track management, and public music catalogue
 - Data-backed merch product catalogue and admin product management
+- Data-backed stars wallets, public rewards, and admin stars controls
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
