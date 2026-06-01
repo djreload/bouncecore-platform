@@ -57,6 +57,7 @@ This scaffold includes:
 - Data-backed producer profiles, track management, and public music catalogue
 - Data-backed admin music track management and producer approval queue
 - Data-backed merch product catalogue and admin product management
+- Data-backed account orders, admin order management, and fulfilment queue
 - Data-backed stars wallets, public rewards, and admin stars controls
 - PayPal-only payment integration foundation for stars, shop checkout, and producer payouts
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
