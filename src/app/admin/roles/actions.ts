@@ -27,4 +27,5 @@ export async function updateRoleDisplayLabelAction(formData: FormData) {
   revalidatePath("/account/security");
   revalidatePath("/chat");
   revalidatePath("/live");
+  revalidatePath("/djs");
 }
