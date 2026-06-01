@@ -57,6 +57,7 @@ This scaffold includes:
 - Data-backed producer profiles, track management, and public music catalogue
 - Data-backed merch product catalogue and admin product management
 - Data-backed stars wallets, public rewards, and admin stars controls
+- PayPal-only payment integration foundation for stars, shop checkout, and producer payouts
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
@@ -97,7 +98,7 @@ For a fresh Linux server with a checked-out copy of this repo, run:
 bash scripts/install-instance.sh
 ```
 
-The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, Tenor GIF API key, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, Tenor GIF API key, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
 
 ## Secrets Warning
 

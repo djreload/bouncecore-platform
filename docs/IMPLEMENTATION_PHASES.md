@@ -39,7 +39,7 @@
 - Build products, variants, stock, cart, checkout model, orders, addresses, fulfilment events.
 - Add customer order history.
 - Add admin fulfilment dashboard.
-- Prepare Stripe/PayPal payment abstraction.
+- Prepare PayPal payment abstraction for stars, shop checkout, and producer payouts.
 
 ## Phase 6: Music Marketplace and Producers
 

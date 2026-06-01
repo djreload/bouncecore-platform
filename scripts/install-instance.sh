@@ -48,6 +48,14 @@ prompt_optional_secret() {
   printf '%s' "$value"
 }
 
+prompt_secret_optional() {
+  local label="$1"
+  local value
+  read -r -s -p "$label (leave blank to skip): " value
+  printf '\n' >&2
+  printf '%s' "$value"
+}
+
 confirm() {
   local label="$1"
   local default_value="${2:-y}"
@@ -246,7 +254,13 @@ STREAM_CORE_INTERNAL_TOKEN="$(prompt_optional_secret "Stream core internal token
 STREAM_CORE_INTERNAL_TOKEN="${STREAM_CORE_INTERNAL_TOKEN:-$(generate_secret)}"
 RTMP_INGEST_URL="$(prompt "Public RTMP ingest URL" "rtmp://develop.k-nrg.co.uk/live")"
 PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "https://develop.k-nrg.co.uk/hls/live.m3u8")"
-TENOR_API_KEY="$(prompt_optional_secret "Tenor API key")"
+TENOR_API_KEY="$(prompt_secret_optional "Tenor API key")"
+PAYPAL_MODE="$(prompt "PayPal mode" "sandbox")"
+PAYPAL_CLIENT_ID="$(prompt "PayPal client ID" "")"
+PAYPAL_CLIENT_SECRET="$(prompt_secret_optional "PayPal client secret")"
+PAYPAL_WEBHOOK_ID="$(prompt "PayPal webhook ID" "")"
+PAYPAL_MERCHANT_EMAIL="$(prompt "PayPal merchant email" "")"
+PAYPAL_MERCHANT_ID="$(prompt "PayPal merchant ID" "")"
 OWNER_DISPLAY_NAME="$(prompt "First server owner display name" "Owner")"
 OWNER_EMAIL="$(prompt "First server owner email" "")"
 OWNER_PASSWORD="$(prompt_secret "First server owner password (min 12 chars)")"
@@ -263,6 +277,11 @@ require_url_safe "PostgreSQL password" "$POSTGRES_PASSWORD"
 if [ "$OWNER_PASSWORD" != "$OWNER_PASSWORD_CONFIRM" ]; then
   die "Owner passwords do not match."
 fi
+
+case "$PAYPAL_MODE" in
+  sandbox|live) ;;
+  *) die "PayPal mode must be sandbox or live." ;;
+esac
 
 if [ "${#OWNER_PASSWORD}" -lt 12 ]; then
   die "Owner password must be at least 12 characters."
@@ -303,6 +322,12 @@ STREAM_CORE_INTERNAL_TOKEN=$STREAM_CORE_INTERNAL_TOKEN
 RTMP_INGEST_URL=$RTMP_INGEST_URL
 PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
 TENOR_API_KEY=$TENOR_API_KEY
+PAYPAL_MODE=$PAYPAL_MODE
+PAYPAL_CLIENT_ID=$PAYPAL_CLIENT_ID
+PAYPAL_CLIENT_SECRET=$PAYPAL_CLIENT_SECRET
+PAYPAL_WEBHOOK_ID=$PAYPAL_WEBHOOK_ID
+PAYPAL_MERCHANT_EMAIL=$PAYPAL_MERCHANT_EMAIL
+PAYPAL_MERCHANT_ID=$PAYPAL_MERCHANT_ID
 NEXT_TELEMETRY_DISABLED=1
 ENV
 

@@ -1,6 +1,7 @@
-import { Boxes, PackageCheck, ShoppingBag, Tags } from "lucide-react";
+import { Boxes, CreditCard, PackageCheck, ShoppingBag, Tags } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
+import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ function formatMoney(pence: number) {
 }
 
 export default async function ShopPage() {
-  const products = await getPublicShopProducts();
+  const [products, paypal] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData()]);
   const variantCount = products.reduce((total, product) => total + product.variantCount, 0);
   const totalStock = products.reduce((total, product) => total + product.totalStock, 0);
 
@@ -93,6 +94,14 @@ export default async function ShopPage() {
             <Tags className="h-7 w-7 text-bc-pink" aria-hidden="true" />
             <h2 className="mt-4 text-xl font-black">Live pricing</h2>
             <p className="mt-2 text-sm text-bc-muted">Prices update on this page as soon as product variants are saved.</p>
+          </article>
+          <article className="rounded-md border border-bc-line bg-bc-panel p-5 md:col-span-2">
+            <CreditCard className="h-7 w-7 text-bc-acid" aria-hidden="true" />
+            <h2 className="mt-4 text-xl font-black">PayPal checkout</h2>
+            <p className="mt-2 text-sm text-bc-muted">
+              Shop purchases are routed through PayPal {paypal.settings.mode} checkout. Admins can manage PayPal settings in the
+              payments control room.
+            </p>
           </article>
         </section>
       </main>

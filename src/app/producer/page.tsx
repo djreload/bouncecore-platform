@@ -68,6 +68,10 @@ export default async function ProducerPage() {
             <Wallet className="h-4 w-4" aria-hidden="true" />
             Public music
           </ButtonLink>
+          <ButtonLink href="/producer/sales" variant="ghost">
+            <Wallet className="h-4 w-4" aria-hidden="true" />
+            Sales & payouts
+          </ButtonLink>
         </div>
       </section>
 

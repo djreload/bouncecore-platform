@@ -1,8 +1,9 @@
-import { Disc3, Music, ShoppingBag, SlidersHorizontal } from "lucide-react";
+import { CreditCard, Disc3, Music, ShoppingBag, SlidersHorizontal } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { getPublicMusicTracks } from "@/lib/music/music-service";
+import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,7 @@ function formatMoney(pence: number) {
 }
 
 export default async function MusicPage() {
-  const tracks = await getPublicMusicTracks();
+  const [tracks, paypal] = await Promise.all([getPublicMusicTracks(), getPayPalIntegrationData()]);
   const genres = new Set(tracks.flatMap((track) => (track.genre ? [track.genre] : []))).size;
   const averagePrice = tracks.length ? tracks.reduce((total, track) => total + track.pricePence, 0) / tracks.length : 0;
 
@@ -89,6 +90,14 @@ export default async function MusicPage() {
               <p className="mt-2 text-sm text-bc-muted">Approved producer tracks will appear here automatically.</p>
             </article>
           ) : null}
+        </section>
+
+        <section className="mt-6 rounded-md border border-bc-line bg-bc-panel p-5">
+          <CreditCard className="h-7 w-7 text-bc-acid" aria-hidden="true" />
+          <h2 className="mt-4 text-xl font-black">PayPal music payments</h2>
+          <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+            Music purchases will use PayPal checkout, with producer payouts routed through PayPal Payouts in {paypal.settings.mode} mode.
+          </p>
         </section>
       </main>
     </PublicShell>

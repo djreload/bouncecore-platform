@@ -1,13 +1,14 @@
-import { Gift, Sparkles, Star, Trophy } from "lucide-react";
+import { CreditCard, Gift, Sparkles, Star, Trophy } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getPublicRewardsData } from "@/lib/rewards/stars-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function RewardsPage() {
-  const data = await getPublicRewardsData();
+  const [data, paypal] = await Promise.all([getPublicRewardsData(), getPayPalIntegrationData()]);
 
   return (
     <PublicShell>
@@ -91,6 +92,13 @@ export default async function RewardsPage() {
               <h2 className="mt-4 text-xl font-black">Reward currency</h2>
               <p className="mt-2 text-sm text-bc-muted">
                 Stars are ready for supporter perks, future donations, achievements, spin wheels, and prize claims.
+              </p>
+            </article>
+            <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+              <CreditCard className="h-7 w-7 text-bc-electric" aria-hidden="true" />
+              <h2 className="mt-4 text-xl font-black">PayPal stars</h2>
+              <p className="mt-2 text-sm text-bc-muted">
+                Stars purchases are configured for PayPal {paypal.settings.mode} checkout.
               </p>
             </article>
           </aside>
