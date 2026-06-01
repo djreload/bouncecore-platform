@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { BadgeCheck, CircleDollarSign, Plus, Save, Sparkles, Star } from "lucide-react";
+import { BadgeCheck, CircleDollarSign, CreditCard, Plus, Save, Sparkles, Star } from "lucide-react";
 import { adminStarsAction } from "@/app/admin/stars/actions";
 import { initialAdminStarsActionState, type AdminStarsActionState } from "@/app/admin/stars/state";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,10 @@ type AdminStarsPanelProps = {
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function formatMoney(pence: number) {
+  return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
 }
 
 function roleTone(role: string) {
@@ -30,6 +34,22 @@ function roleTone(role: string) {
   }
 
   return "muted" as const;
+}
+
+function purchaseStatusTone(status: string) {
+  if (status === "paid") {
+    return "acid" as const;
+  }
+
+  if (status === "pending") {
+    return "amber" as const;
+  }
+
+  if (status === "cancelled") {
+    return "muted" as const;
+  }
+
+  return "cyan" as const;
 }
 
 export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
@@ -101,6 +121,73 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
             Ensure wallet
           </Button>
         </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel">
+        <div className="border-b border-bc-line p-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-black">PayPal star purchases</h3>
+              <p className="mt-1 text-sm text-bc-muted">
+                Captured stars purchases credit wallets automatically and leave a PayPal audit trail.
+              </p>
+            </div>
+            <CreditCard className="h-6 w-6 text-bc-electric" aria-hidden="true" />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            <article className="rounded-md border border-bc-line bg-bc-ink p-3">
+              <Badge tone="acid">Paid</Badge>
+              <p className="mt-3 text-2xl font-black">{data.purchaseStats.paidPurchases}</p>
+            </article>
+            <article className="rounded-md border border-bc-line bg-bc-ink p-3">
+              <Badge tone="amber">Pending</Badge>
+              <p className="mt-3 text-2xl font-black">{data.purchaseStats.pendingPurchases}</p>
+            </article>
+            <article className="rounded-md border border-bc-line bg-bc-ink p-3">
+              <Badge tone="pink">Stars bought</Badge>
+              <p className="mt-3 text-2xl font-black">{data.purchaseStats.purchasedStars.toLocaleString("en-GB")}</p>
+            </article>
+            <article className="rounded-md border border-bc-line bg-bc-ink p-3">
+              <Badge tone="cyan">Revenue</Badge>
+              <p className="mt-3 text-2xl font-black">{formatMoney(data.purchaseStats.spendPence)}</p>
+            </article>
+          </div>
+        </div>
+        <div className="grid gap-4 p-4">
+          {data.recentPurchases.map((purchase) => (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={purchase.id}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={purchaseStatusTone(purchase.status)}>{purchase.status}</Badge>
+                    <Badge tone="muted">#{purchase.id.slice(0, 8)}</Badge>
+                    {purchase.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                  </div>
+                  <h4 className="mt-3 text-lg font-black">{purchase.customerName}</h4>
+                  <p className="mt-1 text-sm text-bc-muted">{purchase.customerEmail}</p>
+                  <p className="mt-1 text-xs text-bc-muted">
+                    {purchase.packageLabel} / {formatDate(purchase.createdAt)}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black">{purchase.stars.toLocaleString("en-GB")}</p>
+                  <p className="mt-1 text-xs text-bc-muted">{formatMoney(purchase.totalPence)}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {purchase.paypalOrderId ? <Badge tone="muted">PayPal {purchase.paypalOrderId.slice(0, 10)}</Badge> : null}
+                {purchase.paypalPayerEmail ? <Badge tone="cyan">{purchase.paypalPayerEmail}</Badge> : null}
+              </div>
+            </article>
+          ))}
+          {!data.recentPurchases.length ? (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-5">
+              <CreditCard className="h-7 w-7 text-bc-electric" aria-hidden="true" />
+              <h3 className="mt-4 text-xl font-black">No PayPal star purchases yet</h3>
+              <p className="mt-2 text-sm text-bc-muted">Captured stars purchases will appear here automatically.</p>
+            </article>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel">

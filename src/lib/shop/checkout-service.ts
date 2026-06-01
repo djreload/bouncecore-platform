@@ -111,6 +111,7 @@ export async function startShopCheckout(userId: string, input: StartShopCheckout
         items: [
           {
             name: payPalDescription(variant.product.name, variant.name),
+            category: "PHYSICAL_GOODS",
             quantity,
             sku: variant.sku,
             unitAmountPence: variant.pricePence

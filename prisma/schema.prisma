@@ -39,6 +39,7 @@ model User {
   notifications   Notification[]
   producerProfile ProducerProfile?
   orders          Order[]
+  starPurchases   StarPurchase[]
 
   @@index([status])
   @@index([createdAt])
@@ -368,4 +369,26 @@ model StarWallet {
   userId    String   @unique
   balance   Int      @default(0)
   updatedAt DateTime @updatedAt
+}
+
+model StarPurchase {
+  id              String   @id @default(cuid())
+  userId          String
+  status          String   @default("pending")
+  stars           Int
+  totalPence      Int
+  currency        String   @default("GBP")
+  packageLabel    String
+  paypalOrderId   String?  @unique
+  paypalCaptureId String?
+  paypalPayerEmail String?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }

@@ -2,13 +2,18 @@ import { CreditCard, Gift, Sparkles, Star, Trophy } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
-import { getPublicRewardsData } from "@/lib/rewards/stars-service";
+import { getPayPalIntegrationData, getPayPalStarsReadiness } from "@/lib/payments/paypal-service";
+import { getPublicRewardsData, starPackages } from "@/lib/rewards/stars-service";
 
 export const dynamic = "force-dynamic";
 
+function formatMoney(pence: number) {
+  return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
+}
+
 export default async function RewardsPage() {
   const [data, paypal] = await Promise.all([getPublicRewardsData(), getPayPalIntegrationData()]);
+  const starsReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
 
   return (
     <PublicShell>
@@ -98,8 +103,28 @@ export default async function RewardsPage() {
               <CreditCard className="h-7 w-7 text-bc-electric" aria-hidden="true" />
               <h2 className="mt-4 text-xl font-black">PayPal stars</h2>
               <p className="mt-2 text-sm text-bc-muted">
-                Stars purchases are configured for PayPal {paypal.settings.mode} checkout.
+                Stars purchases use PayPal {paypal.settings.mode} checkout from account rewards.
               </p>
+              <div className="mt-4 grid gap-2">
+                {starPackages.map((pack) => (
+                  <div className="rounded-md border border-bc-line bg-bc-ink p-3 text-sm" key={pack.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span>
+                        <span className="block font-semibold">{pack.label}</span>
+                        <span className="mt-1 block text-xs text-bc-muted">{pack.stars.toLocaleString("en-GB")} stars</span>
+                      </span>
+                      <span className="text-bc-muted">{formatMoney(pack.pricePence)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {!starsReadiness.ready ? (
+                <p className="mt-3 text-sm text-bc-muted">{starsReadiness.reason}</p>
+              ) : null}
+              <ButtonLink className="mt-5" href="/account/rewards" variant="ghost">
+                <CreditCard className="h-4 w-4" aria-hidden="true" />
+                Buy stars
+              </ButtonLink>
             </article>
           </aside>
         </section>

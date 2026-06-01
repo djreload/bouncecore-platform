@@ -48,6 +48,7 @@ export type PayPalIntegrationData = {
 };
 
 export type PayPalCheckoutItem = {
+  category?: "DIGITAL_GOODS" | "PHYSICAL_GOODS";
   name: string;
   quantity: number;
   sku: string;
@@ -209,6 +210,19 @@ export function getPayPalCheckoutReadiness(settings: PayPalSettings, secretConfi
   };
 }
 
+export function getPayPalStarsReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+  return {
+    ready: settings.starsEnabled && Boolean(settings.clientId) && secretConfigured,
+    reason: !settings.starsEnabled
+      ? "PayPal stars purchases are disabled."
+      : !settings.clientId
+        ? "PayPal client ID is missing."
+        : !secretConfigured
+          ? "PayPal client secret is missing."
+          : null
+  };
+}
+
 function moneyValue(pence: number) {
   return (pence / 100).toFixed(2);
 }
@@ -342,7 +356,7 @@ export async function createPayPalCheckoutOrder(
             custom_id: input.localOrderId,
             description: input.description,
             items: input.items.map((item) => ({
-              category: "PHYSICAL_GOODS",
+              category: item.category ?? "DIGITAL_GOODS",
               name: item.name,
               quantity: String(item.quantity),
               sku: item.sku,
