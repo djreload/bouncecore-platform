@@ -1,21 +1,32 @@
-import { Radio } from "lucide-react";
+import { CalendarClock, Radio, UserRound } from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
+import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
+import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
 
 export const dynamic = "force-dynamic";
 
+function formatScheduleDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function scheduleTone(status: string) {
+  return status === "live" ? ("acid" as const) : ("cyan" as const);
+}
+
 export default async function LivePage() {
-  const [liveState, chatData, currentUser, roleDisplayLabels] = await Promise.all([
+  const [liveState, chatData, currentUser, roleDisplayLabels, schedules] = await Promise.all([
     getPublicLiveState(),
     getPublicChatData("live"),
     getCurrentUser(),
-    getRoleDisplayNameOverrides()
+    getRoleDisplayNameOverrides(),
+    getPublicUpcomingStreamSchedules()
   ]);
   const { channel, status, playbackUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
@@ -84,6 +95,37 @@ export default async function LivePage() {
               <p className="mt-2 text-sm text-bc-muted">
                 Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
               </p>
+            </div>
+            <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+              <div className="flex items-center justify-between gap-3">
+                <Badge tone="pink">Schedule</Badge>
+                <CalendarClock className="h-5 w-5 text-bc-pink" aria-hidden="true" />
+              </div>
+              <h2 className="mt-4 text-xl font-black">Upcoming sets</h2>
+              <div className="mt-4 space-y-3">
+                {schedules.map((schedule) => (
+                  <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={schedule.id}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={scheduleTone(schedule.status)}>{schedule.status}</Badge>
+                      <Badge tone="muted">/{schedule.channelSlug}</Badge>
+                    </div>
+                    <h3 className="mt-3 font-semibold">{schedule.title}</h3>
+                    <p className="mt-1 text-xs text-bc-muted">
+                      {formatScheduleDate(schedule.startsAt)} to {formatScheduleDate(schedule.endsAt)}
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
+                      <span className="text-xs text-bc-muted">{schedule.hostDisplayName ?? "Host TBC"}</span>
+                      {schedule.hostRoles.map((role) => (
+                        <Badge key={role} tone={roleBadgeTone(role)}>
+                          {roleDisplayName(role, roleDisplayLabels)}
+                        </Badge>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+                {!schedules.length ? <p className="text-sm text-bc-muted">No upcoming stream slots have been scheduled yet.</p> : null}
+              </div>
             </div>
             <ChatRoomPanel
               compact

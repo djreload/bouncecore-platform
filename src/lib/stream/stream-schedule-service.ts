@@ -35,6 +35,19 @@ export type AdminStreamScheduleRow = {
   status: string;
 };
 
+export type PublicStreamScheduleRow = {
+  id: string;
+  channelTitle: string;
+  channelSlug: string;
+  hostDisplayName: string | null;
+  hostRoles: Role[];
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  status: string;
+};
+
 export type AdminStreamScheduleChannelOption = {
   id: string;
   title: string;
@@ -46,6 +59,17 @@ export type AdminStreamScheduleHostOption = {
   displayName: string;
   email: string;
   roles: Role[];
+};
+
+export type StreamerScheduleData = {
+  stats: {
+    total: number;
+    upcoming: number;
+    live: number;
+    completed: number;
+    cancelled: number;
+  };
+  schedules: PublicStreamScheduleRow[];
 };
 
 function assertScheduleStatus(status: string): asserts status is StreamScheduleStatus {
@@ -118,7 +142,7 @@ function normalizeScheduleInput(input: StreamScheduleInput) {
   };
 }
 
-function toScheduleRow(schedule: {
+type ScheduleWithRelations = {
   id: string;
   title: string;
   description: string | null;
@@ -140,7 +164,9 @@ function toScheduleRow(schedule: {
       };
     }>;
   } | null;
-}): AdminStreamScheduleRow {
+};
+
+function toScheduleRow(schedule: ScheduleWithRelations): AdminStreamScheduleRow {
   return {
     id: schedule.id,
     channelId: schedule.channelId,
@@ -155,6 +181,23 @@ function toScheduleRow(schedule: {
     startsAt: schedule.startsAt.toISOString(),
     endsAt: schedule.endsAt.toISOString(),
     status: schedule.status
+  };
+}
+
+function toPublicScheduleRow(schedule: ScheduleWithRelations): PublicStreamScheduleRow {
+  const row = toScheduleRow(schedule);
+
+  return {
+    id: row.id,
+    channelTitle: row.channelTitle,
+    channelSlug: row.channelSlug,
+    hostDisplayName: row.hostDisplayName,
+    hostRoles: row.hostRoles,
+    title: row.title,
+    description: row.description,
+    startsAt: row.startsAt,
+    endsAt: row.endsAt,
+    status: row.status
   };
 }
 
@@ -251,6 +294,94 @@ export async function getAdminStreamSchedulesData() {
       roles: normalizeRoles(host.roles.map((userRole) => userRole.role.name))
     }))
   };
+}
+
+export async function getStreamerScheduleData(userId: string): Promise<StreamerScheduleData> {
+  const schedules = await prisma.streamSchedule.findMany({
+    where: {
+      hostUserId: userId
+    },
+    orderBy: {
+      startsAt: "asc"
+    },
+    include: {
+      channel: {
+        select: {
+          title: true,
+          slug: true
+        }
+      },
+      host: {
+        select: {
+          displayName: true,
+          email: true,
+          roles: {
+            include: {
+              role: true
+            },
+            orderBy: {
+              createdAt: "asc"
+            }
+          }
+        }
+      }
+    },
+    take: 100
+  });
+  const now = new Date();
+
+  return {
+    stats: {
+      total: schedules.length,
+      upcoming: schedules.filter((schedule) => schedule.startsAt >= now && schedule.status === "scheduled").length,
+      live: schedules.filter((schedule) => schedule.status === "live").length,
+      completed: schedules.filter((schedule) => schedule.status === "completed").length,
+      cancelled: schedules.filter((schedule) => schedule.status === "cancelled").length
+    },
+    schedules: schedules.map(toPublicScheduleRow)
+  };
+}
+
+export async function getPublicUpcomingStreamSchedules(limit = 5): Promise<PublicStreamScheduleRow[]> {
+  const now = new Date();
+  const schedules = await prisma.streamSchedule.findMany({
+    where: {
+      endsAt: {
+        gte: now
+      },
+      status: {
+        in: ["scheduled", "live"]
+      }
+    },
+    orderBy: {
+      startsAt: "asc"
+    },
+    include: {
+      channel: {
+        select: {
+          title: true,
+          slug: true
+        }
+      },
+      host: {
+        select: {
+          displayName: true,
+          email: true,
+          roles: {
+            include: {
+              role: true
+            },
+            orderBy: {
+              createdAt: "asc"
+            }
+          }
+        }
+      }
+    },
+    take: limit
+  });
+
+  return schedules.map(toPublicScheduleRow);
 }
 
 export async function createStreamSchedule(input: StreamScheduleInput, actorId: string) {
