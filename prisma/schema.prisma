@@ -34,6 +34,7 @@ model User {
   authAccounts    AuthAccount[]
   authSessions    AuthSession[]
   streamKeys      StreamKey[]
+  streamSchedules StreamSchedule[]
   auditLogs       AuditLog[]
   notifications   Notification[]
   producerProfile ProducerProfile?
@@ -200,6 +201,7 @@ model StreamChannel {
   streamKeys  StreamKey[]
   sessions    StreamSession[]
   events      StreamEvent[]
+  schedules   StreamSchedule[]
 }
 
 model StreamKey {
@@ -232,6 +234,26 @@ model StreamEvent {
   payload   Json?
   createdAt DateTime      @default(now())
   channel   StreamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+}
+
+model StreamSchedule {
+  id          String        @id @default(cuid())
+  channelId   String
+  hostUserId  String?
+  title       String
+  description String?
+  startsAt    DateTime
+  endsAt      DateTime
+  status      String        @default("scheduled")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  channel     StreamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  host        User?         @relation(fields: [hostUserId], references: [id], onDelete: SetNull)
+
+  @@index([channelId])
+  @@index([hostUserId])
+  @@index([startsAt])
+  @@index([status])
 }
 
 model ChatRoom {
