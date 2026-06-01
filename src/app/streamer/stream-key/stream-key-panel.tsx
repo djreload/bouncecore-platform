@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Copy, Plus, RefreshCw, ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { streamKeyAction } from "@/app/streamer/stream-key/actions";
 import { initialStreamKeyActionState, type StreamKeyActionState } from "@/app/streamer/stream-key/state";
 import type { StreamKeySummary } from "@/lib/stream/stream-key-service";
@@ -136,6 +136,9 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
             <dd className="mt-1 text-bc-muted">Rotating revokes previous active keys and creates an audit event.</dd>
           </div>
         </dl>
+        <ButtonLink className="mt-5 w-full" href="/streamer/obs" variant="ghost">
+          OBS setup help
+        </ButtonLink>
       </aside>
     </div>
   );

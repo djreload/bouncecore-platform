@@ -52,6 +52,7 @@ This scaffold includes:
 - Database-backed admin stream schedule management
 - Streamer and public live schedule views
 - Data-backed streamer overview, status, and health dashboards
+- Data-backed OBS setup help for streamer connection settings
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
