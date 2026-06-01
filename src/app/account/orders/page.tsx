@@ -8,6 +8,12 @@ import { getAccountOrdersData } from "@/lib/shop/order-service";
 
 export const dynamic = "force-dynamic";
 
+type AccountOrdersPageProps = {
+  searchParams?: Promise<{
+    checkout?: string | string[];
+  }>;
+};
+
 function formatMoney(pence: number) {
   return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
 }
@@ -32,9 +38,15 @@ function statusTone(status: string) {
   return "cyan" as const;
 }
 
-export default async function AccountOrdersPage() {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function AccountOrdersPage({ searchParams }: AccountOrdersPageProps) {
+  const params = searchParams ? await searchParams : {};
   const user = await requireSignedInUser();
   const [data, paypal] = await Promise.all([getAccountOrdersData(user.id), getPayPalIntegrationData()]);
+  const checkoutComplete = firstParam(params.checkout) === "success";
 
   return (
     <DashboardShell title="Orders" description="Your Bouncecore order history, PayPal payment status, and fulfilment progress.">
@@ -72,6 +84,11 @@ export default async function AccountOrdersPage() {
           </div>
           <CreditCard className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
+        {checkoutComplete ? (
+          <div className="mt-5 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3 text-sm text-bc-acid">
+            PayPal checkout complete. Your order is now in the fulfilment queue.
+          </div>
+        ) : null}
         <div className="mt-5">
           <ButtonLink href="/shop" variant="primary">
             <ShoppingBag className="h-4 w-4" aria-hidden="true" />
@@ -83,7 +100,7 @@ export default async function AccountOrdersPage() {
       <section className="mt-5 rounded-md border border-bc-line bg-bc-panel">
         <div className="border-b border-bc-line p-4">
           <h3 className="text-xl font-black">Recent orders</h3>
-          <p className="mt-1 text-sm text-bc-muted">Order records currently store total, status, and creation date.</p>
+          <p className="mt-1 text-sm text-bc-muted">Order records include PayPal capture status, totals, line items, and fulfilment state.</p>
         </div>
         <div className="grid gap-4 p-4">
           {data.orders.map((order) => (
@@ -100,6 +117,30 @@ export default async function AccountOrdersPage() {
                   </div>
                 </div>
                 <p className="text-2xl font-black">{formatMoney(order.totalPence)}</p>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {order.items.map((item) => (
+                  <div className="rounded-md border border-bc-line bg-bc-panel p-3 text-sm" key={item.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {item.productName} / {item.variantName}
+                        </p>
+                        <p className="mt-1 text-xs text-bc-muted">
+                          {item.sku} / Qty {item.quantity}
+                        </p>
+                      </div>
+                      <p className="font-semibold">{formatMoney(item.totalPence)}</p>
+                    </div>
+                  </div>
+                ))}
+                {!order.items.length ? (
+                  <p className="text-sm text-bc-muted">Legacy order without line item detail.</p>
+                ) : null}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {order.paypalOrderId ? <Badge tone="muted">PayPal {order.paypalOrderId.slice(0, 10)}</Badge> : null}
+                {order.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
               </div>
             </article>
           ))}

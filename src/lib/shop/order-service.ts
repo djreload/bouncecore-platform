@@ -5,6 +5,16 @@ export const orderStatusOptions = ["pending", "paid", "processing", "fulfilled",
 
 export type OrderStatus = (typeof orderStatusOptions)[number];
 
+export type OrderItemRow = {
+  id: string;
+  productName: string;
+  variantName: string;
+  sku: string;
+  quantity: number;
+  unitPricePence: number;
+  totalPence: number;
+};
+
 export type OrderRow = {
   id: string;
   userId: string;
@@ -12,7 +22,14 @@ export type OrderRow = {
   customerEmail: string;
   status: string;
   totalPence: number;
+  currency: string;
+  paypalOrderId: string | null;
+  paypalCaptureId: string | null;
+  paypalPayerEmail: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
   createdAt: string;
+  items: OrderItemRow[];
 };
 
 export type OrderStats = {
@@ -43,7 +60,14 @@ function toOrderRow(order: {
   userId: string;
   status: string;
   totalPence: number;
+  currency: string;
+  paypalOrderId: string | null;
+  paypalCaptureId: string | null;
+  paypalPayerEmail: string | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
   createdAt: Date;
+  items: OrderItemRow[];
   user: {
     displayName: string;
     email: string;
@@ -56,7 +80,22 @@ function toOrderRow(order: {
     customerEmail: order.user.email,
     status: order.status,
     totalPence: order.totalPence,
-    createdAt: order.createdAt.toISOString()
+    currency: order.currency,
+    paypalOrderId: order.paypalOrderId,
+    paypalCaptureId: order.paypalCaptureId,
+    paypalPayerEmail: order.paypalPayerEmail,
+    completedAt: order.completedAt?.toISOString() ?? null,
+    cancelledAt: order.cancelledAt?.toISOString() ?? null,
+    createdAt: order.createdAt.toISOString(),
+    items: order.items.map((item) => ({
+      id: item.id,
+      productName: item.productName,
+      quantity: item.quantity,
+      sku: item.sku,
+      totalPence: item.totalPence,
+      unitPricePence: item.unitPricePence,
+      variantName: item.variantName
+    }))
   };
 }
 
@@ -82,6 +121,11 @@ export async function getAccountOrdersData(userId: string): Promise<OrdersData> 
       userId
     },
     include: {
+      items: {
+        orderBy: {
+          productName: "asc"
+        }
+      },
       user: {
         select: {
           displayName: true,
@@ -105,6 +149,11 @@ export async function getAccountOrdersData(userId: string): Promise<OrdersData> 
 export async function getAdminOrdersData(): Promise<OrdersData> {
   const orders = await prisma.order.findMany({
     include: {
+      items: {
+        orderBy: {
+          productName: "asc"
+        }
+      },
       user: {
         select: {
           displayName: true,
@@ -133,6 +182,11 @@ export async function getAdminFulfilmentData(): Promise<OrdersData> {
       }
     },
     include: {
+      items: {
+        orderBy: {
+          productName: "asc"
+        }
+      },
       user: {
         select: {
           displayName: true,

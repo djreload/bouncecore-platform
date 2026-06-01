@@ -300,15 +300,44 @@ model ProductVariant {
   pricePence Int
   stock     Int     @default(0)
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
 }
 
 model Order {
-  id        String   @id @default(cuid())
-  userId    String
-  status    String   @default("pending")
-  totalPence Int
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String      @id @default(cuid())
+  userId          String
+  status          String      @default("pending")
+  totalPence      Int
+  currency        String      @default("GBP")
+  paypalOrderId   String?     @unique
+  paypalCaptureId String?
+  paypalPayerEmail String?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id               String          @id @default(cuid())
+  orderId          String
+  productVariantId String?
+  productName      String
+  variantName      String
+  sku              String
+  quantity         Int
+  unitPricePence   Int
+  totalPence       Int
+  order            Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productVariantId])
 }
 
 model ProducerProfile {

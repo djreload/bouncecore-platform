@@ -105,7 +105,7 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
         <div className="border-b border-bc-line p-4">
           <h3 className="text-xl font-black">{mode === "fulfilment" ? "Ready to fulfil" : "Recent orders"}</h3>
           <p className="mt-1 text-sm text-bc-muted">
-            Order records currently store customer, status, PayPal order total, and creation date.
+            Order records include customer, status, PayPal order total, line items, and capture references.
           </p>
         </div>
         <div className="grid gap-4 p-4">
@@ -120,11 +120,37 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
                   <h4 className="mt-3 text-lg font-black">{order.customerName}</h4>
                   <p className="mt-1 text-sm text-bc-muted">{order.customerEmail}</p>
                   <p className="mt-1 text-xs text-bc-muted">{formatDate(order.createdAt)}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {order.paypalOrderId ? <Badge tone="muted">PayPal {order.paypalOrderId.slice(0, 10)}</Badge> : null}
+                    {order.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                    {order.paypalPayerEmail ? <Badge tone="cyan">{order.paypalPayerEmail}</Badge> : null}
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-black">{formatMoney(order.totalPence)}</p>
                   <p className="mt-1 text-xs text-bc-muted">PayPal order total</p>
                 </div>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                {order.items.map((item) => (
+                  <div className="rounded-md border border-bc-line bg-bc-panel p-3 text-sm" key={item.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {item.productName} / {item.variantName}
+                        </p>
+                        <p className="mt-1 text-xs text-bc-muted">
+                          {item.sku} / Qty {item.quantity} / {formatMoney(item.unitPricePence)} each
+                        </p>
+                      </div>
+                      <p className="font-semibold">{formatMoney(item.totalPence)}</p>
+                    </div>
+                  </div>
+                ))}
+                {!order.items.length ? (
+                  <p className="text-sm text-bc-muted">Legacy order without line item detail.</p>
+                ) : null}
               </div>
 
               <form action={formAction} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
@@ -173,10 +199,10 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <PackageCheck className="h-7 w-7 text-bc-acid" aria-hidden="true" />
-        <h3 className="mt-4 text-xl font-black">Next commerce layer</h3>
+        <h3 className="mt-4 text-xl font-black">PayPal fulfilment trail</h3>
         <p className="mt-2 text-sm text-bc-muted">
-          Product line items, addresses, payment captures, and fulfilment events can attach to these order records in the next schema
-          expansion.
+          New shop checkouts create pending orders, redirect through PayPal approval, capture on return, and move paid orders into this
+          queue.
         </p>
       </section>
     </div>
