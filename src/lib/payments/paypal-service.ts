@@ -188,6 +188,12 @@ export async function getPayPalIntegrationData(): Promise<PayPalIntegrationData>
         surface: "/shop"
       },
       {
+        enabled: Boolean(settings.clientId),
+        label: "Music purchases",
+        rail: "PayPal Checkout / Orders API",
+        surface: "/music and /producer/sales"
+      },
+      {
         enabled: settings.producerPayoutsEnabled,
         label: "Producer payouts",
         rail: "PayPal Payouts API",
@@ -220,6 +226,17 @@ export function getPayPalStarsReadiness(settings: PayPalSettings, secretConfigur
         : !secretConfigured
           ? "PayPal client secret is missing."
           : null
+  };
+}
+
+export function getPayPalMusicReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+  return {
+    ready: Boolean(settings.clientId) && secretConfigured,
+    reason: !settings.clientId
+      ? "PayPal client ID is missing."
+      : !secretConfigured
+        ? "PayPal client secret is missing."
+        : null
   };
 }
 

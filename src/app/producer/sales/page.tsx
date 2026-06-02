@@ -3,7 +3,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
-import { getProducerWorkspaceData } from "@/lib/music/music-service";
+import { getProducerSalesData, getProducerWorkspaceData } from "@/lib/music/music-service";
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 
 export const dynamic = "force-dynamic";
@@ -12,9 +12,33 @@ function formatMoney(pence: number) {
   return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
 }
 
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+}
+
+function statusTone(status: string) {
+  if (status === "paid") {
+    return "acid" as const;
+  }
+
+  if (status === "pending") {
+    return "amber" as const;
+  }
+
+  if (status === "cancelled") {
+    return "muted" as const;
+  }
+
+  return "cyan" as const;
+}
+
 export default async function ProducerSalesPage() {
   const user = await requireUserPermission("producer.dashboard");
-  const [data, paypal] = await Promise.all([getProducerWorkspaceData(user.id), getPayPalIntegrationData()]);
+  const [data, sales, paypal] = await Promise.all([
+    getProducerWorkspaceData(user.id),
+    getProducerSalesData(user.id),
+    getPayPalIntegrationData()
+  ]);
   const approvedValue = data.tracks
     .filter((track) => track.status === "approved")
     .reduce((total, track) => total + track.pricePence, 0);
@@ -32,14 +56,14 @@ export default async function ProducerSalesPage() {
           <p className="mt-2 text-sm text-bc-muted">Tracks eligible for public sales.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="pink">Catalogue</Badge>
-          <p className="mt-4 text-3xl font-black">{formatMoney(approvedValue)}</p>
-          <p className="mt-2 text-sm text-bc-muted">Approved track list value.</p>
+          <Badge tone="pink">Earnings</Badge>
+          <p className="mt-4 text-3xl font-black">{formatMoney(sales.stats.producerEarningsPence)}</p>
+          <p className="mt-2 text-sm text-bc-muted">Paid producer earnings.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="cyan">Provider</Badge>
-          <p className="mt-4 text-3xl font-black">PayPal</p>
-          <p className="mt-2 text-sm text-bc-muted">Producer payout rail.</p>
+          <Badge tone="cyan">Sales</Badge>
+          <p className="mt-4 text-3xl font-black">{sales.stats.paidSales}</p>
+          <p className="mt-2 text-sm text-bc-muted">{formatMoney(sales.stats.grossPence)} gross paid sales.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={paypal.settings.producerPayoutsEnabled ? "acid" : "amber"}>Payouts</Badge>
@@ -54,8 +78,8 @@ export default async function ProducerSalesPage() {
             <Badge tone="acid">PayPal Payouts</Badge>
             <h3 className="mt-4 text-2xl font-black">Producer payout routing</h3>
             <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-              Bouncecore will settle producer earnings through PayPal Payouts once track purchases, entitlements, and payout
-              recipient onboarding are connected.
+              Paid music purchases now create producer earnings records. PayPal Payouts can settle those earnings once recipient
+              onboarding is connected.
             </p>
           </div>
           <Send className="h-7 w-7 text-bc-acid" aria-hidden="true" />
@@ -68,19 +92,67 @@ export default async function ProducerSalesPage() {
           </article>
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">
             <Wallet className="h-5 w-5 text-bc-pink" aria-hidden="true" />
-            <h4 className="mt-3 font-black">Payout method</h4>
-            <p className="mt-2 text-sm text-bc-muted">Producer payouts use PayPal Payouts API.</p>
+            <h4 className="mt-3 font-black">Earnings</h4>
+            <p className="mt-2 text-sm text-bc-muted">
+              {formatMoney(sales.stats.producerEarningsPence)} payable after platform fees.
+            </p>
           </article>
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">
             <Send className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-            <h4 className="mt-3 font-black">Admin setup</h4>
-            <p className="mt-2 text-sm text-bc-muted">Admins manage PayPal readiness in the payments control room.</p>
+            <h4 className="mt-3 font-black">Platform fee</h4>
+            <p className="mt-2 text-sm text-bc-muted">{formatMoney(sales.stats.platformFeePence)} retained from paid sales.</p>
           </article>
         </div>
         <div className="mt-5">
           <ButtonLink href="/producer/tracks" variant="ghost">
             Manage tracks
           </ButtonLink>
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-md border border-bc-line bg-bc-panel">
+        <div className="border-b border-bc-line p-4">
+          <h3 className="text-xl font-black">Music sales</h3>
+          <p className="mt-1 text-sm text-bc-muted">
+            Paid track purchases create earnings records for future PayPal payout batches.
+          </p>
+          <p className="mt-1 text-xs text-bc-muted">Approved catalogue list value: {formatMoney(approvedValue)}</p>
+        </div>
+        <div className="grid gap-4 p-4">
+          {sales.sales.map((sale) => (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={sale.id}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={statusTone(sale.status)}>{sale.status}</Badge>
+                    <Badge tone="muted">#{sale.id.slice(0, 8)}</Badge>
+                    {sale.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                  </div>
+                  <h4 className="mt-3 text-lg font-black">{sale.trackTitle}</h4>
+                  <p className="mt-1 text-sm text-bc-muted">
+                    {sale.buyerName} / {sale.buyerEmail}
+                  </p>
+                  <p className="mt-1 text-xs text-bc-muted">{formatDate(sale.createdAt)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black">{formatMoney(sale.producerEarningsPence)}</p>
+                  <p className="mt-1 text-xs text-bc-muted">Producer earnings</p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Badge tone="cyan">Gross {formatMoney(sale.pricePence)}</Badge>
+                <Badge tone="muted">Fee {formatMoney(sale.platformFeePence)}</Badge>
+                {sale.paypalOrderId ? <Badge tone="muted">PayPal {sale.paypalOrderId.slice(0, 10)}</Badge> : null}
+              </div>
+            </article>
+          ))}
+          {!sales.sales.length ? (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-5">
+              <Wallet className="h-7 w-7 text-bc-pink" aria-hidden="true" />
+              <h3 className="mt-4 text-xl font-black">No music sales yet</h3>
+              <p className="mt-2 text-sm text-bc-muted">PayPal track purchases will appear here after checkout starts.</p>
+            </article>
+          ) : null}
         </div>
       </section>
     </DashboardShell>

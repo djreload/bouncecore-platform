@@ -52,6 +52,34 @@ export type ProducerWorkspaceData = {
   tracks: ProducerTrackRow[];
 };
 
+export type ProducerSaleRow = {
+  id: string;
+  buyerName: string;
+  buyerEmail: string;
+  status: string;
+  trackTitle: string;
+  pricePence: number;
+  platformFeePence: number;
+  producerEarningsPence: number;
+  paypalOrderId: string | null;
+  paypalCaptureId: string | null;
+  paypalPayerEmail: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+};
+
+export type ProducerSalesData = {
+  stats: {
+    paidSales: number;
+    pendingSales: number;
+    grossPence: number;
+    platformFeePence: number;
+    producerEarningsPence: number;
+  };
+  sales: ProducerSaleRow[];
+};
+
 export type PublicMusicTrack = ProducerTrackRow & {
   producerName: string;
   producerSlug: string;
@@ -180,6 +208,42 @@ function toPublicTrack(track: {
   };
 }
 
+function toProducerSaleRow(sale: {
+  id: string;
+  status: string;
+  trackTitle: string;
+  pricePence: number;
+  platformFeePence: number;
+  producerEarningsPence: number;
+  paypalOrderId: string | null;
+  paypalCaptureId: string | null;
+  paypalPayerEmail: string | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  createdAt: Date;
+  buyer: {
+    displayName: string;
+    email: string;
+  };
+}): ProducerSaleRow {
+  return {
+    buyerEmail: sale.buyer.email,
+    buyerName: sale.buyer.displayName,
+    cancelledAt: sale.cancelledAt?.toISOString() ?? null,
+    completedAt: sale.completedAt?.toISOString() ?? null,
+    createdAt: sale.createdAt.toISOString(),
+    id: sale.id,
+    paypalCaptureId: sale.paypalCaptureId,
+    paypalOrderId: sale.paypalOrderId,
+    paypalPayerEmail: sale.paypalPayerEmail,
+    platformFeePence: sale.platformFeePence,
+    pricePence: sale.pricePence,
+    producerEarningsPence: sale.producerEarningsPence,
+    status: sale.status,
+    trackTitle: sale.trackTitle
+  };
+}
+
 async function uniqueProducerSlug(slug: string, userId: string) {
   const existing = await prisma.producerProfile.findUnique({
     where: {
@@ -243,6 +307,61 @@ export async function getProducerWorkspaceData(userId: string): Promise<Producer
       catalogueValuePence: tracks.reduce((total, track) => total + track.pricePence, 0)
     },
     tracks: tracks.map(toTrackRow)
+  };
+}
+
+export async function getProducerSalesData(userId: string): Promise<ProducerSalesData> {
+  const profile = await prisma.producerProfile.findUnique({
+    where: {
+      userId
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (!profile) {
+    return {
+      sales: [],
+      stats: {
+        grossPence: 0,
+        paidSales: 0,
+        pendingSales: 0,
+        platformFeePence: 0,
+        producerEarningsPence: 0
+      }
+    };
+  }
+
+  const sales = await prisma.digitalTrackPurchase.findMany({
+    where: {
+      producerId: profile.id
+    },
+    include: {
+      buyer: {
+        select: {
+          displayName: true,
+          email: true
+        }
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    take: 100
+  });
+  const rows = sales.map(toProducerSaleRow);
+  const paidSales = rows.filter((sale) => sale.status === "paid");
+
+  return {
+    sales: rows,
+    stats: {
+      grossPence: paidSales.reduce((total, sale) => total + sale.pricePence, 0),
+      paidSales: paidSales.length,
+      pendingSales: rows.filter((sale) => sale.status === "pending").length,
+      platformFeePence: paidSales.reduce((total, sale) => total + sale.platformFeePence, 0),
+      producerEarningsPence: paidSales.reduce((total, sale) => total + sale.producerEarningsPence, 0)
+    }
   };
 }
 
@@ -464,6 +583,20 @@ export async function getPublicMusicTracks(): Promise<PublicMusicTrack[]> {
   });
 
   return tracks.map(toPublicTrack);
+}
+
+export async function getPurchasedMusicTrackIds(userId: string) {
+  const purchases = await prisma.digitalTrackPurchase.findMany({
+    where: {
+      buyerId: userId,
+      status: "paid"
+    },
+    select: {
+      trackId: true
+    }
+  });
+
+  return new Set(purchases.map((purchase) => purchase.trackId));
 }
 
 export async function getPublicProducerProfiles(): Promise<PublicProducerProfile[]> {

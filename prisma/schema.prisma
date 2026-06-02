@@ -40,6 +40,7 @@ model User {
   producerProfile ProducerProfile?
   orders          Order[]
   starPurchases   StarPurchase[]
+  trackPurchases  DigitalTrackPurchase[]
 
   @@index([status])
   @@index([createdAt])
@@ -349,6 +350,7 @@ model ProducerProfile {
   bio       String?
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   tracks    DigitalTrack[]
+  sales     DigitalTrackPurchase[]
 }
 
 model DigitalTrack {
@@ -362,6 +364,37 @@ model DigitalTrack {
   pricePence  Int
   status      String          @default("draft")
   producer    ProducerProfile @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  purchases   DigitalTrackPurchase[]
+}
+
+model DigitalTrackPurchase {
+  id                    String          @id @default(cuid())
+  buyerId               String
+  trackId               String
+  producerId            String
+  status                String          @default("pending")
+  trackTitle            String
+  producerName          String
+  pricePence            Int
+  currency              String          @default("GBP")
+  platformFeePence      Int             @default(0)
+  producerEarningsPence Int
+  paypalOrderId         String?         @unique
+  paypalCaptureId       String?
+  paypalPayerEmail      String?
+  completedAt           DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  buyer                 User            @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  track                 DigitalTrack    @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  producer              ProducerProfile @relation(fields: [producerId], references: [id], onDelete: Cascade)
+
+  @@index([buyerId])
+  @@index([trackId])
+  @@index([producerId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model StarWallet {
