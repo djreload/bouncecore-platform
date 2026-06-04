@@ -29,8 +29,12 @@ function trackInput(formData: FormData): AdminTrackInput {
 
   return {
     bpm: formString(formData, "bpm"),
+    downloadUrl: formString(formData, "downloadUrl"),
     genre: formString(formData, "genre"),
+    licenseSummary: formString(formData, "licenseSummary"),
+    licenseType: formString(formData, "licenseType"),
     musicalKey: formString(formData, "musicalKey"),
+    previewUrl: formString(formData, "previewUrl"),
     pricePounds: formString(formData, "pricePounds"),
     slug: formString(formData, "slug"),
     status,
@@ -48,6 +52,9 @@ function revalidateMusicViews() {
   revalidatePath("/producer");
   revalidatePath("/producer/reviews");
   revalidatePath("/producer/sales");
+  revalidatePath("/producer/licenses");
+  revalidatePath("/producer/downloads");
+  revalidatePath("/account/downloads");
 }
 
 export async function adminTracksAction(

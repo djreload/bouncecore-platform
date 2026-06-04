@@ -20,6 +20,10 @@ export type DigitalTrackInput = {
   genre?: string;
   bpm?: string;
   musicalKey?: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  licenseType?: string;
+  licenseSummary?: string;
   pricePounds: string;
   status: DigitalTrackStatus;
 };
@@ -32,6 +36,10 @@ export type ProducerTrackRow = {
   bpm: number | null;
   musicalKey: string | null;
   pricePence: number;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   status: string;
 };
 
@@ -61,6 +69,9 @@ export type ProducerSaleRow = {
   status: string;
   trackTitle: string;
   pricePence: number;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   platformFeePence: number;
   producerEarningsPence: number;
   paypalOrderId: string | null;
@@ -102,6 +113,69 @@ export type PublicProducerProfile = {
   bio: string | null;
   approvedTracks: number;
   tracks: PublicMusicTrack[];
+};
+
+export type AccountDownloadRow = {
+  id: string;
+  trackId: string;
+  trackTitle: string;
+  producerName: string;
+  genre: string | null;
+  bpm: number | null;
+  musicalKey: string | null;
+  pricePence: number;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
+  downloadCount: number;
+  lastDownloadedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+export type AccountDownloadsData = {
+  downloads: AccountDownloadRow[];
+  stats: {
+    ownedTracks: number;
+    downloadableTracks: number;
+    totalSpendPence: number;
+    totalDownloads: number;
+  };
+};
+
+export type ProducerLicenseRow = {
+  id: string;
+  buyerName: string;
+  buyerEmail: string;
+  trackTitle: string;
+  licenseType: string;
+  licenseSummary: string | null;
+  downloadCount: number;
+  completedAt: string | null;
+};
+
+export type ProducerLicensesData = {
+  licenses: ProducerLicenseRow[];
+  stats: {
+    issuedLicenses: number;
+    downloadedLicenses: number;
+    grossPence: number;
+  };
+};
+
+export type ProducerDownloadAssetRow = ProducerTrackRow & {
+  paidSales: number;
+  downloadCount: number;
+};
+
+export type ProducerDownloadsData = {
+  tracks: ProducerDownloadAssetRow[];
+  stats: {
+    configuredDownloads: number;
+    totalTracks: number;
+    totalDownloadCount: number;
+    missingDownloads: number;
+  };
 };
 
 function normalizeSlug(value: string, fallback: string) {
@@ -158,6 +232,44 @@ function normalizedEmail(value: string | undefined, maxLength: number) {
   return text;
 }
 
+function normalizedUrl(value: string | undefined, maxLength: number) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > maxLength) {
+    throw new Error(`URL must be ${maxLength} characters or fewer.`);
+  }
+
+  try {
+    const url = new URL(text);
+
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error();
+    }
+  } catch {
+    throw new Error("Enter a valid http or https URL.");
+  }
+
+  return text;
+}
+
+function normalizedLicenseType(value: string | undefined) {
+  const text = value?.trim().toLowerCase() ?? "";
+
+  if (!text) {
+    return "personal";
+  }
+
+  if (!/^[a-z0-9 -]{2,40}$/.test(text)) {
+    throw new Error("License type must use letters, numbers, spaces, or hyphens.");
+  }
+
+  return text;
+}
+
 function assertTrackStatus(status: string): asserts status is DigitalTrackStatus {
   if (!digitalTrackStatusOptions.includes(status as DigitalTrackStatus)) {
     throw new Error("Invalid track status.");
@@ -198,6 +310,10 @@ function toTrackRow(track: {
   bpm: number | null;
   musicalKey: string | null;
   pricePence: number;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   status: string;
 }): ProducerTrackRow {
   return {
@@ -208,6 +324,10 @@ function toTrackRow(track: {
     bpm: track.bpm,
     musicalKey: track.musicalKey,
     pricePence: track.pricePence,
+    previewUrl: track.previewUrl,
+    downloadUrl: track.downloadUrl,
+    licenseType: track.licenseType,
+    licenseSummary: track.licenseSummary,
     status: track.status
   };
 }
@@ -220,6 +340,10 @@ function toPublicTrack(track: {
   bpm: number | null;
   musicalKey: string | null;
   pricePence: number;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   status: string;
   producer: {
     name: string;
@@ -240,6 +364,9 @@ function toProducerSaleRow(sale: {
   status: string;
   trackTitle: string;
   pricePence: number;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   platformFeePence: number;
   producerEarningsPence: number;
   paypalOrderId: string | null;
@@ -248,6 +375,11 @@ function toProducerSaleRow(sale: {
   completedAt: Date | null;
   cancelledAt: Date | null;
   createdAt: Date;
+  track: {
+    downloadUrl: string | null;
+    licenseType: string;
+    licenseSummary: string | null;
+  };
   buyer: {
     displayName: string;
     email: string;
@@ -277,6 +409,9 @@ function toProducerSaleRow(sale: {
     payoutRecipientEmail: payoutItem?.recipientEmail ?? null,
     payoutSenderBatchId: payoutItem?.batch.senderBatchId ?? null,
     payoutStatus: payoutItem?.status ?? null,
+    downloadUrl: sale.downloadUrl ?? sale.track.downloadUrl,
+    licenseType: sale.licenseType || sale.track.licenseType,
+    licenseSummary: sale.licenseSummary ?? sale.track.licenseSummary,
     platformFeePence: sale.platformFeePence,
     pricePence: sale.pricePence,
     producerEarningsPence: sale.producerEarningsPence,
@@ -402,6 +537,13 @@ export async function getProducerSalesData(userId: string): Promise<ProducerSale
           createdAt: "desc"
         },
         take: 1
+      },
+      track: {
+        select: {
+          downloadUrl: true,
+          licenseSummary: true,
+          licenseType: true
+        }
       }
     },
     orderBy: {
@@ -518,8 +660,12 @@ function normalizeTrackInput(input: DigitalTrackInput) {
 
   return {
     bpm: parseBpm(input.bpm),
+    downloadUrl: normalizedUrl(input.downloadUrl, 500),
     genre: normalizedText(input.genre, 60),
+    licenseSummary: normalizedText(input.licenseSummary, 1200),
+    licenseType: normalizedLicenseType(input.licenseType),
     musicalKey: normalizedText(input.musicalKey, 20),
+    previewUrl: normalizedUrl(input.previewUrl, 500),
     pricePence: parsePricePence(input.pricePounds),
     slug: normalizeSlug(input.slug, title),
     status: input.status,
@@ -669,6 +815,256 @@ export async function getPurchasedMusicTrackIds(userId: string) {
   });
 
   return new Set(purchases.map((purchase) => purchase.trackId));
+}
+
+function toAccountDownloadRow(purchase: {
+  id: string;
+  trackId: string;
+  trackTitle: string;
+  producerName: string;
+  pricePence: number;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
+  downloadCount: number;
+  lastDownloadedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  track: {
+    genre: string | null;
+    bpm: number | null;
+    musicalKey: string | null;
+    downloadUrl: string | null;
+    licenseType: string;
+    licenseSummary: string | null;
+  };
+}): AccountDownloadRow {
+  return {
+    bpm: purchase.track.bpm,
+    completedAt: purchase.completedAt?.toISOString() ?? null,
+    createdAt: purchase.createdAt.toISOString(),
+    downloadCount: purchase.downloadCount,
+    downloadUrl: purchase.downloadUrl ?? purchase.track.downloadUrl,
+    genre: purchase.track.genre,
+    id: purchase.id,
+    lastDownloadedAt: purchase.lastDownloadedAt?.toISOString() ?? null,
+    licenseSummary: purchase.licenseSummary ?? purchase.track.licenseSummary,
+    licenseType: purchase.licenseType || purchase.track.licenseType,
+    musicalKey: purchase.track.musicalKey,
+    pricePence: purchase.pricePence,
+    producerName: purchase.producerName,
+    trackId: purchase.trackId,
+    trackTitle: purchase.trackTitle
+  };
+}
+
+export async function getAccountDownloadsData(userId: string): Promise<AccountDownloadsData> {
+  const purchases = await prisma.digitalTrackPurchase.findMany({
+    where: {
+      buyerId: userId,
+      status: "paid"
+    },
+    include: {
+      track: {
+        select: {
+          bpm: true,
+          downloadUrl: true,
+          genre: true,
+          licenseSummary: true,
+          licenseType: true,
+          musicalKey: true
+        }
+      }
+    },
+    orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+    take: 100
+  });
+  const rows = purchases.map(toAccountDownloadRow);
+
+  return {
+    downloads: rows,
+    stats: {
+      downloadableTracks: rows.filter((download) => Boolean(download.downloadUrl)).length,
+      ownedTracks: rows.length,
+      totalDownloads: rows.reduce((total, download) => total + download.downloadCount, 0),
+      totalSpendPence: rows.reduce((total, download) => total + download.pricePence, 0)
+    }
+  };
+}
+
+export async function getOwnedTrackDownload(userId: string, purchaseId: string) {
+  const purchase = await prisma.digitalTrackPurchase.findFirst({
+    where: {
+      buyerId: userId,
+      id: purchaseId,
+      status: "paid"
+    },
+    include: {
+      track: {
+        select: {
+          downloadUrl: true
+        }
+      }
+    }
+  });
+
+  if (!purchase) {
+    return null;
+  }
+
+  const downloadUrl = purchase.downloadUrl ?? purchase.track.downloadUrl;
+
+  if (!downloadUrl) {
+    return {
+      downloadUrl: null,
+      purchase
+    };
+  }
+
+  const updated = await prisma.digitalTrackPurchase.update({
+    where: {
+      id: purchase.id
+    },
+    data: {
+      downloadCount: {
+        increment: 1
+      },
+      lastDownloadedAt: new Date()
+    }
+  });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "music.download",
+    target: `track-purchase:${purchase.id}`,
+    severity: "info",
+    metadata: {
+      downloadCount: updated.downloadCount,
+      trackId: purchase.trackId
+    }
+  });
+
+  return {
+    downloadUrl,
+    purchase: updated
+  };
+}
+
+export async function getProducerLicensesData(userId: string): Promise<ProducerLicensesData> {
+  const profile = await prisma.producerProfile.findUnique({
+    where: {
+      userId
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (!profile) {
+    return {
+      licenses: [],
+      stats: {
+        downloadedLicenses: 0,
+        grossPence: 0,
+        issuedLicenses: 0
+      }
+    };
+  }
+
+  const purchases = await prisma.digitalTrackPurchase.findMany({
+    where: {
+      producerId: profile.id,
+      status: "paid"
+    },
+    include: {
+      buyer: {
+        select: {
+          displayName: true,
+          email: true
+        }
+      },
+      track: {
+        select: {
+          licenseSummary: true,
+          licenseType: true
+        }
+      }
+    },
+    orderBy: [{ completedAt: "desc" }, { createdAt: "desc" }],
+    take: 100
+  });
+  const licenses = purchases.map((purchase) => ({
+    buyerEmail: purchase.buyer.email,
+    buyerName: purchase.buyer.displayName,
+    completedAt: purchase.completedAt?.toISOString() ?? null,
+    downloadCount: purchase.downloadCount,
+    id: purchase.id,
+    licenseSummary: purchase.licenseSummary ?? purchase.track.licenseSummary,
+    licenseType: purchase.licenseType || purchase.track.licenseType,
+    trackTitle: purchase.trackTitle
+  }));
+
+  return {
+    licenses,
+    stats: {
+      downloadedLicenses: licenses.filter((license) => license.downloadCount > 0).length,
+      grossPence: purchases.reduce((total, purchase) => total + purchase.pricePence, 0),
+      issuedLicenses: licenses.length
+    }
+  };
+}
+
+export async function getProducerDownloadsData(userId: string): Promise<ProducerDownloadsData> {
+  const profile = await prisma.producerProfile.findUnique({
+    where: {
+      userId
+    },
+    include: {
+      tracks: {
+        include: {
+          purchases: {
+            where: {
+              status: "paid"
+            },
+            select: {
+              downloadCount: true
+            }
+          }
+        },
+        orderBy: {
+          title: "asc"
+        }
+      }
+    }
+  });
+
+  if (!profile) {
+    return {
+      stats: {
+        configuredDownloads: 0,
+        missingDownloads: 0,
+        totalDownloadCount: 0,
+        totalTracks: 0
+      },
+      tracks: []
+    };
+  }
+
+  const tracks = profile.tracks.map((track) => ({
+    ...toTrackRow(track),
+    downloadCount: track.purchases.reduce((total, purchase) => total + purchase.downloadCount, 0),
+    paidSales: track.purchases.length
+  }));
+
+  return {
+    stats: {
+      configuredDownloads: tracks.filter((track) => Boolean(track.downloadUrl)).length,
+      missingDownloads: tracks.filter((track) => !track.downloadUrl).length,
+      totalDownloadCount: tracks.reduce((total, track) => total + track.downloadCount, 0),
+      totalTracks: tracks.length
+    },
+    tracks
+  };
 }
 
 export async function getPublicProducerProfiles(): Promise<PublicProducerProfile[]> {

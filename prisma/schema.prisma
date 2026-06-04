@@ -365,6 +365,10 @@ model DigitalTrack {
   bpm         Int?
   musicalKey  String?
   pricePence  Int
+  previewUrl   String?
+  downloadUrl  String?
+  licenseType  String          @default("personal")
+  licenseSummary String?
   status      String          @default("draft")
   producer    ProducerProfile @relation(fields: [producerId], references: [id], onDelete: Cascade)
   purchases   DigitalTrackPurchase[]
@@ -378,6 +382,11 @@ model DigitalTrackPurchase {
   status                String          @default("pending")
   trackTitle            String
   producerName          String
+  downloadUrl           String?
+  licenseType           String          @default("personal")
+  licenseSummary        String?
+  downloadCount         Int             @default(0)
+  lastDownloadedAt      DateTime?
   pricePence            Int
   currency              String          @default("GBP")
   platformFeePence      Int             @default(0)

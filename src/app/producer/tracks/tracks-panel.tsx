@@ -147,6 +147,64 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           ))}
         </select>
       </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `preview-${track.id}` : "create-preview"}>
+          Preview URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track?.previewUrl ?? ""}
+          disabled={pending}
+          id={track ? `preview-${track.id}` : "create-preview"}
+          maxLength={500}
+          name="previewUrl"
+          placeholder="https://..."
+          type="url"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `download-${track.id}` : "create-download"}>
+          Download URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track?.downloadUrl ?? ""}
+          disabled={pending}
+          id={track ? `download-${track.id}` : "create-download"}
+          maxLength={500}
+          name="downloadUrl"
+          placeholder="https://..."
+          type="url"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `license-${track.id}` : "create-license"}>
+          License type
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track?.licenseType ?? "personal"}
+          disabled={pending}
+          id={track ? `license-${track.id}` : "create-license"}
+          maxLength={40}
+          name="licenseType"
+          placeholder="personal"
+        />
+      </div>
+      <div className="xl:col-span-2">
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `terms-${track.id}` : "create-terms"}>
+          License summary
+        </label>
+        <textarea
+          className="mt-2 min-h-24 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track?.licenseSummary ?? ""}
+          disabled={pending}
+          id={track ? `terms-${track.id}` : "create-terms"}
+          maxLength={1200}
+          name="licenseSummary"
+          placeholder="Personal listening and DJ set use. Redistribution or resale is not included."
+        />
+      </div>
     </>
   );
 }
@@ -228,6 +286,7 @@ export function ProducerTracksPanel({ data, mode = "full" }: ProducerTracksPanel
                     </p>
                   </div>
                   <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
+                  {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
                 </div>
                 <form action={formAction} className="grid gap-4 xl:grid-cols-4">
                   <input name="intent" type="hidden" value="update-track" />

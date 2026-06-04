@@ -42,8 +42,12 @@ function trackInput(formData: FormData): DigitalTrackInput {
 
   return {
     bpm: formString(formData, "bpm"),
+    downloadUrl: formString(formData, "downloadUrl"),
     genre: formString(formData, "genre"),
+    licenseSummary: formString(formData, "licenseSummary"),
+    licenseType: formString(formData, "licenseType"),
     musicalKey: formString(formData, "musicalKey"),
+    previewUrl: formString(formData, "previewUrl"),
     pricePounds: formString(formData, "pricePounds"),
     slug: formString(formData, "slug"),
     status,
@@ -58,6 +62,9 @@ function revalidateProducerViews(slug?: string) {
   revalidatePath("/producer/sales");
   revalidatePath("/producer/tracks");
   revalidatePath("/producer/upload");
+  revalidatePath("/producer/licenses");
+  revalidatePath("/producer/downloads");
+  revalidatePath("/account/downloads");
   revalidatePath("/music");
   revalidatePath("/producers");
 

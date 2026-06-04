@@ -89,6 +89,9 @@ export async function startTrackCheckout(userId: string, input: StartTrackChecko
     data: {
       buyerId: userId,
       currency: musicCurrency,
+      downloadUrl: track.downloadUrl,
+      licenseSummary: track.licenseSummary,
+      licenseType: track.licenseType,
       platformFeePence: earnings.platformFeePence,
       pricePence: track.pricePence,
       producerEarningsPence: earnings.producerEarningsPence,

@@ -1,4 +1,4 @@
-import { CreditCard, Disc3, LogIn, Music, SlidersHorizontal } from "lucide-react";
+import { CreditCard, Disc3, Download, LogIn, Music, Play, SlidersHorizontal } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -136,12 +136,24 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                     <Music className="h-4 w-4" aria-hidden="true" />
                     Producer
                   </ButtonLink>
+                  {track.previewUrl ? (
+                    <ButtonLink href={track.previewUrl} target="_blank" variant="ghost">
+                      <Play className="h-4 w-4" aria-hidden="true" />
+                      Preview
+                    </ButtonLink>
+                  ) : null}
+                  {owned ? (
+                    <ButtonLink href="/account/downloads" variant="primary">
+                      <Download className="h-4 w-4" aria-hidden="true" />
+                      Downloads
+                    </ButtonLink>
+                  ) : null}
                   {!currentUser ? (
                     <ButtonLink href="/auth/login?error=auth-required" variant="primary">
                       <LogIn className="h-4 w-4" aria-hidden="true" />
                       Login to buy
                     </ButtonLink>
-                  ) : (
+                  ) : owned ? null : (
                     <form action="/music/checkout" method="post">
                       <input name="trackId" type="hidden" value={track.id} />
                       <Button disabled={owned || !checkoutReadiness.ready || track.pricePence <= 0} type="submit" variant="primary">

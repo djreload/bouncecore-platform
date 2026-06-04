@@ -9,6 +9,10 @@ export type AdminTrackInput = {
   genre?: string;
   bpm?: string;
   musicalKey?: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  licenseType?: string;
+  licenseSummary?: string;
   pricePounds: string;
   status: DigitalTrackStatus;
 };
@@ -21,6 +25,10 @@ export type AdminMusicTrackRow = {
   bpm: number | null;
   musicalKey: string | null;
   pricePence: number;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   status: string;
   producerId: string;
   producerName: string;
@@ -82,6 +90,44 @@ function normalizedText(value: string | undefined, maxLength: number) {
   return text;
 }
 
+function normalizedUrl(value: string | undefined, maxLength: number) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > maxLength) {
+    throw new Error(`URL must be ${maxLength} characters or fewer.`);
+  }
+
+  try {
+    const url = new URL(text);
+
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      throw new Error();
+    }
+  } catch {
+    throw new Error("Enter a valid http or https URL.");
+  }
+
+  return text;
+}
+
+function normalizedLicenseType(value: string | undefined) {
+  const text = value?.trim().toLowerCase() ?? "";
+
+  if (!text) {
+    return "personal";
+  }
+
+  if (!/^[a-z0-9 -]{2,40}$/.test(text)) {
+    throw new Error("License type must use letters, numbers, spaces, or hyphens.");
+  }
+
+  return text;
+}
+
 function assertTrackStatus(status: string): asserts status is DigitalTrackStatus {
   if (!digitalTrackStatusOptions.includes(status as DigitalTrackStatus)) {
     throw new Error("Invalid track status.");
@@ -125,8 +171,12 @@ function normalizeTrackInput(input: AdminTrackInput) {
 
   return {
     bpm: parseBpm(input.bpm),
+    downloadUrl: normalizedUrl(input.downloadUrl, 500),
     genre: normalizedText(input.genre, 60),
+    licenseSummary: normalizedText(input.licenseSummary, 1200),
+    licenseType: normalizedLicenseType(input.licenseType),
     musicalKey: normalizedText(input.musicalKey, 20),
+    previewUrl: normalizedUrl(input.previewUrl, 500),
     pricePence: parsePricePence(input.pricePounds),
     slug: normalizeSlug(input.slug, title),
     status: input.status,
@@ -142,6 +192,10 @@ function toAdminTrackRow(track: {
   bpm: number | null;
   musicalKey: string | null;
   pricePence: number;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+  licenseType: string;
+  licenseSummary: string | null;
   status: string;
   producerId: string;
   producer: {
@@ -163,6 +217,10 @@ function toAdminTrackRow(track: {
     bpm: track.bpm,
     musicalKey: track.musicalKey,
     pricePence: track.pricePence,
+    previewUrl: track.previewUrl,
+    downloadUrl: track.downloadUrl,
+    licenseType: track.licenseType,
+    licenseSummary: track.licenseSummary,
     status: track.status,
     producerId: track.producerId,
     producerName: track.producer.name,

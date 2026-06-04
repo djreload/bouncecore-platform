@@ -143,6 +143,62 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           ))}
         </select>
       </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`preview-${track.id}`}>
+          Preview URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track.previewUrl ?? ""}
+          disabled={pending}
+          id={`preview-${track.id}`}
+          maxLength={500}
+          name="previewUrl"
+          placeholder="https://..."
+          type="url"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`download-${track.id}`}>
+          Download URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track.downloadUrl ?? ""}
+          disabled={pending}
+          id={`download-${track.id}`}
+          maxLength={500}
+          name="downloadUrl"
+          placeholder="https://..."
+          type="url"
+        />
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`license-${track.id}`}>
+          License type
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track.licenseType}
+          disabled={pending}
+          id={`license-${track.id}`}
+          maxLength={40}
+          name="licenseType"
+        />
+      </div>
+      <div className="xl:col-span-2">
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`terms-${track.id}`}>
+          License summary
+        </label>
+        <textarea
+          className="mt-2 min-h-24 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track.licenseSummary ?? ""}
+          disabled={pending}
+          id={`terms-${track.id}`}
+          maxLength={1200}
+          name="licenseSummary"
+        />
+      </div>
     </>
   );
 }
@@ -246,6 +302,7 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={statusTone(track.status)}>{track.status}</Badge>
                   <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
+                  {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
                 </div>
                 <h4 className="mt-3 text-xl font-black">{track.title}</h4>
                 <p className="mt-1 text-sm text-bc-muted">
