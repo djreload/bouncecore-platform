@@ -71,6 +71,7 @@ This scaffold includes:
 - Data-backed stars wallets, live chat star sending, stream overlay alerts, and sent-stars leaderboards
 - Data-backed reward spin-wheel configuration and prize-claim fulfilment admin
 - PayPal-only payment integration foundation for stars, shop checkout, and producer payouts
+- Admin integrations readiness overview for PayPal, Tenor GIF search, stream-provider wiring, and public app URLs
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - Required planning, design, navigation, stream-boundary, and deployment docs
