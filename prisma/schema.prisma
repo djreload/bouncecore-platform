@@ -43,6 +43,8 @@ model User {
   chatBans        ChatBan[] @relation("ChatBanUser")
   chatBansCreated ChatBan[] @relation("ChatBanCreatedBy")
   chatBansRevoked ChatBan[] @relation("ChatBanRevokedBy")
+  prizeClaims     PrizeClaim[] @relation("PrizeClaimUser")
+  prizeClaimsResolved PrizeClaim[] @relation("PrizeClaimResolvedBy")
   producerProfile ProducerProfile?
   orders          Order[]
   starPurchases   StarPurchase[]
@@ -553,6 +555,70 @@ model StarPurchase {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RewardSpinWheel {
+  id              String                   @id @default(cuid())
+  slug            String                   @unique
+  name            String
+  description     String?
+  status          String                   @default("draft")
+  costStars       Int                      @default(0)
+  cooldownMinutes Int                      @default(1440)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  segments        RewardSpinWheelSegment[]
+  prizeClaims     PrizeClaim[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model RewardSpinWheelSegment {
+  id          String          @id @default(cuid())
+  wheelId     String
+  label       String
+  prizeType   String          @default("none")
+  prizeValue  String?
+  starAmount  Int             @default(0)
+  weight      Int             @default(1)
+  status      String          @default("active")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  wheel       RewardSpinWheel @relation(fields: [wheelId], references: [id], onDelete: Cascade)
+  prizeClaims PrizeClaim[]
+
+  @@index([wheelId])
+  @@index([status])
+}
+
+model PrizeClaim {
+  id             String                  @id @default(cuid())
+  userId         String
+  wheelId        String?
+  segmentId      String?
+  title          String
+  description    String?
+  status         String                  @default("pending")
+  prizeType      String                  @default("manual")
+  prizeValue     String?
+  starAmount     Int                     @default(0)
+  fulfilmentNote String?
+  starsCreditedAt DateTime?
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  user           User                    @relation("PrizeClaimUser", fields: [userId], references: [id], onDelete: Cascade)
+  resolvedBy     User?                   @relation("PrizeClaimResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  wheel          RewardSpinWheel?        @relation(fields: [wheelId], references: [id], onDelete: SetNull)
+  segment        RewardSpinWheelSegment? @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([wheelId])
+  @@index([segmentId])
   @@index([status])
   @@index([createdAt])
 }

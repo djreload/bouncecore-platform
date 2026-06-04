@@ -68,6 +68,7 @@ This scaffold includes:
 - Music download entitlements with buyer downloads, license snapshots, and producer delivery dashboards
 - PayPal producer payout batches with recipient setup, local ledger records, and status sync
 - Data-backed stars wallets, public rewards, and admin stars controls
+- Data-backed reward spin-wheel configuration and prize-claim fulfilment admin
 - PayPal-only payment integration foundation for stars, shop checkout, and producer payouts
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
