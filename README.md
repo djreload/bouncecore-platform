@@ -40,6 +40,7 @@ This scaffold includes:
 - Initial Prisma schema stub
 - Phase 1 RBAC foundation with role and permission catalogue
 - Admin Users, Roles, and Permissions pages
+- Admin user invite links with hashed invite tokens, role presets, expiry, and revoke controls
 - Password/session/token helper scaffolding
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page

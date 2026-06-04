@@ -3,6 +3,7 @@ import { z } from "zod";
 export const registerSchema = z.object({
   displayName: z.string().trim().min(2).max(80),
   email: z.string().trim().toLowerCase().email().max(255),
+  inviteToken: z.string().trim().max(128).optional(),
   password: z.string().min(12).max(128)
 });
 

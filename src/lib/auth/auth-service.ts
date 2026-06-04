@@ -3,8 +3,10 @@ import { Prisma, type UserStatus } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { hashPassword, verifyPassword } from "@/lib/auth/passwords";
+import { type Role } from "@/lib/auth/rbac";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { createSecretToken, hashSecretToken, tokenFingerprint } from "@/lib/auth/tokens";
+import { rolesFromInviteJson } from "@/lib/auth/user-invite-service";
 
 export const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
 
@@ -15,6 +17,7 @@ export type AuthResult =
 type RegisterInput = {
   displayName: string;
   email: string;
+  inviteToken?: string;
   password: string;
 };
 
@@ -40,6 +43,69 @@ function allowedLoginStatus(status: UserStatus) {
   return status === "active" || status === "pending";
 }
 
+class RegistrationInviteError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+async function loadRegistrationInvite(tx: Prisma.TransactionClient, inviteToken: string | undefined, email: string) {
+  const token = inviteToken?.trim();
+
+  if (!token) {
+    return null;
+  }
+
+  const invite = await tx.userInvite.findUnique({
+    where: {
+      tokenHash: hashSecretToken(token)
+    }
+  });
+
+  if (!invite || invite.status !== "pending" || invite.revokedAt || invite.acceptedAt || invite.expiresAt <= new Date()) {
+    throw new RegistrationInviteError("invalid-invite");
+  }
+
+  if (invite.email !== email) {
+    throw new RegistrationInviteError("invite-email-mismatch");
+  }
+
+  return {
+    createdById: invite.createdById,
+    id: invite.id,
+    roles: rolesFromInviteJson(invite.roles)
+  };
+}
+
+async function assignRegistrationRoles(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  roles: Role[],
+  assignedById: string | null
+) {
+  const roleNames = Array.from(new Set(roles));
+  const dbRoles = await tx.role.findMany({
+    where: {
+      name: {
+        in: roleNames
+      }
+    }
+  });
+
+  if (!dbRoles.length) {
+    return;
+  }
+
+  await tx.userRole.createMany({
+    data: dbRoles.map((role) => ({
+      assignedById,
+      roleId: role.id,
+      userId
+    })),
+    skipDuplicates: true
+  });
+}
+
 export async function registerUser(input: RegisterInput): Promise<AuthResult> {
   const context = await requestContext();
   const passwordHash = await hashPassword(input.password);
@@ -48,12 +114,13 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
 
   try {
     await prisma.$transaction(async (tx) => {
+      const invite = await loadRegistrationInvite(tx, input.inviteToken, input.email);
       const user = await tx.user.create({
         data: {
           email: input.email,
           displayName: input.displayName,
           passwordHash,
-          status: "pending",
+          status: invite ? "active" : "pending",
           profile: {
             create: {
               slug: makeProfileSlug(input.displayName)
@@ -62,13 +129,17 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
         }
       });
 
-      const viewerRole = await tx.role.findUnique({ where: { name: "viewer" } });
+      await assignRegistrationRoles(tx, user.id, invite?.roles ?? ["viewer"], invite?.createdById ?? null);
 
-      if (viewerRole) {
-        await tx.userRole.create({
+      if (invite) {
+        await tx.userInvite.update({
+          where: {
+            id: invite.id
+          },
           data: {
-            userId: user.id,
-            roleId: viewerRole.id
+            acceptedAt: new Date(),
+            acceptedById: user.id,
+            status: "accepted"
           }
         });
       }
@@ -88,8 +159,10 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
           actorId: user.id,
           action: "auth.register",
           target: `user:${user.id}`,
-          severity: "info",
+          severity: invite ? "warning" : "info",
           metadata: {
+            inviteId: invite?.id ?? null,
+            roles: invite?.roles ?? ["viewer"],
             sessionFingerprint: tokenFingerprint(token)
           },
           ipAddress: context.ipAddress,
@@ -100,6 +173,10 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
 
     return { ok: true, token, redirectTo: "/account/security" };
   } catch (error) {
+    if (error instanceof RegistrationInviteError) {
+      return { ok: false, error: error.code, redirectTo: `/auth/register?error=${error.code}` };
+    }
+
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { ok: false, error: "email-in-use", redirectTo: "/auth/register?error=email-in-use" };
     }

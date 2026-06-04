@@ -9,6 +9,7 @@ export async function POST(request: Request) {
   const parsed = registerSchema.safeParse({
     displayName: formValue(formData, "displayName"),
     email: formValue(formData, "email"),
+    inviteToken: formValue(formData, "inviteToken") || undefined,
     password: formValue(formData, "password")
   });
 

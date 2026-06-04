@@ -45,6 +45,9 @@ model User {
   chatBansRevoked ChatBan[] @relation("ChatBanRevokedBy")
   prizeClaims     PrizeClaim[] @relation("PrizeClaimUser")
   prizeClaimsResolved PrizeClaim[] @relation("PrizeClaimResolvedBy")
+  invitesCreated  UserInvite[] @relation("UserInviteCreatedBy")
+  invitesAccepted UserInvite[] @relation("UserInviteAcceptedBy")
+  invitesRevoked  UserInvite[] @relation("UserInviteRevokedBy")
   producerProfile ProducerProfile?
   orders          Order[]
   starPurchases   StarPurchase[]
@@ -163,6 +166,31 @@ model PasswordResetToken {
 
   @@index([email])
   @@index([expiresAt])
+}
+
+model UserInvite {
+  id           String   @id @default(cuid())
+  email        String
+  tokenHash    String   @unique
+  roles        Json
+  status       String   @default("pending")
+  note         String?
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  acceptedById String?
+  revokedAt    DateTime?
+  revokedById  String?
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    User     @relation("UserInviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  acceptedBy   User?    @relation("UserInviteAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+  revokedBy    User?    @relation("UserInviteRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([createdById])
 }
 
 model AuditLog {

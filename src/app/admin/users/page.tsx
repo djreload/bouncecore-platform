@@ -1,9 +1,10 @@
-import { Clock, KeyRound, Mail, Plus, Save, ShieldCheck, UserPlus, X } from "lucide-react";
+import { Clock, KeyRound, Mail, Plus, Save, ShieldCheck, X } from "lucide-react";
 import {
   addAdminUserRoleAction,
   removeAdminUserRoleAction,
   updateAdminUserStatusAction
 } from "@/app/admin/users/actions";
+import { AdminUserInvitesPanel } from "@/app/admin/users/invites-panel";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { requireUserPermission } from "@/lib/auth/guards";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { userStatusOptions } from "@/lib/auth/user-admin-service";
+import { getAdminUserInvites, inviteAssignableRoles } from "@/lib/auth/user-invite-service";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,12 @@ function statusTone(status: string) {
 
 export default async function AdminUsersPage() {
   const actor = await requireUserPermission("admin.access");
-  const [users, roles, roleDisplayLabels] = await Promise.all([getAdminUsers(), getAdminRoles(), getRoleDisplayNameOverrides()]);
+  const [users, roles, roleDisplayLabels, invites] = await Promise.all([
+    getAdminUsers(),
+    getAdminRoles(),
+    getRoleDisplayNameOverrides(),
+    getAdminUserInvites()
+  ]);
   const activeUsers = users.filter((user) => user.status === "active").length;
   const ownerUsers = users.filter((user) => user.roles.some((userRole) => userRole.role.name === "owner")).length;
 
@@ -60,16 +67,15 @@ export default async function AdminUsersPage() {
         </article>
       </div>
 
+      <AdminUserInvitesPanel invites={invites} roleDisplayLabels={roleDisplayLabels} roles={inviteAssignableRoles} />
+
       <section className="rounded-md border border-bc-line bg-bc-panel">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
           <div>
-            <h3 className="text-xl font-black">User directory scaffold</h3>
+            <h3 className="text-xl font-black">User directory</h3>
             <p className="mt-1 text-sm text-bc-muted">Database-backed directory with roles, status, sessions, and stream-key counts.</p>
           </div>
-          <Button type="button" variant="ghost">
-            <UserPlus className="h-4 w-4" aria-hidden="true" />
-            Invite user
-          </Button>
+          <Badge tone="cyan">{users.length} accounts</Badge>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] border-collapse text-left text-sm">
