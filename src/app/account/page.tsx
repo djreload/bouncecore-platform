@@ -1,9 +1,11 @@
-import { Bell, Download, Package, ShieldCheck, Star, UserRound } from "lucide-react";
+import { Bell, Download, Music, Package, Radio, ShieldCheck, Sparkles, Star, UserRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { getAccountOverviewData } from "@/lib/account/account-service";
+import type { Role } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -34,9 +36,51 @@ const overviewLinks = [
   }
 ];
 
+const assignedFeatureLinks = [
+  {
+    body: "Users, roles, payments, streams, shop, music, rewards, mobile, and settings.",
+    href: "/admin",
+    icon: ShieldCheck,
+    label: "Admin control room",
+    roles: ["owner", "admin"]
+  },
+  {
+    body: "Stream key, live status, health, schedule, profile, and OBS setup.",
+    href: "/streamer",
+    icon: Radio,
+    label: "Streamer dashboard",
+    roles: ["streamer", "admin", "owner"]
+  },
+  {
+    body: "Tracks, uploads, reviews, licenses, sales, downloads, and payout setup.",
+    href: "/producer",
+    icon: Music,
+    label: "Producer dashboard",
+    roles: ["producer", "admin", "owner"]
+  },
+  {
+    body: "Star balance, star purchases, supporter activity, and live support.",
+    href: "/account/rewards",
+    icon: Sparkles,
+    label: "Supporter stars",
+    roles: ["supporter"]
+  }
+] satisfies {
+  body: string;
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  roles: Role[];
+}[];
+
+function featuresForRoles(roles: Role[]) {
+  return assignedFeatureLinks.filter((item) => item.roles.some((role) => roles.includes(role)));
+}
+
 export default async function AccountPage() {
   const user = await requireSignedInUser();
   const data = await getAccountOverviewData(user.id);
+  const featureLinks = featuresForRoles(user.roles);
 
   return (
     <DashboardShell title="Overview" description="Account summary across profile, purchases, stars, notifications, and security.">
@@ -88,6 +132,37 @@ export default async function AccountPage() {
           </ButtonLink>
         </div>
       </section>
+
+      {featureLinks.length ? (
+        <section className="mt-5 rounded-md border border-bc-line bg-bc-panel p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Badge tone="cyan">Assigned features</Badge>
+              <h3 className="mt-4 text-2xl font-black">Your workspaces</h3>
+              <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+                These links are shown from the roles currently assigned to your account.
+              </p>
+            </div>
+            <Sparkles className="h-7 w-7 text-bc-pink" aria-hidden="true" />
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {featureLinks.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={item.href}>
+                  <Icon className="h-6 w-6 text-bc-electric" aria-hidden="true" />
+                  <h4 className="mt-4 text-lg font-black">{item.label}</h4>
+                  <p className="mt-2 text-sm text-bc-muted">{item.body}</p>
+                  <ButtonLink className="mt-4" href={item.href} size="sm" variant="ghost">
+                    Open workspace
+                  </ButtonLink>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-5 grid gap-4 md:grid-cols-2">
         {overviewLinks.map((item) => {

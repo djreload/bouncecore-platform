@@ -66,6 +66,13 @@ export const accountNavigation: NavigationItem[] = [
   { label: "Settings", href: "/account/settings", icon: "settings", group: "Account" }
 ];
 
+export const accountFeatureNavigation: NavigationItem[] = [
+  { label: "Admin control room", href: "/admin", icon: "shield", group: "Assigned features", requiredRoles: ["owner", "admin"] },
+  { label: "Streamer dashboard", href: "/streamer", icon: "radio", group: "Assigned features", requiredRoles: ["streamer", "admin", "owner"] },
+  { label: "Producer dashboard", href: "/producer", icon: "music", group: "Assigned features", requiredRoles: ["producer", "admin", "owner"] },
+  { label: "Supporter stars", href: "/account/rewards", icon: "sparkles", group: "Assigned features", requiredRoles: ["supporter"] }
+];
+
 export const streamerNavigation: NavigationItem[] = [
   { label: "Streamer overview", href: "/streamer", icon: "radio", group: "Streaming", requiredRoles: ["streamer", "admin", "owner"] },
   { label: "My stream key", href: "/streamer/stream-key", icon: "key", group: "Streaming", requiredRoles: ["streamer", "admin", "owner"] },

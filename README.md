@@ -45,6 +45,7 @@ This scaffold includes:
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
 - Data-backed account overview, profile editor, settings summary, and notifications inbox
+- Role-aware account dashboard links for assigned Admin, Streamer, Producer, and Supporter workspaces
 - Data-backed mobile app configuration API with admin feature flags, maintenance mode, and announcements
 - Admin notification sender for account/mobile notification surfaces
 - Account session directory with current-session sign out and other-session revoke controls

@@ -1,5 +1,5 @@
 import { GroupedNav } from "@/components/navigation/grouped-nav";
-import { accountNavigation, producerNavigation, streamerNavigation } from "@/config/navigation";
+import { accountFeatureNavigation, accountNavigation, producerNavigation, streamerNavigation } from "@/config/navigation";
 import { filterNavigationByRoles, type Role } from "@/lib/auth/rbac";
 import { requireAnyRole, requireSignedInUser } from "@/lib/auth/guards";
 
@@ -19,7 +19,8 @@ const workspaceRoles = {
 export async function DashboardShell({ children, title, description, mode = "account" }: DashboardShellProps) {
   const user = workspaceRoles[mode] ? await requireAnyRole(workspaceRoles[mode]) : await requireSignedInUser();
   const roleItems = mode === "streamer" ? streamerNavigation : mode === "producer" ? producerNavigation : [];
-  const visibleNavigation = filterNavigationByRoles([...accountNavigation, ...roleItems], user.roles);
+  const accountFeatureItems = mode === "account" ? accountFeatureNavigation : [];
+  const visibleNavigation = filterNavigationByRoles([...accountNavigation, ...accountFeatureItems, ...roleItems], user.roles);
 
   return (
     <main className="min-h-screen bg-bc-void text-white">
