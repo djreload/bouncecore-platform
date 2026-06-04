@@ -1,0 +1,262 @@
+"use client";
+
+import { useActionState } from "react";
+import { Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
+import { adminMobileAction } from "@/app/admin/mobile/actions";
+import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { AdminMobileConfigData, MobileFeatureKey } from "@/lib/admin/mobile-service";
+
+type AdminMobilePanelProps = {
+  data: AdminMobileConfigData;
+};
+
+const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads"] as const satisfies readonly MobileFeatureKey[];
+const mobileThemeModes = ["dark", "light"] as const;
+
+function formatDate(value: string | null) {
+  return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Not saved";
+}
+
+function checkTone(status: string) {
+  return status === "ready" ? ("acid" as const) : ("amber" as const);
+}
+
+function featureLabel(value: string) {
+  return value.replaceAll("-", " ").replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
+  const [state, formAction, pending] = useActionState<AdminMobileActionState, FormData>(
+    adminMobileAction,
+    initialAdminMobileActionState
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-4">
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="cyan">Endpoint</Badge>
+          <p className="mt-4 text-3xl font-black">{data.config.apiVersion}</p>
+          <p className="mt-2 break-all text-sm text-bc-muted">{data.stats.publicEndpoint}</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="acid">Features</Badge>
+          <p className="mt-4 text-3xl font-black">
+            {data.stats.enabledFeatures}/{mobileFeatureKeys.length}
+          </p>
+          <p className="mt-2 text-sm text-bc-muted">Enabled for the mobile API.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone={data.config.maintenance.enabled ? "amber" : "acid"}>Maintenance</Badge>
+          <p className="mt-4 text-3xl font-black">{data.config.maintenance.enabled ? "On" : "Off"}</p>
+          <p className="mt-2 text-sm text-bc-muted">{data.config.maintenance.message ?? "Normal operation."}</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone={data.source === "database" ? "acid" : "amber"}>Saved</Badge>
+          <p className="mt-4 text-3xl font-black capitalize">{data.source}</p>
+          <p className="mt-2 text-sm text-bc-muted">{formatDate(data.stats.updatedAt)}</p>
+        </article>
+      </div>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="pink">Mobile API</Badge>
+            <h3 className="mt-4 text-2xl font-black">App configuration</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              These values are returned by the public mobile config endpoint and can be consumed by native app clients.
+            </p>
+          </div>
+          <Smartphone className="h-7 w-7 text-bc-pink" aria-hidden="true" />
+        </div>
+
+        {state.message ? (
+          <div
+            className={`mt-5 rounded-md border p-3 text-sm ${
+              state.status === "error"
+                ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
+                : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
+            }`}
+          >
+            {state.message}
+          </div>
+        ) : null}
+
+        <form action={formAction} className="mt-5 grid gap-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-app-name">
+                App name
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.config.appName}
+                disabled={pending}
+                id="mobile-app-name"
+                name="appName"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-environment">
+                Environment label
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.config.environment}
+                disabled={pending}
+                id="mobile-environment"
+                name="environmentLabel"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-support-email">
+                Support email
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.config.supportEmail ?? ""}
+                disabled={pending}
+                id="mobile-support-email"
+                name="supportEmail"
+                type="email"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-theme-mode">
+                Theme mode
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.config.theme.mode}
+                disabled={pending}
+                id="mobile-theme-mode"
+                name="themeMode"
+              >
+                {mobileThemeModes.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-accent">
+              Accent
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={data.config.theme.accent}
+              disabled={pending}
+              id="mobile-accent"
+              name="accent"
+            />
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5 text-bc-electric" aria-hidden="true" />
+              <h4 className="font-black">Feature flags</h4>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {mobileFeatureKeys.map((feature) => (
+                <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm" key={feature}>
+                  <input
+                    defaultChecked={data.config.features[feature]}
+                    disabled={pending}
+                    name={`feature_${feature}`}
+                    type="checkbox"
+                  />
+                  {featureLabel(feature)}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+              <div className="flex items-center gap-2">
+                <Wrench className="h-5 w-5 text-bc-amber" aria-hidden="true" />
+                <h4 className="font-black">Maintenance</h4>
+              </div>
+              <label className="mt-4 flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input
+                  defaultChecked={data.config.maintenance.enabled}
+                  disabled={pending}
+                  name="maintenanceEnabled"
+                  type="checkbox"
+                />
+                Enable maintenance mode
+              </label>
+              <label className="mt-4 block text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-maintenance-message">
+                Maintenance message
+              </label>
+              <textarea
+                className="mt-2 min-h-28 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={data.config.maintenance.message ?? ""}
+                disabled={pending}
+                id="mobile-maintenance-message"
+                name="maintenanceMessage"
+              />
+            </div>
+
+            <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+              <div className="flex items-center gap-2">
+                <Megaphone className="h-5 w-5 text-bc-pink" aria-hidden="true" />
+                <h4 className="font-black">Announcement</h4>
+              </div>
+              <label className="mt-4 block text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-announcement-title">
+                Announcement title
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={data.config.announcement?.title ?? ""}
+                disabled={pending}
+                id="mobile-announcement-title"
+                name="announcementTitle"
+              />
+              <label className="mt-4 block text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-announcement-body">
+                Announcement body
+              </label>
+              <textarea
+                className="mt-2 min-h-24 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={data.config.announcement?.body ?? ""}
+                disabled={pending}
+                id="mobile-announcement-body"
+                name="announcementBody"
+              />
+            </div>
+          </div>
+
+          <div>
+            <Button disabled={pending} type="submit" variant="primary">
+              <Save className="h-4 w-4" aria-hidden="true" />
+              Save app config
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h3 className="text-xl font-black">Readiness</h3>
+          <Badge tone="muted">mobile-v1</Badge>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {data.checks.map((check) => (
+            <div className="rounded-md border border-bc-line bg-bc-ink p-3" key={check.label}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="font-semibold">{check.label}</p>
+                <Badge tone={checkTone(check.status)}>{check.value}</Badge>
+              </div>
+              <p className="mt-2 text-sm text-bc-muted">{check.detail}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}

@@ -44,6 +44,8 @@ This scaffold includes:
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
 - Data-backed account overview, profile editor, settings summary, and notifications inbox
+- Data-backed mobile app configuration API with admin feature flags, maintenance mode, and announcements
+- Admin notification sender for account/mobile notification surfaces
 - Account session directory with current-session sign out and other-session revoke controls
 - Native chat GIF search and media messages through the Tenor API
 - Automatic chat-history pruning for messages older than 24 hours
