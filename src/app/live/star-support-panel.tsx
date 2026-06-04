@@ -144,7 +144,12 @@ function alertsEnabledForCurrentPath(settings: StarAlertSettings) {
     return true;
   }
 
-  return window.location.pathname === "/live" || window.location.pathname.startsWith("/live/");
+  return (
+    window.location.pathname === "/live" ||
+    window.location.pathname.startsWith("/live/") ||
+    window.location.pathname === "/overlay/stars" ||
+    window.location.pathname.startsWith("/overlay/stars/")
+  );
 }
 
 export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {

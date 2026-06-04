@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Copy, KeyRound, Link2, Radio, Settings2, Signal } from "lucide-react";
+import { Check, Copy, KeyRound, Link2, Radio, Sparkles, Settings2, Signal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 
@@ -14,9 +14,10 @@ type ObsSetupPanelProps = {
   ingestUrl: string;
   keyFingerprint: string | null;
   playbackUrl: string | null;
+  starOverlayUrl: string;
 };
 
-type CopyTarget = "ingest" | "playback" | null;
+type CopyTarget = "ingest" | "playback" | "starOverlay" | null;
 
 function statusTone(status: string) {
   if (status === "healthy" || status === "live" || status === "connected") {
@@ -47,7 +48,8 @@ export function ObsSetupPanel({
   ingestConnected,
   ingestUrl,
   keyFingerprint,
-  playbackUrl
+  playbackUrl,
+  starOverlayUrl
 }: ObsSetupPanelProps) {
   const [copied, setCopied] = useState<CopyTarget>(null);
 
@@ -113,6 +115,17 @@ export function ObsSetupPanel({
             </div>
             <p className="mt-3 break-all font-mono text-sm text-bc-muted">{playbackUrl ?? "Playback URL is not configured yet."}</p>
           </article>
+
+          <article className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-bc-acid" aria-hidden="true" />
+                <h4 className="font-semibold">Star alert browser source</h4>
+              </div>
+              <CopyButton copied={copied === "starOverlay"} onCopy={() => copyValue("starOverlay", starOverlayUrl)} />
+            </div>
+            <p className="mt-3 break-all font-mono text-sm text-bc-muted">{starOverlayUrl}</p>
+          </article>
         </div>
       </section>
 
@@ -172,6 +185,7 @@ export function ObsSetupPanel({
           </div>
           <ul className="mt-4 space-y-3 text-sm text-bc-muted">
             <li className="rounded-md border border-bc-line bg-bc-ink p-3">Confirm the active key fingerprint matches the latest key you copied.</li>
+            <li className="rounded-md border border-bc-line bg-bc-ink p-3">Add the star alert URL as an OBS browser source with a transparent background.</li>
             <li className="rounded-md border border-bc-line bg-bc-ink p-3">Check stream health after OBS connects to verify ingest is detected.</li>
             <li className="rounded-md border border-bc-line bg-bc-ink p-3">Keep raw stream keys private; rotate the key if it has been shared.</li>
           </ul>

@@ -54,7 +54,7 @@ function purchaseStatusTone(status: string) {
 }
 
 function alertScopeLabel(scope: string) {
-  return scope === "public_site" ? "Public site" : "Live only";
+  return scope === "public_site" ? "Public site" : "Live and OBS only";
 }
 
 function alertEffectLabel(effect: string) {
