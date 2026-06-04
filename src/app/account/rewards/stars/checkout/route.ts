@@ -1,27 +1,25 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { appOrigin, appUrl } from "@/lib/http/app-url";
 import { startStarsCheckout } from "@/lib/rewards/stars-checkout-service";
 
 function rewardsRedirect(request: NextRequest, checkout: string) {
-  const url = new URL("/account/rewards", request.url);
-  url.searchParams.set("checkout", checkout);
-
-  return NextResponse.redirect(url, 303);
+  return NextResponse.redirect(appUrl(request, "/account/rewards", { checkout }), 303);
 }
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/auth/login?error=auth-required", request.url), 303);
+    return NextResponse.redirect(appUrl(request, "/auth/login", { error: "auth-required" }), 303);
   }
 
   try {
     const formData = await request.formData();
     const packageId = formData.get("packageId");
     const checkout = await startStarsCheckout(user.id, {
-      origin: request.nextUrl.origin,
+      origin: appOrigin(request),
       packageId: typeof packageId === "string" ? packageId : ""
     });
 

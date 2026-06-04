@@ -1,27 +1,25 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { appOrigin, appUrl } from "@/lib/http/app-url";
 import { startTrackCheckout } from "@/lib/music/track-checkout-service";
 
 function musicRedirect(request: NextRequest, checkout: string) {
-  const url = new URL("/music", request.url);
-  url.searchParams.set("checkout", checkout);
-
-  return NextResponse.redirect(url, 303);
+  return NextResponse.redirect(appUrl(request, "/music", { checkout }), 303);
 }
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/auth/login?error=auth-required", request.url), 303);
+    return NextResponse.redirect(appUrl(request, "/auth/login", { error: "auth-required" }), 303);
   }
 
   try {
     const formData = await request.formData();
     const trackId = formData.get("trackId");
     const checkout = await startTrackCheckout(user.id, {
-      origin: request.nextUrl.origin,
+      origin: appOrigin(request),
       trackId: typeof trackId === "string" ? trackId : ""
     });
 

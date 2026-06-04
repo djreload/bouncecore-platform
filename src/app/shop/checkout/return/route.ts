@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { appUrl } from "@/lib/http/app-url";
 import { completeShopCheckout } from "@/lib/shop/checkout-service";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/auth/login?error=auth-required", request.url));
+    return NextResponse.redirect(appUrl(request, "/auth/login", { error: "auth-required" }));
   }
 
   const orderId = request.nextUrl.searchParams.get("orderId") ?? "";
@@ -14,17 +15,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const order = await completeShopCheckout(user.id, orderId, paypalOrderId);
-    const url = new URL("/account/orders", request.url);
 
-    url.searchParams.set("checkout", "success");
-    url.searchParams.set("order", order.id);
-
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(appUrl(request, "/account/orders", { checkout: "success", order: order.id }));
   } catch {
-    const url = new URL("/shop", request.url);
-
-    url.searchParams.set("checkout", "capture-error");
-
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(appUrl(request, "/shop", { checkout: "capture-error" }));
   }
 }

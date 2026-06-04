@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { appUrl } from "@/lib/http/app-url";
 import { cancelShopCheckout } from "@/lib/shop/checkout-service";
 
 export async function GET(request: NextRequest) {
@@ -12,16 +13,9 @@ export async function GET(request: NextRequest) {
     try {
       await cancelShopCheckout(user.id, orderId, paypalOrderId);
     } catch {
-      const errorUrl = new URL("/shop", request.url);
-
-      errorUrl.searchParams.set("checkout", "error");
-
-      return NextResponse.redirect(errorUrl);
+      return NextResponse.redirect(appUrl(request, "/shop", { checkout: "error" }));
     }
   }
 
-  const url = new URL("/shop", request.url);
-  url.searchParams.set("checkout", "cancelled");
-
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(appUrl(request, "/shop", { checkout: "cancelled" }));
 }

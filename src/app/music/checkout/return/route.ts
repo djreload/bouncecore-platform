@@ -1,13 +1,14 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { appUrl } from "@/lib/http/app-url";
 import { completeTrackCheckout } from "@/lib/music/track-checkout-service";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/auth/login?error=auth-required", request.url));
+    return NextResponse.redirect(appUrl(request, "/auth/login", { error: "auth-required" }));
   }
 
   const purchaseId = request.nextUrl.searchParams.get("purchaseId") ?? "";
@@ -15,21 +16,13 @@ export async function GET(request: NextRequest) {
 
   try {
     const purchase = await completeTrackCheckout(user.id, purchaseId, paypalOrderId);
-    const url = new URL("/music", request.url);
 
     revalidatePath("/music");
     revalidatePath("/producer/sales");
     revalidatePath("/admin/audit-logs");
 
-    url.searchParams.set("checkout", "success");
-    url.searchParams.set("purchase", purchase.id);
-
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(appUrl(request, "/music", { checkout: "success", purchase: purchase.id }));
   } catch {
-    const url = new URL("/music", request.url);
-
-    url.searchParams.set("checkout", "capture-error");
-
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(appUrl(request, "/music", { checkout: "capture-error" }));
   }
 }

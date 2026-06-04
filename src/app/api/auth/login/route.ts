@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { loginUser } from "@/lib/auth/auth-service";
 import { setSessionCookie } from "@/lib/auth/cookies";
 import { formValue, loginSchema } from "@/lib/auth/validation";
+import { appUrl } from "@/lib/http/app-url";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   });
 
   if (!parsed.success) {
-    return NextResponse.redirect(new URL("/auth/login?error=invalid-input", request.url), 303);
+    return NextResponse.redirect(appUrl(request, "/auth/login", { error: "invalid-input" }), 303);
   }
 
   let result;
@@ -19,10 +20,10 @@ export async function POST(request: Request) {
   try {
     result = await loginUser(parsed.data);
   } catch {
-    return NextResponse.redirect(new URL("/auth/login?error=database-unavailable", request.url), 303);
+    return NextResponse.redirect(appUrl(request, "/auth/login", { error: "database-unavailable" }), 303);
   }
 
-  const response = NextResponse.redirect(new URL(result.redirectTo, request.url), 303);
+  const response = NextResponse.redirect(appUrl(request, result.redirectTo), 303);
 
   if (result.ok) {
     setSessionCookie(response, result.token);

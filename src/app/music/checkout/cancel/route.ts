@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
+import { appUrl } from "@/lib/http/app-url";
 import { cancelTrackCheckout } from "@/lib/music/track-checkout-service";
 
 export async function GET(request: NextRequest) {
@@ -15,16 +16,9 @@ export async function GET(request: NextRequest) {
       revalidatePath("/music");
       revalidatePath("/producer/sales");
     } catch {
-      const errorUrl = new URL("/music", request.url);
-
-      errorUrl.searchParams.set("checkout", "error");
-
-      return NextResponse.redirect(errorUrl);
+      return NextResponse.redirect(appUrl(request, "/music", { checkout: "error" }));
     }
   }
 
-  const url = new URL("/music", request.url);
-  url.searchParams.set("checkout", "cancelled");
-
-  return NextResponse.redirect(url);
+  return NextResponse.redirect(appUrl(request, "/music", { checkout: "cancelled" }));
 }
