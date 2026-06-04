@@ -37,6 +37,12 @@ model User {
   streamSchedules StreamSchedule[]
   auditLogs       AuditLog[]
   notifications   Notification[]
+  chatReportsMade ChatReport[] @relation("ChatReportReporter")
+  chatReportsTargeted ChatReport[] @relation("ChatReportTarget")
+  chatReportsResolved ChatReport[] @relation("ChatReportResolver")
+  chatBans        ChatBan[] @relation("ChatBanUser")
+  chatBansCreated ChatBan[] @relation("ChatBanCreatedBy")
+  chatBansRevoked ChatBan[] @relation("ChatBanRevokedBy")
   producerProfile ProducerProfile?
   orders          Order[]
   starPurchases   StarPurchase[]
@@ -265,6 +271,8 @@ model ChatRoom {
   name      String
   type      String        @default("public")
   messages  ChatMessage[]
+  reports   ChatReport[]
+  bans      ChatBan[]
   createdAt DateTime      @default(now())
 }
 
@@ -284,6 +292,64 @@ model ChatMessage {
   deletedAt       DateTime?
   createdAt       DateTime @default(now())
   room            ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  reports         ChatReport[]
+}
+
+model ChatReport {
+  id                String       @id @default(cuid())
+  messageId         String?
+  reporterId        String?
+  targetUserId      String?
+  roomId            String?
+  reason            String
+  notes             String?
+  status            String       @default("open")
+  messageBody       String?
+  messageKind       String?
+  mediaPreviewUrl   String?
+  targetDisplayName String?
+  reporterDisplayName String?
+  resolvedById      String?
+  resolvedAt        DateTime?
+  resolutionNote    String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  message           ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  reporter          User?        @relation("ChatReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  targetUser        User?        @relation("ChatReportTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  room              ChatRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  resolvedBy        User?        @relation("ChatReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([messageId])
+  @@index([reporterId])
+  @@index([targetUserId])
+  @@index([roomId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model ChatBan {
+  id          String    @id @default(cuid())
+  userId      String
+  roomId      String?
+  reason      String
+  notes       String?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  revokedById String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation("ChatBanUser", fields: [userId], references: [id], onDelete: Cascade)
+  room        ChatRoom? @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdBy   User?     @relation("ChatBanCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  revokedBy   User?     @relation("ChatBanRevokedBy", fields: [revokedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([roomId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@index([createdAt])
 }
 
 model Product {

@@ -59,6 +59,7 @@ export default async function LivePage() {
     mediaHeight: message.mediaHeight,
     createdAt: message.createdAt,
     authorDisplayName: message.authorDisplayName,
+    authorUserId: message.authorUserId,
     authorRoles: message.authorRoles
   }));
 

@@ -54,6 +54,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     mediaHeight: message.mediaHeight,
     createdAt: message.createdAt,
     authorDisplayName: message.authorDisplayName,
+    authorUserId: message.authorUserId,
     authorRoles: message.authorRoles
   }));
 

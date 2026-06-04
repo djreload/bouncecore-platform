@@ -22,6 +22,7 @@ export type PublicChatMessageRow = {
   mediaHeight: number | null;
   createdAt: string;
   authorDisplayName: string;
+  authorUserId: string | null;
   authorRoles: Role[];
 };
 

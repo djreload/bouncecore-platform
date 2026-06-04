@@ -50,6 +50,7 @@ This scaffold includes:
 - Native chat GIF search and media messages through the Tenor API
 - Automatic chat-history pruning for messages older than 24 hours
 - Auto-refreshing public and live chat message feeds
+- Chat report intake, admin report review, and global or room-specific chat bans
 - Database-backed admin system-health dashboard
 - Database-backed admin VIP supporter directory and role controls
 - Database-backed admin stream schedule management

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { ImageIcon, LogIn, MessageSquare, Search, Send } from "lucide-react";
+import { Flag, ImageIcon, LogIn, MessageSquare, Search, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
@@ -39,6 +39,8 @@ type PolledMessages = {
   roomId: string;
   messages: PublicChatMessageRow[];
 };
+
+const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
@@ -264,6 +266,7 @@ export function ChatRoomPanel({
         <div className="space-y-3">
           {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
+            const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
 
             return (
               <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={message.id}>
@@ -295,6 +298,30 @@ export function ChatRoomPanel({
                 ) : (
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.body}</p>
                 )}
+
+                {canReportMessage && selectedRoom ? (
+                  <form action={formAction} className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-bc-line pt-3">
+                    <input name="intent" type="hidden" value="report" />
+                    <input name="roomId" type="hidden" value={selectedRoom.id} />
+                    <input name="messageId" type="hidden" value={message.id} />
+                    <select
+                      aria-label="Report reason"
+                      className="min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs text-white"
+                      defaultValue="spam"
+                      name="reason"
+                    >
+                      {reportReasonOptions.map((reason) => (
+                        <option key={reason} value={reason}>
+                          {reason}
+                        </option>
+                      ))}
+                    </select>
+                    <Button disabled={pending} size="sm" type="submit" variant="dark">
+                      <Flag className="h-4 w-4" aria-hidden="true" />
+                      Report
+                    </Button>
+                  </form>
+                ) : null}
               </article>
             );
           })}

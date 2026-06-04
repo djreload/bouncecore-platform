@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createChatGifMessage, createChatMessage } from "@/lib/chat/chat-service";
+import { createChatReport } from "@/lib/chat/moderation-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import type { PublicChatActionState } from "@/app/chat/state";
 
@@ -34,7 +35,16 @@ export async function publicChatAction(
   }
 
   try {
-    if (intent === "gif") {
+    if (intent === "report") {
+      await createChatReport(
+        {
+          messageId: formString(formData, "messageId"),
+          notes: formString(formData, "reportNotes"),
+          reason: formString(formData, "reason")
+        },
+        user.id
+      );
+    } else if (intent === "gif") {
       await createChatGifMessage(roomId, user.id, {
         id: formString(formData, "gifId"),
         url: formString(formData, "gifUrl"),
@@ -50,15 +60,29 @@ export async function publicChatAction(
 
     revalidatePath("/chat");
     revalidatePath("/live");
+    revalidatePath("/admin/reports");
+    revalidatePath("/admin/audit-logs");
 
     return {
       status: "success",
-      message: intent === "gif" ? "GIF sent." : "Message sent."
+      message: intent === "report" ? "Report sent to moderators." : intent === "gif" ? "GIF sent." : "Message sent."
     };
-  } catch {
+  } catch (error) {
+    if (intent === "report") {
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Report was not sent."
+      };
+    }
+
     return {
       status: "error",
-      message: intent === "gif" ? "GIF was not sent. Try another result." : "Message was not sent. Keep it between 1 and 500 characters."
+      message:
+        error instanceof Error
+          ? error.message
+          : intent === "gif"
+            ? "GIF was not sent. Try another result."
+            : "Message was not sent. Keep it between 1 and 500 characters."
     };
   }
 }

@@ -3,6 +3,7 @@ import { normalizeRoles } from "@/lib/auth/role-normalize";
 import type { Role } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
+import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
@@ -38,6 +39,7 @@ export type ChatMessageSummary = {
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
+  authorUserId: string | null;
   authorRoles: Role[];
 };
 
@@ -206,6 +208,7 @@ function toMessageSummary(
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
+    authorUserId: message.userId,
     authorRoles: author?.roles ?? []
   };
 }
@@ -436,6 +439,7 @@ export async function createChatMessage(roomId: string, body: string, userId: st
       id: true
     }
   });
+  await assertUserCanPostInChat(userId, roomId);
 
   return prisma.chatMessage.create({
     data: {
@@ -487,6 +491,7 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
       id: true
     }
   });
+  await assertUserCanPostInChat(userId, roomId);
 
   const message = await prisma.chatMessage.create({
     data: {
