@@ -1,6 +1,6 @@
 import { CalendarClock, Radio, UserRound } from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
-import { StarSupportLeaderboard, StarSupportOverlay } from "@/app/live/star-support-panel";
+import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
 import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +89,6 @@ export default async function LivePage() {
               <h2 className="mt-4 text-2xl font-black">{channel?.title ?? "Player placeholder"}</h2>
               <p className="mt-2 text-sm text-bc-muted">{playbackUrl ?? "Playback URL not configured yet."}</p>
             </div>
-            <StarSupportOverlay initialData={starSupport} />
           </section>
           <aside className="space-y-4">
             <div className="rounded-md border border-bc-line bg-bc-panel p-5">

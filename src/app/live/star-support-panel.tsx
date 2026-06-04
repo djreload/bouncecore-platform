@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Star, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { LiveStarSupportData } from "@/lib/stars/star-send-service";
+import { defaultStarAlertSettings, type StarAlertSettings } from "@/lib/stars/star-alert-settings";
 
 type StarSupportPanelProps = {
   initialData: LiveStarSupportData;
@@ -11,9 +12,10 @@ type StarSupportPanelProps = {
 
 type LiveStarSendAlert = LiveStarSupportData["recentSends"][number];
 type StarAlertAnimation = "floating-stars" | "confetti" | "fireworks";
+type StarSupportOverlayProps = {
+  initialData?: LiveStarSupportData;
+};
 
-const starAlertDurationMs = 5200;
-const starAlertPollMs = 2000;
 const floatingStarParticles = Array.from({ length: 34 }, (_, index) => ({
   delay: (index % 8) * 110,
   drift: ((index * 37) % 180) - 90,
@@ -48,12 +50,24 @@ function hashText(value: string) {
   return value.split("").reduce((hash, character) => hash + character.charCodeAt(0), 0);
 }
 
-function animationForSend(send: LiveStarSendAlert): StarAlertAnimation {
-  if (send.amount >= 250) {
+function animationForSend(send: LiveStarSendAlert, settings: StarAlertSettings): StarAlertAnimation {
+  if (settings.effectMode === "floating_stars") {
+    return "floating-stars";
+  }
+
+  if (settings.effectMode === "confetti") {
+    return "confetti";
+  }
+
+  if (settings.effectMode === "fireworks") {
     return "fireworks";
   }
 
-  if (send.amount >= 100) {
+  if (send.amount >= settings.fireworksMinimumStars) {
+    return "fireworks";
+  }
+
+  if (send.amount >= settings.confettiMinimumStars) {
     return "confetti";
   }
 
@@ -121,14 +135,29 @@ function FireworksEffect() {
   );
 }
 
-export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
+function alertsEnabledForCurrentPath(settings: StarAlertSettings) {
+  if (!settings.enabled) {
+    return false;
+  }
+
+  if (settings.scope === "public_site") {
+    return true;
+  }
+
+  return window.location.pathname === "/live" || window.location.pathname.startsWith("/live/");
+}
+
+export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
   const [activeSend, setActiveSend] = useState<LiveStarSendAlert | null>(null);
+  const [alertSettings, setAlertSettings] = useState(initialData?.alertSettings ?? defaultStarAlertSettings);
   const activeSendRef = useRef<LiveStarSendAlert | null>(null);
   const alertTimerRef = useRef<number | null>(null);
   const alertQueueRef = useRef<LiveStarSendAlert[]>([]);
   const playNextAlertRef = useRef<() => void>(() => undefined);
-  const seenSendIds = useRef(new Set(initialData.recentSends.map((send) => send.id)));
-  const activeAnimation = useMemo(() => (activeSend ? animationForSend(activeSend) : null), [activeSend]);
+  const seenSendIds = useRef(new Set(initialData?.recentSends.map((send) => send.id) ?? []));
+  const initializedRef = useRef(Boolean(initialData));
+  const settingsRef = useRef(alertSettings);
+  const activeAnimation = useMemo(() => (activeSend ? animationForSend(activeSend, alertSettings) : null), [activeSend, alertSettings]);
 
   const playNextAlert = useCallback(() => {
     if (activeSendRef.current) {
@@ -153,7 +182,7 @@ export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
       setActiveSend(null);
       alertTimerRef.current = null;
       playNextAlertRef.current();
-    }, starAlertDurationMs);
+    }, settingsRef.current.durationMs);
   }, []);
 
   const enqueueNewSends = useCallback((sends: LiveStarSendAlert[]) => {
@@ -179,6 +208,10 @@ export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
   }, [playNextAlert]);
 
   useEffect(() => {
+    settingsRef.current = alertSettings;
+  }, [alertSettings]);
+
+  useEffect(() => {
     let active = true;
 
     async function refresh() {
@@ -189,6 +222,26 @@ export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
         const payload = (await response.json()) as LiveStarSupportData;
 
         if (active && response.ok) {
+          setAlertSettings(payload.alertSettings);
+
+          if (!initializedRef.current) {
+            payload.recentSends.forEach((send) => seenSendIds.current.add(send.id));
+            initializedRef.current = true;
+            return;
+          }
+
+          if (!alertsEnabledForCurrentPath(payload.alertSettings)) {
+            payload.recentSends.forEach((send) => seenSendIds.current.add(send.id));
+            alertQueueRef.current = [];
+            activeSendRef.current = null;
+            if (alertTimerRef.current) {
+              window.clearTimeout(alertTimerRef.current);
+              alertTimerRef.current = null;
+            }
+            setActiveSend(null);
+            return;
+          }
+
           enqueueNewSends(payload.recentSends);
         }
       } catch {
@@ -197,13 +250,13 @@ export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
     }
 
     void refresh();
-    const interval = window.setInterval(refresh, starAlertPollMs);
+    const interval = window.setInterval(refresh, alertSettings.pollMs);
 
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, [enqueueNewSends]);
+  }, [alertSettings.pollMs, enqueueNewSends]);
 
   useEffect(() => {
     return () => {

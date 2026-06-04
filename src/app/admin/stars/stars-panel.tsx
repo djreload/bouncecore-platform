@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { BadgeCheck, CircleDollarSign, CreditCard, Plus, Save, Sparkles, Star } from "lucide-react";
+import { BadgeCheck, CircleDollarSign, CreditCard, Plus, Save, Sparkles, Star, WandSparkles } from "lucide-react";
 import { adminStarsAction } from "@/app/admin/stars/actions";
 import { initialAdminStarsActionState, type AdminStarsActionState } from "@/app/admin/stars/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AdminStarsData } from "@/lib/rewards/stars-service";
+import { starAlertEffectModes, starAlertScopes } from "@/lib/stars/star-alert-settings";
 
 type AdminStarsPanelProps = {
   data: AdminStarsData;
@@ -50,6 +51,22 @@ function purchaseStatusTone(status: string) {
   }
 
   return "cyan" as const;
+}
+
+function alertScopeLabel(scope: string) {
+  return scope === "public_site" ? "Public site" : "Live only";
+}
+
+function alertEffectLabel(effect: string) {
+  if (effect === "amount_based") {
+    return "Amount based";
+  }
+
+  if (effect === "floating_stars") {
+    return "Floating stars";
+  }
+
+  return effect;
 }
 
 export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
@@ -120,6 +137,113 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
             <Plus className="h-4 w-4" aria-hidden="true" />
             Ensure wallet
           </Button>
+        </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="acid">Live alerts</Badge>
+            <h3 className="mt-4 text-2xl font-black">Star alert animation</h3>
+          </div>
+          <WandSparkles className="h-7 w-7 text-bc-acid" aria-hidden="true" />
+        </div>
+
+        <form action={formAction} className="mt-5 grid gap-4">
+          <input name="intent" type="hidden" value="alert-settings" />
+          <div className="grid gap-3 md:grid-cols-3">
+            <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-ink p-3 text-sm">
+              <input defaultChecked={data.alertSettings.enabled} disabled={pending} name="enabled" type="checkbox" />
+              Enable animated star alerts
+            </label>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="star-alert-scope">
+                Scope
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.alertSettings.scope}
+                disabled={pending}
+                id="star-alert-scope"
+                name="scope"
+              >
+                {starAlertScopes.map((scope) => (
+                  <option key={scope} value={scope}>
+                    {alertScopeLabel(scope)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="star-alert-effect">
+                Effect
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.alertSettings.effectMode}
+                disabled={pending}
+                id="star-alert-effect"
+                name="effectMode"
+              >
+                {starAlertEffectModes.map((effect) => (
+                  <option className="capitalize" key={effect} value={effect}>
+                    {alertEffectLabel(effect)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-[1fr_1fr_1fr_auto]">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="star-alert-duration">
+                Duration seconds
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={Math.round(data.alertSettings.durationMs / 1000)}
+                disabled={pending}
+                id="star-alert-duration"
+                max="10"
+                min="2"
+                name="durationSeconds"
+                type="number"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="star-alert-confetti">
+                Confetti threshold
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.alertSettings.confettiMinimumStars}
+                disabled={pending}
+                id="star-alert-confetti"
+                min="1"
+                name="confettiMinimumStars"
+                type="number"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="star-alert-fireworks">
+                Fireworks threshold
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={data.alertSettings.fireworksMinimumStars}
+                disabled={pending}
+                id="star-alert-fireworks"
+                min="1"
+                name="fireworksMinimumStars"
+                type="number"
+              />
+            </div>
+            <div className="flex items-end">
+              <Button className="w-full" disabled={pending} type="submit" variant="primary">
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Save alerts
+              </Button>
+            </div>
+          </div>
         </form>
       </section>
 

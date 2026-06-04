@@ -2,10 +2,13 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { pruneExpiredChatHistory } from "@/lib/chat/chat-service";
+import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
+import { getStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
 
 export const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
 export type LiveStarSupportData = {
+  alertSettings: StarAlertSettings;
   latestSend: {
     id: string;
     amount: number;
@@ -227,7 +230,8 @@ export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
           type: "live"
         }
       };
-  const [sends, aggregate, sendCount, recentSends] = await Promise.all([
+  const [alertSettings, sends, aggregate, sendCount, recentSends] = await Promise.all([
+    getStarAlertSettings(),
     prisma.starSend.groupBy({
       by: ["userId"],
       where,
@@ -288,6 +292,7 @@ export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
     .reverse();
 
   return {
+    alertSettings,
     latestSend: recentSendRows.at(-1) ?? null,
     recentSends: recentSendRows,
     leaderboard: sends.map((send) => ({

@@ -33,6 +33,7 @@ tsconfig.tsbuildinfo
 .turbo/
 .vercel/
 .codex-run/
+.codex-start.*
 
 # Prisma/local data
 *.db

@@ -10,11 +10,16 @@ import {
   parseStarBalance,
   setStarBalance
 } from "@/lib/rewards/stars-service";
+import { updateStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
 import type { AdminStarsActionState } from "@/app/admin/stars/state";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function formBoolean(formData: FormData, key: string) {
+  return formData.get(key) === "on";
 }
 
 function revalidateStarsViews() {
@@ -40,6 +45,29 @@ export async function adminStarsAction(
 
   try {
     const intent = formString(formData, "intent");
+
+    if (intent === "alert-settings") {
+      await updateStarAlertSettings(
+        {
+          enabled: formBoolean(formData, "enabled"),
+          scope: formString(formData, "scope"),
+          effectMode: formString(formData, "effectMode"),
+          durationSeconds: formString(formData, "durationSeconds"),
+          confettiMinimumStars: formString(formData, "confettiMinimumStars"),
+          fireworksMinimumStars: formString(formData, "fireworksMinimumStars")
+        },
+        actor.id
+      );
+      revalidateStarsViews();
+      revalidatePath("/live");
+      revalidatePath("/chat");
+
+      return {
+        status: "success",
+        message: "Star alert settings saved."
+      };
+    }
+
     const userId = formString(formData, "userId");
 
     if (!userId) {

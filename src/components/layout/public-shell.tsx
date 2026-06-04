@@ -3,6 +3,7 @@ import { Radio } from "lucide-react";
 import { publicNavigation } from "@/config/navigation";
 import { NavList } from "@/components/navigation/nav-list";
 import { ButtonLink } from "@/components/ui/button";
+import { StarSupportOverlay } from "@/app/live/star-support-panel";
 
 type PublicShellProps = {
   children: React.ReactNode;
@@ -35,6 +36,7 @@ export function PublicShell({ children }: PublicShellProps) {
           <NavList items={publicNavigation} orientation="horizontal" />
         </div>
       </header>
+      <StarSupportOverlay />
       {children}
       <footer className="border-t border-bc-line bg-bc-ink">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-bc-muted md:grid-cols-3">

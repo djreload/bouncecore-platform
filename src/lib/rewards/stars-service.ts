@@ -1,5 +1,7 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
+import { getStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
 
 export type StarWalletRow = {
   userId: string;
@@ -47,6 +49,7 @@ export type AccountRewardsData = {
 };
 
 export type AdminStarsData = PublicRewardsData & {
+  alertSettings: StarAlertSettings;
   purchaseStats: {
     paidPurchases: number;
     pendingPurchases: number;
@@ -367,7 +370,8 @@ export async function getAccountRewardsData(userId: string): Promise<AccountRewa
 }
 
 export async function getAdminStarsData(): Promise<AdminStarsData> {
-  const [publicData, wallets, users, recentPurchases, paidAggregate, paidPurchaseCount, pendingPurchaseCount] = await Promise.all([
+  const [alertSettings, publicData, wallets, users, recentPurchases, paidAggregate, paidPurchaseCount, pendingPurchaseCount] = await Promise.all([
+    getStarAlertSettings(),
     getPublicRewardsData(),
     prisma.starWallet.findMany(),
     prisma.user.findMany({
@@ -427,6 +431,7 @@ export async function getAdminStarsData(): Promise<AdminStarsData> {
 
   return {
     ...publicData,
+    alertSettings,
     purchaseStats: {
       paidPurchases: paidPurchaseCount,
       pendingPurchases: pendingPurchaseCount,
