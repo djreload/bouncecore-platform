@@ -1,5 +1,6 @@
-import { CalendarClock, Radio, UserRound } from "lucide-react";
+import { CalendarClock, UserRound } from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
+import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
 import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
 import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
@@ -83,13 +84,13 @@ export default async function LivePage() {
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <section className="bc-scanlines relative grid aspect-video place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-ink">
-            <div className="relative z-10 text-center">
-              <Radio className="mx-auto h-12 w-12 text-bc-electric" aria-hidden="true" />
-              <h2 className="mt-4 text-2xl font-black">{channel?.title ?? "Player placeholder"}</h2>
-              <p className="mt-2 text-sm text-bc-muted">{playbackUrl ?? "Playback URL not configured yet."}</p>
-            </div>
-          </section>
+          <LivePlaybackPlayer
+            healthStatus={health.status}
+            playbackUrl={playbackUrl}
+            status={status}
+            title={channel?.title ?? "Bouncecore Live"}
+            viewerCount={viewerCount}
+          />
           <aside className="space-y-4">
             <div className="rounded-md border border-bc-line bg-bc-panel p-5">
               <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
