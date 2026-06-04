@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Star, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { LiveStarSupportData } from "@/lib/stars/star-send-service";
@@ -9,12 +9,174 @@ type StarSupportPanelProps = {
   initialData: LiveStarSupportData;
 };
 
+type LiveStarSendAlert = LiveStarSupportData["recentSends"][number];
+type StarAlertAnimation = "floating-stars" | "confetti" | "fireworks";
+
+const starAlertDurationMs = 5200;
+const starAlertPollMs = 2000;
+const floatingStarParticles = Array.from({ length: 34 }, (_, index) => ({
+  delay: (index % 8) * 110,
+  drift: ((index * 37) % 180) - 90,
+  left: 6 + ((index * 23) % 88),
+  scale: 0.55 + ((index * 7) % 9) / 10
+}));
+const confettiParticles = Array.from({ length: 64 }, (_, index) => ({
+  delay: (index % 12) * 80,
+  drift: ((index * 41) % 240) - 120,
+  duration: 2400 + ((index * 53) % 1200),
+  hue: (index * 47) % 360,
+  left: (index * 19) % 100,
+  rotate: 180 + ((index * 29) % 540)
+}));
+const fireworkBursts = [
+  { left: "16%", top: "18%", delay: 0 },
+  { left: "78%", top: "22%", delay: 220 },
+  { left: "28%", top: "66%", delay: 420 },
+  { left: "68%", top: "70%", delay: 620 },
+  { left: "50%", top: "16%", delay: 840 }
+];
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
+function alertCssVars(vars: Record<string, string | number>) {
+  return vars as CSSProperties;
+}
+
+function hashText(value: string) {
+  return value.split("").reduce((hash, character) => hash + character.charCodeAt(0), 0);
+}
+
+function animationForSend(send: LiveStarSendAlert): StarAlertAnimation {
+  if (send.amount >= 250) {
+    return "fireworks";
+  }
+
+  if (send.amount >= 100) {
+    return "confetti";
+  }
+
+  return hashText(send.id) % 3 === 0 ? "confetti" : "floating-stars";
+}
+
+function FloatingStarsEffect() {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      {floatingStarParticles.map((particle, index) => (
+        <span
+          aria-hidden="true"
+          className="bc-star-alert-floating-star"
+          key={index}
+          style={alertCssVars({
+            "--bc-alert-delay": `${particle.delay}ms`,
+            "--bc-alert-drift": `${particle.drift}px`,
+            "--bc-alert-left": `${particle.left}%`,
+            "--bc-alert-scale": particle.scale
+          })}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConfettiEffect() {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      {confettiParticles.map((particle, index) => (
+        <span
+          aria-hidden="true"
+          className="bc-star-alert-confetti"
+          key={index}
+          style={alertCssVars({
+            "--bc-alert-delay": `${particle.delay}ms`,
+            "--bc-alert-drift": `${particle.drift}px`,
+            "--bc-alert-duration": `${particle.duration}ms`,
+            "--bc-alert-hue": particle.hue,
+            "--bc-alert-left": `${particle.left}%`,
+            "--bc-alert-rotate": `${particle.rotate}deg`
+          })}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FireworksEffect() {
+  return (
+    <div className="absolute inset-0 overflow-hidden">
+      {fireworkBursts.map((burst, index) => (
+        <span
+          aria-hidden="true"
+          className="bc-star-alert-firework"
+          key={index}
+          style={alertCssVars({
+            "--bc-alert-delay": `${burst.delay}ms`,
+            "--bc-alert-left": burst.left,
+            "--bc-alert-top": burst.top
+          })}
+        />
+      ))}
+    </div>
+  );
+}
+
 export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
-  const [data, setData] = useState(initialData);
+  const [activeSend, setActiveSend] = useState<LiveStarSendAlert | null>(null);
+  const activeSendRef = useRef<LiveStarSendAlert | null>(null);
+  const alertTimerRef = useRef<number | null>(null);
+  const alertQueueRef = useRef<LiveStarSendAlert[]>([]);
+  const playNextAlertRef = useRef<() => void>(() => undefined);
+  const seenSendIds = useRef(new Set(initialData.recentSends.map((send) => send.id)));
+  const activeAnimation = useMemo(() => (activeSend ? animationForSend(activeSend) : null), [activeSend]);
+
+  const playNextAlert = useCallback(() => {
+    if (activeSendRef.current) {
+      return;
+    }
+
+    const nextSend = alertQueueRef.current.shift();
+
+    if (!nextSend) {
+      return;
+    }
+
+    activeSendRef.current = nextSend;
+    setActiveSend(nextSend);
+
+    if (alertTimerRef.current) {
+      window.clearTimeout(alertTimerRef.current);
+    }
+
+    alertTimerRef.current = window.setTimeout(() => {
+      activeSendRef.current = null;
+      setActiveSend(null);
+      alertTimerRef.current = null;
+      playNextAlertRef.current();
+    }, starAlertDurationMs);
+  }, []);
+
+  const enqueueNewSends = useCallback((sends: LiveStarSendAlert[]) => {
+    const unseenSends = sends.filter((send) => {
+      if (seenSendIds.current.has(send.id)) {
+        return false;
+      }
+
+      seenSendIds.current.add(send.id);
+      return true;
+    });
+
+    if (!unseenSends.length) {
+      return;
+    }
+
+    alertQueueRef.current.push(...unseenSends);
+    playNextAlert();
+  }, [playNextAlert]);
+
+  useEffect(() => {
+    playNextAlertRef.current = playNextAlert;
+  }, [playNextAlert]);
 
   useEffect(() => {
     let active = true;
@@ -27,43 +189,53 @@ export function StarSupportOverlay({ initialData }: StarSupportPanelProps) {
         const payload = (await response.json()) as LiveStarSupportData;
 
         if (active && response.ok) {
-          setData(payload);
+          enqueueNewSends(payload.recentSends);
         }
       } catch {
         // Keep the last known star state if polling fails.
       }
     }
 
-    const interval = window.setInterval(refresh, 5000);
+    void refresh();
+    const interval = window.setInterval(refresh, starAlertPollMs);
 
     return () => {
       active = false;
       window.clearInterval(interval);
     };
+  }, [enqueueNewSends]);
+
+  useEffect(() => {
+    return () => {
+      if (alertTimerRef.current) {
+        window.clearTimeout(alertTimerRef.current);
+      }
+    };
   }, []);
 
-  if (!data.latestSend) {
-    return (
-      <div className="absolute bottom-4 left-4 right-4 z-20 max-w-md rounded-md border border-bc-line bg-bc-panel/90 p-3 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <Star className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-          <span className="text-sm font-semibold text-bc-muted">Star alerts will appear here during the livestream.</span>
-        </div>
-      </div>
-    );
+  if (!activeSend || !activeAnimation) {
+    return null;
   }
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-20 max-w-md rounded-md border border-bc-acid/40 bg-bc-ink/90 p-4 shadow-lg shadow-bc-acid/10 backdrop-blur">
-      <div className="flex flex-wrap items-center gap-2">
-        <Star className="h-6 w-6 fill-bc-acid text-bc-acid" aria-hidden="true" />
-        <Badge tone="acid">Star alert</Badge>
-        <span className="text-xs text-bc-muted">{formatTime(data.latestSend.createdAt)}</span>
+    <div className="pointer-events-none fixed inset-0 z-[70] overflow-hidden" aria-live="polite">
+      <FloatingStarsEffect />
+      {activeAnimation === "confetti" || activeAnimation === "fireworks" ? <ConfettiEffect /> : null}
+      {activeAnimation === "fireworks" ? <FireworksEffect /> : null}
+      <div className="absolute inset-0 grid place-items-center px-4">
+        <div className="bc-star-alert-card w-full max-w-xl rounded-md border border-bc-acid/50 bg-bc-ink/92 p-5 text-center shadow-2xl shadow-bc-acid/20 backdrop-blur sm:p-7">
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Star className="h-7 w-7 fill-bc-acid text-bc-acid" aria-hidden="true" />
+            <Badge tone="acid">Star alert</Badge>
+            <span className="text-xs text-bc-muted">{formatTime(activeSend.createdAt)}</span>
+          </div>
+          <p className="mt-4 text-3xl font-black text-white sm:text-5xl">
+            {activeSend.amount.toLocaleString("en-GB")} stars
+          </p>
+          <p className="mt-3 text-xl font-black text-bc-acid">{activeSend.displayName}</p>
+          {activeSend.note ? <p className="mx-auto mt-3 max-w-md whitespace-pre-wrap break-words text-sm text-bc-muted">{activeSend.note}</p> : null}
+        </div>
       </div>
-      <p className="mt-2 text-xl font-black">
-        {data.latestSend.displayName} sent {data.latestSend.amount.toLocaleString("en-GB")} stars
-      </p>
-      {data.latestSend.note ? <p className="mt-1 text-sm text-bc-muted">{data.latestSend.note}</p> : null}
     </div>
   );
 }
