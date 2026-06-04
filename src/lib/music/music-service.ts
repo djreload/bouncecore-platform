@@ -10,6 +10,7 @@ export type ProducerProfileInput = {
   name: string;
   slug: string;
   bio?: string;
+  paypalPayoutEmail?: string;
 };
 
 export type DigitalTrackInput = {
@@ -40,6 +41,7 @@ export type ProducerWorkspaceData = {
     name: string;
     slug: string;
     bio: string | null;
+    paypalPayoutEmail: string | null;
   } | null;
   stats: {
     totalTracks: number;
@@ -64,6 +66,10 @@ export type ProducerSaleRow = {
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
   paypalPayerEmail: string | null;
+  payoutBatchId: string | null;
+  payoutRecipientEmail: string | null;
+  payoutSenderBatchId: string | null;
+  payoutStatus: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -76,6 +82,9 @@ export type ProducerSalesData = {
     grossPence: number;
     platformFeePence: number;
     producerEarningsPence: number;
+    payoutPaidPence: number;
+    payoutPendingPence: number;
+    payablePence: number;
   };
   sales: ProducerSaleRow[];
 };
@@ -126,6 +135,24 @@ function normalizedText(value: string | undefined, maxLength: number) {
 
   if (text.length > maxLength) {
     throw new Error(`Text must be ${maxLength} characters or fewer.`);
+  }
+
+  return text;
+}
+
+function normalizedEmail(value: string | undefined, maxLength: number) {
+  const text = value?.trim().toLowerCase() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > maxLength) {
+    throw new Error(`Email must be ${maxLength} characters or fewer.`);
+  }
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) {
+    throw new Error("Enter a valid PayPal payout email address.");
   }
 
   return text;
@@ -225,7 +252,17 @@ function toProducerSaleRow(sale: {
     displayName: string;
     email: string;
   };
+  payoutItems: {
+    recipientEmail: string;
+    status: string;
+    batch: {
+      id: string;
+      senderBatchId: string;
+    };
+  }[];
 }): ProducerSaleRow {
+  const payoutItem = sale.payoutItems[0];
+
   return {
     buyerEmail: sale.buyer.email,
     buyerName: sale.buyer.displayName,
@@ -236,6 +273,10 @@ function toProducerSaleRow(sale: {
     paypalCaptureId: sale.paypalCaptureId,
     paypalOrderId: sale.paypalOrderId,
     paypalPayerEmail: sale.paypalPayerEmail,
+    payoutBatchId: payoutItem?.batch.id ?? null,
+    payoutRecipientEmail: payoutItem?.recipientEmail ?? null,
+    payoutSenderBatchId: payoutItem?.batch.senderBatchId ?? null,
+    payoutStatus: payoutItem?.status ?? null,
     platformFeePence: sale.platformFeePence,
     pricePence: sale.pricePence,
     producerEarningsPence: sale.producerEarningsPence,
@@ -291,13 +332,14 @@ export async function getProducerWorkspaceData(userId: string): Promise<Producer
 
   return {
     profile: profile
-      ? {
-          id: profile.id,
-          name: profile.name,
-          slug: profile.slug,
-          bio: profile.bio
-        }
-      : null,
+        ? {
+            id: profile.id,
+            name: profile.name,
+            slug: profile.slug,
+            bio: profile.bio,
+            paypalPayoutEmail: profile.paypalPayoutEmail
+          }
+        : null,
     stats: {
       totalTracks: tracks.length,
       draftTracks: tracks.filter((track) => track.status === "draft").length,
@@ -327,8 +369,11 @@ export async function getProducerSalesData(userId: string): Promise<ProducerSale
         grossPence: 0,
         paidSales: 0,
         pendingSales: 0,
+        payablePence: 0,
         platformFeePence: 0,
-        producerEarningsPence: 0
+        producerEarningsPence: 0,
+        payoutPaidPence: 0,
+        payoutPendingPence: 0
       }
     };
   }
@@ -343,6 +388,20 @@ export async function getProducerSalesData(userId: string): Promise<ProducerSale
           displayName: true,
           email: true
         }
+      },
+      payoutItems: {
+        include: {
+          batch: {
+            select: {
+              id: true,
+              senderBatchId: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: "desc"
+        },
+        take: 1
       }
     },
     orderBy: {
@@ -352,15 +411,25 @@ export async function getProducerSalesData(userId: string): Promise<ProducerSale
   });
   const rows = sales.map(toProducerSaleRow);
   const paidSales = rows.filter((sale) => sale.status === "paid");
+  const payoutPendingSales = paidSales.filter((sale) =>
+    ["pending", "processing", "unclaimed", "onhold"].includes(sale.payoutStatus ?? "")
+  );
+  const payoutPaidSales = paidSales.filter((sale) => sale.payoutStatus === "success");
+  const payableSales = paidSales.filter(
+    (sale) => !sale.payoutStatus || ["failed", "returned", "blocked", "denied", "canceled", "refunded", "reversed"].includes(sale.payoutStatus)
+  );
 
   return {
     sales: rows,
     stats: {
       grossPence: paidSales.reduce((total, sale) => total + sale.pricePence, 0),
       paidSales: paidSales.length,
+      payablePence: payableSales.reduce((total, sale) => total + sale.producerEarningsPence, 0),
       pendingSales: rows.filter((sale) => sale.status === "pending").length,
       platformFeePence: paidSales.reduce((total, sale) => total + sale.platformFeePence, 0),
-      producerEarningsPence: paidSales.reduce((total, sale) => total + sale.producerEarningsPence, 0)
+      producerEarningsPence: paidSales.reduce((total, sale) => total + sale.producerEarningsPence, 0),
+      payoutPaidPence: payoutPaidSales.reduce((total, sale) => total + sale.producerEarningsPence, 0),
+      payoutPendingPence: payoutPendingSales.reduce((total, sale) => total + sale.producerEarningsPence, 0)
     }
   };
 }
@@ -374,6 +443,7 @@ export async function updateProducerProfile(userId: string, input: ProducerProfi
 
   const slug = normalizeSlug(input.slug, name);
   const bio = normalizedText(input.bio, 600);
+  const paypalPayoutEmail = normalizedEmail(input.paypalPayoutEmail, 180);
 
   await uniqueProducerSlug(slug, userId);
 
@@ -384,11 +454,13 @@ export async function updateProducerProfile(userId: string, input: ProducerProfi
     update: {
       bio,
       name,
+      paypalPayoutEmail,
       slug
     },
     create: {
       bio,
       name,
+      paypalPayoutEmail,
       slug,
       userId
     }

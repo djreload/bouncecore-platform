@@ -9,6 +9,7 @@ import {
   type PayPalMode,
   type PayPalSettingsInput
 } from "@/lib/payments/paypal-service";
+import { createProducerPayoutBatch, syncProducerPayoutBatch } from "@/lib/payments/producer-payout-service";
 import type { AdminPaymentsActionState } from "@/app/admin/payments/state";
 
 function formString(formData: FormData, key: string) {
@@ -52,6 +53,7 @@ function revalidatePaymentViews() {
   revalidatePath("/music");
   revalidatePath("/producer");
   revalidatePath("/producer/sales");
+  revalidatePath("/producer/profile");
 }
 
 export async function adminPaymentsAction(
@@ -77,6 +79,36 @@ export async function adminPaymentsAction(
       return {
         status: "success",
         message: "PayPal integration settings saved."
+      };
+    }
+
+    if (intent === "producer-payout-create") {
+      if (!formBoolean(formData, "confirmPayout")) {
+        throw new Error("Confirm the PayPal payout batch before sending.");
+      }
+
+      const batch = await createProducerPayoutBatch(actor.id);
+      revalidatePaymentViews();
+
+      return {
+        status: "success",
+        message: `PayPal payout batch created for ${batch.itemCount} sale${batch.itemCount === 1 ? "" : "s"}.`
+      };
+    }
+
+    if (intent === "producer-payout-sync") {
+      const batchId = formString(formData, "batchId");
+
+      if (!batchId) {
+        throw new Error("Missing payout batch.");
+      }
+
+      const batch = await syncProducerPayoutBatch(actor.id, batchId);
+      revalidatePaymentViews();
+
+      return {
+        status: "success",
+        message: `PayPal payout batch synced with status ${batch.status}.`
       };
     }
 

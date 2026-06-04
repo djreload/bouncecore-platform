@@ -77,6 +77,46 @@ export type CapturedPayPalCheckoutOrder = {
   status: string;
 };
 
+export type PayPalPayoutRecipientType = "EMAIL" | "PAYPAL_ID";
+
+export type PayPalPayoutItemInput = {
+  amountPence: number;
+  currencyCode: string;
+  note: string;
+  receiver: string;
+  recipientType: PayPalPayoutRecipientType;
+  senderItemId: string;
+};
+
+export type CreatePayPalPayoutBatchInput = {
+  emailMessage?: string;
+  emailSubject: string;
+  items: PayPalPayoutItemInput[];
+  senderBatchId: string;
+};
+
+export type CreatedPayPalPayoutBatch = {
+  batchStatus: string;
+  paypalPayoutBatchId: string;
+  raw: unknown;
+};
+
+export type PayPalPayoutBatchItemDetails = {
+  errorMessage: string | null;
+  paypalFeePence: number | null;
+  paypalPayoutItemId: string | null;
+  paypalTransactionId: string | null;
+  senderItemId: string;
+  transactionStatus: string;
+};
+
+export type PayPalPayoutBatchDetails = {
+  batchStatus: string;
+  items: PayPalPayoutBatchItemDetails[];
+  paypalPayoutBatchId: string;
+  raw: unknown;
+};
+
 export class PayPalApiError extends Error {
   constructor(
     message: string,
@@ -197,7 +237,7 @@ export async function getPayPalIntegrationData(): Promise<PayPalIntegrationData>
         enabled: settings.producerPayoutsEnabled,
         label: "Producer payouts",
         rail: "PayPal Payouts API",
-        surface: "/producer/sales"
+        surface: "/admin/payments and /producer/sales"
       }
     ]
   };
@@ -230,6 +270,30 @@ export function getPayPalStarsReadiness(settings: PayPalSettings, secretConfigur
 }
 
 export function getPayPalMusicReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+  return {
+    ready: Boolean(settings.clientId) && secretConfigured,
+    reason: !settings.clientId
+      ? "PayPal client ID is missing."
+      : !secretConfigured
+        ? "PayPal client secret is missing."
+        : null
+  };
+}
+
+export function getPayPalPayoutReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+  return {
+    ready: settings.producerPayoutsEnabled && Boolean(settings.clientId) && secretConfigured,
+    reason: !settings.producerPayoutsEnabled
+      ? "PayPal producer payouts are disabled."
+      : !settings.clientId
+        ? "PayPal client ID is missing."
+        : !secretConfigured
+          ? "PayPal client secret is missing."
+          : null
+  };
+}
+
+function getPayPalCredentialReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
   return {
     ready: Boolean(settings.clientId) && secretConfigured,
     reason: !settings.clientId
@@ -304,10 +368,10 @@ async function paypalFetch(path: string, init: RequestInit, settings: PayPalSett
 
 async function getPayPalAccessToken(settings: PayPalSettings) {
   const secret = paypalClientSecret();
-  const readiness = getPayPalCheckoutReadiness(settings, Boolean(secret));
+  const readiness = getPayPalCredentialReadiness(settings, Boolean(secret));
 
   if (!readiness.ready) {
-    throw new Error(readiness.reason ?? "PayPal checkout is not ready.");
+    throw new Error(readiness.reason ?? "PayPal API credentials are not ready.");
   }
 
   const credentials = Buffer.from(`${settings.clientId}:${secret}`).toString("base64");
@@ -443,6 +507,135 @@ export async function capturePayPalCheckoutOrder(
     captureId: typeof capture.id === "string" ? capture.id : null,
     payerEmail: typeof payer.email_address === "string" ? payer.email_address : null,
     status: typeof response.status === "string" ? response.status : "UNKNOWN"
+  };
+}
+
+function normalizePayPalStatus(value: unknown) {
+  return typeof value === "string" && value ? value.toLowerCase() : "unknown";
+}
+
+export async function createPayPalPayoutBatch(
+  input: CreatePayPalPayoutBatchInput,
+  settings: PayPalSettings
+): Promise<CreatedPayPalPayoutBatch> {
+  const readiness = getPayPalPayoutReadiness(settings);
+
+  if (!readiness.ready) {
+    throw new Error(readiness.reason ?? "PayPal producer payouts are not ready.");
+  }
+
+  const accessToken = await getPayPalAccessToken(settings);
+  const body = await paypalFetch(
+    "/v1/payments/payouts",
+    {
+      body: JSON.stringify({
+        sender_batch_header: {
+          email_message: input.emailMessage,
+          email_subject: input.emailSubject,
+          recipient_type: "EMAIL",
+          sender_batch_id: input.senderBatchId
+        },
+        items: input.items.map((item) => ({
+          amount: {
+            currency: item.currencyCode,
+            value: moneyValue(item.amountPence)
+          },
+          note: item.note,
+          receiver: item.receiver,
+          recipient_type: item.recipientType,
+          recipient_wallet: "PAYPAL",
+          sender_item_id: item.senderItemId
+        }))
+      }),
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "PayPal-Request-Id": input.senderBatchId
+      },
+      method: "POST"
+    },
+    settings
+  );
+  const response = asRecord(body);
+  const batchHeader = asRecord(response.batch_header);
+  const paypalPayoutBatchId = batchHeader.payout_batch_id;
+
+  if (typeof paypalPayoutBatchId !== "string" || !paypalPayoutBatchId) {
+    throw new PayPalApiError("PayPal did not return a payout batch ID.", 502);
+  }
+
+  return {
+    batchStatus: normalizePayPalStatus(batchHeader.batch_status),
+    paypalPayoutBatchId,
+    raw: body
+  };
+}
+
+function payoutItemErrorMessage(item: Record<string, unknown>) {
+  const errors = item.errors;
+
+  if (!errors) {
+    return null;
+  }
+
+  return payPalDetail(errors) || null;
+}
+
+export async function getPayPalPayoutBatchDetails(
+  paypalPayoutBatchId: string,
+  settings: PayPalSettings
+): Promise<PayPalPayoutBatchDetails> {
+  const readiness = getPayPalPayoutReadiness(settings);
+
+  if (!readiness.ready) {
+    throw new Error(readiness.reason ?? "PayPal producer payouts are not ready.");
+  }
+
+  const accessToken = await getPayPalAccessToken(settings);
+  const body = await paypalFetch(
+    `/v1/payments/payouts/${encodeURIComponent(paypalPayoutBatchId)}`,
+    {
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json"
+      },
+      method: "GET"
+    },
+    settings
+  );
+  const response = asRecord(body);
+  const batchHeader = asRecord(response.batch_header);
+  const batchId = batchHeader.payout_batch_id;
+  const items = asArray(response.items)
+    .map((item) => asRecord(item))
+    .map((item): PayPalPayoutBatchItemDetails => {
+      const payoutItem = asRecord(item.payout_item);
+      const fee = asRecord(item.payout_item_fee);
+      const amount = asRecord(fee.amount);
+      const feeValue = amount.value ?? fee.value;
+
+      return {
+        errorMessage: payoutItemErrorMessage(item),
+        paypalFeePence: penceValue(feeValue),
+        paypalPayoutItemId: typeof item.payout_item_id === "string" ? item.payout_item_id : null,
+        paypalTransactionId: typeof item.transaction_id === "string" ? item.transaction_id : null,
+        senderItemId: typeof payoutItem.sender_item_id === "string" ? payoutItem.sender_item_id : "",
+        transactionStatus: normalizePayPalStatus(item.transaction_status)
+      };
+    })
+    .filter((item) => item.senderItemId);
+
+  if (typeof batchId !== "string" || !batchId) {
+    throw new PayPalApiError("PayPal payout batch details response was invalid.", 502);
+  }
+
+  return {
+    batchStatus: normalizePayPalStatus(batchHeader.batch_status),
+    items,
+    paypalPayoutBatchId: batchId,
+    raw: body
   };
 }
 

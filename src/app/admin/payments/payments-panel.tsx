@@ -1,15 +1,17 @@
 "use client";
 
 import { useActionState } from "react";
-import { BadgeCheck, CreditCard, KeyRound, Save, Send, WalletCards } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CreditCard, KeyRound, RefreshCw, Save, Send, WalletCards } from "lucide-react";
 import { adminPaymentsAction } from "@/app/admin/payments/actions";
 import { initialAdminPaymentsActionState, type AdminPaymentsActionState } from "@/app/admin/payments/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
+import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
 
 type AdminPaymentsPanelProps = {
   data: PayPalIntegrationData;
+  payouts: AdminProducerPayoutsData;
 };
 
 const paypalModeOptions = ["sandbox", "live"] as const;
@@ -18,7 +20,27 @@ function checkTone(status: string) {
   return status === "ready" ? ("acid" as const) : ("amber" as const);
 }
 
-export function AdminPaymentsPanel({ data }: AdminPaymentsPanelProps) {
+function formatMoney(pence: number) {
+  return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
+}
+
+function payoutStatusTone(status: string) {
+  if (status === "success") {
+    return "acid" as const;
+  }
+
+  if (["failed", "denied", "canceled", "blocked", "returned"].includes(status)) {
+    return "pink" as const;
+  }
+
+  if (["pending", "processing", "unclaimed", "onhold"].includes(status)) {
+    return "cyan" as const;
+  }
+
+  return "muted" as const;
+}
+
+export function AdminPaymentsPanel({ data, payouts }: AdminPaymentsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminPaymentsActionState, FormData>(
     adminPaymentsAction,
     initialAdminPaymentsActionState
@@ -44,8 +66,10 @@ export function AdminPaymentsPanel({ data }: AdminPaymentsPanelProps) {
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Coverage</Badge>
-          <p className="mt-4 text-3xl font-black">{data.useCases.filter((item) => item.enabled).length}/3</p>
-          <p className="mt-2 text-sm text-bc-muted">Stars, shop, payouts.</p>
+          <p className="mt-4 text-3xl font-black">
+            {data.useCases.filter((item) => item.enabled).length}/{data.useCases.length}
+          </p>
+          <p className="mt-2 text-sm text-bc-muted">Stars, shop, music, payouts.</p>
         </article>
       </div>
 
@@ -223,12 +247,153 @@ export function AdminPaymentsPanel({ data }: AdminPaymentsPanelProps) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <Badge tone="acid">Producer payouts</Badge>
-            <h3 className="mt-4 text-xl font-black">PayPal Payouts API</h3>
+            <h3 className="mt-4 text-xl font-black">PayPal payout batches</h3>
             <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-              Producer sales balances will be settled through PayPal payouts once track purchases and entitlements are connected.
+              Eligible paid music sales are batched into PayPal Payouts items and tracked locally by sender batch and item IDs.
             </p>
           </div>
           <Send className="h-7 w-7 text-bc-acid" aria-hidden="true" />
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-4">
+          <article className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <Badge tone="pink">Eligible</Badge>
+            <p className="mt-3 text-2xl font-black">{formatMoney(payouts.stats.eligiblePence)}</p>
+            <p className="mt-1 text-xs text-bc-muted">{payouts.stats.eligibleItemCount} paid sale items.</p>
+          </article>
+          <article className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <Badge tone="cyan">Recipients</Badge>
+            <p className="mt-3 text-2xl font-black">{payouts.eligibleRecipients.length}</p>
+            <p className="mt-1 text-xs text-bc-muted">Producers with PayPal payout email.</p>
+          </article>
+          <article className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <Badge tone={payouts.missingRecipientCount ? "amber" : "acid"}>Missing setup</Badge>
+            <p className="mt-3 text-2xl font-black">{payouts.missingRecipientCount}</p>
+            <p className="mt-1 text-xs text-bc-muted">{formatMoney(payouts.stats.missingRecipientPence)} blocked.</p>
+          </article>
+          <article className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <Badge tone={payouts.readiness.ready ? "acid" : "amber"}>API</Badge>
+            <p className="mt-3 text-2xl font-black">{payouts.readiness.ready ? "Ready" : "Blocked"}</p>
+            <p className="mt-1 text-xs text-bc-muted">{payouts.readiness.reason ?? "PayPal Payouts API can be called."}</p>
+          </article>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="font-black">Eligible recipients</h4>
+                <p className="mt-1 text-sm text-bc-muted">Grouped preview before PayPal receives the batch.</p>
+              </div>
+              <Badge tone="muted">{payouts.eligibleSales.length} preview rows</Badge>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {payouts.eligibleRecipients.map((recipient) => (
+                <div className="rounded-md border border-bc-line bg-bc-panel p-3" key={`${recipient.producerId}:${recipient.paypalPayoutEmail}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{recipient.producerName}</p>
+                      <p className="mt-1 text-xs text-bc-muted">{recipient.paypalPayoutEmail}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-black">{formatMoney(recipient.amountPence)}</p>
+                      <p className="mt-1 text-xs text-bc-muted">
+                        {recipient.saleCount} sale{recipient.saleCount === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!payouts.eligibleRecipients.length ? (
+                <div className="rounded-md border border-bc-line bg-bc-panel p-4 text-sm text-bc-muted">
+                  No producer sales are currently eligible for payout.
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <aside className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 text-bc-pink" aria-hidden="true" />
+              <div>
+                <h4 className="font-black">Create payout batch</h4>
+                <p className="mt-1 text-sm text-bc-muted">
+                  This sends eligible producer earnings to PayPal using the configured {data.settings.mode} credentials.
+                </p>
+              </div>
+            </div>
+            <form action={formAction} className="mt-4 grid gap-3">
+              <input name="intent" type="hidden" value="producer-payout-create" />
+              <label className="flex items-start gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input disabled={pending || !payouts.readiness.ready || !payouts.stats.eligibleItemCount} name="confirmPayout" type="checkbox" />
+                <span>I confirm this should create a PayPal payout batch for the eligible sales shown here.</span>
+              </label>
+              <Button disabled={pending || !payouts.readiness.ready || !payouts.stats.eligibleItemCount} type="submit" variant="pink">
+                <Send className="h-4 w-4" aria-hidden="true" />
+                Create PayPal payout batch
+              </Button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <Badge tone="cyan">Payout ledger</Badge>
+            <h3 className="mt-4 text-xl font-black">Recent payout batches</h3>
+          </div>
+          <RefreshCw className="h-6 w-6 text-bc-electric" aria-hidden="true" />
+        </div>
+        <div className="mt-5 grid gap-4">
+          {payouts.recentBatches.map((batch) => (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={batch.id}>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={payoutStatusTone(batch.status)}>{batch.status}</Badge>
+                    <Badge tone="muted">{batch.senderBatchId}</Badge>
+                    {batch.paypalPayoutBatchId ? <Badge tone="cyan">PayPal {batch.paypalPayoutBatchId}</Badge> : null}
+                  </div>
+                  <h4 className="mt-3 text-lg font-black">{formatMoney(batch.totalPence)}</h4>
+                  <p className="mt-1 text-sm text-bc-muted">
+                    {batch.itemCount} item{batch.itemCount === 1 ? "" : "s"}
+                    {batch.paypalBatchStatus ? ` / PayPal ${batch.paypalBatchStatus}` : ""}
+                  </p>
+                  {batch.errorMessage ? <p className="mt-2 text-sm text-bc-pink">{batch.errorMessage}</p> : null}
+                </div>
+                <form action={formAction}>
+                  <input name="intent" type="hidden" value="producer-payout-sync" />
+                  <input name="batchId" type="hidden" value={batch.id} />
+                  <Button disabled={pending || !batch.paypalPayoutBatchId} size="sm" type="submit" variant="ghost">
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    Sync status
+                  </Button>
+                </form>
+              </div>
+              <div className="mt-4 grid gap-2">
+                {batch.items.map((item) => (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-panel p-3" key={item.id}>
+                    <div>
+                      <p className="font-semibold">{item.trackTitle}</p>
+                      <p className="mt-1 text-xs text-bc-muted">
+                        {item.producerName} / {item.recipientEmail}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={payoutStatusTone(item.status)}>{item.status}</Badge>
+                      <Badge tone="muted">{formatMoney(item.amountPence)}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          ))}
+          {!payouts.recentBatches.length ? (
+            <div className="rounded-md border border-bc-line bg-bc-ink p-5 text-sm text-bc-muted">
+              PayPal producer payout batches will appear here after the first batch is created.
+            </div>
+          ) : null}
         </div>
       </section>
     </div>

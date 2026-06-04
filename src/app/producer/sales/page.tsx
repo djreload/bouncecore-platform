@@ -32,6 +32,22 @@ function statusTone(status: string) {
   return "cyan" as const;
 }
 
+function payoutTone(status: string | null) {
+  if (!status) {
+    return "amber" as const;
+  }
+
+  if (status === "success") {
+    return "acid" as const;
+  }
+
+  if (["failed", "returned", "blocked"].includes(status)) {
+    return "pink" as const;
+  }
+
+  return "cyan" as const;
+}
+
 export default async function ProducerSalesPage() {
   const user = await requireUserPermission("producer.dashboard");
   const [data, sales, paypal] = await Promise.all([
@@ -56,9 +72,9 @@ export default async function ProducerSalesPage() {
           <p className="mt-2 text-sm text-bc-muted">Tracks eligible for public sales.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="pink">Earnings</Badge>
-          <p className="mt-4 text-3xl font-black">{formatMoney(sales.stats.producerEarningsPence)}</p>
-          <p className="mt-2 text-sm text-bc-muted">Paid producer earnings.</p>
+          <Badge tone="pink">Payable</Badge>
+          <p className="mt-4 text-3xl font-black">{formatMoney(sales.stats.payablePence)}</p>
+          <p className="mt-2 text-sm text-bc-muted">Not yet queued for PayPal payout.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Sales</Badge>
@@ -78,8 +94,8 @@ export default async function ProducerSalesPage() {
             <Badge tone="acid">PayPal Payouts</Badge>
             <h3 className="mt-4 text-2xl font-black">Producer payout routing</h3>
             <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-              Paid music purchases now create producer earnings records. PayPal Payouts can settle those earnings once recipient
-              onboarding is connected.
+              Paid music purchases create producer earnings records. PayPal Payouts settle those earnings when your payout email is set
+              on your producer profile.
             </p>
           </div>
           <Send className="h-7 w-7 text-bc-acid" aria-hidden="true" />
@@ -94,18 +110,20 @@ export default async function ProducerSalesPage() {
             <Wallet className="h-5 w-5 text-bc-pink" aria-hidden="true" />
             <h4 className="mt-3 font-black">Earnings</h4>
             <p className="mt-2 text-sm text-bc-muted">
-              {formatMoney(sales.stats.producerEarningsPence)} payable after platform fees.
+              {formatMoney(sales.stats.producerEarningsPence)} earned after platform fees.
             </p>
           </article>
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">
             <Send className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-            <h4 className="mt-3 font-black">Platform fee</h4>
-            <p className="mt-2 text-sm text-bc-muted">{formatMoney(sales.stats.platformFeePence)} retained from paid sales.</p>
+            <h4 className="mt-3 font-black">PayPal payouts</h4>
+            <p className="mt-2 text-sm text-bc-muted">
+              {formatMoney(sales.stats.payoutPendingPence)} queued / {formatMoney(sales.stats.payoutPaidPence)} paid.
+            </p>
           </article>
         </div>
         <div className="mt-5">
-          <ButtonLink href="/producer/tracks" variant="ghost">
-            Manage tracks
+          <ButtonLink href="/producer/profile" variant={data.profile?.paypalPayoutEmail ? "ghost" : "primary"}>
+            {data.profile?.paypalPayoutEmail ? "Edit payout email" : "Add payout email"}
           </ButtonLink>
         </div>
       </section>
@@ -142,6 +160,9 @@ export default async function ProducerSalesPage() {
               <div className="mt-3 flex flex-wrap gap-2">
                 <Badge tone="cyan">Gross {formatMoney(sale.pricePence)}</Badge>
                 <Badge tone="muted">Fee {formatMoney(sale.platformFeePence)}</Badge>
+                <Badge tone={payoutTone(sale.payoutStatus)}>{sale.payoutStatus ?? "not queued"}</Badge>
+                {sale.payoutSenderBatchId ? <Badge tone="muted">Batch {sale.payoutSenderBatchId.slice(0, 18)}</Badge> : null}
+                {sale.payoutRecipientEmail ? <Badge tone="cyan">{sale.payoutRecipientEmail}</Badge> : null}
                 {sale.paypalOrderId ? <Badge tone="muted">PayPal {sale.paypalOrderId.slice(0, 10)}</Badge> : null}
               </div>
             </article>

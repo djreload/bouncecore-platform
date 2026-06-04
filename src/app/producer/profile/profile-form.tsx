@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Music, Save } from "lucide-react";
+import { Music, Save, Wallet } from "lucide-react";
 import { producerAction } from "@/app/producer/actions";
 import { initialProducerActionState, type ProducerActionState } from "@/app/producer/state";
 import { Badge } from "@/components/ui/badge";
@@ -93,6 +93,28 @@ export function ProducerProfileForm({ data }: ProducerProfileFormProps) {
               name="bio"
               placeholder="Tell listeners about your sound, releases, and production style."
             />
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="paypalPayoutEmail">
+                PayPal payout email
+              </label>
+            </div>
+            <input
+              className="mt-3 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+              defaultValue={data.profile?.paypalPayoutEmail ?? ""}
+              disabled={pending}
+              id="paypalPayoutEmail"
+              maxLength={180}
+              name="paypalPayoutEmail"
+              placeholder="producer-paypal@example.com"
+              type="email"
+            />
+            <p className="mt-2 text-xs text-bc-muted">
+              Admin PayPal payout batches use this recipient email for paid music sale earnings.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">

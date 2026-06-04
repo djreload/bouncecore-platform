@@ -28,6 +28,7 @@ function profileInput(formData: FormData): ProducerProfileInput {
   return {
     bio: formString(formData, "bio"),
     name: formString(formData, "name"),
+    paypalPayoutEmail: formString(formData, "paypalPayoutEmail"),
     slug: formString(formData, "slug")
   };
 }
@@ -54,6 +55,7 @@ function trackInput(formData: FormData): DigitalTrackInput {
 function revalidateProducerViews(slug?: string) {
   revalidatePath("/producer");
   revalidatePath("/producer/profile");
+  revalidatePath("/producer/sales");
   revalidatePath("/producer/tracks");
   revalidatePath("/producer/upload");
   revalidatePath("/music");
