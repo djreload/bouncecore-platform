@@ -43,6 +43,7 @@ This scaffold includes:
 - Password/session/token helper scaffolding
 - Form-backed login, register, logout, and session route scaffolding
 - Dedicated account security page
+- Data-backed account overview, profile editor, settings summary, and notifications inbox
 - Account session directory with current-session sign out and other-session revoke controls
 - Native chat GIF search and media messages through the Tenor API
 - Automatic chat-history pruning for messages older than 24 hours
