@@ -23,11 +23,12 @@ function severityTone(severity: string) {
 }
 
 export default async function AdminAuditLogsPage() {
-  await requireUserPermission("admin.access");
+  await requireUserPermission("audit.view");
   const auditLogs = await getAdminAuditLogs();
 
   return (
     <AdminShell
+      requiredPermission="audit.view"
       title="Audit logs"
       description="Security and operations trail for authentication, setup, RBAC, stream-key, payment, and moderation events."
     >

@@ -10,7 +10,11 @@ export default async function AdminBansPage() {
   const data = await getAdminBansData();
 
   return (
-    <AdminShell title="Bans" description="Create and revoke global or room-specific chat bans without disabling accounts.">
+    <AdminShell
+      requiredPermission="moderation.use"
+      title="Bans"
+      description="Create and revoke global or room-specific chat bans without disabling accounts."
+    >
       <AdminBansPanel data={data} />
     </AdminShell>
   );

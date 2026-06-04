@@ -2,16 +2,18 @@ import { Search } from "lucide-react";
 import { adminNavigation } from "@/config/navigation";
 import { GroupedNav } from "@/components/navigation/grouped-nav";
 import { filterNavigationByRoles } from "@/lib/auth/rbac";
+import type { Permission } from "@/lib/auth/rbac";
 import { requireUserPermission } from "@/lib/auth/guards";
 
 type AdminShellProps = {
   children: React.ReactNode;
   title: string;
   description: string;
+  requiredPermission?: Permission;
 };
 
-export async function AdminShell({ children, title, description }: AdminShellProps) {
-  const user = await requireUserPermission("admin.access");
+export async function AdminShell({ children, title, description, requiredPermission = "admin.access" }: AdminShellProps) {
+  const user = await requireUserPermission(requiredPermission);
   const visibleNavigation = filterNavigationByRoles(adminNavigation, user.roles);
 
   return (

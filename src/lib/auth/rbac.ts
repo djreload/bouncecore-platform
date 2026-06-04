@@ -112,10 +112,13 @@ export function requirePermission(user: Pick<CurrentUser, "roles"> | null | unde
 export function filterNavigationByRoles(items: NavigationItem[], roles: Role[]) {
   return items.filter((item) => {
     if (!item.requiredRoles?.length) {
-      return true;
+      return item.requiredPermission ? hasPermission({ roles }, item.requiredPermission) : true;
     }
 
-    return item.requiredRoles.some((role) => roles.includes(role));
+    const hasRequiredRole = item.requiredRoles.some((role) => roles.includes(role));
+    const hasRequiredPermission = item.requiredPermission ? hasPermission({ roles }, item.requiredPermission) : true;
+
+    return hasRequiredRole && hasRequiredPermission;
   });
 }
 

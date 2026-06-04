@@ -1,4 +1,4 @@
-import { Bell, Download, Music, Package, Radio, ShieldCheck, Sparkles, Star, UserRound } from "lucide-react";
+import { Bell, Download, MessageSquare, Music, Package, Radio, ShieldCheck, Sparkles, Star, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,13 @@ const assignedFeatureLinks = [
     icon: ShieldCheck,
     label: "Admin control room",
     roles: ["owner", "admin"]
+  },
+  {
+    body: "Chatrooms, reports, bans, and moderation audit visibility.",
+    href: "/admin/reports",
+    icon: MessageSquare,
+    label: "Moderation tools",
+    roles: ["moderator"]
   },
   {
     body: "Stream key, live status, health, schedule, profile, and OBS setup.",

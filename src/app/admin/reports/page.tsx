@@ -10,7 +10,11 @@ export default async function AdminReportsPage() {
   const data = await getAdminReportsData();
 
   return (
-    <AdminShell title="Reports" description="Review user-submitted chat reports, hide messages, and track moderation outcomes.">
+    <AdminShell
+      requiredPermission="moderation.use"
+      title="Reports"
+      description="Review user-submitted chat reports, hide messages, and track moderation outcomes."
+    >
       <AdminReportsPanel data={data} />
     </AdminShell>
   );

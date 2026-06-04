@@ -35,6 +35,7 @@ export default async function AdminChatroomsPage() {
 
   return (
     <AdminShell
+      requiredPermission="moderation.use"
       title="Chatrooms"
       description="Native room setup and moderation for public chat, live chat, VIP spaces, and creator rooms."
     >
