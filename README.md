@@ -64,11 +64,11 @@ This scaffold includes:
 - Data-backed merch product catalogue and admin product management
 - Data-backed account orders, admin order management, and fulfilment queue
 - PayPal shop checkout routes with order line items, capture references, and stock decrement on paid orders
-- PayPal stars checkout with purchase records, wallet credits, and admin purchase visibility
+- PayPal stars checkout with purchase records, wallet credits, and admin purchase visibility for live support
 - PayPal music checkout with track purchase records and producer earnings visibility
 - Music download entitlements with buyer downloads, license snapshots, and producer delivery dashboards
 - PayPal producer payout batches with recipient setup, local ledger records, and status sync
-- Data-backed stars wallets, public rewards, and admin stars controls
+- Data-backed stars wallets, live chat star sending, stream overlay alerts, and sent-stars leaderboards
 - Data-backed reward spin-wheel configuration and prize-claim fulfilment admin
 - PayPal-only payment integration foundation for stars, shop checkout, and producer payouts
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`

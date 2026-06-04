@@ -51,6 +51,7 @@ model User {
   producerProfile ProducerProfile?
   orders          Order[]
   starPurchases   StarPurchase[]
+  starSends       StarSend[] @relation("StarSendUser")
   trackPurchases  DigitalTrackPurchase[]
   requestedPayoutBatches ProducerPayoutBatch[] @relation("ProducerPayoutBatchRequestedBy")
 
@@ -264,6 +265,7 @@ model StreamSession {
   endedAt   DateTime?
   peakViewers Int         @default(0)
   channel   StreamChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  starSends StarSend[]
 }
 
 model StreamEvent {
@@ -303,6 +305,7 @@ model ChatRoom {
   messages  ChatMessage[]
   reports   ChatReport[]
   bans      ChatBan[]
+  starSends StarSend[]
   createdAt DateTime      @default(now())
 }
 
@@ -323,6 +326,27 @@ model ChatMessage {
   createdAt       DateTime @default(now())
   room            ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   reports         ChatReport[]
+  starSend        StarSend?
+}
+
+model StarSend {
+  id              String         @id @default(cuid())
+  userId          String
+  roomId          String
+  messageId       String?        @unique
+  streamSessionId String?
+  amount          Int
+  note            String?
+  createdAt       DateTime       @default(now())
+  user            User           @relation("StarSendUser", fields: [userId], references: [id], onDelete: Cascade)
+  room            ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  message         ChatMessage?   @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  streamSession   StreamSession? @relation(fields: [streamSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([roomId])
+  @@index([streamSessionId])
+  @@index([createdAt])
 }
 
 model ChatReport {

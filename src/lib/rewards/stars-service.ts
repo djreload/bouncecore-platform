@@ -28,6 +28,10 @@ export type AccountRewardsData = {
     updatedAt: Date;
   };
   rank: number | null;
+  sentStats: {
+    sendCount: number;
+    sentStars: number;
+  };
   supporter: boolean;
   orderStats: {
     orders: number;
@@ -275,7 +279,7 @@ export async function getAccountRewardsData(userId: string): Promise<AccountRewa
       userId
     }
   });
-  const [higherBalances, user, orderAggregate, orderCount, purchases] = await Promise.all([
+  const [higherBalances, user, orderAggregate, orderCount, purchases, sentAggregate, sendCount] = await Promise.all([
     wallet.balance > 0
       ? prisma.starWallet.count({
           where: {
@@ -318,6 +322,19 @@ export async function getAccountRewardsData(userId: string): Promise<AccountRewa
         createdAt: "desc"
       },
       take: 20
+    }),
+    prisma.starSend.aggregate({
+      where: {
+        userId
+      },
+      _sum: {
+        amount: true
+      }
+    }),
+    prisma.starSend.count({
+      where: {
+        userId
+      }
     })
   ]);
   const purchaseRows = purchases.map(toStarPurchaseRow);
@@ -336,6 +353,10 @@ export async function getAccountRewardsData(userId: string): Promise<AccountRewa
       pendingPurchases: pendingPurchases.length,
       purchasedStars: paidPurchases.reduce((total, purchase) => total + purchase.stars, 0),
       spendPence: paidPurchases.reduce((total, purchase) => total + purchase.totalPence, 0)
+    },
+    sentStats: {
+      sendCount,
+      sentStars: sentAggregate._sum.amount ?? 0
     },
     supporter: user.roles.some((userRole) => userRole.role.name === "supporter"),
     wallet: {

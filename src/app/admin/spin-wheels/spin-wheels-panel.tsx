@@ -17,7 +17,7 @@ type AdminSpinWheelsPanelProps = {
 
 const wheelStatusOptions = ["draft", "active", "paused", "archived"] as const;
 const segmentStatusOptions = ["active", "disabled"] as const;
-const prizeTypeOptions = ["none", "stars", "merch", "music", "vip", "manual"] as const;
+const prizeTypeOptions = ["none", "merch", "music", "vip", "manual"] as const;
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -36,10 +36,6 @@ function statusTone(status: string) {
 }
 
 function prizeTone(prizeType: string) {
-  if (prizeType === "stars") {
-    return "acid" as const;
-  }
-
   if (prizeType === "none") {
     return "muted" as const;
   }
@@ -113,7 +109,8 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
         <Badge tone="cyan">New wheel</Badge>
         <form action={formAction} className="mt-4 grid gap-4">
           <input name="intent" type="hidden" value="wheel" />
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_160px_160px]">
+          <input name="costStars" type="hidden" value="0" />
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_160px]">
             <input
               className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
               name="name"
@@ -125,13 +122,6 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
               name="slug"
               placeholder="wheel-slug"
               required
-            />
-            <input
-              className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue="0"
-              min="0"
-              name="costStars"
-              type="number"
             />
             <select className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white" name="status">
               {wheelStatusOptions.map((status) => (
@@ -168,6 +158,7 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
             <form action={formAction} className="grid gap-4">
               <input name="intent" type="hidden" value="wheel" />
               <input name="wheelId" type="hidden" value={wheel.id} />
+              <input name="costStars" type="hidden" value="0" />
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap gap-2">
@@ -182,7 +173,7 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                 </div>
                 <Sparkles className="h-6 w-6 text-bc-pink" aria-hidden="true" />
               </div>
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_160px_160px_auto]">
+              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_160px_auto]">
                 <input
                   className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                   defaultValue={wheel.name}
@@ -194,13 +185,6 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                   defaultValue={wheel.slug}
                   name="slug"
                   required
-                />
-                <input
-                  className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                  defaultValue={wheel.costStars}
-                  min="0"
-                  name="costStars"
-                  type="number"
                 />
                 <select
                   className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"

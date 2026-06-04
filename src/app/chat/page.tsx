@@ -4,6 +4,7 @@ import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getStarWalletBalance } from "@/lib/stars/star-send-service";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     getCurrentUser(),
     getRoleDisplayNameOverrides()
   ]);
+  const currentStarBalance = await getStarWalletBalance(currentUser?.id);
   const roomRows: PublicChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
     slug: room.slug,
@@ -52,6 +54,8 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     mediaSourceId: message.mediaSourceId,
     mediaWidth: message.mediaWidth,
     mediaHeight: message.mediaHeight,
+    starAmount: message.starAmount,
+    starNote: message.starNote,
     createdAt: message.createdAt,
     authorDisplayName: message.authorDisplayName,
     authorUserId: message.authorUserId,
@@ -70,6 +74,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
         </div>
         <ChatRoomPanel
           currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
+          currentStarBalance={currentStarBalance}
           messages={messageRows}
           roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}

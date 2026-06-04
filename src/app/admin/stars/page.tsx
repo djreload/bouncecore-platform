@@ -12,7 +12,7 @@ export default async function AdminStarsPage() {
   return (
     <AdminShell
       title="Stars"
-      description="Manage stars wallets, supporter balances, rankings, and reward currency totals."
+      description="Manage stars wallets, PayPal star purchases, live support balances, and manual corrections."
     >
       <AdminStarsPanel data={data} />
     </AdminShell>

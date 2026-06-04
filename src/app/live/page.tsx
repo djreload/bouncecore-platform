@@ -1,5 +1,6 @@
 import { CalendarClock, Radio, UserRound } from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
+import { StarSupportLeaderboard, StarSupportOverlay } from "@/app/live/star-support-panel";
 import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
+import { getLiveStarSupportData, getStarWalletBalance } from "@/lib/stars/star-send-service";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +29,10 @@ export default async function LivePage() {
     getCurrentUser(),
     getRoleDisplayNameOverrides(),
     getPublicUpcomingStreamSchedules()
+  ]);
+  const [starSupport, currentStarBalance] = await Promise.all([
+    getLiveStarSupportData(),
+    getStarWalletBalance(currentUser?.id)
   ]);
   const { channel, status, playbackUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
@@ -57,6 +63,8 @@ export default async function LivePage() {
     mediaSourceId: message.mediaSourceId,
     mediaWidth: message.mediaWidth,
     mediaHeight: message.mediaHeight,
+    starAmount: message.starAmount,
+    starNote: message.starNote,
     createdAt: message.createdAt,
     authorDisplayName: message.authorDisplayName,
     authorUserId: message.authorUserId,
@@ -75,12 +83,13 @@ export default async function LivePage() {
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <section className="bc-scanlines grid aspect-video place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-ink">
+          <section className="bc-scanlines relative grid aspect-video place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-ink">
             <div className="relative z-10 text-center">
               <Radio className="mx-auto h-12 w-12 text-bc-electric" aria-hidden="true" />
               <h2 className="mt-4 text-2xl font-black">{channel?.title ?? "Player placeholder"}</h2>
               <p className="mt-2 text-sm text-bc-muted">{playbackUrl ?? "Playback URL not configured yet."}</p>
             </div>
+            <StarSupportOverlay initialData={starSupport} />
           </section>
           <aside className="space-y-4">
             <div className="rounded-md border border-bc-line bg-bc-panel p-5">
@@ -97,6 +106,7 @@ export default async function LivePage() {
                 Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
               </p>
             </div>
+            <StarSupportLeaderboard initialData={starSupport} />
             <div className="rounded-md border border-bc-line bg-bc-panel p-5">
               <div className="flex items-center justify-between gap-3">
                 <Badge tone="pink">Schedule</Badge>
@@ -131,6 +141,7 @@ export default async function LivePage() {
             <ChatRoomPanel
               compact
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
+              currentStarBalance={currentStarBalance}
               messages={messageRows}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}

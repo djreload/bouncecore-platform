@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db/prisma";
 
 export const rewardWheelStatuses = ["draft", "active", "paused", "archived"] as const;
 export const rewardSegmentStatuses = ["active", "disabled"] as const;
-export const rewardPrizeTypes = ["none", "stars", "merch", "music", "vip", "manual"] as const;
+export const rewardPrizeTypes = ["none", "merch", "music", "vip", "manual"] as const;
 export const prizeClaimStatuses = ["pending", "approved", "fulfilled", "rejected"] as const;
 
 export type RewardWheelStatus = (typeof rewardWheelStatuses)[number];
@@ -359,9 +359,10 @@ export async function ensureDefaultRewardWheel(actorId: string) {
       segments: {
         create: [
           {
-            label: "100 stars",
-            prizeType: "stars",
-            starAmount: 100,
+            label: "Sticker pack",
+            prizeType: "merch",
+            prizeValue: "sticker-pack",
+            starAmount: 0,
             weight: 25
           },
           {
@@ -399,11 +400,7 @@ export async function createOrUpdateRewardSegment(input: RewardSegmentInput, act
   assertSegmentStatus(status);
   assertPrizeType(prizeType);
 
-  const starAmount = parseInteger(input.starAmount, "Star amount", 0, 1000000);
-
-  if (prizeType === "stars" && starAmount < 1) {
-    throw new Error("Star prize segments must include a positive star amount.");
-  }
+  const starAmount = parseInteger(input.starAmount, "Prize quantity", 0, 1000000);
 
   const data = {
     label: normalizedRequiredText(input.label, 120, "Segment label"),
@@ -557,11 +554,7 @@ export async function createManualPrizeClaim(input: PrizeClaimInput, actorId: st
   const prizeType = input.prizeType.trim();
   assertPrizeType(prizeType);
 
-  const starAmount = parseInteger(input.starAmount, "Star amount", 0, 1000000);
-
-  if (prizeType === "stars" && starAmount < 1) {
-    throw new Error("Star prize claims must include a positive star amount.");
-  }
+  const starAmount = parseInteger(input.starAmount, "Prize quantity", 0, 1000000);
 
   const wheelId = input.wheelId?.trim() || null;
   const segmentId = input.segmentId?.trim() || null;
@@ -614,26 +607,8 @@ export async function updatePrizeClaimStatus(input: PrizeClaimStatusInput, actor
     }
   });
   const resolved = status === "fulfilled" || status === "rejected";
-  const shouldCreditStars = status === "fulfilled" && current.starAmount > 0 && !current.starsCreditedAt;
 
   const claim = await prisma.$transaction(async (tx) => {
-    if (shouldCreditStars) {
-      await tx.starWallet.upsert({
-        where: {
-          userId: current.userId
-        },
-        update: {
-          balance: {
-            increment: current.starAmount
-          }
-        },
-        create: {
-          balance: current.starAmount,
-          userId: current.userId
-        }
-      });
-    }
-
     const updated = await tx.prizeClaim.update({
       where: {
         id: current.id
@@ -642,7 +617,7 @@ export async function updatePrizeClaimStatus(input: PrizeClaimStatusInput, actor
         fulfilmentNote: normalizedText(input.fulfilmentNote, 600),
         resolvedAt: resolved ? new Date() : null,
         resolvedById: resolved ? actorId : null,
-        starsCreditedAt: shouldCreditStars ? new Date() : current.starsCreditedAt,
+        starsCreditedAt: current.starsCreditedAt,
         status
       }
     });
@@ -670,7 +645,7 @@ export async function updatePrizeClaimStatus(input: PrizeClaimStatusInput, actor
     target: `prize-claim:${claim.id}`,
     severity: status === "fulfilled" ? "warning" : "info",
     metadata: {
-      creditedStars: shouldCreditStars ? current.starAmount : 0,
+      creditedStars: 0,
       status,
       userId: claim.userId
     }

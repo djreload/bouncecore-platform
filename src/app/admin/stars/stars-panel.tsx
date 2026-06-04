@@ -69,12 +69,12 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Stars</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.totalStars.toLocaleString("en-GB")}</p>
-          <p className="mt-2 text-sm text-bc-muted">Total stars in circulation.</p>
+          <p className="mt-2 text-sm text-bc-muted">Total stars available to send.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="pink">Top balance</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.topBalance.toLocaleString("en-GB")}</p>
-          <p className="mt-2 text-sm text-bc-muted">Highest wallet balance.</p>
+          <p className="mt-2 text-sm text-bc-muted">Highest available wallet balance.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="amber">Supporters</Badge>
@@ -89,7 +89,7 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
             <Badge tone="pink">Payments & money</Badge>
             <h3 className="mt-4 text-2xl font-black">Stars wallets</h3>
             <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-              Create, set, and adjust stars balances for supporters and regular accounts.
+              Create, set, and adjust star balances for live chat support sends.
             </p>
           </div>
           <Sparkles className="h-7 w-7 text-bc-pink" aria-hidden="true" />

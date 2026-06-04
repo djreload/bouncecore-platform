@@ -16,7 +16,7 @@ type AdminPrizeClaimsPanelProps = {
   data: AdminPrizeClaimsData;
 };
 
-const prizeTypeOptions = ["none", "stars", "merch", "music", "vip", "manual"] as const;
+const prizeTypeOptions = ["none", "merch", "music", "vip", "manual"] as const;
 const claimStatusOptions = ["pending", "approved", "fulfilled", "rejected"] as const;
 
 function formatDate(value: string | null) {
@@ -36,10 +36,6 @@ function statusTone(status: string) {
 }
 
 function prizeTone(prizeType: string) {
-  if (prizeType === "stars") {
-    return "acid" as const;
-  }
-
   if (prizeType === "none") {
     return "muted" as const;
   }
@@ -77,9 +73,9 @@ export function AdminPrizeClaimsPanel({ data }: AdminPrizeClaimsPanelProps) {
           <p className="mt-2 text-sm text-bc-muted">Completed claims.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="acid">Stars owed</Badge>
+          <Badge tone="acid">Open value</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.starLiability.toLocaleString("en-GB")}</p>
-          <p className="mt-2 text-sm text-bc-muted">Pending star prize liability.</p>
+          <p className="mt-2 text-sm text-bc-muted">Legacy numeric prize quantity on open claims.</p>
         </article>
       </div>
 
@@ -89,7 +85,7 @@ export function AdminPrizeClaimsPanel({ data }: AdminPrizeClaimsPanelProps) {
             <Badge tone="pink">Claims</Badge>
             <h3 className="mt-4 text-2xl font-black">Prize claim control</h3>
             <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-              Fulfilled star claims credit the user wallet once and record the credit timestamp to prevent duplicate payouts.
+              Fulfil prize claims with manual notes. Stars are handled separately through live chat support sends.
             </p>
           </div>
           <Trophy className="h-7 w-7 text-bc-pink" aria-hidden="true" />
@@ -185,7 +181,7 @@ export function AdminPrizeClaimsPanel({ data }: AdminPrizeClaimsPanelProps) {
                   <Badge tone={statusTone(claim.status)}>{claim.status}</Badge>
                   <Badge tone={prizeTone(claim.prizeType)}>{claim.prizeType}</Badge>
                   {claim.wheelSlug ? <Badge tone="cyan">/{claim.wheelSlug}</Badge> : null}
-                  {claim.starsCreditedAt ? <Badge tone="acid">stars credited</Badge> : null}
+                  {claim.starsCreditedAt ? <Badge tone="acid">legacy credit recorded</Badge> : null}
                 </div>
                 <h3 className="mt-3 text-xl font-black">{claim.title}</h3>
                 <p className="mt-1 text-sm text-bc-muted">
@@ -204,12 +200,12 @@ export function AdminPrizeClaimsPanel({ data }: AdminPrizeClaimsPanelProps) {
                   <p>Prize value: {claim.prizeValue ?? "None"}</p>
                   <p>Resolved: {claim.resolvedByDisplayName ?? "Not resolved"}</p>
                   <p>Resolved at: {formatDate(claim.resolvedAt)}</p>
-                  <p>Stars credited: {formatDate(claim.starsCreditedAt)}</p>
+                  <p>Legacy credit: {formatDate(claim.starsCreditedAt)}</p>
                 </div>
                 {claim.starAmount > 0 ? (
                   <div className="mt-4 flex items-center gap-2 rounded-md border border-bc-line bg-bc-panel p-3">
                     <Star className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-                    <span className="font-black">{claim.starAmount.toLocaleString("en-GB")} stars</span>
+                    <span className="font-black">{claim.starAmount.toLocaleString("en-GB")} quantity</span>
                   </div>
                 ) : null}
               </div>

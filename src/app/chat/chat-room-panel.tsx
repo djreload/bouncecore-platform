@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Flag, ImageIcon, LogIn, MessageSquare, Search, Send } from "lucide-react";
+import { Flag, ImageIcon, LogIn, MessageSquare, Search, Send, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
@@ -21,6 +21,7 @@ type ChatRoomPanelProps = {
   selectedRoom: PublicChatRoomRow | null;
   messages: PublicChatMessageRow[];
   currentUser: PublicChatUser | null;
+  currentStarBalance?: number;
   roleDisplayLabels: RoleDisplayNameMap;
   compact?: boolean;
   showRoomLinks?: boolean;
@@ -41,6 +42,7 @@ type PolledMessages = {
 };
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
+const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
@@ -70,6 +72,7 @@ export function ChatRoomPanel({
   selectedRoom,
   messages,
   currentUser,
+  currentStarBalance = 0,
   roleDisplayLabels,
   compact = false,
   showRoomLinks = true
@@ -282,7 +285,18 @@ export function ChatRoomPanel({
                   <span className="text-xs text-bc-muted">{formatTime(message.createdAt)}</span>
                 </div>
 
-                {message.kind === "gif" && message.mediaUrl ? (
+                {message.kind === "stars" ? (
+                  <div className="mt-3 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
+                      <span className="text-xl font-black text-bc-acid">
+                        {(message.starAmount ?? 0).toLocaleString("en-GB")} stars
+                      </span>
+                      <Badge tone="acid">Stream support</Badge>
+                    </div>
+                    {message.starNote ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.starNote}</p> : null}
+                  </div>
+                ) : message.kind === "gif" && message.mediaUrl ? (
                   <div className="mt-3">
                     <Image
                       alt={message.mediaAlt ?? message.body}
@@ -353,6 +367,46 @@ export function ChatRoomPanel({
 
         {currentUser && selectedRoom ? (
           <div className="grid gap-3">
+            {selectedRoom.type === "live" ? (
+              <form action={formAction} className="grid gap-3 rounded-md border border-bc-acid/25 bg-bc-acid/10 p-3">
+                <input name="intent" type="hidden" value="stars" />
+                <input name="roomId" type="hidden" value={selectedRoom.id} />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
+                    <span className="font-black">Send stars</span>
+                    <Badge tone="acid">{currentStarBalance.toLocaleString("en-GB")} available</Badge>
+                  </div>
+                  <ButtonLink href="/account/rewards" size="sm" variant="dark">
+                    Buy stars
+                  </ButtonLink>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-[140px_1fr_auto]">
+                  <select
+                    aria-label="Star amount"
+                    className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    name="amount"
+                  >
+                    {liveStarSendAmounts.map((amount) => (
+                      <option key={amount} value={amount}>
+                        {amount} stars
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    maxLength={160}
+                    name="note"
+                    placeholder="Optional stream alert message"
+                  />
+                  <Button disabled={pending || currentStarBalance < liveStarSendAmounts[0]} type="submit" variant="primary">
+                    <Star className="h-4 w-4" aria-hidden="true" />
+                    Send
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+
             <form action={formAction} className="grid gap-3">
               <input name="intent" type="hidden" value="text" />
               <input name="roomId" type="hidden" value={selectedRoom.id} />

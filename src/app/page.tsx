@@ -31,7 +31,7 @@ export default function HomePage() {
             <h1 className="mt-5 text-5xl font-black leading-tight sm:text-6xl lg:text-7xl">Bouncecore</h1>
             <p className="mt-5 max-w-2xl text-lg text-bc-muted sm:text-xl">
               A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music,
-              merch, rewards, donations, and future mobile apps.
+              merch, live star support, and future mobile apps.
             </p>
             <div className="mt-7 flex flex-wrap gap-3">
               <ButtonLink href="/live" size="lg">

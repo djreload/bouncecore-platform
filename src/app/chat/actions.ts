@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createChatGifMessage, createChatMessage } from "@/lib/chat/chat-service";
 import { createChatReport } from "@/lib/chat/moderation-service";
 import { getCurrentUser } from "@/lib/auth/session";
+import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
 import type { PublicChatActionState } from "@/app/chat/state";
 
 function formString(formData: FormData, key: string) {
@@ -54,18 +55,32 @@ export async function publicChatAction(
         width: Number(formString(formData, "gifWidth")) || null,
         height: Number(formString(formData, "gifHeight")) || null
       });
+    } else if (intent === "stars") {
+      await createLiveChatStarSend(roomId, user.id, {
+        amount: formString(formData, "amount"),
+        note: formString(formData, "note")
+      });
     } else {
       await createChatMessage(roomId, body, user.id);
     }
 
     revalidatePath("/chat");
     revalidatePath("/live");
+    revalidatePath("/account/rewards");
+    revalidatePath("/admin/stars");
     revalidatePath("/admin/reports");
     revalidatePath("/admin/audit-logs");
 
     return {
       status: "success",
-      message: intent === "report" ? "Report sent to moderators." : intent === "gif" ? "GIF sent." : "Message sent."
+      message:
+        intent === "report"
+          ? "Report sent to moderators."
+          : intent === "gif"
+            ? "GIF sent."
+            : intent === "stars"
+              ? "Stars sent to live chat."
+              : "Message sent."
     };
   } catch (error) {
     if (intent === "report") {
@@ -82,6 +97,8 @@ export async function publicChatAction(
           ? error.message
           : intent === "gif"
             ? "GIF was not sent. Try another result."
+            : intent === "stars"
+              ? "Stars were not sent."
             : "Message was not sent. Keep it between 1 and 500 characters."
     };
   }

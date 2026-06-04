@@ -51,7 +51,7 @@ export const publicNavigation: NavigationItem[] = [
   { label: "Producers", href: "/producers", icon: "music" },
   { label: "Music", href: "/music", icon: "star" },
   { label: "Shop", href: "/shop", icon: "shopping-bag" },
-  { label: "Rewards", href: "/rewards", icon: "gift" },
+  { label: "Star Support", href: "/rewards", icon: "star" },
   { label: "Account", href: "/account", icon: "user" }
 ];
 
@@ -60,7 +60,7 @@ export const accountNavigation: NavigationItem[] = [
   { label: "Profile", href: "/account/profile", icon: "user", group: "Account" },
   { label: "Orders", href: "/account/orders", icon: "package", group: "Commerce" },
   { label: "Downloads", href: "/account/downloads", icon: "download", group: "Commerce" },
-  { label: "Rewards", href: "/account/rewards", icon: "gift", group: "Supporter" },
+  { label: "Stars", href: "/account/rewards", icon: "star", group: "Supporter" },
   { label: "Notifications", href: "/account/notifications", icon: "bell", group: "Account" },
   { label: "Security", href: "/account/security", icon: "lock", group: "Account" },
   { label: "Settings", href: "/account/settings", icon: "settings", group: "Account" }

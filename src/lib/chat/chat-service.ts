@@ -36,6 +36,8 @@ export type ChatMessageSummary = {
   mediaSourceId: string | null;
   mediaWidth: number | null;
   mediaHeight: number | null;
+  starAmount: number | null;
+  starNote: string | null;
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
@@ -186,6 +188,10 @@ function toMessageSummary(
     mediaSourceId: string | null;
     mediaWidth: number | null;
     mediaHeight: number | null;
+    starSend?: {
+      amount: number;
+      note: string | null;
+    } | null;
     deletedAt: Date | null;
     createdAt: Date;
   },
@@ -205,6 +211,8 @@ function toMessageSummary(
     mediaSourceId: message.deletedAt ? null : message.mediaSourceId,
     mediaWidth: message.deletedAt ? null : message.mediaWidth,
     mediaHeight: message.deletedAt ? null : message.mediaHeight,
+    starAmount: message.deletedAt ? null : message.starSend?.amount ?? null,
+    starNote: message.deletedAt ? null : message.starSend?.note ?? null,
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
@@ -258,6 +266,14 @@ export async function getPublicChatData(roomSlug?: string) {
       roomId: selectedRoom.id,
       deletedAt: null
     },
+    include: {
+      starSend: {
+        select: {
+          amount: true,
+          note: true
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc"
     },
@@ -293,6 +309,14 @@ export async function getPublicChatMessages(roomId: string) {
       roomId,
       deletedAt: null
     },
+    include: {
+      starSend: {
+        select: {
+          amount: true,
+          note: true
+        }
+      }
+    },
     orderBy: {
       createdAt: "desc"
     },
@@ -313,6 +337,12 @@ export async function getAdminChatroomsData() {
         createdAt: "desc"
       },
       include: {
+        starSend: {
+          select: {
+            amount: true,
+            note: true
+          }
+        },
         room: true
       },
       take: 75

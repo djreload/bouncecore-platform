@@ -85,7 +85,7 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
 
   return (
-    <DashboardShell title="Rewards" description="Your stars wallet, supporter status, purchase signals, and rewards ranking.">
+    <DashboardShell title="Stars" description="Buy stars through PayPal, send them in live chat, and compete on live stream support leaderboards.">
       <div className="grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Stars</Badge>
@@ -93,14 +93,14 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
           <p className="mt-2 text-sm text-bc-muted">Current wallet balance.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="pink">Rank</Badge>
-          <p className="mt-4 text-3xl font-black">{data.rank ? `#${data.rank}` : "New"}</p>
-          <p className="mt-2 text-sm text-bc-muted">Stars leaderboard position.</p>
+          <Badge tone="pink">Sent</Badge>
+          <p className="mt-4 text-3xl font-black">{data.sentStats.sentStars.toLocaleString("en-GB")}</p>
+          <p className="mt-2 text-sm text-bc-muted">{data.sentStats.sendCount} live chat star sends.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={data.supporter ? "amber" : "muted"}>{data.supporter ? "Supporter" : "Member"}</Badge>
           <p className="mt-4 text-3xl font-black">{data.supporter ? "VIP" : "Base"}</p>
-          <p className="mt-2 text-sm text-bc-muted">Current rewards access.</p>
+          <p className="mt-2 text-sm text-bc-muted">Current supporter status.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Purchases</Badge>
@@ -122,7 +122,7 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
               <Badge tone="pink">Stars wallet</Badge>
               <h3 className="mt-4 text-2xl font-black">{user.displayName}</h3>
               <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-                Your wallet updates when PayPal stars purchases complete or admins grant reward currency.
+                Stars are a fun way to support the site during livestreams. Send them in live chat to trigger stream alerts.
               </p>
             </div>
             <Sparkles className="h-7 w-7 text-bc-pink" aria-hidden="true" />
@@ -177,20 +177,20 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
         <aside className="space-y-5">
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">
             <Gift className="h-7 w-7 text-bc-acid" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-black">Reward perks</h3>
+            <h3 className="mt-4 text-xl font-black">Live support</h3>
             <p className="mt-2 text-sm text-bc-muted">
-              Stars are ready for future supporter perks, spin wheels, prize claims, and achievement rewards.
+              Stars are for livestream support, chat competition, and stream overlay alerts. They are not reward currency.
             </p>
           </article>
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">
             <ShoppingBag className="h-7 w-7 text-bc-pink" aria-hidden="true" />
             <h3 className="mt-4 text-xl font-black">Shop signals</h3>
             <p className="mt-2 text-sm text-bc-muted">
-              {data.orderStats.orders} shop orders and {formatMoney(data.orderStats.spendPence)} spend are tracked for reward rules.
+              {data.orderStats.orders} shop orders and {formatMoney(data.orderStats.spendPence)} spend are tracked separately from stars.
             </p>
             <ButtonLink className="mt-5" href="/rewards" variant="ghost">
               <Trophy className="h-4 w-4" aria-hidden="true" />
-              Public rankings
+              Star support board
             </ButtonLink>
           </article>
         </aside>

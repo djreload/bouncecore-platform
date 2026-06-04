@@ -38,7 +38,7 @@ export function PublicShell({ children }: PublicShellProps) {
       {children}
       <footer className="border-t border-bc-line bg-bc-ink">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-bc-muted md:grid-cols-3">
-          <p>Bouncecore is the platform shell for livestreams, chatrooms, merch, music, rewards, and mobile APIs.</p>
+          <p>Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.</p>
           <p>Owncast-derived code is reserved for future headless stream-core work only.</p>
           <p className="md:text-right">Staging target: develop.k-nrg.co.uk</p>
         </div>
