@@ -1,4 +1,10 @@
-import { getAccountNotificationsData, getAccountOverviewData, getAccountProfileData } from "@/lib/account/account-service";
+import {
+  getAccountNotificationsData,
+  getAccountOverviewData,
+  getAccountProfileData,
+  updateAccountProfile,
+  type AccountProfileInput
+} from "@/lib/account/account-service";
 import type { CurrentUser } from "@/lib/auth/rbac";
 import { getCurrentUserFromRequest } from "@/lib/auth/session";
 import { getAccountDownloadsData, getOwnedTrackDownload } from "@/lib/music/music-service";
@@ -37,6 +43,28 @@ export async function getMobileAccountPayload(user: CurrentUser) {
     user: userPayload(user),
     overview,
     profile
+  };
+}
+
+export async function getMobileProfilePayload(user: CurrentUser) {
+  return getAccountProfileData(user.id);
+}
+
+export async function updateMobileProfilePayload(user: CurrentUser, input: Partial<AccountProfileInput>) {
+  const current = await getAccountProfileData(user.id);
+  const profile = await updateAccountProfile(user.id, {
+    avatarUrl: input.avatarUrl ?? current.profile.avatarUrl ?? "",
+    bio: input.bio ?? current.profile.bio ?? "",
+    displayName: input.displayName ?? current.displayName,
+    isPublic: typeof input.isPublic === "boolean" ? input.isPublic : current.profile.isPublic,
+    location: input.location ?? current.profile.location ?? "",
+    slug: input.slug ?? current.profile.slug,
+    websiteUrl: input.websiteUrl ?? current.profile.websiteUrl ?? ""
+  });
+
+  return {
+    profile: await getAccountProfileData(user.id),
+    profileUrl: profile.isPublic ? `/djs/${profile.slug}` : null
   };
 }
 

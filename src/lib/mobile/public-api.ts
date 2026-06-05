@@ -84,10 +84,12 @@ function publicMessage(message: ChatMessageSummary) {
 export function getMobileEndpoints(): MobileEndpoint[] {
   return [
     { key: "config", href: "/api/mobile/v1/config" },
+    { key: "auth.register", href: "/api/mobile/v1/auth/register" },
     { key: "auth.login", href: "/api/mobile/v1/auth/login" },
     { key: "auth.session", href: "/api/mobile/v1/auth/session" },
     { key: "auth.logout", href: "/api/mobile/v1/auth/logout" },
     { key: "account", href: "/api/mobile/v1/account" },
+    { key: "account.profile", href: "/api/mobile/v1/account/profile" },
     { key: "account.notifications", href: "/api/mobile/v1/account/notifications" },
     { key: "account.orders", href: "/api/mobile/v1/account/orders" },
     { key: "account.downloads", href: "/api/mobile/v1/account/downloads" },
