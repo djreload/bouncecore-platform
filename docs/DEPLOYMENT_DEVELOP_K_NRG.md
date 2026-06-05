@@ -143,7 +143,7 @@ When chat is implemented:
 
 ## Stream-Core Service Plan
 
-Initial platform uses `MockStreamProvider`. Future stream core should run separately:
+The platform can run with `MockStreamProvider` fallback or poll a stream-core HTTP status endpoint with `STREAM_PROVIDER=stream-core`. The stream core itself should run separately:
 
 - Platform: `/var/www/bouncecore-platform`
 - Future stream core: separate repo and service

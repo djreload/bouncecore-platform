@@ -95,7 +95,7 @@ export default async function HomePage() {
             <Sparkles className="h-8 w-8 text-bc-acid" aria-hidden="true" />
             <h3 className="mt-4 text-xl font-black">Next build target</h3>
             <p className="mt-2 text-sm text-bc-muted">
-              Phase 1 should wire real auth, users, roles, database migrations, admin guards, and production deployment.
+              Stream-core wiring is next: connect the HTTP provider endpoint, ingest telemetry, realtime chat presence, and workers.
             </p>
           </div>
         </div>

@@ -27,17 +27,17 @@ Bouncecore is a new all-in-one UK rave/music livestream platform foundation. It 
 This scaffold includes:
 
 - Rave-themed public shell and homepage
-- Public navigation and placeholder modules
+- Editable public navigation and stage-1 public modules
 - Account dashboard shell
 - Admin control room shell with grouped sidebar
-- Streamer dashboard shell and stream-key placeholder
+- Data-backed streamer dashboard and stream-key management
 - Producer dashboard shell
 - Central navigation config
 - Role and permission constants
-- Stream provider interface plus mock provider
+- Stream provider interface with mock fallback and stream-core HTTP status provider
 - Health endpoint
 - Mobile config endpoint
-- Initial Prisma schema stub
+- Prisma schema and deployed migration set
 - Phase 1 RBAC foundation with role and permission catalogue
 - Admin Users, Roles, and Permissions pages
 - Admin user invite links with hashed invite tokens, role presets, expiry, and revoke controls
@@ -146,6 +146,6 @@ Use `.env.example` as a template only.
 
 1. Wire real authentication, users, roles, and permission guards.
 2. Create real PostgreSQL migrations and seeds.
-3. Replace mock stream data with provider-backed services.
-4. Add secure stream-key creation, reveal, rotate, revoke, and audit logs.
-5. Confirm Plesk-safe deployment for `develop.k-nrg.co.uk`.
+3. Configure a real stream-core endpoint behind `STREAM_PROVIDER=stream-core`.
+4. Add realtime Redis/WebSocket chat presence and queue workers.
+5. Harden staging with backups, monitoring, and production deployment checks.

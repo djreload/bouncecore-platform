@@ -1,5 +1,6 @@
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
+import { getStreamProviderMode } from "@/lib/stream/stream-provider";
 
 export type IntegrationStatus = "ready" | "partial" | "missing";
 
@@ -96,6 +97,8 @@ function absolutePath(path: string) {
 
 export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData> {
   const [paypal, stream] = await Promise.all([getPayPalIntegrationData(), getAdminStreamControlData()]);
+  const streamProviderMode = getStreamProviderMode();
+  const streamProviderReady = streamProviderMode !== "mock" && configured("STREAM_CORE_INTERNAL_URL");
   const paypalChecks: IntegrationCheck[] = paypal.checks.map((item) => ({
     detail: item.detail,
     label: item.label,
@@ -108,7 +111,20 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     check("Content filter", true, "Medium", "GIF search is restricted to the GB locale with medium content filtering.")
   ];
   const streamChecks: IntegrationCheck[] = [
-    check("Stream provider", configured("STREAM_PROVIDER"), publicValue("STREAM_PROVIDER"), "Provider selector behind the stream boundary."),
+    check(
+      "Stream provider",
+      streamProviderReady,
+      streamProviderMode,
+      streamProviderMode === "mock"
+        ? "Mock mode is available for local fallback. Use stream-core/http mode for real provider telemetry."
+        : "Provider selector behind the stream boundary."
+    ),
+    check(
+      "Stream-core URL",
+      configured("STREAM_CORE_INTERNAL_URL"),
+      publicValue("STREAM_CORE_INTERNAL_URL"),
+      "Internal HTTP source for stream status, health, playback, and viewer telemetry."
+    ),
     check("Public playback URL", Boolean(stream.provider.playbackUrl), stream.provider.playbackUrl ?? "Not configured", "Used by the live player and public status surfaces."),
     check("RTMP ingest URL", configured("RTMP_INGEST_URL"), publicValue("RTMP_INGEST_URL"), "Shown to streamers in OBS setup."),
     check(

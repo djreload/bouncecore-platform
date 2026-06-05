@@ -33,7 +33,7 @@ Bouncecore Platform never becomes an Owncast clone. Streaming internals sit behi
 - `stopRecording()`
 - `handleWebhook(payload)`
 
-The current code includes a `MockStreamProvider`. Future providers can target Owncast-derived headless code, Bouncecore Stream Core, or a native provider without changing public/product modules.
+The current code includes a `MockStreamProvider` fallback and an HTTP stream-core provider selected with `STREAM_PROVIDER=stream-core`. Future providers can target Owncast-derived headless code, Bouncecore Stream Core, or a native provider without changing public/product modules.
 
 ## Security Model
 
