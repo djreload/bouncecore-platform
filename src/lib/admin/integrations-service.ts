@@ -122,6 +122,12 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     check("Public app URL", configured("NEXT_PUBLIC_APP_URL"), publicValue("NEXT_PUBLIC_APP_URL"), "Used for checkout returns, invite links, and OBS browser sources."),
     check("Mobile config API", true, absolutePath("/api/mobile/v1/config"), "Public mobile app configuration endpoint."),
     check(
+      "Internal task token",
+      configured("INTERNAL_TASK_TOKEN"),
+      configured("INTERNAL_TASK_TOKEN") ? "Configured" : "Missing",
+      "Required for scheduled mobile push queue and receipt processing."
+    ),
+    check(
       "Push token encryption",
       configured("PUSH_TOKEN_ENCRYPTION_KEY"),
       configured("PUSH_TOKEN_ENCRYPTION_KEY") ? "Configured" : "Missing",
@@ -228,6 +234,11 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
           detail: "Public API response used by the mobile shell.",
           href: "/api/mobile/v1/config",
           label: "Mobile config API"
+        },
+        {
+          detail: "Token-protected endpoint for scheduled push queue and receipt processing.",
+          href: "/internal/tasks/mobile-push",
+          label: "Mobile push task"
         }
       ],
       title: "Platform endpoints"

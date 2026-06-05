@@ -113,6 +113,7 @@ export async function getAdminSystemHealthData() {
       detail: streamHealthDetail
     },
     envCheck("Public app URL", "NEXT_PUBLIC_APP_URL"),
+    envCheck("Internal task token", "INTERNAL_TASK_TOKEN"),
     envCheck("Tenor GIF API", "TENOR_API_KEY"),
     envCheck("Push token encryption", "PUSH_TOKEN_ENCRYPTION_KEY"),
     envCheck("PayPal client ID", "PAYPAL_CLIENT_ID"),

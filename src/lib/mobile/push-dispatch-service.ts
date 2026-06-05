@@ -170,7 +170,7 @@ function receiptErrorMessage(receipt: ExpoPushReceipt) {
   return receipt.message ?? "Expo reported a push receipt error.";
 }
 
-export async function processQueuedMobilePushDeliveries(actorId: string, limit?: number) {
+export async function processQueuedMobilePushDeliveries(actorId: string | null, limit?: number) {
   const take = normalizedLimit(limit);
   const deliveries = await prisma.mobilePushDelivery.findMany({
     include: {
@@ -346,7 +346,7 @@ export async function processQueuedMobilePushDeliveries(actorId: string, limit?:
   };
 }
 
-export async function checkExpoMobilePushReceipts(actorId: string, limit?: number) {
+export async function checkExpoMobilePushReceipts(actorId: string | null, limit?: number) {
   const take = normalizedLimit(limit);
   const deliveries = await prisma.mobilePushDelivery.findMany({
     include: {

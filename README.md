@@ -53,6 +53,7 @@ This scaffold includes:
 - Mobile v1 push-device registration, listing, and revocation using hashed plus encrypted token storage
 - Mobile push delivery queue records for admin notification sends, with blocked-state tracking when encryption is missing
 - Admin-triggered Expo mobile push dispatch with provider ticket and receipt tracking, plus unsupported-provider blocking
+- Token-protected internal mobile push task endpoint for scheduled queue and receipt processing
 - Mobile v1 authenticated chat actions for text, Tenor GIFs, live stars, and message reports
 - Mobile v1 PayPal checkout start, capture, and cancel endpoints for shop, music, and stars
 - Admin notification sender for account/mobile notification surfaces
@@ -123,7 +124,7 @@ For a fresh Linux server with a checked-out copy of this repo, run:
 bash scripts/install-instance.sh
 ```
 
-The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
 
 ## Secrets Warning
 
