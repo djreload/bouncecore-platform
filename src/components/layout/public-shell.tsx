@@ -1,25 +1,30 @@
 import Link from "next/link";
 import { Radio } from "lucide-react";
-import { publicNavigation } from "@/config/navigation";
 import { NavList } from "@/components/navigation/nav-list";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
-import type { SiteSettings } from "@/lib/admin/site-settings-service";
+import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
+import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-settings-service";
 
 type PublicShellProps = {
   children: React.ReactNode;
   siteSettings?: Pick<SiteSettings, "footerSummary" | "siteName" | "stagingTarget">;
 };
 
-export function PublicShell({ children, siteSettings }: PublicShellProps) {
-  const siteName = siteSettings?.siteName ?? "Bouncecore";
+export async function PublicShell({ children, siteSettings }: PublicShellProps) {
+  const [navigationItems, themeStyle, resolvedSiteSettings] = await Promise.all([
+    getPublicMenuNavigation(),
+    getSiteThemeStyle(),
+    siteSettings ? Promise.resolve(siteSettings) : getPublicSiteSettings()
+  ]);
+  const siteName = resolvedSiteSettings.siteName ?? "Bouncecore";
   const footerSummary =
-    siteSettings?.footerSummary ??
+    resolvedSiteSettings.footerSummary ??
     "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.";
-  const stagingTarget = siteSettings?.stagingTarget ?? "develop.k-nrg.co.uk";
+  const stagingTarget = resolvedSiteSettings.stagingTarget ?? "develop.k-nrg.co.uk";
 
   return (
-    <div className="min-h-screen bg-bc-void text-white">
+    <div className="min-h-screen bg-bc-void text-white" style={themeStyle}>
       <header className="sticky top-0 z-40 border-b border-bc-line/80 bg-bc-void/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
           <Link className="bc-focus-ring flex items-center gap-3 rounded-md" href="/">
@@ -29,7 +34,7 @@ export function PublicShell({ children, siteSettings }: PublicShellProps) {
             <span className="text-lg font-black uppercase">{siteName}</span>
           </Link>
           <div className="hidden flex-1 justify-center lg:flex">
-            <NavList items={publicNavigation} orientation="horizontal" />
+            <NavList items={navigationItems} orientation="horizontal" />
           </div>
           <div className="ml-auto hidden items-center gap-2 sm:flex">
             <ButtonLink href="/auth/login" variant="ghost" size="sm">
@@ -41,7 +46,7 @@ export function PublicShell({ children, siteSettings }: PublicShellProps) {
           </div>
         </div>
         <div className="border-t border-bc-line/60 px-4 py-2 lg:hidden">
-          <NavList items={publicNavigation} orientation="horizontal" />
+          <NavList items={navigationItems} orientation="horizontal" />
         </div>
       </header>
       <StarSupportOverlay />

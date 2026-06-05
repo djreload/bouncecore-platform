@@ -4,6 +4,7 @@ import { GroupedNav } from "@/components/navigation/grouped-nav";
 import { filterNavigationByRoles } from "@/lib/auth/rbac";
 import type { Permission } from "@/lib/auth/rbac";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { getSiteThemeStyle } from "@/lib/admin/site-design-service";
 
 type AdminShellProps = {
   children: React.ReactNode;
@@ -13,11 +14,11 @@ type AdminShellProps = {
 };
 
 export async function AdminShell({ children, title, description, requiredPermission = "admin.access" }: AdminShellProps) {
-  const user = await requireUserPermission(requiredPermission);
+  const [user, themeStyle] = await Promise.all([requireUserPermission(requiredPermission), getSiteThemeStyle()]);
   const visibleNavigation = filterNavigationByRoles(adminNavigation, user.roles);
 
   return (
-    <main className="min-h-screen bg-bc-void text-white">
+    <main className="min-h-screen bg-bc-void text-white" style={themeStyle}>
       <div className="mx-auto grid max-w-[1500px] gap-6 px-4 py-6 xl:grid-cols-[320px_1fr]">
         <aside className="rounded-md border border-bc-line bg-bc-ink p-4">
           <div className="mb-4">

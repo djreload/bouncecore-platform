@@ -1,21 +1,16 @@
 import Image from "next/image";
-import { Activity, MessageSquare, Radio, ShoppingBag, Sparkles, Star } from "lucide-react";
+import { Activity, Radio, Sparkles } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
+import { icons } from "@/components/navigation/icons";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { getHomepagePageCards } from "@/lib/admin/site-design-service";
 import { getPublicSiteSettings } from "@/lib/admin/site-settings-service";
-
-const modules = [
-  { title: "Live", body: "Stream pages, playback status, schedules, and provider abstraction.", icon: Radio, tone: "cyan" as const },
-  { title: "Chat", body: "Native rooms with moderation, badges, overlays, and mobile-ready APIs.", icon: MessageSquare, tone: "pink" as const },
-  { title: "Music", body: "Producer profiles, track approvals, licenses, previews, and downloads.", icon: Star, tone: "acid" as const },
-  { title: "Shop", body: "Merch products, variants, orders, fulfilment, and payment audit trail.", icon: ShoppingBag, tone: "amber" as const }
-];
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const siteSettings = await getPublicSiteSettings();
+  const [siteSettings, modules] = await Promise.all([getPublicSiteSettings(), getHomepagePageCards()]);
 
   return (
     <PublicShell siteSettings={siteSettings}>
@@ -68,13 +63,18 @@ export default async function HomePage() {
       <section className="bg-bc-ink py-12">
         <div className="mx-auto grid max-w-7xl gap-4 px-4 md:grid-cols-2 xl:grid-cols-4">
           {modules.map((module) => {
-            const Icon = module.icon;
+            const Icon = icons[module.icon];
             return (
               <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={module.title}>
                 <Badge tone={module.tone}>{module.title}</Badge>
                 <Icon className="mt-5 h-8 w-8 text-white" aria-hidden="true" />
                 <h2 className="mt-4 text-xl font-black">{module.title}</h2>
                 <p className="mt-2 text-sm text-bc-muted">{module.body}</p>
+                <div className="mt-4">
+                  <ButtonLink href={module.href} variant="ghost" size="sm">
+                    Open {module.title}
+                  </ButtonLink>
+                </div>
               </article>
             );
           })}

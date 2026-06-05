@@ -2,6 +2,7 @@ import { GroupedNav } from "@/components/navigation/grouped-nav";
 import { accountFeatureNavigation, accountNavigation, producerNavigation, streamerNavigation } from "@/config/navigation";
 import { filterNavigationByRoles, type Role } from "@/lib/auth/rbac";
 import { requireAnyRole, requireSignedInUser } from "@/lib/auth/guards";
+import { getSiteThemeStyle } from "@/lib/admin/site-design-service";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -17,13 +18,16 @@ const workspaceRoles = {
 } satisfies Record<NonNullable<DashboardShellProps["mode"]>, readonly Role[] | null>;
 
 export async function DashboardShell({ children, title, description, mode = "account" }: DashboardShellProps) {
-  const user = workspaceRoles[mode] ? await requireAnyRole(workspaceRoles[mode]) : await requireSignedInUser();
+  const [user, themeStyle] = await Promise.all([
+    workspaceRoles[mode] ? requireAnyRole(workspaceRoles[mode]) : requireSignedInUser(),
+    getSiteThemeStyle()
+  ]);
   const roleItems = mode === "streamer" ? streamerNavigation : mode === "producer" ? producerNavigation : [];
   const accountFeatureItems = mode === "account" ? accountFeatureNavigation : [];
   const visibleNavigation = filterNavigationByRoles([...accountNavigation, ...accountFeatureItems, ...roleItems], user.roles);
 
   return (
-    <main className="min-h-screen bg-bc-void text-white">
+    <main className="min-h-screen bg-bc-void text-white" style={themeStyle}>
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[290px_1fr]">
         <aside className="rounded-md border border-bc-line bg-bc-ink p-4">
           <div className="mb-5">
