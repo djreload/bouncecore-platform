@@ -94,6 +94,8 @@ export function getMobileEndpoints(): MobileEndpoint[] {
     { key: "account.rewards", href: "/api/mobile/v1/account/rewards" },
     { key: "live", href: "/api/mobile/v1/live" },
     { key: "chat", href: "/api/mobile/v1/chat" },
+    { key: "chat.gifs", href: "/api/mobile/v1/chat/gifs?q=rave" },
+    { key: "chat.reports", href: "/api/mobile/v1/chat/reports" },
     { key: "shop", href: "/api/mobile/v1/shop" },
     { key: "music", href: "/api/mobile/v1/music" },
     { key: "rewards", href: "/api/mobile/v1/rewards" }
