@@ -52,7 +52,7 @@ This scaffold includes:
 - Mobile v1 account registration and profile update endpoints using the shared session/auth model
 - Mobile v1 push-device registration, listing, and revocation using hashed plus encrypted token storage
 - Mobile push delivery queue records for admin notification sends, with blocked-state tracking when encryption is missing
-- Admin-triggered Expo mobile push dispatch with provider ticket tracking and unsupported-provider blocking
+- Admin-triggered Expo mobile push dispatch with provider ticket and receipt tracking, plus unsupported-provider blocking
 - Mobile v1 authenticated chat actions for text, Tenor GIFs, live stars, and message reports
 - Mobile v1 PayPal checkout start, capture, and cancel endpoints for shop, music, and stars
 - Admin notification sender for account/mobile notification surfaces

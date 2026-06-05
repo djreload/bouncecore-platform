@@ -1,8 +1,10 @@
+import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { decryptSecret, secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 const expoPushEndpoint = "https://exp.host/--/api/v2/push/send";
+const expoPushReceiptsEndpoint = "https://exp.host/--/api/v2/push/getReceipts";
 const defaultDispatchLimit = 50;
 const maxDispatchLimit = 100;
 
@@ -17,6 +19,22 @@ type ExpoPushTicket = {
 
 type ExpoPushResponse = {
   data?: ExpoPushTicket | ExpoPushTicket[];
+  errors?: Array<{
+    code?: string;
+    message?: string;
+  }>;
+};
+
+type ExpoPushReceipt = {
+  details?: {
+    error?: string;
+  } & Record<string, unknown>;
+  message?: string;
+  status?: string;
+};
+
+type ExpoPushReceiptsResponse = {
+  data?: Record<string, ExpoPushReceipt>;
   errors?: Array<{
     code?: string;
     message?: string;
@@ -124,6 +142,32 @@ async function sendExpoPush(input: {
     errorMessage: ticket.message ?? "Expo rejected this push notification.",
     ok: false as const
   };
+}
+
+async function getExpoPushReceipts(ids: string[]) {
+  const response = await fetch(expoPushReceiptsEndpoint, {
+    body: JSON.stringify({
+      ids
+    }),
+    headers: expoHeaders(),
+    method: "POST",
+    signal: AbortSignal.timeout(10000)
+  });
+  const payload = (await response.json().catch(() => ({}))) as ExpoPushReceiptsResponse;
+
+  if (!response.ok || payload.errors?.length) {
+    throw new Error(payload.errors?.[0]?.message ?? `Expo push receipt request failed with HTTP ${response.status}.`);
+  }
+
+  return payload.data ?? {};
+}
+
+function receiptErrorCode(receipt: ExpoPushReceipt) {
+  return receipt.details?.error ?? "expo_receipt_error";
+}
+
+function receiptErrorMessage(receipt: ExpoPushReceipt) {
+  return receipt.message ?? "Expo reported a push receipt error.";
 }
 
 export async function processQueuedMobilePushDeliveries(actorId: string, limit?: number) {
@@ -299,5 +343,134 @@ export async function processQueuedMobilePushDeliveries(actorId: string, limit?:
     failedCount,
     processedCount: deliveries.length,
     sentCount
+  };
+}
+
+export async function checkExpoMobilePushReceipts(actorId: string, limit?: number) {
+  const take = normalizedLimit(limit);
+  const deliveries = await prisma.mobilePushDelivery.findMany({
+    include: {
+      mobileDevice: {
+        select: {
+          id: true
+        }
+      }
+    },
+    orderBy: {
+      sentAt: "asc"
+    },
+    take,
+    where: {
+      provider: "expo",
+      providerMessageId: {
+        not: null
+      },
+      receiptStatus: null,
+      status: "sent"
+    }
+  });
+  const ids = deliveries.flatMap((delivery) => (delivery.providerMessageId ? [delivery.providerMessageId] : []));
+  let deliveredCount = 0;
+  let failedCount = 0;
+  let pendingCount = 0;
+  const now = new Date();
+
+  if (!ids.length) {
+    return {
+      deliveredCount,
+      failedCount,
+      pendingCount,
+      processedCount: 0
+    };
+  }
+
+  const receipts = await getExpoPushReceipts(ids);
+
+  for (const delivery of deliveries) {
+    const receipt = delivery.providerMessageId ? receipts[delivery.providerMessageId] : undefined;
+
+    if (!receipt) {
+      pendingCount += 1;
+      await prisma.mobilePushDelivery.update({
+        data: {
+          providerReceipt: {
+            status: "pending"
+          },
+          receiptCheckedAt: now
+        },
+        where: {
+          id: delivery.id
+        }
+      });
+      continue;
+    }
+
+    if (receipt.status === "ok") {
+      deliveredCount += 1;
+      await prisma.mobilePushDelivery.update({
+        data: {
+          errorCode: null,
+          errorMessage: null,
+          providerReceipt: receipt as Prisma.InputJsonValue,
+          receiptCheckedAt: now,
+          receiptStatus: "ok",
+          status: "delivered"
+        },
+        where: {
+          id: delivery.id
+        }
+      });
+      continue;
+    }
+
+    failedCount += 1;
+    const errorCode = receiptErrorCode(receipt);
+    await prisma.$transaction([
+      prisma.mobilePushDelivery.update({
+        data: {
+          errorCode,
+          errorMessage: receiptErrorMessage(receipt),
+          providerReceipt: receipt as Prisma.InputJsonValue,
+          receiptCheckedAt: now,
+          receiptStatus: "error",
+          status: "failed"
+        },
+        where: {
+          id: delivery.id
+        }
+      }),
+      ...(errorCode === "DeviceNotRegistered"
+        ? [
+            prisma.mobileDevice.update({
+              data: {
+                revokedAt: now
+              },
+              where: {
+                id: delivery.mobileDevice.id
+              }
+            })
+          ]
+        : [])
+    ]);
+  }
+
+  await writeAuditLog({
+    action: "mobile.push.receipts",
+    actorId,
+    metadata: {
+      deliveredCount,
+      failedCount,
+      limit: take,
+      pendingCount,
+      processedCount: deliveries.length
+    },
+    severity: failedCount ? "warning" : "info"
+  });
+
+  return {
+    deliveredCount,
+    failedCount,
+    pendingCount,
+    processedCount: deliveries.length
   };
 }

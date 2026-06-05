@@ -26,9 +26,11 @@ export type AdminPushData = {
     createdAt: string;
     id: string;
     pushBlockedCount: number;
+    pushDeliveredCount: number;
     pushDeliveryCount: number;
     pushFailedCount: number;
     pushQueuedCount: number;
+    pushReceiptPendingCount: number;
     pushSentCount: number;
     readAt: string | null;
     title: string;
@@ -46,8 +48,10 @@ export type AdminPushData = {
     activeMobileDevices: number;
     blockedPushDeliveries: number;
     deliverableMobileDevices: number;
+    deliveredPushDeliveries: number;
     failedPushDeliveries: number;
     pushEncryptionConfigured: boolean;
+    receiptPendingPushDeliveries: number;
     queuedPushDeliveries: number;
     sentPushDeliveries: number;
     sentToday: number;
@@ -131,7 +135,9 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     queuedPushDeliveries,
     blockedPushDeliveries,
     sentPushDeliveries,
-    failedPushDeliveries
+    failedPushDeliveries,
+    deliveredPushDeliveries,
+    receiptPendingPushDeliveries
   ] = await Promise.all([
     getRoleDisplayNameOverrides(),
     prisma.user.findMany({
@@ -153,6 +159,7 @@ export async function getAdminPushData(): Promise<AdminPushData> {
       include: {
         pushDeliveries: {
           select: {
+            receiptStatus: true,
             status: true
           }
         },
@@ -208,6 +215,17 @@ export async function getAdminPushData(): Promise<AdminPushData> {
       where: {
         status: "failed"
       }
+    }),
+    prisma.mobilePushDelivery.count({
+      where: {
+        status: "delivered"
+      }
+    }),
+    prisma.mobilePushDelivery.count({
+      where: {
+        receiptStatus: null,
+        status: "sent"
+      }
     })
   ]);
 
@@ -233,15 +251,21 @@ export async function getAdminPushData(): Promise<AdminPushData> {
       const pushBlockedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "blocked").length;
       const pushSentCount = notification.pushDeliveries.filter((delivery) => delivery.status === "sent").length;
       const pushFailedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "failed").length;
+      const pushDeliveredCount = notification.pushDeliveries.filter((delivery) => delivery.status === "delivered").length;
+      const pushReceiptPendingCount = notification.pushDeliveries.filter(
+        (delivery) => delivery.status === "sent" && !delivery.receiptStatus
+      ).length;
 
       return {
         body: notification.body,
         createdAt: notification.createdAt.toISOString(),
         id: notification.id,
         pushBlockedCount,
+        pushDeliveredCount,
         pushDeliveryCount: notification.pushDeliveries.length,
         pushFailedCount,
         pushQueuedCount,
+        pushReceiptPendingCount,
         pushSentCount,
         readAt: notification.readAt?.toISOString() ?? null,
         title: notification.title,
@@ -260,8 +284,10 @@ export async function getAdminPushData(): Promise<AdminPushData> {
       activeMobileDevices,
       blockedPushDeliveries,
       deliverableMobileDevices,
+      deliveredPushDeliveries,
       failedPushDeliveries,
       pushEncryptionConfigured: secretEncryptionConfigured(),
+      receiptPendingPushDeliveries,
       queuedPushDeliveries,
       sentPushDeliveries,
       sentToday,

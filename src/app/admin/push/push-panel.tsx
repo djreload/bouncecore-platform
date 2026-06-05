@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { BellRing, CheckCheck, RefreshCw, Send, UserRoundCheck, UsersRound } from "lucide-react";
-import { adminProcessPushQueueAction, adminPushAction } from "@/app/admin/push/actions";
+import { adminCheckPushReceiptsAction, adminProcessPushQueueAction, adminPushAction } from "@/app/admin/push/actions";
 import { initialAdminPushActionState, type AdminPushActionState } from "@/app/admin/push/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,10 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
     adminProcessPushQueueAction,
     initialAdminPushActionState
   );
+  const [receiptState, receiptFormAction, receiptPending] = useActionState<AdminPushActionState, FormData>(
+    adminCheckPushReceiptsAction,
+    initialAdminPushActionState
+  );
 
   return (
     <div className="space-y-5">
@@ -68,9 +72,19 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
           <p className="mt-2 text-sm text-bc-muted">Mobile pushes ready for delivery.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="acid">Sent pushes</Badge>
+          <Badge tone="acid">Accepted</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.sentPushDeliveries}</p>
-          <p className="mt-2 text-sm text-bc-muted">Accepted by push providers.</p>
+          <p className="mt-2 text-sm text-bc-muted">Accepted by Expo, waiting for receipt.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="acid">Delivered</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.deliveredPushDeliveries}</p>
+          <p className="mt-2 text-sm text-bc-muted">Receipt confirmed by provider.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="cyan">Receipts</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.receiptPendingPushDeliveries}</p>
+          <p className="mt-2 text-sm text-bc-muted">Sent pushes needing receipt checks.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="pink">Failed pushes</Badge>
@@ -135,18 +149,38 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
           </div>
         ) : null}
 
+        {receiptState.message ? (
+          <div
+            className={`mt-5 rounded-md border p-3 text-sm ${
+              receiptState.status === "error"
+                ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
+                : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
+            }`}
+          >
+            {receiptState.message}
+          </div>
+        ) : null}
+
         <div className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h4 className="font-black">Mobile delivery queue</h4>
-              <p className="mt-1 text-sm text-bc-muted">Processes up to 50 queued rows per run. Expo pushes are sent now; other providers are blocked until wired.</p>
+              <p className="mt-1 text-sm text-bc-muted">Processes up to 50 queued rows per run. Check Expo receipts after pushes have been accepted.</p>
             </div>
-            <form action={queueFormAction}>
-              <Button disabled={queuePending || !data.stats.queuedPushDeliveries} type="submit" variant="ghost">
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Process queue
-              </Button>
-            </form>
+            <div className="flex flex-wrap gap-3">
+              <form action={queueFormAction}>
+                <Button disabled={queuePending || !data.stats.queuedPushDeliveries} type="submit" variant="ghost">
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Process queue
+                </Button>
+              </form>
+              <form action={receiptFormAction}>
+                <Button disabled={receiptPending || !data.stats.receiptPendingPushDeliveries} type="submit" variant="ghost">
+                  <CheckCheck className="h-4 w-4" aria-hidden="true" />
+                  Check receipts
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
 
@@ -295,6 +329,8 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
                           <Badge tone="cyan">{notification.pushDeliveryCount} mobile</Badge>
                           {notification.pushQueuedCount ? <Badge tone="acid">{notification.pushQueuedCount} queued</Badge> : null}
                           {notification.pushSentCount ? <Badge tone="acid">{notification.pushSentCount} sent</Badge> : null}
+                          {notification.pushReceiptPendingCount ? <Badge tone="cyan">{notification.pushReceiptPendingCount} receipt pending</Badge> : null}
+                          {notification.pushDeliveredCount ? <Badge tone="acid">{notification.pushDeliveredCount} delivered</Badge> : null}
                           {notification.pushFailedCount ? <Badge tone="pink">{notification.pushFailedCount} failed</Badge> : null}
                           {notification.pushBlockedCount ? <Badge tone="amber">{notification.pushBlockedCount} blocked</Badge> : null}
                         </>

@@ -262,6 +262,9 @@ model MobilePushDelivery {
   errorMessage   String?
   attemptedAt    DateTime?
   sentAt         DateTime?
+  receiptStatus  String?
+  receiptCheckedAt DateTime?
+  providerReceipt Json?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
@@ -274,6 +277,8 @@ model MobilePushDelivery {
   @@index([status])
   @@index([providerMessageId])
   @@index([sentAt])
+  @@index([receiptStatus])
+  @@index([receiptCheckedAt])
   @@index([createdAt])
 }
 
