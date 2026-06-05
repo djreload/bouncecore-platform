@@ -30,10 +30,13 @@ yarn-error.log*
 .npm/
 .eslintcache
 tsconfig.tsbuildinfo
+.codex-start.*
+public/uploads/*
+!public/uploads/.gitkeep
+!public/uploads/**/.gitkeep
 .turbo/
 .vercel/
 .codex-run/
-.codex-start.*
 
 # Prisma/local data
 *.db

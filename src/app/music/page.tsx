@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { CreditCard, Disc3, Download, LogIn, Music, Play, SlidersHorizontal } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,15 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
 
             return (
               <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={track.id}>
+                <div className="mb-5 aspect-square overflow-hidden rounded-md border border-bc-line bg-bc-ink">
+                  {track.artworkUrl ? (
+                    <img alt={track.title} className="h-full w-full object-cover" src={track.artworkUrl} />
+                  ) : (
+                    <div className="grid h-full place-items-center">
+                      <Disc3 className="h-12 w-12 text-bc-acid" aria-hidden="true" />
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap gap-2">
@@ -131,6 +141,15 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                   </div>
                 </div>
 
+                {track.previewUrl ? (
+                  <div className="mt-5 rounded-md border border-bc-line bg-bc-ink p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase text-bc-muted">Sample audio</p>
+                    <audio className="w-full" controls preload="none" src={track.previewUrl}>
+                      <a href={track.previewUrl}>Preview track</a>
+                    </audio>
+                  </div>
+                ) : null}
+
                 <div className="mt-5 flex flex-wrap gap-3">
                   <ButtonLink href={`/producers/${track.producerSlug}`} variant="ghost">
                     <Music className="h-4 w-4" aria-hidden="true" />
@@ -139,7 +158,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                   {track.previewUrl ? (
                     <ButtonLink href={track.previewUrl} target="_blank" variant="ghost">
                       <Play className="h-4 w-4" aria-hidden="true" />
-                      Preview
+                      Preview file
                     </ButtonLink>
                   ) : null}
                   {owned ? (

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { Boxes, CreditCard, LogIn, PackageCheck, ShoppingBag, Tags } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
@@ -98,6 +99,15 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
         <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {products.map((product) => (
             <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={product.id}>
+              <div className="mb-5 aspect-square overflow-hidden rounded-md border border-bc-line bg-bc-ink">
+                {product.imageUrl ? (
+                  <img alt={product.name} className="h-full w-full object-cover" src={product.imageUrl} />
+                ) : (
+                  <div className="grid h-full place-items-center">
+                    <ShoppingBag className="h-12 w-12 text-bc-pink" aria-hidden="true" />
+                  </div>
+                )}
+              </div>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <Badge tone={product.totalStock ? "acid" : "amber"}>{product.totalStock ? "In stock" : "Out of stock"}</Badge>

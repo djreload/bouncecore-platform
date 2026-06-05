@@ -28,6 +28,7 @@ function trackInput(formData: FormData): AdminTrackInput {
   }
 
   return {
+    artworkUrl: formString(formData, "artworkUrl"),
     bpm: formString(formData, "bpm"),
     downloadUrl: formString(formData, "downloadUrl"),
     genre: formString(formData, "genre"),

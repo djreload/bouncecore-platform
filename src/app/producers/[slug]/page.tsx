@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { notFound } from "next/navigation";
 import { Disc3, Music, ShoppingBag } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
@@ -55,6 +56,15 @@ export default async function PublicProducerPage({ params }: { params: Promise<{
           <div className="grid gap-4 p-4 md:grid-cols-2">
             {producer.tracks.map((track) => (
               <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={track.id}>
+                <div className="mb-4 aspect-square overflow-hidden rounded-md border border-bc-line bg-bc-panel">
+                  {track.artworkUrl ? (
+                    <img alt={track.title} className="h-full w-full object-cover" src={track.artworkUrl} />
+                  ) : (
+                    <div className="grid h-full place-items-center">
+                      <Disc3 className="h-10 w-10 text-bc-acid" aria-hidden="true" />
+                    </div>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <Badge tone="acid">Approved</Badge>

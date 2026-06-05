@@ -1,6 +1,7 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeDownloadUrl, normalizeOptionalImageUrl, normalizeOptionalPreviewUrl } from "@/lib/media/media-service";
 
 export const digitalTrackStatusOptions = ["draft", "pending", "approved", "archived"] as const;
 
@@ -20,6 +21,7 @@ export type DigitalTrackInput = {
   genre?: string;
   bpm?: string;
   musicalKey?: string;
+  artworkUrl?: string;
   previewUrl?: string;
   downloadUrl?: string;
   licenseType?: string;
@@ -35,6 +37,7 @@ export type ProducerTrackRow = {
   genre: string | null;
   bpm: number | null;
   musicalKey: string | null;
+  artworkUrl: string | null;
   pricePence: number;
   previewUrl: string | null;
   downloadUrl: string | null;
@@ -232,30 +235,6 @@ function normalizedEmail(value: string | undefined, maxLength: number) {
   return text;
 }
 
-function normalizedUrl(value: string | undefined, maxLength: number) {
-  const text = value?.trim() ?? "";
-
-  if (!text) {
-    return null;
-  }
-
-  if (text.length > maxLength) {
-    throw new Error(`URL must be ${maxLength} characters or fewer.`);
-  }
-
-  try {
-    const url = new URL(text);
-
-    if (url.protocol !== "https:" && url.protocol !== "http:") {
-      throw new Error();
-    }
-  } catch {
-    throw new Error("Enter a valid http or https URL.");
-  }
-
-  return text;
-}
-
 function normalizedLicenseType(value: string | undefined) {
   const text = value?.trim().toLowerCase() ?? "";
 
@@ -309,6 +288,7 @@ function toTrackRow(track: {
   genre: string | null;
   bpm: number | null;
   musicalKey: string | null;
+  artworkUrl: string | null;
   pricePence: number;
   previewUrl: string | null;
   downloadUrl: string | null;
@@ -323,6 +303,7 @@ function toTrackRow(track: {
     genre: track.genre,
     bpm: track.bpm,
     musicalKey: track.musicalKey,
+    artworkUrl: track.artworkUrl,
     pricePence: track.pricePence,
     previewUrl: track.previewUrl,
     downloadUrl: track.downloadUrl,
@@ -339,6 +320,7 @@ function toPublicTrack(track: {
   genre: string | null;
   bpm: number | null;
   musicalKey: string | null;
+  artworkUrl: string | null;
   pricePence: number;
   previewUrl: string | null;
   downloadUrl: string | null;
@@ -649,7 +631,7 @@ export async function ensureProducerProfile(userId: string) {
   });
 }
 
-function normalizeTrackInput(input: DigitalTrackInput) {
+async function normalizeTrackInput(input: DigitalTrackInput) {
   assertTrackStatus(input.status);
 
   const title = normalizedText(input.title, 120);
@@ -659,13 +641,14 @@ function normalizeTrackInput(input: DigitalTrackInput) {
   }
 
   return {
+    artworkUrl: normalizeOptionalImageUrl(input.artworkUrl, "Track artwork URL"),
     bpm: parseBpm(input.bpm),
-    downloadUrl: normalizedUrl(input.downloadUrl, 500),
+    downloadUrl: await normalizeDownloadUrl(input.downloadUrl),
     genre: normalizedText(input.genre, 60),
     licenseSummary: normalizedText(input.licenseSummary, 1200),
     licenseType: normalizedLicenseType(input.licenseType),
     musicalKey: normalizedText(input.musicalKey, 20),
-    previewUrl: normalizedUrl(input.previewUrl, 500),
+    previewUrl: normalizeOptionalPreviewUrl(input.previewUrl),
     pricePence: parsePricePence(input.pricePounds),
     slug: normalizeSlug(input.slug, title),
     status: input.status,
@@ -675,7 +658,7 @@ function normalizeTrackInput(input: DigitalTrackInput) {
 
 export async function createProducerTrack(userId: string, input: DigitalTrackInput) {
   const profile = await ensureProducerProfile(userId);
-  const trackInput = normalizeTrackInput(input);
+  const trackInput = await normalizeTrackInput(input);
 
   await uniqueTrackSlug(trackInput.slug);
 
@@ -716,7 +699,7 @@ export async function updateProducerTrack(userId: string, input: DigitalTrackInp
     throw new Error("You can only update your own tracks.");
   }
 
-  const trackInput = normalizeTrackInput(input);
+  const trackInput = await normalizeTrackInput(input);
 
   await uniqueTrackSlug(trackInput.slug, input.trackId);
 

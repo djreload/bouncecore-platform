@@ -48,7 +48,10 @@ services:
       - .env.staging
     ports:
       - "127.0.0.1:3000:3000"
+    volumes:
+      - bouncecore_uploads:/app/public/uploads
 
 volumes:
   bouncecore_postgres_data:
   bouncecore_redis_data:
+  bouncecore_uploads:

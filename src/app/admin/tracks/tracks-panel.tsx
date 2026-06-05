@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useActionState } from "react";
-import { Archive, CheckCircle2, Disc3, Save, ShieldCheck, Undo2 } from "lucide-react";
+import { Archive, CheckCircle2, Disc3, Image as ImageIcon, Save, ShieldCheck, Undo2 } from "lucide-react";
 import { adminTracksAction } from "@/app/admin/tracks/actions";
 import { initialAdminTracksActionState, type AdminTracksActionState } from "@/app/admin/tracks/state";
 import { Badge } from "@/components/ui/badge";
@@ -126,6 +127,22 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
         />
       </div>
       <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`artwork-${track.id}`}>
+          Artwork URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track.artworkUrl ?? ""}
+          disabled={pending}
+          id={`artwork-${track.id}`}
+          maxLength={500}
+          name="artworkUrl"
+          placeholder="https://.../cover.jpg or uploaded file path"
+          type="text"
+        />
+        <p className="mt-1 text-xs text-bc-muted">Use square artwork, ideally 500 x 500.</p>
+      </div>
+      <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`status-${track.id}`}>
           Status
         </label>
@@ -154,8 +171,8 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           id={`preview-${track.id}`}
           maxLength={500}
           name="previewUrl"
-          placeholder="https://..."
-          type="url"
+          placeholder="https://.../sample.mp3 or uploaded file path"
+          type="text"
         />
       </div>
       <div>
@@ -169,9 +186,10 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           id={`download-${track.id}`}
           maxLength={500}
           name="downloadUrl"
-          placeholder="https://..."
+          placeholder="MP3/320 under 50MB or Google Drive share link"
           type="url"
         />
+        <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`license-${track.id}`}>
@@ -298,7 +316,15 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
         {tracks.map((track) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={track.id}>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-              <div>
+              <div className="flex items-start gap-4">
+                {track.artworkUrl ? (
+                  <img alt="" className="h-20 w-20 rounded-md border border-bc-line object-cover" src={track.artworkUrl} />
+                ) : (
+                  <div className="grid h-20 w-20 place-items-center rounded-md border border-bc-line bg-bc-ink">
+                    <ImageIcon className="h-7 w-7 text-bc-muted" aria-hidden="true" />
+                  </div>
+                )}
+                <div>
                 <div className="flex flex-wrap gap-2">
                   <Badge tone={statusTone(track.status)}>{track.status}</Badge>
                   <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
@@ -308,6 +334,7 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
                 <p className="mt-1 text-sm text-bc-muted">
                   {track.producerName} / {track.producerEmail}
                 </p>
+                </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <StatusButton action={formAction} disabled={pending || track.status === "approved"} status="approved" trackId={track.id} />

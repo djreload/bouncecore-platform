@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useActionState } from "react";
-import { Archive, Disc3, Plus, Save } from "lucide-react";
+import { Archive, Disc3, Image as ImageIcon, Plus, Save } from "lucide-react";
 import { producerAction } from "@/app/producer/actions";
 import { initialProducerActionState, type ProducerActionState } from "@/app/producer/state";
 import { Badge } from "@/components/ui/badge";
@@ -130,6 +131,41 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
         />
       </div>
       <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={track ? `artwork-${track.id}` : "create-artwork"}
+        >
+          Artwork URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={track?.artworkUrl ?? ""}
+          disabled={pending}
+          id={track ? `artwork-${track.id}` : "create-artwork"}
+          maxLength={500}
+          name="artworkUrl"
+          placeholder="https://.../cover.jpg or uploaded file path"
+          type="text"
+        />
+        <p className="mt-1 text-xs text-bc-muted">Use square artwork, ideally 500 x 500.</p>
+      </div>
+      <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={track ? `artwork-file-${track.id}` : "create-artwork-file"}
+        >
+          Upload artwork
+        </label>
+        <input
+          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={track ? `artwork-file-${track.id}` : "create-artwork-file"}
+          name="artworkFile"
+          type="file"
+        />
+      </div>
+      <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `status-${track.id}` : "create-status"}>
           Status
         </label>
@@ -158,8 +194,24 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           id={track ? `preview-${track.id}` : "create-preview"}
           maxLength={500}
           name="previewUrl"
-          placeholder="https://..."
-          type="url"
+          placeholder="https://.../sample.mp3 or uploaded file path"
+          type="text"
+        />
+      </div>
+      <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={track ? `preview-file-${track.id}` : "create-preview-file"}
+        >
+          Upload sample MP3
+        </label>
+        <input
+          accept="audio/mpeg,audio/mp3,.mp3"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={track ? `preview-file-${track.id}` : "create-preview-file"}
+          name="previewFile"
+          type="file"
         />
       </div>
       <div>
@@ -173,9 +225,10 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           id={track ? `download-${track.id}` : "create-download"}
           maxLength={500}
           name="downloadUrl"
-          placeholder="https://..."
+          placeholder="MP3/320 under 50MB or Google Drive share link"
           type="url"
         />
+        <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `license-${track.id}` : "create-license"}>
@@ -256,7 +309,7 @@ export function ProducerTracksPanel({ data, mode = "full" }: ProducerTracksPanel
             {state.message}
           </div>
         ) : null}
-        <form action={formAction} className="mt-5 grid gap-4 xl:grid-cols-4">
+        <form action={formAction} className="mt-5 grid gap-4 xl:grid-cols-4" encType="multipart/form-data">
           <input name="intent" type="hidden" value="create-track" />
           <TrackFields pending={pending} />
           <div className="flex items-end">
@@ -278,17 +331,26 @@ export function ProducerTracksPanel({ data, mode = "full" }: ProducerTracksPanel
             {data.tracks.map((track) => (
               <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={track.id}>
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                  <div className="flex items-start gap-4">
+                    {track.artworkUrl ? (
+                      <img alt="" className="h-20 w-20 rounded-md border border-bc-line object-cover" src={track.artworkUrl} />
+                    ) : (
+                      <div className="grid h-20 w-20 place-items-center rounded-md border border-bc-line bg-bc-panel">
+                        <ImageIcon className="h-7 w-7 text-bc-muted" aria-hidden="true" />
+                      </div>
+                    )}
+                    <div>
                     <Badge tone={statusTone(track.status)}>{track.status}</Badge>
                     <h4 className="mt-3 text-lg font-black">{track.title}</h4>
                     <p className="mt-1 text-sm text-bc-muted">
                       {track.genre ?? "No genre"} / {track.bpm ? `${track.bpm} BPM` : "No BPM"} / {track.musicalKey ?? "No key"}
                     </p>
+                    </div>
                   </div>
                   <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
                   {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
                 </div>
-                <form action={formAction} className="grid gap-4 xl:grid-cols-4">
+                <form action={formAction} className="grid gap-4 xl:grid-cols-4" encType="multipart/form-data">
                   <input name="intent" type="hidden" value="update-track" />
                   <input name="trackId" type="hidden" value={track.id} />
                   <TrackFields pending={pending} track={track} />

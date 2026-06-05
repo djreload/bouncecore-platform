@@ -48,9 +48,13 @@ services:
       - .env.instance
     ports:
       - "${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads_data:/app/public/uploads
 
 volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME:-bouncecore_postgres_data}
   redis_data:
     name: ${REDIS_VOLUME:-bouncecore_redis_data}
+  uploads_data:
+    name: ${UPLOADS_VOLUME:-bouncecore_uploads}

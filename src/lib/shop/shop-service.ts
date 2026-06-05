@@ -1,5 +1,6 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeOptionalImageUrl } from "@/lib/media/media-service";
 
 export const productStatusOptions = ["draft", "active", "archived"] as const;
 
@@ -10,6 +11,7 @@ export type ProductInput = {
   name: string;
   slug: string;
   description?: string;
+  imageUrl?: string;
   status: ProductStatus;
 };
 
@@ -35,6 +37,7 @@ export type ProductRow = {
   slug: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   status: string;
   variants: ProductVariantRow[];
   variantCount: number;
@@ -118,6 +121,7 @@ function toProductRow(product: {
   slug: string;
   name: string;
   description: string | null;
+  imageUrl: string | null;
   status: string;
   variants: ProductVariantRow[];
 }): ProductRow {
@@ -128,6 +132,7 @@ function toProductRow(product: {
     slug: product.slug,
     name: product.name,
     description: product.description,
+    imageUrl: product.imageUrl,
     status: product.status,
     variants: product.variants,
     variantCount: product.variants.length,
@@ -187,6 +192,7 @@ function normalizeProductInput(input: ProductInput) {
 
   return {
     description: normalizedText(input.description, 600),
+    imageUrl: normalizeOptionalImageUrl(input.imageUrl, "Product image URL"),
     name,
     slug: normalizeSlug(input.slug, name),
     status: input.status

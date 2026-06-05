@@ -1,7 +1,8 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useActionState } from "react";
-import { Archive, Boxes, PackagePlus, Plus, Save, ShoppingBag } from "lucide-react";
+import { Archive, Boxes, Image as ImageIcon, PackagePlus, Plus, Save, ShoppingBag } from "lucide-react";
 import { adminProductsAction } from "@/app/admin/products/actions";
 import { initialAdminProductsActionState, type AdminProductsActionState } from "@/app/admin/products/state";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,41 @@ function ProductFields({ pending, product }: { pending: boolean; product?: Produ
           maxLength={58}
           name="slug"
           placeholder="product-slug"
+        />
+      </div>
+      <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={product ? `image-${product.id}` : "create-image"}
+        >
+          Product image URL
+        </label>
+        <input
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+          defaultValue={product?.imageUrl ?? ""}
+          disabled={pending}
+          id={product ? `image-${product.id}` : "create-image"}
+          maxLength={500}
+          name="imageUrl"
+          placeholder="https://.../image.jpg or uploaded file path"
+          type="text"
+        />
+        <p className="mt-1 text-xs text-bc-muted">Use a square image, ideally 500 x 500.</p>
+      </div>
+      <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={product ? `image-file-${product.id}` : "create-image-file"}
+        >
+          Upload image
+        </label>
+        <input
+          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={product ? `image-file-${product.id}` : "create-image-file"}
+          name="imageFile"
+          type="file"
         />
       </div>
       <div>
@@ -246,7 +282,7 @@ export function AdminProductsPanel({ products, stats }: AdminProductsPanelProps)
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <Badge tone="cyan">New product</Badge>
-        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-3">
+        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-3" encType="multipart/form-data">
           <input name="intent" type="hidden" value="create-product" />
           <ProductFields pending={pending} />
           <div className="flex items-end">
@@ -270,10 +306,18 @@ export function AdminProductsPanel({ products, stats }: AdminProductsPanelProps)
                   {product.minPricePence === null ? "No price" : `from ${formatMoney(product.minPricePence)}`}
                 </p>
               </div>
-              <Boxes className="h-7 w-7 text-bc-acid" aria-hidden="true" />
+              {product.imageUrl ? (
+                <img
+                  alt=""
+                  className="h-20 w-20 rounded-md border border-bc-line object-cover"
+                  src={product.imageUrl}
+                />
+              ) : (
+                <ImageIcon className="h-7 w-7 text-bc-acid" aria-hidden="true" />
+              )}
             </div>
 
-            <form action={formAction} className="grid gap-4 lg:grid-cols-3">
+            <form action={formAction} className="grid gap-4 lg:grid-cols-3" encType="multipart/form-data">
               <input name="intent" type="hidden" value="update-product" />
               <input name="productId" type="hidden" value={product.id} />
               <ProductFields pending={pending} product={product} />

@@ -14,6 +14,7 @@ import {
   type ProductStatus,
   type ProductVariantInput
 } from "@/lib/shop/shop-service";
+import { saveOptionalImageUpload } from "@/lib/media/media-service";
 import type { AdminProductsActionState } from "@/app/admin/products/state";
 
 function formString(formData: FormData, key: string) {
@@ -21,12 +22,18 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File ? value : null;
+}
+
 function isProductStatus(value: string): value is ProductStatus {
   return productStatusOptions.includes(value as ProductStatus);
 }
 
-function productInput(formData: FormData): ProductInput {
+async function productInput(formData: FormData): Promise<ProductInput> {
   const status = formString(formData, "status");
+  const uploadedImageUrl = await saveOptionalImageUpload(formFile(formData, "imageFile"), "product-images");
 
   if (!isProductStatus(status)) {
     throw new Error("Invalid product status.");
@@ -34,6 +41,7 @@ function productInput(formData: FormData): ProductInput {
 
   return {
     description: formString(formData, "description"),
+    imageUrl: uploadedImageUrl ?? formString(formData, "imageUrl"),
     name: formString(formData, "name"),
     productId: formString(formData, "productId") || undefined,
     slug: formString(formData, "slug"),
@@ -75,7 +83,7 @@ export async function adminProductsAction(
     const intent = formString(formData, "intent");
 
     if (intent === "create-product") {
-      const product = await createProduct(actor.id, productInput(formData));
+      const product = await createProduct(actor.id, await productInput(formData));
       revalidateShopViews();
 
       return {
@@ -85,7 +93,7 @@ export async function adminProductsAction(
     }
 
     if (intent === "update-product") {
-      const product = await updateProduct(actor.id, productInput(formData));
+      const product = await updateProduct(actor.id, await productInput(formData));
       revalidateShopViews();
 
       return {

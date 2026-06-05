@@ -61,8 +61,10 @@ This scaffold includes:
 - Data-backed OBS setup help for streamer connection settings
 - Data-backed streamer profile editor and public DJ directory
 - Data-backed producer profiles, track management, and public music catalogue
+- Producer track artwork, MP3 sample uploads, and Google Drive/direct MP3 delivery-link normalization
 - Data-backed admin music track management and producer approval queue
 - Data-backed merch product catalogue and admin product management
+- Merch product image URLs/uploads displayed in public shop cards
 - Data-backed account orders, admin order management, and fulfilment queue
 - PayPal shop checkout routes with order line items, capture references, and stock decrement on paid orders
 - PayPal stars checkout with purchase records, wallet credits, and admin purchase visibility for live support

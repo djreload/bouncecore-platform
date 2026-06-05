@@ -13,11 +13,17 @@ import {
   type DigitalTrackStatus,
   type ProducerProfileInput
 } from "@/lib/music/music-service";
+import { saveOptionalImageUpload, saveOptionalPreviewMp3 } from "@/lib/media/media-service";
 import type { ProducerActionState } from "@/app/producer/state";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File ? value : null;
 }
 
 function isTrackStatus(value: string): value is DigitalTrackStatus {
@@ -33,8 +39,12 @@ function profileInput(formData: FormData): ProducerProfileInput {
   };
 }
 
-function trackInput(formData: FormData): DigitalTrackInput {
+async function trackInput(formData: FormData): Promise<DigitalTrackInput> {
   const status = formString(formData, "status");
+  const [uploadedArtworkUrl, uploadedPreviewUrl] = await Promise.all([
+    saveOptionalImageUpload(formFile(formData, "artworkFile"), "track-artwork"),
+    saveOptionalPreviewMp3(formFile(formData, "previewFile"))
+  ]);
 
   if (!isTrackStatus(status)) {
     throw new Error("Invalid track status.");
@@ -42,12 +52,13 @@ function trackInput(formData: FormData): DigitalTrackInput {
 
   return {
     bpm: formString(formData, "bpm"),
+    artworkUrl: uploadedArtworkUrl ?? formString(formData, "artworkUrl"),
     downloadUrl: formString(formData, "downloadUrl"),
     genre: formString(formData, "genre"),
     licenseSummary: formString(formData, "licenseSummary"),
     licenseType: formString(formData, "licenseType"),
     musicalKey: formString(formData, "musicalKey"),
-    previewUrl: formString(formData, "previewUrl"),
+    previewUrl: uploadedPreviewUrl ?? formString(formData, "previewUrl"),
     pricePounds: formString(formData, "pricePounds"),
     slug: formString(formData, "slug"),
     status,
@@ -100,7 +111,7 @@ export async function producerAction(
     }
 
     if (intent === "create-track") {
-      const track = await createProducerTrack(actor.id, trackInput(formData));
+      const track = await createProducerTrack(actor.id, await trackInput(formData));
       revalidateProducerViews();
 
       return {
@@ -110,7 +121,7 @@ export async function producerAction(
     }
 
     if (intent === "update-track") {
-      const track = await updateProducerTrack(actor.id, trackInput(formData));
+      const track = await updateProducerTrack(actor.id, await trackInput(formData));
       revalidateProducerViews();
 
       return {

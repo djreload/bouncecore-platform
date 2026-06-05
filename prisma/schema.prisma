@@ -411,6 +411,7 @@ model Product {
   slug        String           @unique
   name        String
   description String?
+  imageUrl    String?
   status      String           @default("draft")
   variants    ProductVariant[]
 }
@@ -484,6 +485,7 @@ model DigitalTrack {
   genre       String?
   bpm         Int?
   musicalKey  String?
+  artworkUrl   String?
   pricePence  Int
   previewUrl   String?
   downloadUrl  String?

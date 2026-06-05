@@ -9,3 +9,4 @@ docker-compose*.yml
 .env.*
 !.env.example
 tsconfig.tsbuildinfo
+public/uploads/*
