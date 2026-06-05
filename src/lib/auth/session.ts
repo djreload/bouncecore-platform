@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { CurrentUser } from "@/lib/auth/rbac";
 import { hashSecretToken } from "@/lib/auth/tokens";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
@@ -13,9 +13,23 @@ export async function getSessionTokenHash() {
   return token ? hashSecretToken(token) : null;
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const tokenHash = await getSessionTokenHash();
+export async function getBearerTokenHash() {
+  const headerStore = await headers();
+  const authorization = headerStore.get("authorization")?.trim() ?? "";
+  const [scheme, token] = authorization.split(/\s+/, 2);
 
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+
+  return hashSecretToken(token);
+}
+
+export async function getRequestTokenHash() {
+  return (await getBearerTokenHash()) ?? (await getSessionTokenHash());
+}
+
+export async function getCurrentUserByTokenHash(tokenHash: string | null): Promise<CurrentUser | null> {
   if (!tokenHash) {
     return null;
   }
@@ -55,6 +69,14 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   } catch {
     return null;
   }
+}
+
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  return getCurrentUserByTokenHash(await getSessionTokenHash());
+}
+
+export async function getCurrentUserFromRequest(): Promise<CurrentUser | null> {
+  return getCurrentUserByTokenHash(await getRequestTokenHash());
 }
 
 export async function requireCurrentUser() {
