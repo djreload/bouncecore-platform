@@ -199,7 +199,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
           <CreditCard className="h-7 w-7 text-bc-acid" aria-hidden="true" />
           <h2 className="mt-4 text-xl font-black">PayPal music payments</h2>
           <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-            Music purchases use PayPal {paypal.settings.mode} checkout and create producer earnings records for future PayPal Payouts.{" "}
+            Music purchases use PayPal {paypal.settings.mode} checkout and create producer earnings records for PayPal Payouts.{" "}
             {checkoutReadiness.ready ? "Checkout is ready for approved tracks." : checkoutReadiness.reason}
           </p>
         </section>

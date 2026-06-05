@@ -124,7 +124,14 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Pages", href: "/admin/pages", icon: "layout", group: "Site & Design", requiredRoles: ["owner", "admin"] },
   { label: "Menus", href: "/admin/menus", icon: "search", group: "Site & Design", requiredRoles: ["owner", "admin"] },
   { label: "Themes", href: "/admin/themes", icon: "palette", group: "Site & Design", requiredRoles: ["owner", "admin"] },
-  { label: "General settings", href: "/admin/settings", icon: "settings", group: "Settings", requiredRoles: ["owner", "admin"] },
+  {
+    label: "General settings",
+    href: "/admin/settings",
+    icon: "settings",
+    group: "Settings",
+    requiredRoles: ["owner", "admin"],
+    requiredPermission: "settings.manage"
+  },
   { label: "Integrations", href: "/admin/integrations", icon: "activity", group: "Settings", requiredRoles: ["owner", "admin"] }
 ];
 

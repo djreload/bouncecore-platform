@@ -139,7 +139,7 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       "Only required when Expo push security is enabled in the Expo dashboard."
     ),
     check("Star alert overlay", true, absolutePath("/overlay/stars"), "Transparent OBS browser source for live star alerts."),
-    check("Redis URL", configured("REDIS_URL"), configured("REDIS_URL") ? "Configured" : "Missing", "Reserved for realtime chat, queues, presence, and future workers.")
+    check("Redis URL", configured("REDIS_URL"), configured("REDIS_URL") ? "Configured" : "Missing", "Supports realtime chat, queues, presence, and background workers.")
   ];
 
   const groups: IntegrationGroup[] = [

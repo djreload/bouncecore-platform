@@ -3,6 +3,7 @@ import { Activity, MessageSquare, Radio, ShoppingBag, Sparkles, Star } from "luc
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
+import { getPublicSiteSettings } from "@/lib/admin/site-settings-service";
 
 const modules = [
   { title: "Live", body: "Stream pages, playback status, schedules, and provider abstraction.", icon: Radio, tone: "cyan" as const },
@@ -11,9 +12,13 @@ const modules = [
   { title: "Shop", body: "Merch products, variants, orders, fulfilment, and payment audit trail.", icon: ShoppingBag, tone: "amber" as const }
 ];
 
-export default function HomePage() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const siteSettings = await getPublicSiteSettings();
+
   return (
-    <PublicShell>
+    <PublicShell siteSettings={siteSettings}>
       <section className="relative isolate min-h-[78vh] overflow-hidden border-b border-bc-line">
         <Image
           alt="Neon DJ stage for Bouncecore livestreams"
@@ -27,12 +32,9 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-t from-bc-void via-transparent to-bc-void/15" />
         <div className="relative z-10 mx-auto flex min-h-[78vh] max-w-7xl flex-col justify-center px-4 py-16">
           <div className="max-w-3xl">
-            <Badge tone="pink">Platform scaffold</Badge>
-            <h1 className="mt-5 text-5xl font-black leading-tight sm:text-6xl lg:text-7xl">Bouncecore</h1>
-            <p className="mt-5 max-w-2xl text-lg text-bc-muted sm:text-xl">
-              A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music,
-              merch, live star support, and future mobile apps.
-            </p>
+            <Badge tone="pink">{siteSettings.homepageBadge}</Badge>
+            <h1 className="mt-5 text-5xl font-black leading-tight sm:text-6xl lg:text-7xl">{siteSettings.siteName}</h1>
+            <p className="mt-5 max-w-2xl text-lg text-bc-muted sm:text-xl">{siteSettings.homepageIntro}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <ButtonLink href="/live" size="lg">
                 <Radio className="h-5 w-5" aria-hidden="true" />
@@ -43,6 +45,22 @@ export default function HomePage() {
                 Admin control room
               </ButtonLink>
             </div>
+            {siteSettings.announcement.enabled && siteSettings.announcement.title ? (
+              <div className="mt-7 max-w-2xl border-l-2 border-bc-acid pl-4">
+                <Badge tone="acid">Announcement</Badge>
+                <h2 className="mt-3 text-2xl font-black">{siteSettings.announcement.title}</h2>
+                {siteSettings.announcement.body ? (
+                  <p className="mt-2 text-sm text-bc-muted">{siteSettings.announcement.body}</p>
+                ) : null}
+                {siteSettings.announcement.ctaHref && siteSettings.announcement.ctaLabel ? (
+                  <div className="mt-4">
+                    <ButtonLink href={siteSettings.announcement.ctaHref} variant="ghost" size="sm">
+                      {siteSettings.announcement.ctaLabel}
+                    </ButtonLink>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       </section>

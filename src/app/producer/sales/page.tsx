@@ -132,7 +132,7 @@ export default async function ProducerSalesPage() {
         <div className="border-b border-bc-line p-4">
           <h3 className="text-xl font-black">Music sales</h3>
           <p className="mt-1 text-sm text-bc-muted">
-            Paid track purchases create earnings records for future PayPal payout batches.
+            Paid track purchases create payout-ready earnings records for PayPal payout batches.
           </p>
           <p className="mt-1 text-xs text-bc-muted">Approved catalogue list value: {formatMoney(approvedValue)}</p>
         </div>
