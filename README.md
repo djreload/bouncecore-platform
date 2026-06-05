@@ -51,6 +51,7 @@ This scaffold includes:
 - Mobile v1 bearer-token auth and account feeds for profile, notifications, orders, downloads, and rewards
 - Mobile v1 account registration and profile update endpoints using the shared session/auth model
 - Mobile v1 authenticated chat actions for text, Tenor GIFs, live stars, and message reports
+- Mobile v1 PayPal checkout start, capture, and cancel endpoints for shop, music, and stars
 - Admin notification sender for account/mobile notification surfaces
 - Account session directory with current-session sign out and other-session revoke controls
 - Native chat GIF search and media messages through the Tenor API
