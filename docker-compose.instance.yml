@@ -68,6 +68,11 @@ services:
       - "${STREAM_CORE_BIND_HOST:-127.0.0.1}:${STREAM_CORE_HTTP_BIND_PORT:-18088}:8088"
     volumes:
       - stream_core_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8088/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   worker:
     profiles:
@@ -83,6 +88,11 @@ services:
     env_file:
       - .env.instance
     command: ["npm", "run", "worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/bouncecore-worker-heartbeat && find /tmp/bouncecore-worker-heartbeat -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

@@ -1,4 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises";
+import { writeFile } from "node:fs/promises";
 import { pruneExpiredChatHistory } from "../lib/chat/chat-service";
 import { prisma } from "../lib/db/prisma";
 import { checkExpoMobilePushReceipts, processQueuedMobilePushDeliveries } from "../lib/mobile/push-dispatch-service";
@@ -44,6 +45,19 @@ function log(level: "info" | "warn" | "error", message: string, metadata: Record
   );
 }
 
+async function heartbeat() {
+  await writeFile("/tmp/bouncecore-worker-heartbeat", new Date().toISOString()).catch(() => {
+    return;
+  });
+}
+
+async function runHeartbeatLoop() {
+  while (!stopping) {
+    await heartbeat();
+    await sleep(30_000);
+  }
+}
+
 async function runLoop(task: WorkerTask) {
   if (!task.enabled) {
     log("info", "Worker task disabled.", {
@@ -62,6 +76,7 @@ async function runLoop(task: WorkerTask) {
 
     try {
       const result = await task.run();
+      await heartbeat();
       log("info", "Worker task completed.", {
         durationMs: Date.now() - startedAt,
         result,
@@ -124,4 +139,6 @@ log("info", "Bouncecore worker booting.", {
   }))
 });
 
+await heartbeat();
+void runHeartbeatLoop();
 await Promise.all(tasks.map((task) => runLoop(task)));
