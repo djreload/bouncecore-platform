@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { createSecretToken, hashSecretToken, tokenFingerprint } from "@/lib/auth/tokens";
+import {
+  getDefaultStreamProfile,
+  streamProfileToSummary,
+  type StreamProfileSummary
+} from "@/lib/stream/stream-profile-service";
 
 const activeStatus = "active";
 
@@ -17,6 +22,33 @@ export type StreamKeyMutationResult = {
   key: StreamKeySummary | null;
   rawKey?: string;
 };
+
+export type StreamKeyValidationResult =
+  | {
+      channel: {
+        id: string;
+        playbackUrl: string | null;
+        slug: string;
+        streamProfile: StreamProfileSummary | null;
+        title: string;
+      } | null;
+      key: {
+        fingerprint: string;
+        id: string;
+        lastUsedAt: string | null;
+      };
+      profile: StreamProfileSummary | null;
+      user: {
+        displayName: string;
+        email: string;
+        id: string;
+      };
+      valid: true;
+    }
+  | {
+      reason: "missing_key" | "invalid_key";
+      valid: false;
+    };
 
 type StreamKeyAuditOptions = {
   action: string;
@@ -76,6 +108,98 @@ export async function getActiveStreamKeyForUser(userId: string): Promise<StreamK
   });
 
   return key ? toSummary(key) : null;
+}
+
+export async function validateRawStreamKey(
+  rawKey: string,
+  options: { markUsed?: boolean } = {}
+): Promise<StreamKeyValidationResult> {
+  const normalizedKey = rawKey.trim();
+
+  if (!normalizedKey) {
+    return {
+      reason: "missing_key",
+      valid: false
+    };
+  }
+
+  const key = await prisma.streamKey.findFirst({
+    where: {
+      keyHash: hashSecretToken(normalizedKey),
+      status: activeStatus,
+      revokedAt: null
+    },
+    include: {
+      channel: {
+        include: {
+          streamProfile: true
+        }
+      },
+      user: {
+        select: {
+          displayName: true,
+          email: true,
+          id: true
+        }
+      }
+    }
+  });
+
+  if (!key) {
+    return {
+      reason: "invalid_key",
+      valid: false
+    };
+  }
+
+  const now = new Date();
+  const [channel, defaultProfile] = await Promise.all([
+    key.channel ??
+      prisma.streamChannel.findFirst({
+        orderBy: {
+          slug: "asc"
+        },
+        include: {
+          streamProfile: true
+        }
+      }),
+    getDefaultStreamProfile()
+  ]);
+
+  const shouldMarkUsed = options.markUsed ?? true;
+
+  if (shouldMarkUsed) {
+    await prisma.streamKey.update({
+      where: {
+        id: key.id
+      },
+      data: {
+        lastUsedAt: now
+      }
+    });
+  }
+
+  const streamProfile = streamProfileToSummary(channel?.streamProfile) ?? defaultProfile;
+
+  return {
+    channel: channel
+      ? {
+          id: channel.id,
+          playbackUrl: channel.playbackUrl,
+          slug: channel.slug,
+          streamProfile,
+          title: channel.title
+        }
+      : null,
+    key: {
+      fingerprint: key.fingerprint,
+      id: key.id,
+      lastUsedAt: shouldMarkUsed ? now.toISOString() : key.lastUsedAt?.toISOString() ?? null
+    },
+    profile: streamProfile,
+    user: key.user,
+    valid: true
+  };
 }
 
 export async function createOwnStreamKey(userId: string, actorId: string): Promise<StreamKeyMutationResult> {

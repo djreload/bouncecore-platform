@@ -293,15 +293,19 @@ model AppSetting {
 }
 
 model StreamChannel {
-  id          String          @id @default(cuid())
-  slug        String          @unique
-  title       String
-  playbackUrl String?
-  status      String          @default("offline")
-  streamKeys  StreamKey[]
-  sessions    StreamSession[]
-  events      StreamEvent[]
-  schedules   StreamSchedule[]
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  title           String
+  playbackUrl     String?
+  status          String          @default("offline")
+  streamProfileId String?
+  streamProfile   StreamProfile?  @relation(fields: [streamProfileId], references: [id], onDelete: SetNull)
+  streamKeys      StreamKey[]
+  sessions        StreamSession[]
+  events          StreamEvent[]
+  schedules       StreamSchedule[]
+
+  @@index([streamProfileId])
 }
 
 model StreamKey {
@@ -316,6 +320,31 @@ model StreamKey {
   createdAt      DateTime      @default(now())
   user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   channel        StreamChannel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, status])
+  @@index([keyHash])
+  @@index([userId, status])
+}
+
+model StreamProfile {
+  id                String          @id @default(cuid())
+  key               String          @unique
+  label             String
+  description       String?
+  videoWidth        Int
+  videoHeight       Int
+  videoBitrateKbps  Int
+  audioBitrateKbps  Int
+  fps               Int
+  keyframeSeconds   Int             @default(2)
+  isEnabled         Boolean         @default(true)
+  isDefault         Boolean         @default(false)
+  sortOrder         Int             @default(0)
+  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime        @default(now())
+  channels          StreamChannel[]
+
+  @@index([isEnabled, sortOrder])
 }
 
 model StreamSession {

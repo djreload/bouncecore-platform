@@ -128,6 +128,12 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     check("Public playback URL", Boolean(stream.provider.playbackUrl), stream.provider.playbackUrl ?? "Not configured", "Used by the live player and public status surfaces."),
     check("RTMP ingest URL", configured("RTMP_INGEST_URL"), publicValue("RTMP_INGEST_URL"), "Shown to streamers in OBS setup."),
     check(
+      "Stream-key validation",
+      configured("STREAM_CORE_KEY_VALIDATION_URL") && configured("INTERNAL_TASK_TOKEN"),
+      configured("STREAM_CORE_KEY_VALIDATION_URL") ? publicValue("STREAM_CORE_KEY_VALIDATION_URL") : "Missing",
+      "Internal endpoint used by stream-core or RTMP publish hooks to accept only active Bouncecore stream keys."
+    ),
+    check(
       "Internal stream token",
       configured("STREAM_CORE_INTERNAL_TOKEN"),
       configured("STREAM_CORE_INTERNAL_TOKEN") ? "Configured" : "Missing",

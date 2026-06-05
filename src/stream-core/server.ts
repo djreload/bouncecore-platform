@@ -6,8 +6,22 @@ import { createHash, timingSafeEqual } from "node:crypto";
 type StreamStatus = "offline" | "starting" | "live" | "degraded";
 type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
 
+type StreamProfileConfig = {
+  audioBitrateKbps: number;
+  fps: number;
+  key: string;
+  keyframeSeconds: number;
+  label: string;
+  videoBitrateKbps: number;
+  videoHeight: number;
+  videoWidth: number;
+};
+
 type StreamCoreState = {
   bitrateKbps: number | null;
+  channelId: string | null;
+  channelSlug: string | null;
+  channelTitle: string | null;
   checkedAt: string;
   droppedFrames: number | null;
   ingestConnected: boolean;
@@ -15,8 +29,36 @@ type StreamCoreState = {
   playbackUrl: string | null;
   status: StreamStatus;
   streamKeyFingerprint: string | null;
+  streamProfile: StreamProfileConfig | null;
   viewerCount: number;
 };
+
+type StreamKeyValidationResponse =
+  | {
+      channel?: {
+        id: string;
+        playbackUrl: string | null;
+        slug: string;
+        streamProfile?: StreamProfileConfig | null;
+        title: string;
+      } | null;
+      key: {
+        fingerprint: string;
+        id: string;
+        lastUsedAt: string | null;
+      };
+      profile?: StreamProfileConfig | null;
+      user?: {
+        displayName: string;
+        email: string;
+        id: string;
+      };
+      valid: true;
+    }
+  | {
+      reason?: string;
+      valid: false;
+    };
 
 const defaultPort = 8088;
 const defaultOfflineAfterSeconds = 30;
@@ -34,12 +76,17 @@ function configuredNumber(key: string, fallback: number) {
 const host = envValue("STREAM_CORE_HTTP_HOST") || "127.0.0.1";
 const port = configuredNumber("STREAM_CORE_HTTP_PORT", defaultPort);
 const internalToken = envValue("STREAM_CORE_INTERNAL_TOKEN");
+const keyValidationUrl = envValue("STREAM_CORE_KEY_VALIDATION_URL");
+const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envValue("INTERNAL_TASK_TOKEN");
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
 const publicPlaybackUrl = envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
 
 let state: StreamCoreState = {
   bitrateKbps: null,
+  channelId: null,
+  channelSlug: null,
+  channelTitle: null,
   checkedAt: new Date().toISOString(),
   droppedFrames: null,
   ingestConnected: false,
@@ -47,6 +94,7 @@ let state: StreamCoreState = {
   playbackUrl: publicPlaybackUrl,
   status: "offline",
   streamKeyFingerprint: null,
+  streamProfile: null,
   viewerCount: 0
 };
 
@@ -146,8 +194,25 @@ async function readBody(request: IncomingMessage) {
   }
 
   const raw = Buffer.concat(chunks).toString("utf8");
+  const contentType = Array.isArray(request.headers["content-type"])
+    ? request.headers["content-type"][0]
+    : request.headers["content-type"] ?? "";
 
-  return raw ? JSON.parse(raw) : {};
+  if (!raw) {
+    return {};
+  }
+
+  if (contentType.toLowerCase().includes("application/x-www-form-urlencoded")) {
+    return Object.fromEntries(new URLSearchParams(raw));
+  }
+
+  if (contentType.toLowerCase().includes("application/json") || raw.trim().startsWith("{")) {
+    return JSON.parse(raw);
+  }
+
+  return {
+    raw
+  };
 }
 
 function toNumber(value: unknown) {
@@ -166,6 +231,59 @@ function toStatus(value: unknown): StreamStatus | null {
 
 function toStringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function toStreamProfile(value: unknown): StreamProfileConfig | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const key = toStringValue(value.key);
+  const label = toStringValue(value.label);
+  const videoWidth = toNumber(value.videoWidth ?? value.video_width);
+  const videoHeight = toNumber(value.videoHeight ?? value.video_height);
+  const videoBitrateKbps = toNumber(value.videoBitrateKbps ?? value.video_bitrate_kbps);
+  const audioBitrateKbps = toNumber(value.audioBitrateKbps ?? value.audio_bitrate_kbps);
+  const fps = toNumber(value.fps);
+  const keyframeSeconds = toNumber(value.keyframeSeconds ?? value.keyframe_seconds);
+
+  if (!key || !label || videoWidth === null || videoHeight === null || videoBitrateKbps === null || audioBitrateKbps === null || fps === null) {
+    return null;
+  }
+
+  return {
+    audioBitrateKbps,
+    fps,
+    key,
+    keyframeSeconds: keyframeSeconds ?? 2,
+    label,
+    videoBitrateKbps,
+    videoHeight,
+    videoWidth
+  };
+}
+
+function requestHeader(request: IncomingMessage, key: string) {
+  const value = request.headers[key.toLowerCase()];
+
+  return typeof value === "string" ? value : Array.isArray(value) ? value[0] : "";
+}
+
+function extractStreamKey(payload: Record<string, unknown>, url: URL, request: IncomingMessage) {
+  return (
+    toStringValue(payload.streamKey) ??
+    toStringValue(payload.stream_key) ??
+    toStringValue(payload.key) ??
+    toStringValue(payload.password) ??
+    toStringValue(payload.name) ??
+    toStringValue(url.searchParams.get("streamKey")) ??
+    toStringValue(url.searchParams.get("stream_key")) ??
+    toStringValue(url.searchParams.get("key")) ??
+    toStringValue(url.searchParams.get("password")) ??
+    toStringValue(url.searchParams.get("name")) ??
+    toStringValue(requestHeader(request, "x-stream-key")) ??
+    toStringValue(requestHeader(request, "x-owncast-stream-key"))
+  );
 }
 
 function toEvent(value: unknown) {
@@ -206,6 +324,13 @@ function derivedState() {
 
   return {
     status,
+    channel: state.channelId
+      ? {
+          id: state.channelId,
+          slug: state.channelSlug,
+          title: state.channelTitle
+        }
+      : null,
     stream: {
       status,
       streamKeyFingerprint: state.streamKeyFingerprint
@@ -214,6 +339,8 @@ function derivedState() {
       url: state.playbackUrl
     },
     playbackUrl: state.playbackUrl,
+    profile: state.streamProfile,
+    streamProfile: state.streamProfile,
     viewerCount: state.viewerCount,
     health: {
       bitrateKbps: state.bitrateKbps ?? undefined,
@@ -238,6 +365,9 @@ async function loadState() {
       state = {
         ...state,
         bitrateKbps: toNumber(parsed.bitrateKbps),
+        channelId: toStringValue(parsed.channelId),
+        channelSlug: toStringValue(parsed.channelSlug),
+        channelTitle: toStringValue(parsed.channelTitle),
         checkedAt: toStringValue(parsed.checkedAt) ?? state.checkedAt,
         droppedFrames: toNumber(parsed.droppedFrames),
         ingestConnected: Boolean(parsed.ingestConnected),
@@ -245,6 +375,7 @@ async function loadState() {
         playbackUrl: toStringValue(parsed.playbackUrl) ?? state.playbackUrl,
         status: toStatus(parsed.status) ?? state.status,
         streamKeyFingerprint: toStringValue(parsed.streamKeyFingerprint),
+        streamProfile: toStreamProfile(parsed.streamProfile),
         viewerCount: toNumber(parsed.viewerCount) ?? 0
       };
     }
@@ -291,7 +422,119 @@ function updateTelemetry(payload: Record<string, unknown>) {
   }
 }
 
-async function handleIngest(request: IncomingMessage, response: ServerResponse) {
+function applyValidatedStreamKey(result: Extract<StreamKeyValidationResponse, { valid: true }>) {
+  const streamProfile = toStreamProfile(result.profile) ?? toStreamProfile(result.channel?.streamProfile);
+
+  state.streamKeyFingerprint = result.key.fingerprint;
+  state.channelId = result.channel?.id ?? state.channelId;
+  state.channelSlug = result.channel?.slug ?? state.channelSlug;
+  state.channelTitle = result.channel?.title ?? state.channelTitle;
+  state.playbackUrl = result.channel?.playbackUrl ?? state.playbackUrl;
+  state.streamProfile = streamProfile ?? state.streamProfile;
+  state.checkedAt = new Date().toISOString();
+  state.status = state.status === "offline" ? "starting" : state.status;
+}
+
+async function validateStreamKey(rawKey: string): Promise<StreamKeyValidationResponse> {
+  if (!keyValidationUrl) {
+    return {
+      reason: "validation_not_configured",
+      valid: false
+    };
+  }
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json"
+  };
+
+  if (keyValidationToken) {
+    headers.Authorization = `Bearer ${keyValidationToken}`;
+    headers["x-internal-task-token"] = keyValidationToken;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 2500);
+
+  let response: Response;
+  let payload: StreamKeyValidationResponse;
+
+  try {
+    response = await fetch(keyValidationUrl, {
+      body: JSON.stringify({
+        streamKey: rawKey
+      }),
+      headers,
+      method: "POST",
+      signal: controller.signal
+    });
+    payload = (await response.json().catch(() => ({}))) as StreamKeyValidationResponse;
+  } catch {
+    return {
+      reason: "validation_unreachable",
+      valid: false
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!response.ok || !payload.valid) {
+    return {
+      reason: "reason" in payload ? payload.reason : "invalid_key",
+      valid: false
+    };
+  }
+
+  return payload;
+}
+
+async function handleStreamKeyValidation(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (request.method !== "POST" && request.method !== "GET") {
+    methodNotAllowed(response);
+    return;
+  }
+
+  const body = request.method === "POST" ? await readBody(request) : {};
+
+  if (!isObject(body)) {
+    json(response, 400, {
+      error: "invalid_body"
+    });
+    return;
+  }
+
+  const rawKey = extractStreamKey(body, url, request);
+
+  if (!rawKey) {
+    json(response, 400, {
+      reason: "missing_key",
+      valid: false
+    });
+    return;
+  }
+
+  const result = await validateStreamKey(rawKey);
+
+  if (!result.valid) {
+    json(response, 403, {
+      reason: result.reason ?? "invalid_key",
+      valid: false
+    });
+    return;
+  }
+
+  applyValidatedStreamKey(result);
+  await persistState();
+
+  json(response, 200, {
+    channel: result.channel ?? null,
+    profile: result.profile ?? result.channel?.streamProfile ?? null,
+    streamKeyFingerprint: result.key.fingerprint,
+    valid: true
+  });
+}
+
+async function handleIngest(request: IncomingMessage, response: ServerResponse, url: URL) {
   if (request.method !== "POST") {
     methodNotAllowed(response);
     return;
@@ -311,7 +554,22 @@ async function handleIngest(request: IncomingMessage, response: ServerResponse) 
   }
 
   const event = toEvent(body.event ?? body.type);
+  const rawKey = extractStreamKey(body, url, request);
   const now = new Date().toISOString();
+
+  if (rawKey) {
+    const result = await validateStreamKey(rawKey);
+
+    if (!result.valid) {
+      json(response, 403, {
+        reason: result.reason ?? "invalid_key",
+        valid: false
+      });
+      return;
+    }
+
+    applyValidatedStreamKey(result);
+  }
 
   updateTelemetry(body);
   state.checkedAt = now;
@@ -377,7 +635,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       return;
     }
 
-    if (url.pathname === "/status") {
+    if (url.pathname === "/status" || url.pathname === "/api/status") {
       if (request.method === "GET") {
         if (!requireAuth(request, response)) {
           return;
@@ -391,7 +649,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       return;
     }
 
-    if (url.pathname === "/playback-url") {
+    if (url.pathname === "/playback-url" || url.pathname === "/api/playback-url") {
       if (request.method !== "GET") {
         methodNotAllowed(response);
         return;
@@ -407,8 +665,18 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       return;
     }
 
+    if (
+      url.pathname === "/ingest/auth" ||
+      url.pathname === "/api/ingest/auth" ||
+      url.pathname === "/auth/stream-key" ||
+      url.pathname === "/validate-stream-key"
+    ) {
+      await handleStreamKeyValidation(request, response, url);
+      return;
+    }
+
     if (url.pathname === "/events/ingest" || url.pathname === "/ingest") {
-      await handleIngest(request, response);
+      await handleIngest(request, response, url);
       return;
     }
 

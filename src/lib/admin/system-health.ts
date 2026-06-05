@@ -120,6 +120,7 @@ export async function getAdminSystemHealthData() {
     envCheck("PayPal client secret", "PAYPAL_CLIENT_SECRET"),
     envCheck("PayPal webhook ID", "PAYPAL_WEBHOOK_ID"),
     envCheck("RTMP ingest URL", "RTMP_INGEST_URL"),
+    envCheck("Stream key validation URL", "STREAM_CORE_KEY_VALIDATION_URL"),
     envCheck("Playback URL", "PUBLIC_PLAYBACK_URL")
   ];
   const criticalChecks = checks.filter((check) => check.status === "critical").length;

@@ -8,7 +8,7 @@ Bouncecore is a new all-in-one UK rave/music livestream platform foundation. It 
 - Future stream engine repo: `bouncecore-stream-core`
 - The platform owns users, login, roles, dashboards, admin, chat, commerce, music, rewards, stream keys, and mobile APIs.
 - Stream-engine code stays behind a replaceable `StreamProvider` boundary.
-- Owncast-derived code is not included in this scaffold.
+- Owncast-derived media-server code is not included in this repo; the embedded stream-core exposes compatible control/auth hooks for a future headless ingest/transcode service.
 
 ## Chosen Stack
 
@@ -35,7 +35,8 @@ This scaffold includes:
 - Central navigation config
 - Role and permission constants
 - Stream provider interface with mock fallback and stream-core HTTP status provider
-- Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, and manual status endpoints
+- Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
+- Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
 - Optional background worker for chat retention pruning and mobile push dispatch/receipt processing
 - Health endpoint
 - Mobile config endpoint
@@ -127,7 +128,7 @@ For a fresh Linux server with a checked-out copy of this repo, run:
 bash scripts/install-instance.sh
 ```
 
-The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, stream-key validation endpoint/token, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
 
 ## Secrets Warning
 
@@ -148,6 +149,6 @@ Use `.env.example` as a template only.
 
 1. Wire real authentication, users, roles, and permission guards.
 2. Create real PostgreSQL migrations and seeds.
-3. Configure a real stream-core endpoint behind `STREAM_PROVIDER=stream-core`.
+3. Connect the Owncast-derived ingest/transcode service to the stream-core auth/profile endpoints.
 4. Add realtime Redis/WebSocket chat presence and queue workers.
 5. Harden staging with backups, monitoring, and production deployment checks.

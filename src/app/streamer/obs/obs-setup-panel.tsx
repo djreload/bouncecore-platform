@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, Copy, KeyRound, Link2, Radio, Sparkles, Settings2, Signal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
 
 type ObsSetupPanelProps = {
   channelTitle: string | null;
@@ -14,6 +15,8 @@ type ObsSetupPanelProps = {
   ingestUrl: string;
   keyFingerprint: string | null;
   playbackUrl: string | null;
+  streamProfile: StreamProfileSummary | null;
+  streamProfiles: StreamProfileSummary[];
   starOverlayUrl: string;
 };
 
@@ -49,6 +52,8 @@ export function ObsSetupPanel({
   ingestUrl,
   keyFingerprint,
   playbackUrl,
+  streamProfile,
+  streamProfiles,
   starOverlayUrl
 }: ObsSetupPanelProps) {
   const [copied, setCopied] = useState<CopyTarget>(null);
@@ -156,26 +161,57 @@ export function ObsSetupPanel({
           </div>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex items-center justify-between gap-3">
+              <dt className="text-bc-muted">Profile</dt>
+              <dd className="text-right font-semibold">{streamProfile?.label ?? "Not configured"}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-bc-muted">Resolution</dt>
+              <dd className="font-semibold">
+                {streamProfile ? `${streamProfile.videoWidth}x${streamProfile.videoHeight}` : "Waiting"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
               <dt className="text-bc-muted">Rate control</dt>
               <dd className="font-semibold">CBR</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-bc-muted">Video bitrate</dt>
-              <dd className="font-semibold">4500-6000 Kbps</dd>
+              <dd className="font-semibold">{streamProfile ? `${streamProfile.videoBitrateKbps} Kbps` : "Waiting"}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-bc-muted">Keyframe interval</dt>
-              <dd className="font-semibold">2 seconds</dd>
+              <dd className="font-semibold">{streamProfile ? `${streamProfile.keyframeSeconds} seconds` : "Waiting"}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-bc-muted">Audio bitrate</dt>
-              <dd className="font-semibold">160-320 Kbps</dd>
+              <dd className="font-semibold">{streamProfile ? `${streamProfile.audioBitrateKbps} Kbps` : "Waiting"}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-bc-muted">FPS</dt>
+              <dd className="font-semibold">{streamProfile?.fps ?? "Waiting"}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
               <dt className="text-bc-muted">Audio sample rate</dt>
               <dd className="font-semibold">48 kHz</dd>
             </div>
           </dl>
+        </section>
+
+        <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <h3 className="text-xl font-black">Profiles</h3>
+          <div className="mt-4 space-y-2">
+            {streamProfiles.map((profile) => (
+              <div
+                className="flex items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3 text-sm"
+                key={profile.id}
+              >
+                <span className="font-semibold">{profile.label}</span>
+                <Badge tone={profile.id === streamProfile?.id ? "acid" : "muted"}>
+                  {profile.videoHeight}p{profile.fps} / {profile.videoBitrateKbps} Kbps
+                </Badge>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="rounded-md border border-bc-line bg-bc-panel p-5">

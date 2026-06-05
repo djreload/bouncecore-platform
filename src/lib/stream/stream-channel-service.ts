@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { getStreamProvider, type StreamHealth, type StreamStatus } from "@/lib/stream/stream-provider";
+import {
+  ensureDefaultStreamProfiles,
+  getDefaultStreamProfile,
+  getStreamProfiles,
+  streamProfileToSummary,
+  type StreamProfileSummary
+} from "@/lib/stream/stream-profile-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 
 export type StreamChannelInput = {
@@ -9,6 +16,7 @@ export type StreamChannelInput = {
   slug: string;
   status: ChannelStatus;
   playbackUrl?: string;
+  streamProfileId?: string;
 };
 
 export type StreamChannelSummary = {
@@ -17,6 +25,7 @@ export type StreamChannelSummary = {
   title: string;
   status: string;
   playbackUrl: string | null;
+  streamProfile: StreamProfileSummary | null;
   streamKeys: number;
   sessions: number;
   events: number;
@@ -35,6 +44,7 @@ export type PublicLiveState = {
     title: string;
     status: string;
     playbackUrl: string | null;
+    streamProfile: StreamProfileSummary | null;
   } | null;
   provider: StreamProviderSnapshot;
   status: string;
@@ -65,6 +75,7 @@ function toSummary(channel: {
   title: string;
   status: string;
   playbackUrl: string | null;
+  streamProfile: StreamProfileSummary | null;
   _count: {
     streamKeys: number;
     sessions: number;
@@ -77,10 +88,33 @@ function toSummary(channel: {
     title: channel.title,
     status: channel.status,
     playbackUrl: channel.playbackUrl,
+    streamProfile: streamProfileToSummary(channel.streamProfile),
     streamKeys: channel._count.streamKeys,
     sessions: channel._count.sessions,
     events: channel._count.events
   };
+}
+
+async function assertStreamProfileId(profileId?: string) {
+  if (!profileId) {
+    return (await getDefaultStreamProfile())?.id ?? null;
+  }
+
+  const profile = await prisma.streamProfile.findFirst({
+    where: {
+      id: profileId,
+      isEnabled: true
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (!profile) {
+    throw new Error("Invalid stream profile.");
+  }
+
+  return profile.id;
 }
 
 export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
@@ -101,12 +135,15 @@ export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
 }
 
 export async function getAdminStreamControlData() {
-  const [channels, provider] = await Promise.all([
+  await ensureDefaultStreamProfiles();
+
+  const [channels, provider, streamProfiles] = await Promise.all([
     prisma.streamChannel.findMany({
       orderBy: {
         slug: "asc"
       },
       include: {
+        streamProfile: true,
         _count: {
           select: {
             streamKeys: true,
@@ -116,12 +153,16 @@ export async function getAdminStreamControlData() {
         }
       }
     }),
-    getProviderSnapshot()
+    getProviderSnapshot(),
+    getStreamProfiles({
+      includeDisabled: true
+    })
   ]);
 
   return {
     channels: channels.map(toSummary),
-    provider
+    provider,
+    streamProfiles
   };
 }
 
@@ -154,6 +195,8 @@ export async function getAdminStreamSessionsData() {
 }
 
 export async function ensureDefaultStreamChannel(actorId: string) {
+  await ensureDefaultStreamProfiles();
+  const streamProfile = await getDefaultStreamProfile();
   const playbackUrl = process.env.PUBLIC_PLAYBACK_URL ?? null;
   const { channel, adoptedKeys } = await prisma.$transaction(async (tx) => {
     const channel = await tx.streamChannel.upsert({
@@ -161,13 +204,15 @@ export async function ensureDefaultStreamChannel(actorId: string) {
         slug: "main"
       },
       update: {
-        playbackUrl: playbackUrl ?? undefined
+        playbackUrl: playbackUrl ?? undefined,
+        streamProfileId: streamProfile?.id ?? undefined
       },
       create: {
         slug: "main",
         title: "Bouncecore Live",
         status: "offline",
-        playbackUrl
+        playbackUrl,
+        streamProfileId: streamProfile?.id ?? null
       }
     });
     const adoptedKeys = await tx.streamKey.updateMany({
@@ -201,13 +246,15 @@ export async function ensureDefaultStreamChannel(actorId: string) {
 
 export async function createStreamChannel(input: StreamChannelInput, actorId: string) {
   assertStatus(input.status);
+  const streamProfileId = await assertStreamProfileId(input.streamProfileId);
 
   const channel = await prisma.streamChannel.create({
     data: {
       slug: normalizeSlug(input.slug),
       title: input.title.trim(),
       status: input.status,
-      playbackUrl: input.playbackUrl?.trim() || null
+      playbackUrl: input.playbackUrl?.trim() || null,
+      streamProfileId
     }
   });
 
@@ -231,6 +278,7 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
   }
 
   assertStatus(input.status);
+  const streamProfileId = await assertStreamProfileId(input.streamProfileId);
 
   const existing = await prisma.streamChannel.findUniqueOrThrow({
     where: {
@@ -248,7 +296,8 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
         slug: normalizeSlug(input.slug),
         title: input.title.trim(),
         status: input.status,
-        playbackUrl: input.playbackUrl?.trim() || null
+        playbackUrl: input.playbackUrl?.trim() || null,
+        streamProfileId
       }
     });
 
@@ -287,14 +336,18 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
 }
 
 export async function getPublicLiveState(): Promise<PublicLiveState> {
-  const provider = await getProviderSnapshot();
+  const [provider, defaultProfile] = await Promise.all([getProviderSnapshot(), getDefaultStreamProfile()]);
 
   try {
     const channel = await prisma.streamChannel.findFirst({
       orderBy: {
         slug: "asc"
+      },
+      include: {
+        streamProfile: true
       }
     });
+    const status = provider.status !== "offline" ? provider.status : channel?.status ?? provider.status;
 
     return {
       channel: channel
@@ -302,11 +355,12 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
             slug: channel.slug,
             title: channel.title,
             status: channel.status,
-            playbackUrl: channel.playbackUrl
+            playbackUrl: channel.playbackUrl,
+            streamProfile: streamProfileToSummary(channel.streamProfile) ?? defaultProfile
           }
         : null,
       provider,
-      status: channel?.status ?? provider.status,
+      status,
       playbackUrl: channel?.playbackUrl ?? provider.playbackUrl,
       viewerCount: provider.viewerCount,
       health: provider.health
