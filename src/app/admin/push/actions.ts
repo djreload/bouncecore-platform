@@ -47,7 +47,7 @@ export async function adminPushAction(
     revalidatePushViews();
 
     return {
-      message: `Notification sent to ${result.recipientCount} active user${result.recipientCount === 1 ? "" : "s"}.`,
+      message: `Notification sent to ${result.recipientCount} active user${result.recipientCount === 1 ? "" : "s"}; ${result.queuedPushDeliveryCount} mobile push${result.queuedPushDeliveryCount === 1 ? "" : "es"} queued, ${result.blockedPushDeliveryCount} blocked.`,
       status: "success"
     };
   } catch (error) {

@@ -66,6 +66,7 @@ model MobileDevice {
   provider     String
   platform     String
   tokenHash    String   @unique
+  tokenCiphertext String?
   tokenPreview String
   deviceName   String?
   appVersion   String?
@@ -75,10 +76,12 @@ model MobileDevice {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushDeliveries MobilePushDelivery[]
 
   @@index([userId])
   @@index([provider])
   @@index([platform])
+  @@index([tokenCiphertext])
   @@index([lastSeenAt])
   @@index([revokedAt])
 }
@@ -244,6 +247,30 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pushDeliveries MobilePushDelivery[]
+}
+
+model MobilePushDelivery {
+  id             String       @id @default(cuid())
+  notificationId String
+  mobileDeviceId String
+  provider       String
+  platform       String
+  status         String       @default("queued")
+  errorCode      String?
+  errorMessage   String?
+  attemptedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  mobileDevice   MobileDevice @relation(fields: [mobileDeviceId], references: [id], onDelete: Cascade)
+
+  @@index([notificationId])
+  @@index([mobileDeviceId])
+  @@index([provider])
+  @@index([platform])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model AppSetting {

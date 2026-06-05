@@ -42,11 +42,31 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Active users</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.activeUsers}</p>
           <p className="mt-2 text-sm text-bc-muted">Eligible recipients.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="cyan">Mobile devices</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.activeMobileDevices}</p>
+          <p className="mt-2 text-sm text-bc-muted">Active push registrations.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone={data.stats.pushEncryptionConfigured ? "acid" : "amber"}>Push key</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.pushEncryptionConfigured ? "Ready" : "Missing"}</p>
+          <p className="mt-2 text-sm text-bc-muted">{data.stats.deliverableMobileDevices} encrypted device tokens.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="acid">Queued</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.queuedPushDeliveries}</p>
+          <p className="mt-2 text-sm text-bc-muted">Mobile pushes ready for delivery.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="amber">Blocked</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.blockedPushDeliveries}</p>
+          <p className="mt-2 text-sm text-bc-muted">Pushes needing token encryption.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Sent today</Badge>
@@ -71,7 +91,7 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
             <Badge tone="pink">Message</Badge>
             <h3 className="mt-4 text-2xl font-black">Send notification</h3>
             <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-              Notifications appear in each recipient account inbox and are available to mobile clients through account data.
+              Notifications appear in each recipient account inbox and create mobile push delivery rows for active registered devices.
             </p>
           </div>
           <BellRing className="h-7 w-7 text-bc-pink" aria-hidden="true" />
@@ -229,6 +249,15 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
                     <div className="flex flex-wrap gap-2">
                       <Badge tone={readTone(notification.readAt)}>{notification.readAt ? "read" : "unread"}</Badge>
                       <Badge tone="muted">{notification.type}</Badge>
+                      {notification.pushDeliveryCount ? (
+                        <>
+                          <Badge tone="cyan">{notification.pushDeliveryCount} mobile</Badge>
+                          {notification.pushQueuedCount ? <Badge tone="acid">{notification.pushQueuedCount} queued</Badge> : null}
+                          {notification.pushBlockedCount ? <Badge tone="amber">{notification.pushBlockedCount} blocked</Badge> : null}
+                        </>
+                      ) : (
+                        <Badge tone="muted">no mobile devices</Badge>
+                      )}
                     </div>
                     <h4 className="mt-3 font-black">{notification.title}</h4>
                     {notification.body ? <p className="mt-2 text-sm text-bc-muted">{notification.body}</p> : null}

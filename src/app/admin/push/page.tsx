@@ -12,7 +12,7 @@ export default async function AdminPushPage() {
   return (
     <AdminShell
       title="Push notifications"
-      description="Send database-backed platform notifications to active users, roles, or a specific account."
+      description="Send account notifications and queue mobile push deliveries for active registered devices."
     >
       <AdminPushPanel data={data} />
     </AdminShell>

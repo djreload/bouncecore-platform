@@ -114,6 +114,7 @@ export async function getAdminSystemHealthData() {
     },
     envCheck("Public app URL", "NEXT_PUBLIC_APP_URL"),
     envCheck("Tenor GIF API", "TENOR_API_KEY"),
+    envCheck("Push token encryption", "PUSH_TOKEN_ENCRYPTION_KEY"),
     envCheck("PayPal client ID", "PAYPAL_CLIENT_ID"),
     envCheck("PayPal client secret", "PAYPAL_CLIENT_SECRET"),
     envCheck("PayPal webhook ID", "PAYPAL_WEBHOOK_ID"),

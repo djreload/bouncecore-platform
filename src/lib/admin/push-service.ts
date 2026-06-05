@@ -5,6 +5,7 @@ import { roleDefinitions, type Role } from "@/lib/auth/rbac";
 import { roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { prisma } from "@/lib/db/prisma";
+import { secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 export const adminPushTargets = ["all", "role", "user"] as const;
 
@@ -24,6 +25,9 @@ export type AdminPushData = {
     body: string | null;
     createdAt: string;
     id: string;
+    pushBlockedCount: number;
+    pushDeliveryCount: number;
+    pushQueuedCount: number;
     readAt: string | null;
     title: string;
     type: string;
@@ -37,6 +41,11 @@ export type AdminPushData = {
   }>;
   stats: {
     activeUsers: number;
+    activeMobileDevices: number;
+    blockedPushDeliveries: number;
+    deliverableMobileDevices: number;
+    pushEncryptionConfigured: boolean;
+    queuedPushDeliveries: number;
     sentToday: number;
     totalNotifications: number;
     unreadNotifications: number;
@@ -106,7 +115,18 @@ function startOfToday() {
 }
 
 export async function getAdminPushData(): Promise<AdminPushData> {
-  const [roleDisplayLabels, users, recentNotifications, totalNotifications, unreadNotifications, sentToday] = await Promise.all([
+  const [
+    roleDisplayLabels,
+    users,
+    recentNotifications,
+    totalNotifications,
+    unreadNotifications,
+    sentToday,
+    activeMobileDevices,
+    deliverableMobileDevices,
+    queuedPushDeliveries,
+    blockedPushDeliveries
+  ] = await Promise.all([
     getRoleDisplayNameOverrides(),
     prisma.user.findMany({
       include: {
@@ -125,6 +145,11 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     }),
     prisma.notification.findMany({
       include: {
+        pushDeliveries: {
+          select: {
+            status: true
+          }
+        },
         user: true
       },
       orderBy: {
@@ -143,6 +168,29 @@ export async function getAdminPushData(): Promise<AdminPushData> {
         createdAt: {
           gte: startOfToday()
         }
+      }
+    }),
+    prisma.mobileDevice.count({
+      where: {
+        revokedAt: null
+      }
+    }),
+    prisma.mobileDevice.count({
+      where: {
+        revokedAt: null,
+        tokenCiphertext: {
+          not: null
+        }
+      }
+    }),
+    prisma.mobilePushDelivery.count({
+      where: {
+        status: "queued"
+      }
+    }),
+    prisma.mobilePushDelivery.count({
+      where: {
+        status: "blocked"
       }
     })
   ]);
@@ -164,16 +212,24 @@ export async function getAdminPushData(): Promise<AdminPushData> {
   }, new Map<Role, number>());
 
   return {
-    recentNotifications: recentNotifications.map((notification) => ({
-      body: notification.body,
-      createdAt: notification.createdAt.toISOString(),
-      id: notification.id,
-      readAt: notification.readAt?.toISOString() ?? null,
-      title: notification.title,
-      type: notification.type,
-      userDisplayName: notification.user.displayName,
-      userEmail: notification.user.email
-    })),
+    recentNotifications: recentNotifications.map((notification) => {
+      const pushQueuedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "queued").length;
+      const pushBlockedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "blocked").length;
+
+      return {
+        body: notification.body,
+        createdAt: notification.createdAt.toISOString(),
+        id: notification.id,
+        pushBlockedCount,
+        pushDeliveryCount: notification.pushDeliveries.length,
+        pushQueuedCount,
+        readAt: notification.readAt?.toISOString() ?? null,
+        title: notification.title,
+        type: notification.type,
+        userDisplayName: notification.user.displayName,
+        userEmail: notification.user.email
+      };
+    }),
     roles: roleDefinitions.map((role) => ({
       activeUserCount: roleCounts.get(role.key) ?? 0,
       key: role.key,
@@ -181,6 +237,11 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     })),
     stats: {
       activeUsers: activeUsers.length,
+      activeMobileDevices,
+      blockedPushDeliveries,
+      deliverableMobileDevices,
+      pushEncryptionConfigured: secretEncryptionConfigured(),
+      queuedPushDeliveries,
       sentToday,
       totalNotifications,
       unreadNotifications
@@ -237,7 +298,18 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
   const recipients = await prisma.user.findMany({
     where: recipientWhere,
     select: {
-      id: true
+      id: true,
+      mobileDevices: {
+        where: {
+          revokedAt: null
+        },
+        select: {
+          id: true,
+          platform: true,
+          provider: true,
+          tokenCiphertext: true
+        }
+      }
     }
   });
 
@@ -245,13 +317,49 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
     throw new Error("No active users matched that notification target.");
   }
 
-  await prisma.notification.createMany({
-    data: recipients.map((recipient) => ({
-      body,
-      title,
-      type,
-      userId: recipient.id
-    }))
+  const encryptionReady = secretEncryptionConfigured();
+  let pushDeliveryCount = 0;
+  let queuedPushDeliveryCount = 0;
+  let blockedPushDeliveryCount = 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const recipient of recipients) {
+      const notification = await tx.notification.create({
+        data: {
+          body,
+          title,
+          type,
+          userId: recipient.id
+        }
+      });
+      const pushDeliveries = recipient.mobileDevices.map((device) => {
+        const deliverable = encryptionReady && Boolean(device.tokenCiphertext);
+
+        return {
+          errorCode: deliverable ? null : device.tokenCiphertext ? "missing_encryption_key" : "missing_encrypted_token",
+          errorMessage: deliverable
+            ? null
+            : device.tokenCiphertext
+              ? "PUSH_TOKEN_ENCRYPTION_KEY is required before queued pushes can be delivered."
+              : "Device was registered before encrypted token storage was configured.",
+          mobileDeviceId: device.id,
+          notificationId: notification.id,
+          platform: device.platform,
+          provider: device.provider,
+          status: deliverable ? "queued" : "blocked"
+        };
+      });
+
+      pushDeliveryCount += pushDeliveries.length;
+      queuedPushDeliveryCount += pushDeliveries.filter((delivery) => delivery.status === "queued").length;
+      blockedPushDeliveryCount += pushDeliveries.filter((delivery) => delivery.status === "blocked").length;
+
+      if (pushDeliveries.length) {
+        await tx.mobilePushDelivery.createMany({
+          data: pushDeliveries
+        });
+      }
+    }
   });
 
   await writeAuditLog({
@@ -260,6 +368,10 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
     target: `notification-target:${target}`,
     severity: target === "user" ? "info" : "warning",
     metadata: {
+      blockedPushDeliveryCount,
+      pushDeliveryCount,
+      pushEncryptionConfigured: encryptionReady,
+      queuedPushDeliveryCount,
       recipientCount: recipients.length,
       role,
       target,
@@ -269,6 +381,9 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
   });
 
   return {
+    blockedPushDeliveryCount,
+    pushDeliveryCount,
+    queuedPushDeliveryCount,
     recipientCount: recipients.length
   };
 }

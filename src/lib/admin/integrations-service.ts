@@ -112,6 +112,12 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
   const platformChecks: IntegrationCheck[] = [
     check("Public app URL", configured("NEXT_PUBLIC_APP_URL"), publicValue("NEXT_PUBLIC_APP_URL"), "Used for checkout returns, invite links, and OBS browser sources."),
     check("Mobile config API", true, absolutePath("/api/mobile/v1/config"), "Public mobile app configuration endpoint."),
+    check(
+      "Push token encryption",
+      configured("PUSH_TOKEN_ENCRYPTION_KEY"),
+      configured("PUSH_TOKEN_ENCRYPTION_KEY") ? "Configured" : "Missing",
+      "Required to store deliverable mobile push tokens without exposing raw token values."
+    ),
     check("Star alert overlay", true, absolutePath("/overlay/stars"), "Transparent OBS browser source for live star alerts."),
     check("Redis URL", configured("REDIS_URL"), configured("REDIS_URL") ? "Configured" : "Missing", "Reserved for realtime chat, queues, presence, and future workers.")
   ];

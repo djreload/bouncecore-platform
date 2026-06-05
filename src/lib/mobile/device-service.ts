@@ -2,6 +2,7 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import type { CurrentUser } from "@/lib/auth/rbac";
 import { hashSecretToken } from "@/lib/auth/tokens";
 import { prisma } from "@/lib/db/prisma";
+import { encryptSecret, secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 export const mobileDeviceProviders = ["expo", "fcm", "apns", "web"] as const;
 export const mobileDevicePlatforms = ["ios", "android", "web"] as const;
@@ -137,10 +138,12 @@ export async function registerMobileDevice(user: CurrentUser, input: MobileDevic
   const provider = normalizedProvider(input.provider);
   const platform = normalizedPlatform(input.platform);
   const pushToken = normalizedPushToken(input.pushToken);
+  const tokenHash = hashSecretToken(`${provider}:${pushToken}`);
+  const tokenCiphertext = encryptSecret(pushToken);
   const now = new Date();
   const device = await prisma.mobileDevice.upsert({
     where: {
-      tokenHash: hashSecretToken(`${provider}:${pushToken}`)
+      tokenHash
     },
     update: {
       appVersion: normalizedText(input.appVersion, 40),
@@ -150,6 +153,7 @@ export async function registerMobileDevice(user: CurrentUser, input: MobileDevic
       platform,
       provider,
       revokedAt: null,
+      tokenCiphertext,
       tokenPreview: tokenPreview(pushToken),
       userId: user.id
     },
@@ -160,7 +164,8 @@ export async function registerMobileDevice(user: CurrentUser, input: MobileDevic
       osVersion: normalizedText(input.osVersion, 80),
       platform,
       provider,
-      tokenHash: hashSecretToken(`${provider}:${pushToken}`),
+      tokenCiphertext,
+      tokenHash,
       tokenPreview: tokenPreview(pushToken),
       userId: user.id
     }
@@ -172,6 +177,7 @@ export async function registerMobileDevice(user: CurrentUser, input: MobileDevic
     target: `mobile-device:${device.id}`,
     severity: "info",
     metadata: {
+      encryptionConfigured: secretEncryptionConfigured(),
       platform,
       provider
     }
