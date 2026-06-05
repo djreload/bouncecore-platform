@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { BellRing, CheckCheck, Send, UserRoundCheck, UsersRound } from "lucide-react";
-import { adminPushAction } from "@/app/admin/push/actions";
+import { BellRing, CheckCheck, RefreshCw, Send, UserRoundCheck, UsersRound } from "lucide-react";
+import { adminProcessPushQueueAction, adminPushAction } from "@/app/admin/push/actions";
 import { initialAdminPushActionState, type AdminPushActionState } from "@/app/admin/push/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,10 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
     adminPushAction,
     initialAdminPushActionState
   );
+  const [queueState, queueFormAction, queuePending] = useActionState<AdminPushActionState, FormData>(
+    adminProcessPushQueueAction,
+    initialAdminPushActionState
+  );
 
   return (
     <div className="space-y-5">
@@ -62,6 +66,16 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
           <Badge tone="acid">Queued</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.queuedPushDeliveries}</p>
           <p className="mt-2 text-sm text-bc-muted">Mobile pushes ready for delivery.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="acid">Sent pushes</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.sentPushDeliveries}</p>
+          <p className="mt-2 text-sm text-bc-muted">Accepted by push providers.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="pink">Failed pushes</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.failedPushDeliveries}</p>
+          <p className="mt-2 text-sm text-bc-muted">Rejected or network failed.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="amber">Blocked</Badge>
@@ -108,6 +122,33 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
             {state.message}
           </div>
         ) : null}
+
+        {queueState.message ? (
+          <div
+            className={`mt-5 rounded-md border p-3 text-sm ${
+              queueState.status === "error"
+                ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
+                : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
+            }`}
+          >
+            {queueState.message}
+          </div>
+        ) : null}
+
+        <div className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h4 className="font-black">Mobile delivery queue</h4>
+              <p className="mt-1 text-sm text-bc-muted">Processes up to 50 queued rows per run. Expo pushes are sent now; other providers are blocked until wired.</p>
+            </div>
+            <form action={queueFormAction}>
+              <Button disabled={queuePending || !data.stats.queuedPushDeliveries} type="submit" variant="ghost">
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Process queue
+              </Button>
+            </form>
+          </div>
+        </div>
 
         <form action={formAction} className="mt-5 grid gap-4">
           <div className="grid gap-4 md:grid-cols-3">
@@ -253,6 +294,8 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
                         <>
                           <Badge tone="cyan">{notification.pushDeliveryCount} mobile</Badge>
                           {notification.pushQueuedCount ? <Badge tone="acid">{notification.pushQueuedCount} queued</Badge> : null}
+                          {notification.pushSentCount ? <Badge tone="acid">{notification.pushSentCount} sent</Badge> : null}
+                          {notification.pushFailedCount ? <Badge tone="pink">{notification.pushFailedCount} failed</Badge> : null}
                           {notification.pushBlockedCount ? <Badge tone="amber">{notification.pushBlockedCount} blocked</Badge> : null}
                         </>
                       ) : (

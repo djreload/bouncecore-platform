@@ -27,7 +27,9 @@ export type AdminPushData = {
     id: string;
     pushBlockedCount: number;
     pushDeliveryCount: number;
+    pushFailedCount: number;
     pushQueuedCount: number;
+    pushSentCount: number;
     readAt: string | null;
     title: string;
     type: string;
@@ -44,8 +46,10 @@ export type AdminPushData = {
     activeMobileDevices: number;
     blockedPushDeliveries: number;
     deliverableMobileDevices: number;
+    failedPushDeliveries: number;
     pushEncryptionConfigured: boolean;
     queuedPushDeliveries: number;
+    sentPushDeliveries: number;
     sentToday: number;
     totalNotifications: number;
     unreadNotifications: number;
@@ -125,7 +129,9 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     activeMobileDevices,
     deliverableMobileDevices,
     queuedPushDeliveries,
-    blockedPushDeliveries
+    blockedPushDeliveries,
+    sentPushDeliveries,
+    failedPushDeliveries
   ] = await Promise.all([
     getRoleDisplayNameOverrides(),
     prisma.user.findMany({
@@ -192,6 +198,16 @@ export async function getAdminPushData(): Promise<AdminPushData> {
       where: {
         status: "blocked"
       }
+    }),
+    prisma.mobilePushDelivery.count({
+      where: {
+        status: "sent"
+      }
+    }),
+    prisma.mobilePushDelivery.count({
+      where: {
+        status: "failed"
+      }
     })
   ]);
 
@@ -215,6 +231,8 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     recentNotifications: recentNotifications.map((notification) => {
       const pushQueuedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "queued").length;
       const pushBlockedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "blocked").length;
+      const pushSentCount = notification.pushDeliveries.filter((delivery) => delivery.status === "sent").length;
+      const pushFailedCount = notification.pushDeliveries.filter((delivery) => delivery.status === "failed").length;
 
       return {
         body: notification.body,
@@ -222,7 +240,9 @@ export async function getAdminPushData(): Promise<AdminPushData> {
         id: notification.id,
         pushBlockedCount,
         pushDeliveryCount: notification.pushDeliveries.length,
+        pushFailedCount,
         pushQueuedCount,
+        pushSentCount,
         readAt: notification.readAt?.toISOString() ?? null,
         title: notification.title,
         type: notification.type,
@@ -240,8 +260,10 @@ export async function getAdminPushData(): Promise<AdminPushData> {
       activeMobileDevices,
       blockedPushDeliveries,
       deliverableMobileDevices,
+      failedPushDeliveries,
       pushEncryptionConfigured: secretEncryptionConfigured(),
       queuedPushDeliveries,
+      sentPushDeliveries,
       sentToday,
       totalNotifications,
       unreadNotifications

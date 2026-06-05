@@ -257,9 +257,11 @@ model MobilePushDelivery {
   provider       String
   platform       String
   status         String       @default("queued")
+  providerMessageId String?
   errorCode      String?
   errorMessage   String?
   attemptedAt    DateTime?
+  sentAt         DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
@@ -270,6 +272,8 @@ model MobilePushDelivery {
   @@index([provider])
   @@index([platform])
   @@index([status])
+  @@index([providerMessageId])
+  @@index([sentAt])
   @@index([createdAt])
 }
 

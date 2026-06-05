@@ -57,6 +57,15 @@ function check(label: string, ready: boolean, value: string, detail: string): In
   };
 }
 
+function optionalCheck(label: string, configuredValue: boolean, detail: string): IntegrationCheck {
+  return {
+    detail,
+    label,
+    status: "ready",
+    value: configuredValue ? "Configured" : "Optional"
+  };
+}
+
 function groupStatus(checks: IntegrationCheck[]): IntegrationStatus {
   const ready = checks.filter((item) => item.status === "ready").length;
 
@@ -117,6 +126,11 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       configured("PUSH_TOKEN_ENCRYPTION_KEY"),
       configured("PUSH_TOKEN_ENCRYPTION_KEY") ? "Configured" : "Missing",
       "Required to store deliverable mobile push tokens without exposing raw token values."
+    ),
+    optionalCheck(
+      "Expo access token",
+      configured("EXPO_PUSH_ACCESS_TOKEN"),
+      "Only required when Expo push security is enabled in the Expo dashboard."
     ),
     check("Star alert overlay", true, absolutePath("/overlay/stars"), "Transparent OBS browser source for live star alerts."),
     check("Redis URL", configured("REDIS_URL"), configured("REDIS_URL") ? "Configured" : "Missing", "Reserved for realtime chat, queues, presence, and future workers.")

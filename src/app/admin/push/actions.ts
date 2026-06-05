@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { sendAdminNotification, type AdminPushInput } from "@/lib/admin/push-service";
+import { processQueuedMobilePushDeliveries } from "@/lib/mobile/push-dispatch-service";
 import type { AdminPushActionState } from "@/app/admin/push/state";
 
 function formString(formData: FormData, key: string) {
@@ -53,6 +54,38 @@ export async function adminPushAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "Notification could not be sent.",
+      status: "error"
+    };
+  }
+}
+
+export async function adminProcessPushQueueAction(
+  _previousState: AdminPushActionState,
+  _formData: FormData
+): Promise<AdminPushActionState> {
+  void _previousState;
+  void _formData;
+
+  const actor = await requireSignedInUser();
+
+  if (!hasPermission(actor, "mobile.manage")) {
+    return {
+      message: "You do not have permission to process mobile push deliveries.",
+      status: "error"
+    };
+  }
+
+  try {
+    const result = await processQueuedMobilePushDeliveries(actor.id);
+    revalidatePushViews();
+
+    return {
+      message: `Processed ${result.processedCount} queued mobile push${result.processedCount === 1 ? "" : "es"}; ${result.sentCount} sent, ${result.failedCount} failed, ${result.blockedCount} blocked.`,
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Mobile push queue could not be processed.",
       status: "error"
     };
   }
