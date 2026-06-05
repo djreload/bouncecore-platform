@@ -251,9 +251,15 @@ REDIS_PORT="$(prompt "Redis host port" "6379")"
 STREAM_PROVIDER="$(prompt "Stream provider" "mock")"
 INTERNAL_TASK_TOKEN="$(prompt_optional_secret "Internal task token")"
 INTERNAL_TASK_TOKEN="${INTERNAL_TASK_TOKEN:-$(generate_secret)}"
-STREAM_CORE_INTERNAL_URL="$(prompt "Stream core internal URL" "http://127.0.0.1:8088")"
+ENABLE_STREAM_CORE="$(prompt "Start embedded stream core service now? Use n if another service owns stream ports" "n")"
+ENABLE_WORKER="$(prompt "Start background worker now?" "y")"
+STREAM_CORE_INTERNAL_URL="$(prompt "Stream core internal URL" "http://stream-core:8088")"
+STREAM_CORE_STATUS_PATH="$(prompt "Stream core status path" "/status")"
 STREAM_CORE_INTERNAL_TOKEN="$(prompt_optional_secret "Stream core internal token")"
 STREAM_CORE_INTERNAL_TOKEN="${STREAM_CORE_INTERNAL_TOKEN:-$(generate_secret)}"
+STREAM_CORE_BIND_HOST="$(prompt "Stream core bind host" "127.0.0.1")"
+STREAM_CORE_HTTP_BIND_PORT="$(prompt "Stream core host HTTP port" "18088")"
+STREAM_CORE_OFFLINE_AFTER_SECONDS="$(prompt "Stream core offline timeout seconds" "30")"
 RTMP_INGEST_URL="$(prompt "Public RTMP ingest URL" "rtmp://develop.k-nrg.co.uk/live")"
 PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "https://develop.k-nrg.co.uk/hls/live.m3u8")"
 TENOR_API_KEY="$(prompt_secret_optional "Tenor API key")"
@@ -324,7 +330,22 @@ NEXT_PUBLIC_APP_URL=$APP_URL
 STREAM_PROVIDER=$STREAM_PROVIDER
 INTERNAL_TASK_TOKEN=$INTERNAL_TASK_TOKEN
 STREAM_CORE_INTERNAL_URL=$STREAM_CORE_INTERNAL_URL
+STREAM_CORE_STATUS_PATH=$STREAM_CORE_STATUS_PATH
 STREAM_CORE_INTERNAL_TOKEN=$STREAM_CORE_INTERNAL_TOKEN
+STREAM_CORE_CONTAINER=bouncecore-stream-core
+STREAM_CORE_BIND_HOST=$STREAM_CORE_BIND_HOST
+STREAM_CORE_HTTP_BIND_PORT=$STREAM_CORE_HTTP_BIND_PORT
+STREAM_CORE_VOLUME=bouncecore_stream_core_data
+STREAM_CORE_OFFLINE_AFTER_SECONDS=$STREAM_CORE_OFFLINE_AFTER_SECONDS
+STREAM_CORE_PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
+WORKER_CONTAINER=bouncecore-worker
+WORKER_CHAT_PRUNE_ENABLED=true
+WORKER_CHAT_PRUNE_INTERVAL_SECONDS=3600
+WORKER_MOBILE_PUSH_DISPATCH_ENABLED=true
+WORKER_MOBILE_PUSH_DISPATCH_INTERVAL_SECONDS=60
+WORKER_MOBILE_PUSH_RECEIPTS_ENABLED=true
+WORKER_MOBILE_PUSH_RECEIPT_INTERVAL_SECONDS=300
+WORKER_MOBILE_PUSH_LIMIT=50
 RTMP_INGEST_URL=$RTMP_INGEST_URL
 PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
 TENOR_API_KEY=$TENOR_API_KEY
@@ -356,6 +377,26 @@ compose run --rm app npm run db:seed
 info "Starting app"
 compose up -d app
 
+case "$ENABLE_STREAM_CORE" in
+  y|Y|yes|YES)
+    info "Starting embedded stream core"
+    compose --profile stream-core up -d stream-core
+    ;;
+  *)
+    warn "Embedded stream core was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core"
+    ;;
+esac
+
+case "$ENABLE_WORKER" in
+  y|Y|yes|YES)
+    info "Starting background worker"
+    compose --profile worker up -d worker
+    ;;
+  *)
+    warn "Background worker was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile worker up -d worker"
+    ;;
+esac
+
 wait_for_app "$LOCAL_HEALTH_HOST" "$APP_PORT"
 bootstrap_owner "$LOCAL_HEALTH_HOST" "$APP_PORT" "$OWNER_DISPLAY_NAME" "$OWNER_EMAIL" "$OWNER_PASSWORD"
 
@@ -366,4 +407,6 @@ printf 'Environment file: %s\n' "$ENV_FILE"
 printf '\nUseful commands:\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance ps\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance logs -f app\n'
+printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core\n'
+printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile worker up -d worker\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance pull && docker compose -f docker-compose.instance.yml --env-file .env.instance up -d --build\n'

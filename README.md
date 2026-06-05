@@ -35,6 +35,8 @@ This scaffold includes:
 - Central navigation config
 - Role and permission constants
 - Stream provider interface with mock fallback and stream-core HTTP status provider
+- Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, and manual status endpoints
+- Optional background worker for chat retention pruning and mobile push dispatch/receipt processing
 - Health endpoint
 - Mobile config endpoint
 - Prisma schema and deployed migration set
