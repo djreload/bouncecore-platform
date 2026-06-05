@@ -47,6 +47,7 @@ This scaffold includes:
 - Data-backed account overview, profile editor, settings summary, and notifications inbox
 - Role-aware account dashboard links for assigned Admin, Moderator, Streamer, Producer, and Supporter workspaces
 - Data-backed mobile app configuration API with admin feature flags, maintenance mode, and announcements
+- Mobile v1 public feeds for live status, chat, shop, music, and rewards data
 - Admin notification sender for account/mobile notification surfaces
 - Account session directory with current-session sign out and other-session revoke controls
 - Native chat GIF search and media messages through the Tenor API
