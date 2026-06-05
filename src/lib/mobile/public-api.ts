@@ -90,6 +90,7 @@ export function getMobileEndpoints(): MobileEndpoint[] {
     { key: "auth.logout", href: "/api/mobile/v1/auth/logout" },
     { key: "account", href: "/api/mobile/v1/account" },
     { key: "account.profile", href: "/api/mobile/v1/account/profile" },
+    { key: "account.devices", href: "/api/mobile/v1/account/devices" },
     { key: "account.notifications", href: "/api/mobile/v1/account/notifications" },
     { key: "account.orders", href: "/api/mobile/v1/account/orders" },
     { key: "account.downloads", href: "/api/mobile/v1/account/downloads" },

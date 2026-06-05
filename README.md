@@ -50,6 +50,7 @@ This scaffold includes:
 - Mobile v1 public feeds for live status, chat, shop, music, and rewards data
 - Mobile v1 bearer-token auth and account feeds for profile, notifications, orders, downloads, and rewards
 - Mobile v1 account registration and profile update endpoints using the shared session/auth model
+- Mobile v1 push-device registration, listing, and revocation using hashed token storage
 - Mobile v1 authenticated chat actions for text, Tenor GIFs, live stars, and message reports
 - Mobile v1 PayPal checkout start, capture, and cancel endpoints for shop, music, and stars
 - Admin notification sender for account/mobile notification surfaces
