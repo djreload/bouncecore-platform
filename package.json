@@ -7,17 +7,26 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "stream-core": "tsx src/stream-core/server.ts",
+    "worker": "tsx src/workers/main.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "prisma:generate": "prisma generate"
+    "prisma:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "docker:build": "docker build -t bouncecore-platform:staging ."
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "7.8.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "dotenv": "17.2.3",
     "lucide-react": "1.17.0",
     "next": "16.2.6",
+    "pg": "^8.21.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "tailwind-merge": "3.6.0",
@@ -26,12 +35,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.0",
     "@types/node": "25.9.1",
+    "@types/pg": "^8.20.0",
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.6",
     "prisma": "7.8.0",
     "tailwindcss": "4.3.0",
+    "tsx": "^4.22.3",
     "typescript": "6.0.3"
   },
   "engines": {

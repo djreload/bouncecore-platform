@@ -10,10 +10,10 @@ The platform is split into modules:
 - Live: public live page, stream status, health, playback URL, schedule, stream sessions, provider bridge.
 - Stream keys: DJ/Streamer self-service keys plus Owner/Admin management and audit.
 - Chat: native rooms, live chat, moderation, overlays, VIP/private rooms.
-- Merch shop: products, variants, stock, cart, checkout, orders, fulfilment.
+- Merch shop: products, variants, stock, PayPal checkout, orders, fulfilment.
 - Music marketplace: producer profiles, track uploads, approvals, licenses, downloads, sales reports.
-- Payments: provider abstraction, Stripe-ready and PayPal-ready model, webhooks, audit trail.
-- Rewards: stars, donations, supporter rankings, achievements, spin wheel, prize claims.
+- Payments: PayPal-only model for checkout, stars, producer payouts, webhooks, and audit trail.
+- Rewards: PayPal-funded stars, donations, supporter rankings, achievements, spin wheel, prize claims.
 - Mobile API: config, auth, live, chat, profile, notifications, ads, shop, music, rewards.
 - Admin: one organised control room with grouped navigation and consistent tables/forms/actions.
 
@@ -33,7 +33,7 @@ Bouncecore Platform never becomes an Owncast clone. Streaming internals sit behi
 - `stopRecording()`
 - `handleWebhook(payload)`
 
-The current code includes a `MockStreamProvider`. Future providers can target Owncast-derived headless code, Bouncecore Stream Core, or a native provider without changing public/product modules.
+The current code includes a `MockStreamProvider` fallback and an HTTP stream-core provider selected with `STREAM_PROVIDER=stream-core`. Future providers can target Owncast-derived headless code, Bouncecore Stream Core, or a native provider without changing public/product modules.
 
 ## Security Model
 

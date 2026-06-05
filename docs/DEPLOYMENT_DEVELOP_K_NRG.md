@@ -24,7 +24,29 @@ Read-only SSH inspection of `root@77.68.103.65` found:
 
 ## Safety Decision
 
-No deployment changes were made because Plesk is present and actively managing nginx/Apache/PHP services. The safe next step is to confirm the Plesk subscription/domain layout for `develop.k-nrg.co.uk` before editing web server configs or installing platform services.
+Initial deployment changes have now been made only for the Bouncecore staging target. Plesk is present and actively managing nginx/Apache/PHP services, so the deployment uses isolated Docker services and a domain-specific Apache custom include for `develop.k-nrg.co.uk`.
+
+No unrelated domains, databases, mail settings, or existing containers were modified.
+
+## Current Staging Status
+
+As of this deployment slice:
+
+- Repository path: `/var/www/bouncecore-platform`
+- Deployed branch: `codex/phase-1-auth-foundation`
+- App container: `bouncecore-app`, bound to `127.0.0.1:3000`
+- PostgreSQL container: `bouncecore-postgres`, bound to `127.0.0.1:5432`
+- Redis container: `bouncecore-redis`, bound to `127.0.0.1:6379`
+- Existing unrelated Docker container left alone: `bouncecast`
+- Public URL: `https://develop.k-nrg.co.uk`
+- Health endpoint verified: `https://develop.k-nrg.co.uk/api/health`
+- Setup status verified: `https://develop.k-nrg.co.uk/api/setup/status`
+- Owner setup page verified: `https://develop.k-nrg.co.uk/setup/owner`
+- Initial Prisma migration applied.
+- RBAC seed completed.
+- Owner account not created yet.
+
+The server-side environment file is `/var/www/bouncecore-platform/.env.staging`. It contains generated secrets and must not be committed or displayed.
 
 ## Target Directory
 
@@ -49,6 +71,16 @@ apt install -y redis-server
 ```
 
 Do not run these commands until Plesk impact is reviewed.
+
+Current safer staging path: use isolated Docker containers because Docker is already installed and this avoids changing Plesk-managed system packages.
+
+Bouncecore containers:
+
+- `bouncecore-postgres`, bound to `127.0.0.1:5432`, with its PostgreSQL 18 volume mounted at `/var/lib/postgresql`
+- `bouncecore-redis`, bound to `127.0.0.1:6379`
+- `bouncecore-app`, bound to `127.0.0.1:3000`
+
+These containers live in the Compose project defined by `docker-compose.staging.yml` and use Bouncecore-specific Docker volumes.
 
 ## Database Plan
 
@@ -76,6 +108,17 @@ Use Plesk-safe nginx configuration for only `develop.k-nrg.co.uk`:
 - Back up Plesk-generated config before changes.
 - Test nginx config before reload.
 
+Actual proxy path used:
+
+- Plesk nginx continues to terminate HTTPS and proxy to the domain Apache vhost.
+- Domain-specific Apache custom file:
+  `/var/www/vhosts/system/develop.k-nrg.co.uk/conf/vhost_ssl.conf`
+- That file proxies the SSL Apache vhost to `http://127.0.0.1:3000/`.
+- Backups were written under:
+  `/var/www/vhosts/system/develop.k-nrg.co.uk/conf/bouncecore-backups/`
+- `apache2ctl configtest` returned `Syntax OK`.
+- `nginx -t` returned successful config validation.
+
 ## SSL Plan
 
 - Prefer Plesk Let's Encrypt for `develop.k-nrg.co.uk`.
@@ -100,7 +143,7 @@ When chat is implemented:
 
 ## Stream-Core Service Plan
 
-Initial platform uses `MockStreamProvider`. Future stream core should run separately:
+The platform can run with `MockStreamProvider` fallback or poll a stream-core HTTP status endpoint with `STREAM_PROVIDER=stream-core`. The stream core itself should run separately:
 
 - Platform: `/var/www/bouncecore-platform`
 - Future stream core: separate repo and service
@@ -131,13 +174,23 @@ Future deployment outline:
 mkdir -p /var/www/bouncecore-platform
 cd /var/www/bouncecore-platform
 git clone git@github.com:djreload/bouncecore-platform.git .
-git checkout feature/initial-bouncecore-platform
-npm ci
-npm run build
-npm run prisma:generate
-# Run migrations only after DATABASE_URL points to the Bouncecore database.
-npx prisma migrate deploy
+git checkout codex/phase-1-auth-foundation
+
+# Create .env.staging with server-only secrets before starting containers.
+docker compose --env-file .env.staging -f docker-compose.staging.yml up -d postgres redis
+docker compose --env-file .env.staging -f docker-compose.staging.yml build app
+docker compose --env-file .env.staging -f docker-compose.staging.yml run --rm app npm run db:migrate
+docker compose --env-file .env.staging -f docker-compose.staging.yml run --rm app npm run db:seed
+docker compose --env-file .env.staging -f docker-compose.staging.yml up -d app
 ```
+
+After migrations and seed data are applied, open:
+
+```text
+https://develop.k-nrg.co.uk/setup/owner
+```
+
+Use it once to create the first Owner account. The route locks itself once an Owner role assignment exists.
 
 ## Rollback Plan
 

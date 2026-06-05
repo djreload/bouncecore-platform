@@ -1,4 +1,4 @@
-import type { Role } from "@/lib/auth/roles";
+import type { Permission, Role } from "@/lib/auth/roles";
 
 export type IconName =
   | "activity"
@@ -40,18 +40,18 @@ export type NavigationItem = {
   badge?: string;
   activePrefix?: string;
   requiredRoles?: Role[];
-  requiredPermission?: string;
+  requiredPermission?: Permission;
 };
 
 export const publicNavigation: NavigationItem[] = [
   { label: "Home", href: "/", icon: "home" },
-  { label: "Live", href: "/live", icon: "radio", badge: "Mock" },
+  { label: "Live", href: "/live", icon: "radio" },
   { label: "Chat", href: "/chat", icon: "message" },
   { label: "DJs", href: "/djs", icon: "headphones" },
   { label: "Producers", href: "/producers", icon: "music" },
   { label: "Music", href: "/music", icon: "star" },
   { label: "Shop", href: "/shop", icon: "shopping-bag" },
-  { label: "Rewards", href: "/rewards", icon: "gift" },
+  { label: "Star Support", href: "/rewards", icon: "star" },
   { label: "Account", href: "/account", icon: "user" }
 ];
 
@@ -60,10 +60,18 @@ export const accountNavigation: NavigationItem[] = [
   { label: "Profile", href: "/account/profile", icon: "user", group: "Account" },
   { label: "Orders", href: "/account/orders", icon: "package", group: "Commerce" },
   { label: "Downloads", href: "/account/downloads", icon: "download", group: "Commerce" },
-  { label: "Rewards", href: "/account/rewards", icon: "gift", group: "Supporter" },
+  { label: "Stars", href: "/account/rewards", icon: "star", group: "Supporter" },
   { label: "Notifications", href: "/account/notifications", icon: "bell", group: "Account" },
   { label: "Security", href: "/account/security", icon: "lock", group: "Account" },
   { label: "Settings", href: "/account/settings", icon: "settings", group: "Account" }
+];
+
+export const accountFeatureNavigation: NavigationItem[] = [
+  { label: "Admin control room", href: "/admin", icon: "shield", group: "Assigned features", requiredRoles: ["owner", "admin"] },
+  { label: "Moderation tools", href: "/admin/reports", icon: "message", group: "Assigned features", requiredRoles: ["moderator"] },
+  { label: "Streamer dashboard", href: "/streamer", icon: "radio", group: "Assigned features", requiredRoles: ["streamer", "admin", "owner"] },
+  { label: "Producer dashboard", href: "/producer", icon: "music", group: "Assigned features", requiredRoles: ["producer", "admin", "owner"] },
+  { label: "Supporter stars", href: "/account/rewards", icon: "sparkles", group: "Assigned features", requiredRoles: ["supporter"] }
 ];
 
 export const streamerNavigation: NavigationItem[] = [
@@ -90,7 +98,7 @@ export const producerNavigation: NavigationItem[] = [
 export const adminNavigation: NavigationItem[] = [
   { label: "Dashboard", href: "/admin", icon: "layout", group: "Overview", requiredRoles: ["owner", "admin"] },
   { label: "System health", href: "/admin/system-health", icon: "activity", group: "Overview", requiredRoles: ["owner", "admin"] },
-  { label: "Audit logs", href: "/admin/audit-logs", icon: "shield", group: "Overview", requiredRoles: ["owner", "admin"] },
+  { label: "Audit logs", href: "/admin/audit-logs", icon: "shield", group: "Overview", requiredPermission: "audit.view" },
   { label: "Users", href: "/admin/users", icon: "users", group: "Users & Access", requiredRoles: ["owner", "admin"] },
   { label: "Roles", href: "/admin/roles", icon: "badge", group: "Users & Access", requiredRoles: ["owner", "admin"] },
   { label: "Permissions", href: "/admin/permissions", icon: "lock", group: "Users & Access", requiredRoles: ["owner", "admin"] },
@@ -99,9 +107,9 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Stream keys", href: "/admin/stream-keys", icon: "key", group: "Live Streaming", requiredRoles: ["owner", "admin"] },
   { label: "Stream sessions", href: "/admin/stream-sessions", icon: "activity", group: "Live Streaming", requiredRoles: ["owner", "admin"] },
   { label: "Schedules", href: "/admin/schedules", icon: "calendar", group: "Live Streaming", requiredRoles: ["owner", "admin"] },
-  { label: "Chatrooms", href: "/admin/chatrooms", icon: "message", group: "Chat & Moderation", requiredRoles: ["owner", "admin"] },
-  { label: "Reports", href: "/admin/reports", icon: "shield", group: "Chat & Moderation", requiredRoles: ["owner", "admin"] },
-  { label: "Bans", href: "/admin/bans", icon: "lock", group: "Chat & Moderation", requiredRoles: ["owner", "admin"] },
+  { label: "Chatrooms", href: "/admin/chatrooms", icon: "message", group: "Chat & Moderation", requiredPermission: "moderation.use" },
+  { label: "Reports", href: "/admin/reports", icon: "shield", group: "Chat & Moderation", requiredPermission: "moderation.use" },
+  { label: "Bans", href: "/admin/bans", icon: "lock", group: "Chat & Moderation", requiredPermission: "moderation.use" },
   { label: "Tracks", href: "/admin/tracks", icon: "music", group: "Music Marketplace", requiredRoles: ["owner", "admin"] },
   { label: "Producer approvals", href: "/admin/producer-approvals", icon: "shield", group: "Music Marketplace", requiredRoles: ["owner", "admin"] },
   { label: "Products", href: "/admin/products", icon: "shopping-bag", group: "Merch Shop", requiredRoles: ["owner", "admin"] },
@@ -116,7 +124,14 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Pages", href: "/admin/pages", icon: "layout", group: "Site & Design", requiredRoles: ["owner", "admin"] },
   { label: "Menus", href: "/admin/menus", icon: "search", group: "Site & Design", requiredRoles: ["owner", "admin"] },
   { label: "Themes", href: "/admin/themes", icon: "palette", group: "Site & Design", requiredRoles: ["owner", "admin"] },
-  { label: "General settings", href: "/admin/settings", icon: "settings", group: "Settings", requiredRoles: ["owner", "admin"] },
+  {
+    label: "General settings",
+    href: "/admin/settings",
+    icon: "settings",
+    group: "Settings",
+    requiredRoles: ["owner", "admin"],
+    requiredPermission: "settings.manage"
+  },
   { label: "Integrations", href: "/admin/integrations", icon: "activity", group: "Settings", requiredRoles: ["owner", "admin"] }
 ];
 

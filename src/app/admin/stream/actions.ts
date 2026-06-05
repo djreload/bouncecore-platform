@@ -1,0 +1,155 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { hasPermission } from "@/lib/auth/rbac";
+import { requireSignedInUser } from "@/lib/auth/guards";
+import {
+  createStreamChannel,
+  ensureDefaultStreamChannel,
+  updateStreamChannel
+} from "@/lib/stream/stream-channel-service";
+import { ensureDefaultStreamProfiles, updateStreamProfile } from "@/lib/stream/stream-profile-service";
+import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
+import type { AdminStreamActionState } from "@/app/admin/stream/state";
+
+function formString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
+function isChannelStatus(value: string): value is ChannelStatus {
+  return streamStatusOptions.includes(value as ChannelStatus);
+}
+
+function streamChannelInput(formData: FormData) {
+  const status = formString(formData, "status");
+
+  if (!isChannelStatus(status)) {
+    throw new Error("Invalid stream status.");
+  }
+
+  return {
+    channelId: formString(formData, "channelId") || undefined,
+    title: formString(formData, "title"),
+    slug: formString(formData, "slug"),
+    playbackUrl: formString(formData, "playbackUrl") || undefined,
+    streamProfileId: formString(formData, "streamProfileId") || undefined,
+    status
+  };
+}
+
+function formNumber(formData: FormData, key: string) {
+  const value = Number.parseInt(formString(formData, key), 10);
+
+  return Number.isFinite(value) ? value : 0;
+}
+
+function formBoolean(formData: FormData, key: string) {
+  return formData.get(key) === "on";
+}
+
+function streamProfileInput(formData: FormData) {
+  return {
+    id: formString(formData, "profileId"),
+    label: formString(formData, "label"),
+    description: formString(formData, "description"),
+    videoWidth: formNumber(formData, "videoWidth"),
+    videoHeight: formNumber(formData, "videoHeight"),
+    videoBitrateKbps: formNumber(formData, "videoBitrateKbps"),
+    audioBitrateKbps: formNumber(formData, "audioBitrateKbps"),
+    fps: formNumber(formData, "fps"),
+    keyframeSeconds: formNumber(formData, "keyframeSeconds"),
+    isEnabled: formBoolean(formData, "isEnabled"),
+    isDefault: formBoolean(formData, "isDefault"),
+    sortOrder: formNumber(formData, "sortOrder")
+  };
+}
+
+function revalidateStreamViews() {
+  revalidatePath("/admin/stream");
+  revalidatePath("/admin/stream-sessions");
+  revalidatePath("/live");
+  revalidatePath("/internal/stream/status");
+  revalidatePath("/streamer/obs");
+  revalidatePath("/streamer/status");
+}
+
+export async function adminStreamAction(
+  _previousState: AdminStreamActionState,
+  formData: FormData
+): Promise<AdminStreamActionState> {
+  const intent = formString(formData, "intent");
+  const actor = await requireSignedInUser();
+
+  if (!hasPermission(actor, "stream.settings.manage")) {
+    return {
+      status: "error",
+      message: "You do not have permission to manage stream settings."
+    };
+  }
+
+  try {
+    if (intent === "ensure-default") {
+      await ensureDefaultStreamChannel(actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Default Bouncecore Live channel is ready."
+      };
+    }
+
+    if (intent === "ensure-profiles") {
+      await ensureDefaultStreamProfiles(actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Default stream profiles are ready."
+      };
+    }
+
+    if (intent === "create") {
+      const input = streamChannelInput(formData);
+      await createStreamChannel(input, actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Stream channel created."
+      };
+    }
+
+    if (intent === "update") {
+      const input = streamChannelInput(formData);
+      await updateStreamChannel(input, actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Stream channel updated."
+      };
+    }
+
+    if (intent === "update-profile") {
+      const input = streamProfileInput(formData);
+      await updateStreamProfile(input, actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Stream profile updated."
+      };
+    }
+
+    return {
+      status: "error",
+      message: "Unknown stream channel action."
+    };
+  } catch {
+    return {
+      status: "error",
+      message: "Stream channel action failed. Check the slug, status, and audit log."
+    };
+  }
+}

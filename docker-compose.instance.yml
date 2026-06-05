@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${POSTGRES_CONTAINER:-bouncecore-postgres}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-bouncecore_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-bouncecore_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    ports:
+      - "${POSTGRES_BIND_HOST:-127.0.0.1}:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bouncecore_app} -d ${POSTGRES_DB:-bouncecore_platform}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: ${REDIS_CONTAINER:-bouncecore-redis}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_BIND_HOST:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${APP_IMAGE:-bouncecore-platform}:${APP_IMAGE_TAG:-instance}
+    container_name: ${APP_CONTAINER:-bouncecore-app}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.instance
+    ports:
+      - "${APP_BIND_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
+    volumes:
+      - uploads_data:/app/public/uploads
+
+  stream-core:
+    profiles:
+      - stream-core
+    image: ${APP_IMAGE:-bouncecore-platform}:${APP_IMAGE_TAG:-instance}
+    container_name: ${STREAM_CORE_CONTAINER:-bouncecore-stream-core}
+    restart: unless-stopped
+    env_file:
+      - .env.instance
+    environment:
+      STREAM_CORE_HTTP_HOST: 0.0.0.0
+      STREAM_CORE_HTTP_PORT: 8088
+      STREAM_CORE_STATE_FILE: /data/state.json
+      STREAM_CORE_KEY_VALIDATION_URL: http://app:3000/internal/stream/keys/validate
+      STREAM_CORE_KEY_VALIDATION_TOKEN: ${INTERNAL_TASK_TOKEN:?INTERNAL_TASK_TOKEN is required}
+    command: ["npm", "run", "stream-core"]
+    ports:
+      - "${STREAM_CORE_BIND_HOST:-127.0.0.1}:${STREAM_CORE_HTTP_BIND_PORT:-18088}:8088"
+    volumes:
+      - stream_core_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:8088/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    profiles:
+      - worker
+    image: ${APP_IMAGE:-bouncecore-platform}:${APP_IMAGE_TAG:-instance}
+    container_name: ${WORKER_CONTAINER:-bouncecore-worker}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env.instance
+    command: ["npm", "run", "worker"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/bouncecore-worker-heartbeat && find /tmp/bouncecore-worker-heartbeat -mmin -2 | grep -q ."]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME:-bouncecore_postgres_data}
+  redis_data:
+    name: ${REDIS_VOLUME:-bouncecore_redis_data}
+  uploads_data:
+    name: ${UPLOADS_VOLUME:-bouncecore_uploads}
+  stream_core_data:
+    name: ${STREAM_CORE_VOLUME:-bouncecore_stream_core_data}

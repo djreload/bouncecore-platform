@@ -12,7 +12,7 @@
 
 ## Phase 2: Live and Stream Provider Integration
 
-- Replace mock stream data with provider-backed services.
+- Configure and connect the stream-core HTTP provider for real status, health, playback, and viewer telemetry.
 - Add stream channels, sessions, events, health checks, and playback config.
 - Add internal stream status and webhook handlers.
 - Add live/offline UI states and go-live notification flow.
@@ -39,7 +39,7 @@
 - Build products, variants, stock, cart, checkout model, orders, addresses, fulfilment events.
 - Add customer order history.
 - Add admin fulfilment dashboard.
-- Prepare Stripe/PayPal payment abstraction.
+- Prepare PayPal payment abstraction for stars, shop checkout, and producer payouts.
 
 ## Phase 6: Music Marketplace and Producers
 
