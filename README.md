@@ -115,11 +115,11 @@ http://localhost:3000
 
 ## Staging Deployment Target
 
-- Temporary domain: `develop.k-nrg.co.uk`
-- VPS: `root@77.68.103.65`
+- Temporary domain: whatever domain
+- VPS: a good one
 - Target path: `/var/www/bouncecore-platform`
 
-The VPS currently appears to be Plesk-managed. Do not edit global nginx, Apache, mail, database, or unrelated site configs without confirming the Plesk domain layout first.
+Do not edit global nginx, Apache, mail, database, or unrelated site configs without confirming the domain layout first.
 
 ## Interactive Server Install
 
