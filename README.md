@@ -37,6 +37,7 @@ This scaffold includes:
 - Stream provider interface with mock fallback and stream-core HTTP status provider
 - Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
 - Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
+- Adaptive browser playback using HLS variant switching when the playback URL points to a multi-variant `.m3u8` master manifest
 - Optional background worker for chat retention pruning and mobile push dispatch/receipt processing
 - Health endpoint
 - Mobile config endpoint
@@ -149,6 +150,6 @@ Use `.env.example` as a template only.
 
 1. Wire real authentication, users, roles, and permission guards.
 2. Create real PostgreSQL migrations and seeds.
-3. Connect the Owncast-derived ingest/transcode service to the stream-core auth/profile endpoints.
+3. Connect the Owncast-derived ingest/transcode service to the stream-core auth/profile endpoints and publish a multi-variant HLS master manifest for adaptive playback.
 4. Add realtime Redis/WebSocket chat presence and queue workers.
 5. Harden staging with backups, monitoring, and production deployment checks.

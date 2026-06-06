@@ -88,6 +88,7 @@ export default async function LivePage() {
             healthStatus={health.status}
             playbackUrl={playbackUrl}
             status={status}
+            streamProfile={channel?.streamProfile ?? null}
             title={channel?.title ?? "Bouncecore Live"}
             viewerCount={viewerCount}
           />
