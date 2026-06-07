@@ -78,6 +78,7 @@ const port = configuredNumber("STREAM_CORE_HTTP_PORT", defaultPort);
 const internalToken = envValue("STREAM_CORE_INTERNAL_TOKEN");
 const keyValidationUrl = envValue("STREAM_CORE_KEY_VALIDATION_URL");
 const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envValue("INTERNAL_TASK_TOKEN");
+const mediaGatewayPlaybackUrl = envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
 const publicPlaybackUrl = envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
@@ -178,6 +179,26 @@ function requireAuth(request: IncomingMessage, response: ServerResponse) {
   return false;
 }
 
+function requireQueryToken(url: URL, response: ServerResponse) {
+  if (!internalToken) {
+    json(response, 503, {
+      error: "stream_core_token_not_configured"
+    });
+    return false;
+  }
+
+  const provided = url.searchParams.get("token")?.trim() ?? "";
+
+  if (provided && safeEqual(provided, internalToken)) {
+    return true;
+  }
+
+  json(response, 401, {
+    error: "unauthorized"
+  });
+  return false;
+}
+
 async function readBody(request: IncomingMessage) {
   const chunks: Buffer[] = [];
 
@@ -207,7 +228,11 @@ async function readBody(request: IncomingMessage) {
   }
 
   if (contentType.toLowerCase().includes("application/json") || raw.trim().startsWith("{")) {
-    return JSON.parse(raw);
+    try {
+      return JSON.parse(raw);
+    } catch {
+      throw new Error("invalid_json_body");
+    }
   }
 
   return {
@@ -269,21 +294,85 @@ function requestHeader(request: IncomingMessage, key: string) {
   return typeof value === "string" ? value : Array.isArray(value) ? value[0] : "";
 }
 
+function queryParamValue(rawQuery: unknown, key: string) {
+  const query = toStringValue(rawQuery);
+
+  if (!query) {
+    return null;
+  }
+
+  return toStringValue(new URLSearchParams(query.startsWith("?") ? query.slice(1) : query).get(key));
+}
+
 function extractStreamKey(payload: Record<string, unknown>, url: URL, request: IncomingMessage) {
   return (
     toStringValue(payload.streamKey) ??
     toStringValue(payload.stream_key) ??
     toStringValue(payload.key) ??
     toStringValue(payload.password) ??
+    toStringValue(payload.pass) ??
+    toStringValue(payload.token) ??
     toStringValue(payload.name) ??
+    queryParamValue(payload.query, "streamKey") ??
+    queryParamValue(payload.query, "stream_key") ??
+    queryParamValue(payload.query, "key") ??
+    queryParamValue(payload.query, "password") ??
+    queryParamValue(payload.query, "pass") ??
+    queryParamValue(payload.query, "token") ??
     toStringValue(url.searchParams.get("streamKey")) ??
     toStringValue(url.searchParams.get("stream_key")) ??
     toStringValue(url.searchParams.get("key")) ??
     toStringValue(url.searchParams.get("password")) ??
+    toStringValue(url.searchParams.get("pass")) ??
     toStringValue(url.searchParams.get("name")) ??
     toStringValue(requestHeader(request, "x-stream-key")) ??
     toStringValue(requestHeader(request, "x-owncast-stream-key"))
   );
+}
+
+function streamKeyFromPath(path: string | null) {
+  if (!path) {
+    return null;
+  }
+
+  return (
+    path
+      .split("/")
+      .map((segment) => segment.trim())
+      .find((segment) => segment.startsWith("bc_live_")) ?? null
+  );
+}
+
+function mediaGatewayHlsUrl(path: string | null) {
+  if (!mediaGatewayPlaybackUrl) {
+    return null;
+  }
+
+  if (!mediaGatewayPlaybackUrl.includes("{path}")) {
+    return mediaGatewayPlaybackUrl;
+  }
+
+  const safePath = (path ?? "live")
+    .split("/")
+    .filter((segment) => segment && !segment.startsWith("bc_live_"))
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  return mediaGatewayPlaybackUrl.replace("{path}", safePath || "live");
+}
+
+function toMediaGatewayAction(value: unknown) {
+  const action = toStringValue(value)?.toLowerCase();
+
+  if (action === "publish" || action === "read" || action === "playback" || action === "api" || action === "metrics" || action === "pprof") {
+    return action;
+  }
+
+  return null;
+}
+
+function isPublicPlaybackAction(action: string | null) {
+  return action === "read" || action === "playback";
 }
 
 function toEvent(value: unknown) {
@@ -534,6 +623,87 @@ async function handleStreamKeyValidation(request: IncomingMessage, response: Ser
   });
 }
 
+async function handleMediaGatewayAuth(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (request.method !== "POST") {
+    methodNotAllowed(response);
+    return;
+  }
+
+  if (!requireQueryToken(url, response)) {
+    return;
+  }
+
+  const body = await readBody(request);
+
+  if (!isObject(body)) {
+    json(response, 400, {
+      error: "invalid_body"
+    });
+    return;
+  }
+
+  const action = toMediaGatewayAction(body.action);
+  const path = toStringValue(body.path);
+
+  if (isPublicPlaybackAction(action)) {
+    json(response, 200, {
+      ok: true
+    });
+    return;
+  }
+
+  if (action !== "publish") {
+    json(response, 403, {
+      error: "action_not_allowed"
+    });
+    return;
+  }
+
+  const rawKey = extractStreamKey(body, url, request) ?? streamKeyFromPath(path);
+
+  if (!rawKey) {
+    json(response, 401, {
+      reason: "missing_key",
+      valid: false
+    });
+    return;
+  }
+
+  const result = await validateStreamKey(rawKey);
+
+  if (!result.valid) {
+    json(response, 403, {
+      reason: result.reason ?? "invalid_key",
+      valid: false
+    });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const playbackUrl = mediaGatewayHlsUrl(path);
+
+  applyValidatedStreamKey(result);
+  state.checkedAt = now;
+  state.ingestConnected = true;
+  state.lastIngestAt = now;
+  state.status = "starting";
+
+  if (playbackUrl) {
+    state.playbackUrl = playbackUrl;
+  }
+
+  await persistState();
+
+  json(response, 200, {
+    channel: result.channel ?? null,
+    ok: true,
+    playbackUrl: state.playbackUrl,
+    profile: result.profile ?? result.channel?.streamProfile ?? null,
+    streamKeyFingerprint: result.key.fingerprint,
+    valid: true
+  });
+}
+
 async function handleIngest(request: IncomingMessage, response: ServerResponse, url: URL) {
   if (request.method !== "POST") {
     methodNotAllowed(response);
@@ -675,6 +845,11 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       return;
     }
 
+    if (url.pathname === "/mediamtx/auth" || url.pathname === "/api/mediamtx/auth" || url.pathname === "/api/media-gateway/auth") {
+      await handleMediaGatewayAuth(request, response, url);
+      return;
+    }
+
     if (url.pathname === "/events/ingest" || url.pathname === "/ingest") {
       await handleIngest(request, response, url);
       return;
@@ -687,6 +862,22 @@ async function route(request: IncomingMessage, response: ServerResponse) {
 
     notFound(response);
   } catch (error) {
+    if (error instanceof Error && error.message === "invalid_json_body") {
+      json(response, 400, {
+        error: "invalid_body",
+        message: "Request body must be valid JSON."
+      });
+      return;
+    }
+
+    if (error instanceof Error && error.message === "Request body is too large.") {
+      json(response, 413, {
+        error: "body_too_large",
+        message: error.message
+      });
+      return;
+    }
+
     json(response, 500, {
       error: "stream_core_error",
       message: error instanceof Error ? error.message : "Unknown stream-core error."

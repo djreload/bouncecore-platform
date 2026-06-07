@@ -36,6 +36,7 @@ This scaffold includes:
 - Role and permission constants
 - Stream provider interface with mock fallback and stream-core HTTP status provider
 - Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
+- Optional MediaMTX RTMP/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
 - Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
 - Adaptive browser playback using HLS variant switching when the playback URL points to a multi-variant `.m3u8` master manifest
 - Optional background worker for chat retention pruning and mobile push dispatch/receipt processing
@@ -131,6 +132,16 @@ bash scripts/install-instance.sh
 
 The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, stream-key validation endpoint/token, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
 
+## Optional Media Gateway
+
+The `media-gateway` Docker profile runs MediaMTX for RTMP ingest and HLS playback. It delegates publish authentication to stream-core at `/api/mediamtx/auth`, so only active Bouncecore stream keys are accepted. It is off by default because live stream ports may already be owned by another service.
+
+```bash
+docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway
+```
+
+Configure `MEDIA_GATEWAY_PUBLIC_HLS_URL` with a fixed public HLS URL or a `{path}` template. Avoid exposing raw stream keys in public playback URLs; pass stream keys as RTMP credentials/query values whenever possible.
+
 ## Secrets Warning
 
 Never commit:
@@ -150,6 +161,6 @@ Use `.env.example` as a template only.
 
 1. Wire real authentication, users, roles, and permission guards.
 2. Create real PostgreSQL migrations and seeds.
-3. Connect the Owncast-derived ingest/transcode service to the stream-core auth/profile endpoints and publish a multi-variant HLS master manifest for adaptive playback.
+3. Connect the Owncast-derived ingest/transcode service or MediaMTX/FFmpeg pipeline to stream profiles and publish a multi-variant HLS master manifest for adaptive playback.
 4. Add realtime Redis/WebSocket chat presence and queue workers.
 5. Harden staging with backups, monitoring, and production deployment checks.

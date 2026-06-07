@@ -127,6 +127,11 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     ),
     check("Public playback URL", Boolean(stream.provider.playbackUrl), stream.provider.playbackUrl ?? "Not configured", "Used by the live player and public status surfaces."),
     check("RTMP ingest URL", configured("RTMP_INGEST_URL"), publicValue("RTMP_INGEST_URL"), "Shown to streamers in OBS setup."),
+    optionalCheck(
+      "Media gateway HLS template",
+      configured("MEDIA_GATEWAY_PUBLIC_HLS_URL"),
+      "Optional MediaMTX HLS URL template used by stream-core after authenticated RTMP publish."
+    ),
     check(
       "Stream-key validation",
       configured("STREAM_CORE_KEY_VALIDATION_URL") && configured("INTERNAL_TASK_TOKEN"),

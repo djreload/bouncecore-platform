@@ -39,6 +39,17 @@ function envCheck(label: string, key: string): HealthCheck {
   };
 }
 
+function optionalEnvCheck(label: string, key: string): HealthCheck {
+  const configured = Boolean(process.env[key]?.trim());
+
+  return {
+    detail: key,
+    label,
+    status: "healthy",
+    value: configured ? "Configured" : "Optional"
+  };
+}
+
 async function databaseCheck(): Promise<HealthCheck> {
   const startedAt = performance.now();
 
@@ -121,6 +132,7 @@ export async function getAdminSystemHealthData() {
     envCheck("PayPal webhook ID", "PAYPAL_WEBHOOK_ID"),
     envCheck("RTMP ingest URL", "RTMP_INGEST_URL"),
     envCheck("Stream key validation URL", "STREAM_CORE_KEY_VALIDATION_URL"),
+    optionalEnvCheck("Media gateway HLS URL", "MEDIA_GATEWAY_PUBLIC_HLS_URL"),
     envCheck("Playback URL", "PUBLIC_PLAYBACK_URL")
   ];
   const criticalChecks = checks.filter((check) => check.status === "critical").length;
