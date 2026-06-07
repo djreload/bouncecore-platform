@@ -142,6 +142,15 @@ docker compose -f docker-compose.instance.yml --env-file .env.instance --profile
 
 Configure `MEDIA_GATEWAY_PUBLIC_HLS_URL` with a fixed public HLS URL or a `{path}` template. Avoid exposing raw stream keys in public playback URLs; pass stream keys as RTMP credentials/query values whenever possible.
 
+On Windows/Docker Desktop, run a local RTMP-to-HLS smoke test with a fresh local stream key:
+
+```powershell
+$env:STREAM_TEST_KEY = "bc_live_..."
+npm.cmd run stream:smoke
+```
+
+The smoke test starts the local stream-core/media-gateway profiles, pulls a disposable FFmpeg Docker image if needed, publishes a realtime test pattern over RTMP, and polls the HLS playlist until it is available.
+
 ## Secrets Warning
 
 Never commit:

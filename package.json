@@ -16,7 +16,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "docker:build": "docker build -t bouncecore-platform:staging ."
+    "docker:build": "docker build -t bouncecore-platform:staging .",
+    "stream:smoke": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-test.ps1"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
