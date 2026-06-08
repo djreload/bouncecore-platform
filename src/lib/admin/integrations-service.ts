@@ -1,5 +1,6 @@
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
+import { getHlsPlaybackHealth, type HlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getStreamProviderMode } from "@/lib/stream/stream-provider";
 
 export type IntegrationStatus = "ready" | "partial" | "missing";
@@ -93,6 +94,15 @@ function optionalCheck(label: string, configuredValue: boolean, detail: string):
   };
 }
 
+function manifestCheck(playbackHealth: HlsPlaybackHealth): IntegrationCheck {
+  return {
+    detail: playbackHealth.detail,
+    label: "Playback manifest",
+    status: playbackHealth.status === "healthy" ? "ready" : "partial",
+    value: playbackHealth.value
+  };
+}
+
 function groupStatus(checks: IntegrationCheck[]): IntegrationStatus {
   const ready = checks.filter((item) => item.status === "ready").length;
 
@@ -126,6 +136,13 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
   const streamProviderMode = getStreamProviderMode();
   const streamProviderReady = streamProviderMode !== "mock" && configured("STREAM_CORE_INTERNAL_URL");
   const transcoderEnabled = enabled("TRANSCODER_ENABLED");
+  const streamIsActive = stream.provider.health.ingestConnected || stream.provider.status !== "offline";
+  const playbackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") || stream.provider.playbackUrl : stream.provider.playbackUrl;
+  const playbackHealth = await getHlsPlaybackHealth({
+    adaptive: transcoderEnabled,
+    live: streamIsActive,
+    playbackUrl: envValue("HLS_PLAYBACK_HEALTH_URL") || playbackUrl
+  });
   const paypalChecks: IntegrationCheck[] = paypal.checks.map((item) => ({
     detail: item.detail,
     label: item.label,
@@ -153,6 +170,12 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       "Internal HTTP source for stream status, health, playback, and viewer telemetry."
     ),
     check("Public playback URL", Boolean(stream.provider.playbackUrl), stream.provider.playbackUrl ?? "Not configured", "Used by the live player and public status surfaces."),
+    optionalCheck(
+      "Playback health URL",
+      configured("HLS_PLAYBACK_HEALTH_URL"),
+      "Optional server-side HLS URL for admin manifest checks when the public URL is not reachable from the app container."
+    ),
+    manifestCheck(playbackHealth),
     check("RTMP ingest URL", configured("RTMP_INGEST_URL"), publicValue("RTMP_INGEST_URL"), "Shown to streamers in OBS setup."),
     optionalCheck(
       "Media gateway HLS template",

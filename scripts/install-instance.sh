@@ -295,6 +295,22 @@ if [ "$TRANSCODER_ENABLED" = "true" ]; then
 fi
 
 PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "$DEFAULT_PUBLIC_PLAYBACK_URL")"
+DEFAULT_HLS_PLAYBACK_HEALTH_URL=""
+
+case "$ENABLE_TRANSCODER" in
+  y|Y|yes|YES)
+    DEFAULT_HLS_PLAYBACK_HEALTH_URL="http://hls-origin/live/master.m3u8"
+    ;;
+  *)
+    case "$ENABLE_MEDIA_GATEWAY" in
+      y|Y|yes|YES)
+        DEFAULT_HLS_PLAYBACK_HEALTH_URL="http://media-gateway:8888/live/index.m3u8"
+        ;;
+    esac
+    ;;
+esac
+
+HLS_PLAYBACK_HEALTH_URL="$(prompt "Server-side HLS health URL, blank to use public playback URL" "$DEFAULT_HLS_PLAYBACK_HEALTH_URL")"
 TENOR_API_KEY="$(prompt_secret_optional "Tenor API key")"
 PUSH_TOKEN_ENCRYPTION_KEY="$(prompt_optional_secret "Push token encryption key")"
 PUSH_TOKEN_ENCRYPTION_KEY="${PUSH_TOKEN_ENCRYPTION_KEY:-$(generate_secret)}"
@@ -378,6 +394,7 @@ MEDIA_GATEWAY_BIND_HOST=$MEDIA_GATEWAY_BIND_HOST
 MEDIA_GATEWAY_RTMP_BIND_PORT=$MEDIA_GATEWAY_RTMP_BIND_PORT
 MEDIA_GATEWAY_HLS_BIND_PORT=$MEDIA_GATEWAY_HLS_BIND_PORT
 MEDIA_GATEWAY_PUBLIC_HLS_URL=$MEDIA_GATEWAY_PUBLIC_HLS_URL
+HLS_PLAYBACK_HEALTH_URL=$HLS_PLAYBACK_HEALTH_URL
 TRANSCODER_ENABLED=$TRANSCODER_ENABLED
 HLS_ORIGIN_CONTAINER=bouncecore-hls-origin
 TRANSCODER_CONTAINER=bouncecore-media-transcoder

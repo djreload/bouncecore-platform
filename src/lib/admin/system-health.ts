@@ -1,6 +1,7 @@
 import { cpus, freemem, totalmem, uptime } from "node:os";
 import { prisma } from "@/lib/db/prisma";
 import { getProviderSnapshot } from "@/lib/stream/stream-channel-service";
+import { getHlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 
 type HealthStatus = "healthy" | "warning" | "critical";
 
@@ -41,6 +42,10 @@ function envCheck(label: string, key: string): HealthCheck {
 
 function enabled(key: string) {
   return process.env[key]?.trim().toLowerCase() === "true";
+}
+
+function envValue(key: string) {
+  return process.env[key]?.trim() ?? "";
 }
 
 function modeCheck(label: string, active: boolean, detail: string): HealthCheck {
@@ -132,6 +137,16 @@ export async function getAdminSystemHealthData() {
   const memoryFree = freemem();
   const memoryUsedPercent = Math.round(((memoryTotal - memoryFree) / memoryTotal) * 100);
   const transcoderEnabled = enabled("TRANSCODER_ENABLED");
+  const playbackUrl = transcoderEnabled
+    ? process.env.TRANSCODER_HLS_PUBLIC_URL?.trim() || streamResult.playbackUrl
+    : streamResult.playbackUrl ?? process.env.PUBLIC_PLAYBACK_URL?.trim() ?? null;
+  const playbackHealthUrl = envValue("HLS_PLAYBACK_HEALTH_URL") || playbackUrl;
+  const streamIsActive = streamResult.health.ingestConnected || streamResult.status !== "offline";
+  const playbackManifest = await getHlsPlaybackHealth({
+    adaptive: transcoderEnabled,
+    live: streamIsActive,
+    playbackUrl: playbackHealthUrl
+  });
   const streamHealthDetail =
     "details" in streamResult.health && typeof streamResult.health.details === "string"
       ? streamResult.health.details
@@ -170,7 +185,14 @@ export async function getAdminSystemHealthData() {
     enabledEnvCheck("Adaptive HLS master URL", "TRANSCODER_HLS_PUBLIC_URL", transcoderEnabled),
     enabledEnvCheck("Transcoder RTMP input", "TRANSCODER_INPUT_URL", transcoderEnabled),
     enabledEnvCheck("HLS origin host port", "TRANSCODER_HLS_BIND_PORT", transcoderEnabled),
-    envCheck("Playback URL", "PUBLIC_PLAYBACK_URL")
+    envCheck("Playback URL", "PUBLIC_PLAYBACK_URL"),
+    optionalEnvCheck("Playback health URL", "HLS_PLAYBACK_HEALTH_URL"),
+    {
+      detail: playbackManifest.detail,
+      label: "Playback manifest",
+      status: playbackManifest.status,
+      value: playbackManifest.value
+    }
   ];
   const criticalChecks = checks.filter((check) => check.status === "critical").length;
   const warningChecks = checks.filter((check) => check.status === "warning").length;
@@ -213,7 +235,12 @@ export async function getAdminSystemHealthData() {
       {
         label: "Playback mode",
         value: transcoderEnabled ? "Adaptive HLS" : "Direct HLS",
-        detail: transcoderEnabled ? process.env.TRANSCODER_HLS_PUBLIC_URL?.trim() || "Missing adaptive master URL" : streamResult.playbackUrl ?? "Provider playback URL"
+        detail: playbackUrl ?? "Provider playback URL"
+      },
+      {
+        label: "HLS variants",
+        value: playbackManifest.variantCount ? playbackManifest.variantCount.toLocaleString("en-GB") : "Waiting",
+        detail: playbackManifest.detail
       }
     ]
   };

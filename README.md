@@ -39,6 +39,7 @@ This scaffold includes:
 - Optional MediaMTX RTMP/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
 - Optional FFmpeg adaptive HLS transcoder profile with low/standard/HD variants and a CORS-enabled HLS origin
 - Admin integrations and system-health checks for direct HLS versus adaptive HLS stream-stack readiness
+- Admin HLS manifest reachability checks while streams are active, including adaptive variant-count validation
 - Worker-backed stream-provider sync that records live/offline transitions into stream sessions and stream events
 - Manual admin stream-session sync control with audit logging for provider refreshes
 - Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
@@ -176,9 +177,12 @@ When enabling this path, set:
 ```text
 TRANSCODER_ENABLED=true
 TRANSCODER_HLS_PUBLIC_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
+HLS_PLAYBACK_HEALTH_URL=http://hls-origin/live/master.m3u8
 PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
 STREAM_CORE_PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
 ```
+
+`HLS_PLAYBACK_HEALTH_URL` is optional and server-side only. Use it when the app container should check an internal HLS origin URL while browsers use the public playback URL.
 
 On Windows/Docker Desktop, run the adaptive smoke test with:
 
