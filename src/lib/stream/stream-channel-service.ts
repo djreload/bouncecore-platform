@@ -187,9 +187,40 @@ export async function getAdminStreamSessionsData() {
       take: 50
     })
   ]);
+  const starsBySession = sessions.length
+    ? await prisma.starSend.groupBy({
+        by: ["streamSessionId"],
+        where: {
+          streamSessionId: {
+            in: sessions.map((session) => session.id)
+          }
+        },
+        _count: {
+          _all: true
+        },
+        _sum: {
+          amount: true
+        }
+      })
+    : [];
+  const starsBySessionId = new Map(
+    starsBySession
+      .filter((row) => row.streamSessionId)
+      .map((row) => [
+        row.streamSessionId as string,
+        {
+          sendCount: row._count._all,
+          stars: row._sum.amount ?? 0
+        }
+      ])
+  );
 
   return {
-    sessions,
+    sessions: sessions.map((session) => ({
+      ...session,
+      starSendCount: starsBySessionId.get(session.id)?.sendCount ?? 0,
+      starsSent: starsBySessionId.get(session.id)?.stars ?? 0
+    })),
     events
   };
 }

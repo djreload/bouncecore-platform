@@ -4,6 +4,7 @@ import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { pruneExpiredChatHistory } from "@/lib/chat/chat-service";
 import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
 import { getStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
+import { syncStreamProviderSnapshot } from "@/lib/stream/stream-session-sync-service";
 
 export const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
@@ -101,6 +102,10 @@ export async function createLiveChatStarSend(
 
   const amount = parseStarSendAmount(input.amount);
   const note = normalizeNote(input.note);
+
+  await syncStreamProviderSnapshot().catch(() => {
+    return null;
+  });
 
   const result = await prisma.$transaction(async (tx) => {
     const room = await tx.chatRoom.findUniqueOrThrow({
