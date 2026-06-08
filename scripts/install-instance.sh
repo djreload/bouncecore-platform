@@ -81,6 +81,42 @@ require_url_safe() {
   fi
 }
 
+require_single_line() {
+  local label="$1"
+  local value="$2"
+
+  case "$value" in
+    *$'\n'*|*$'\r'*)
+      die "$label must be a single line."
+      ;;
+  esac
+}
+
+urlencode() {
+  local value="$1"
+  local encoded=""
+  local char
+  local hex
+  local i
+  local LC_ALL=C
+
+  for ((i = 0; i < ${#value}; i += 1)); do
+    char="${value:i:1}"
+
+    case "$char" in
+      [A-Za-z0-9_.~-])
+        encoded+="$char"
+        ;;
+      *)
+        printf -v hex '%%%02X' "'$char"
+        encoded+="$hex"
+        ;;
+    esac
+  done
+
+  printf '%s' "$encoded"
+}
+
 require_nonempty() {
   local label="$1"
   local value="$2"
@@ -332,7 +368,8 @@ require_nonempty "PostgreSQL username" "$POSTGRES_USER"
 require_nonempty "First server owner email" "$OWNER_EMAIL"
 require_url_safe "PostgreSQL database name" "$POSTGRES_DB"
 require_url_safe "PostgreSQL username" "$POSTGRES_USER"
-require_url_safe "PostgreSQL password" "$POSTGRES_PASSWORD"
+require_single_line "PostgreSQL password" "$POSTGRES_PASSWORD"
+DATABASE_PASSWORD_URLENCODED="$(urlencode "$POSTGRES_PASSWORD")"
 
 if [ "$OWNER_PASSWORD" != "$OWNER_PASSWORD_CONFIRM" ]; then
   die "Owner passwords do not match."
@@ -373,7 +410,7 @@ REDIS_BIND_HOST=$REDIS_BIND_HOST
 REDIS_PORT=$REDIS_PORT
 REDIS_VOLUME=bouncecore_redis_data
 
-DATABASE_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB
+DATABASE_URL=postgresql://$POSTGRES_USER:$DATABASE_PASSWORD_URLENCODED@postgres:5432/$POSTGRES_DB
 REDIS_URL=redis://redis:6379
 NEXT_PUBLIC_APP_URL=$APP_URL
 STREAM_PROVIDER=$STREAM_PROVIDER

@@ -135,7 +135,7 @@ For a fresh Linux server with a checked-out copy of this repo, run:
 bash scripts/install-instance.sh
 ```
 
-The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, stream-key validation endpoint/token, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, stream-key validation endpoint/token, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. Database passwords can include normal strong-password punctuation; the installer URL-encodes the database password inside `DATABASE_URL`. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
 
 ## Optional Media Gateway
 
@@ -210,8 +210,8 @@ Use `.env.example` as a template only.
 
 ## Next Steps
 
-1. Wire real authentication, users, roles, and permission guards.
-2. Create real PostgreSQL migrations and seeds.
-3. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS port ownership and reverse-proxy routing are confirmed.
-4. Add realtime Redis/WebSocket chat presence and queue workers.
-5. Harden staging with backups, monitoring, and production deployment checks.
+1. Run the interactive installer against a disposable Linux target and record any server-package edge cases before using it on production.
+2. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS stream-port ownership and reverse-proxy routing are confirmed.
+3. Add CI checks for lint, typecheck, build, Prisma validation, and installer syntax.
+4. Add backup and restore scripts for PostgreSQL, Redis append-only data, uploaded media, and generated HLS volumes.
+5. Add production monitoring for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
