@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { subscribeToChatRoomChanges } from "@/lib/chat/chat-realtime";
 import { getPublicChatMessages, getPublicChatRoom, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,8 +27,13 @@ function encodeServerComment(comment: string) {
 
 function messageSignature(messages: ChatMessageSummary[]) {
   const latestMessage = messages.at(-1);
+  const reactionSignature = messages
+    .map((message) =>
+      `${message.id}:${message.reactions.map((reaction) => `${reaction.key}-${reaction.count}-${reaction.reacted ? "1" : "0"}`).join(",")}`
+    )
+    .join("|");
 
-  return `${messages.length}:${latestMessage?.id ?? "empty"}:${latestMessage?.createdAt ?? ""}`;
+  return `${messages.length}:${latestMessage?.id ?? "empty"}:${latestMessage?.createdAt ?? ""}:${reactionSignature}`;
 }
 
 function roomSignature(room: ChatRoomSummary | null) {
@@ -111,12 +117,13 @@ function createRefreshSignal(signal: AbortSignal) {
 
 export async function GET(request: Request, context: RouteContext) {
   const { roomId } = await context.params;
+  const currentUser = await getCurrentUser();
 
   let initialMessages: ChatMessageSummary[];
   let initialRoom: ChatRoomSummary | null;
 
   try {
-    [initialMessages, initialRoom] = await Promise.all([getPublicChatMessages(roomId), getPublicChatRoom(roomId)]);
+    [initialMessages, initialRoom] = await Promise.all([getPublicChatMessages(roomId, currentUser?.id), getPublicChatRoom(roomId)]);
   } catch {
     return NextResponse.json({ error: "Chat stream is not available right now." }, { status: 404 });
   }
@@ -163,7 +170,7 @@ export async function GET(request: Request, context: RouteContext) {
           }
 
           try {
-            const [messages, room] = await Promise.all([getPublicChatMessages(roomId), getPublicChatRoom(roomId)]);
+            const [messages, room] = await Promise.all([getPublicChatMessages(roomId, currentUser?.id), getPublicChatRoom(roomId)]);
             const nextSignature = messageSignature(messages);
             const nextRoomSignature = roomSignature(room);
 

@@ -2,7 +2,7 @@ import { CalendarClock, UserRound } from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
 import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
-import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
+import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
@@ -24,10 +24,10 @@ function scheduleTone(status: string) {
 }
 
 export default async function LivePage() {
-  const [liveState, chatData, currentUser, roleDisplayLabels, schedules] = await Promise.all([
+  const currentUser = await getCurrentUser();
+  const [liveState, chatData, roleDisplayLabels, schedules] = await Promise.all([
     getPublicLiveState(),
-    getPublicChatData("live"),
-    getCurrentUser(),
+    getPublicChatData("live", currentUser?.id),
     getRoleDisplayNameOverrides(),
     getPublicUpcomingStreamSchedules()
   ]);
@@ -71,9 +71,21 @@ export default async function LivePage() {
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,
+    deletedAt: message.deletedAt,
     authorDisplayName: message.authorDisplayName,
     authorUserId: message.authorUserId,
-    authorRoles: message.authorRoles
+    authorRoles: message.authorRoles,
+    reactions: message.reactions
+  }));
+  const assetRows: PublicChatAssetRow[] = chatData.assets.map((asset) => ({
+    id: asset.id,
+    packId: asset.packId,
+    packName: asset.packName,
+    name: asset.name,
+    shortcode: asset.shortcode,
+    imageUrl: asset.imageUrl,
+    kind: asset.kind,
+    isAnimated: asset.isAnimated
   }));
 
   return (
@@ -148,6 +160,7 @@ export default async function LivePage() {
               compact
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
               currentStarBalance={currentStarBalance}
+              assets={assetRows}
               messages={messageRows}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}

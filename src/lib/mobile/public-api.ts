@@ -63,10 +63,12 @@ function publicRoom(room: ChatRoomSummary) {
 }
 
 function publicMessage(message: ChatMessageSummary) {
+  const mediaOnlyMessage = ["gif", "sticker", "emoji"].includes(message.kind);
+
   return {
     id: message.id,
     roomId: message.roomId,
-    body: message.kind === "gif" ? "" : message.body,
+    body: mediaOnlyMessage ? "" : message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,
     mediaPreviewUrl: message.mediaPreviewUrl,
@@ -79,7 +81,11 @@ function publicMessage(message: ChatMessageSummary) {
     author: {
       displayName: message.authorDisplayName,
       roles: message.authorRoles
-    }
+    },
+    reactions: message.reactions.map((reaction) => ({
+      key: reaction.key,
+      count: reaction.count
+    }))
   };
 }
 
@@ -135,7 +141,17 @@ export async function getMobileChatPayload(roomSlug?: string) {
   return {
     rooms: data.rooms.map(publicRoom),
     selectedRoom: data.selectedRoom ? publicRoom(data.selectedRoom) : null,
-    messages: data.messages.map(publicMessage)
+    messages: data.messages.map(publicMessage),
+    assets: data.assets.map((asset) => ({
+      id: asset.id,
+      packId: asset.packId,
+      packName: asset.packName,
+      name: asset.name,
+      shortcode: asset.shortcode,
+      imageUrl: asset.imageUrl,
+      kind: asset.kind,
+      isAnimated: asset.isAnimated
+    }))
   };
 }
 

@@ -1,6 +1,6 @@
 import { PublicShell } from "@/components/layout/public-shell";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
-import type { PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
+import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -20,9 +20,9 @@ function firstParam(value: string | string[] | undefined) {
 
 export default async function ChatPage({ searchParams }: ChatPageProps) {
   const params = searchParams ? await searchParams : {};
-  const [{ rooms, selectedRoom, messages }, currentUser, roleDisplayLabels] = await Promise.all([
-    getPublicChatData(firstParam(params.room)),
-    getCurrentUser(),
+  const currentUser = await getCurrentUser();
+  const [{ rooms, selectedRoom, messages, assets }, roleDisplayLabels] = await Promise.all([
+    getPublicChatData(firstParam(params.room), currentUser?.id),
     getRoleDisplayNameOverrides()
   ]);
   const currentStarBalance = await getStarWalletBalance(currentUser?.id);
@@ -61,9 +61,21 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,
+    deletedAt: message.deletedAt,
     authorDisplayName: message.authorDisplayName,
     authorUserId: message.authorUserId,
-    authorRoles: message.authorRoles
+    authorRoles: message.authorRoles,
+    reactions: message.reactions
+  }));
+  const assetRows: PublicChatAssetRow[] = assets.map((asset) => ({
+    id: asset.id,
+    packId: asset.packId,
+    packName: asset.packName,
+    name: asset.name,
+    shortcode: asset.shortcode,
+    imageUrl: asset.imageUrl,
+    kind: asset.kind,
+    isAnimated: asset.isAnimated
   }));
 
   return (
@@ -79,6 +91,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
         <ChatRoomPanel
           currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
           currentStarBalance={currentStarBalance}
+          assets={assetRows}
           messages={messageRows}
           roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}

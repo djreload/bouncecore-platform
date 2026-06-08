@@ -3,21 +3,24 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Flag, ImageIcon, Lock, LogIn, MessageSquare, Search, Send, Star, Timer } from "lucide-react";
+import { Flag, ImageIcon, Lock, LogIn, MessageSquare, Search, Send, Smile, Star, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission } from "@/lib/auth/rbac";
+import { chatReactionOptions } from "@/lib/chat/reactions";
 import {
   initialPublicChatActionState,
   type PublicChatActionState,
+  type PublicChatAssetRow,
   type PublicChatMessageRow,
   type PublicChatRoomRow,
   type PublicChatUser
 } from "@/app/chat/state";
 
 type ChatRoomPanelProps = {
+  assets: PublicChatAssetRow[];
   rooms: PublicChatRoomRow[];
   selectedRoom: PublicChatRoomRow | null;
   messages: PublicChatMessageRow[];
@@ -87,6 +90,7 @@ function slowModeLabel(seconds: number) {
 }
 
 export function ChatRoomPanel({
+  assets,
   rooms,
   selectedRoom,
   messages,
@@ -101,6 +105,7 @@ export function ChatRoomPanel({
     initialPublicChatActionState
   );
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
+  const [assetPanelOpen, setAssetPanelOpen] = useState(false);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
@@ -115,6 +120,8 @@ export function ChatRoomPanel({
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
+  const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
+  const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
 
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -361,6 +368,7 @@ export function ChatRoomPanel({
           {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
             const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
+            const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
             return (
               <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={message.id}>
@@ -400,9 +408,71 @@ export function ChatRoomPanel({
                       width={mediaSize.width}
                     />
                   </div>
+                ) : isCustomAssetMessage ? (
+                  <div className="mt-3">
+                    <Image
+                      alt={message.mediaAlt ?? message.body}
+                      className={`h-auto w-auto max-w-full object-contain ${
+                        message.kind === "emoji" ? "max-h-20" : compact ? "max-h-36" : "max-h-56"
+                      }`}
+                      height={message.kind === "emoji" ? 96 : 240}
+                      onLoad={scrollToLatestMessage}
+                      sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
+                      src={message.mediaUrl ?? ""}
+                      unoptimized
+                      width={message.kind === "emoji" ? 96 : 240}
+                    />
+                  </div>
                 ) : (
                   <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.body}</p>
                 )}
+
+                {selectedRoom && !message.deletedAt ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-bc-line pt-3">
+                    {currentUser
+                      ? chatReactionOptions.map((reaction) => {
+                          const summary = message.reactions.find((item) => item.key === reaction.key);
+                          const count = summary?.count ?? 0;
+
+                          return (
+                            <form action={formAction} key={reaction.key}>
+                              <input name="intent" type="hidden" value="reaction" />
+                              <input name="roomId" type="hidden" value={selectedRoom.id} />
+                              <input name="messageId" type="hidden" value={message.id} />
+                              <input name="reactionKey" type="hidden" value={reaction.key} />
+                              <button
+                                aria-label={reaction.label}
+                                className={`bc-focus-ring inline-flex min-h-8 items-center gap-1 rounded-full border px-2 text-sm transition disabled:opacity-50 ${
+                                  summary?.reacted
+                                    ? "border-bc-electric/60 bg-bc-electric/15 text-white"
+                                    : "border-bc-line bg-bc-panel text-bc-muted hover:border-bc-electric/50 hover:text-white"
+                                }`}
+                                disabled={pending || roomLockedForUser}
+                                title={reaction.label}
+                                type="submit"
+                              >
+                                <span aria-hidden="true">{reaction.icon}</span>
+                                {count > 0 ? <span className="text-xs font-semibold">{count}</span> : null}
+                              </button>
+                            </form>
+                          );
+                        })
+                      : message.reactions.map((reaction) => {
+                          const option = chatReactionOptions.find((item) => item.key === reaction.key);
+
+                          return option ? (
+                            <span
+                              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-bc-line bg-bc-panel px-2 text-sm text-bc-muted"
+                              key={reaction.key}
+                              title={option.label}
+                            >
+                              <span aria-hidden="true">{option.icon}</span>
+                              <span className="text-xs font-semibold">{reaction.count}</span>
+                            </span>
+                          ) : null;
+                        })}
+                  </div>
+                ) : null}
 
                 {canReportMessage && selectedRoom ? (
                   <form action={formAction} className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-bc-line pt-3">
@@ -521,12 +591,27 @@ export function ChatRoomPanel({
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button
                     disabled={roomLockedForUser}
-                    onClick={() => setGifPanelOpen((open) => !open)}
+                    onClick={() => {
+                      setGifPanelOpen((open) => !open);
+                      setAssetPanelOpen(false);
+                    }}
                     type="button"
                     variant={gifPanelOpen ? "dark" : "ghost"}
                   >
                     <ImageIcon className="h-4 w-4" aria-hidden="true" />
                     GIF
+                  </Button>
+                  <Button
+                    disabled={roomLockedForUser}
+                    onClick={() => {
+                      setAssetPanelOpen((open) => !open);
+                      setGifPanelOpen(false);
+                    }}
+                    type="button"
+                    variant={assetPanelOpen ? "dark" : "ghost"}
+                  >
+                    <Smile className="h-4 w-4" aria-hidden="true" />
+                    Stickers
                   </Button>
                   <Button disabled={pending || roomLockedForUser} type="submit" variant="primary">
                     <Send className="h-4 w-4" aria-hidden="true" />
@@ -535,6 +620,72 @@ export function ChatRoomPanel({
                 </div>
               </div>
             </form>
+
+            {assetPanelOpen ? (
+              <section className="rounded-md border border-bc-line bg-bc-ink p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Badge tone="pink">Custom chat assets</Badge>
+                  <span className="text-xs font-semibold text-bc-muted">{assets.length} available</span>
+                </div>
+
+                {assets.length ? (
+                  <div className="mt-3 grid gap-4">
+                    {[
+                      { label: "Stickers", items: stickerAssets },
+                      { label: "Animated emoji", items: emojiAssets }
+                    ].map((group) =>
+                      group.items.length ? (
+                        <div key={group.label}>
+                          <p className="text-xs font-semibold uppercase text-bc-muted">{group.label}</p>
+                          <div className={`mt-2 grid gap-2 ${compact ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-4 md:grid-cols-6"}`}>
+                            {group.items.map((asset) => (
+                              <form action={formAction} className="min-w-0" key={asset.id}>
+                                <input name="intent" type="hidden" value="asset" />
+                                <input name="roomId" type="hidden" value={selectedRoom.id} />
+                                <input name="assetId" type="hidden" value={asset.id} />
+                                <button
+                                  className="bc-focus-ring group grid w-full gap-2 rounded-md border border-bc-line bg-bc-panel p-2 text-left transition hover:border-bc-electric/60"
+                                  disabled={pending || roomLockedForUser}
+                                  title={`${asset.name} ${asset.shortcode}`}
+                                  type="submit"
+                                >
+                                  <span className="relative aspect-square w-full overflow-hidden rounded-md bg-bc-void">
+                                    <Image
+                                      alt={asset.name}
+                                      className="h-full w-full object-contain transition group-hover:scale-105"
+                                      height={160}
+                                      sizes={compact ? "96px" : "140px"}
+                                      src={asset.imageUrl}
+                                      unoptimized
+                                      width={160}
+                                    />
+                                  </span>
+                                  <span className="truncate text-xs font-semibold text-white">{asset.name}</span>
+                                  <span className="flex flex-wrap gap-1">
+                                    <Badge className="py-0.5" tone={asset.kind === "emoji" ? "cyan" : "pink"}>
+                                      {asset.kind}
+                                    </Badge>
+                                    {asset.isAnimated ? (
+                                      <Badge className="py-0.5" tone="acid">
+                                        Animated
+                                      </Badge>
+                                    ) : null}
+                                  </span>
+                                </button>
+                              </form>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 rounded-md border border-dashed border-bc-line bg-bc-panel p-3 text-sm text-bc-muted">
+                    No custom stickers or emoji are available yet.
+                  </p>
+                )}
+              </section>
+            ) : null}
 
             {gifPanelOpen ? (
               <section className="rounded-md border border-bc-line bg-bc-ink p-3">

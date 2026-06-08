@@ -7,7 +7,14 @@ const maxPreviewMp3Bytes = 20 * 1024 * 1024;
 const maxImageBytes = 5 * 1024 * 1024;
 const maxDownloadBytes = 50 * 1024 * 1024;
 
-type UploadKind = "product-images" | "track-artwork" | "stream-offline-images" | "music-previews" | "music-downloads";
+type UploadKind =
+  | "product-images"
+  | "track-artwork"
+  | "stream-offline-images"
+  | "chat-stickers"
+  | "chat-emojis"
+  | "music-previews"
+  | "music-downloads";
 
 function fileExtension(name: string) {
   return path.extname(name).toLowerCase().replace(/[^a-z0-9.]/g, "");
@@ -244,6 +251,36 @@ export function normalizeOptionalStreamOfflineImageUrl(value: string | undefined
   return text;
 }
 
+export function normalizeOptionalChatAssetUrl(value: string | undefined, kind: "chat-stickers" | "chat-emojis") {
+  const text = value?.trim() ?? "";
+  const label = kind === "chat-emojis" ? "Animated emoji URL" : "Sticker URL";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error(`${label} must be 500 characters or fewer.`);
+  }
+
+  if (text.startsWith("/uploads/")) {
+    if (/^\/uploads\/(chat-stickers|chat-emojis)\/[^/]+\.(jpg|jpeg|png|webp|gif|avif)$/i.test(text)) {
+      return text;
+    }
+
+    throw new Error(`${label} upload path must point to an uploaded chat image file.`);
+  }
+
+  const url = assertHttpUrl(text, label);
+  const pathname = url.pathname.toLowerCase();
+
+  if (!/\.(jpg|jpeg|png|webp|gif|avif)$/.test(pathname)) {
+    throw new Error(`${label} must point to an image file.`);
+  }
+
+  return text;
+}
+
 export function normalizeOptionalPreviewUrl(value: string | undefined) {
   const text = value?.trim() ?? "";
 
@@ -388,6 +425,27 @@ export async function saveOptionalStreamOfflineImageUpload(file: File | null | u
     ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
     maxImageBytes,
     "Offline image upload",
+    buffer
+  );
+}
+
+export async function saveOptionalChatAssetUpload(file: File | null | undefined, kind: "chat-stickers" | "chat-emojis") {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxImageBytes) {
+    throw new Error("Chat image upload is too large.");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  return savePublicUpload(
+    kind,
+    file,
+    ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
+    maxImageBytes,
+    "Chat image upload",
     buffer
   );
 }

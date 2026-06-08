@@ -292,9 +292,9 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
                     <p className="mt-1 text-xs text-bc-muted">#{message.roomSlug}</p>
                   </td>
                   <td className={`max-w-[360px] px-4 py-3 ${message.deletedAt ? "text-bc-muted line-through" : "text-white"}`}>
-                    {message.kind === "gif" && message.mediaPreviewUrl && !message.deletedAt ? (
+                    {["gif", "sticker", "emoji"].includes(message.kind) && message.mediaPreviewUrl && !message.deletedAt ? (
                       <div>
-                        <Badge tone="cyan">GIF</Badge>
+                        <Badge tone={message.kind === "gif" ? "cyan" : "pink"}>{message.kind}</Badge>
                         <Image
                           alt={message.mediaAlt ?? message.body}
                           className="mt-2 h-auto max-h-28 w-auto rounded-md border border-bc-line object-contain"

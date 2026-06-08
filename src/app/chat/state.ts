@@ -25,9 +25,28 @@ export type PublicChatMessageRow = {
   starAmount: number | null;
   starNote: string | null;
   createdAt: string;
+  deletedAt: string | null;
   authorDisplayName: string;
   authorUserId: string | null;
   authorRoles: Role[];
+  reactions: PublicChatReactionRow[];
+};
+
+export type PublicChatReactionRow = {
+  key: string;
+  count: number;
+  reacted: boolean;
+};
+
+export type PublicChatAssetRow = {
+  id: string;
+  packId: string;
+  packName: string;
+  name: string;
+  shortcode: string;
+  imageUrl: string;
+  kind: "sticker" | "emoji";
+  isAnimated: boolean;
 };
 
 export type PublicChatUser = {
