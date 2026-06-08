@@ -98,6 +98,7 @@ This scaffold includes:
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
 - GitHub Actions CI for Prisma validation, migrations, lint, typecheck, build, production dependency audit, and installer syntax checks
+- Backup and restore scripts for PostgreSQL plus Docker volumes used by uploads, Redis, stream-core state, and adaptive HLS output
 - Required planning, design, navigation, stream-boundary, and deployment docs
 
 ## Local Development
@@ -137,6 +138,22 @@ bash scripts/install-instance.sh
 ```
 
 The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, stream-key validation endpoint/token, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. Database passwords can include normal strong-password punctuation; the installer URL-encodes the database password inside `DATABASE_URL`. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+
+## Backup and Restore
+
+Create a dated local backup bundle with:
+
+```bash
+bash scripts/backup-instance.sh
+```
+
+Restore a backup bundle with:
+
+```bash
+bash scripts/restore-instance.sh backups/20260608T203000Z
+```
+
+Backups can contain private data and paid media files, so keep them out of git and copy them to secure off-server storage. See `docs/BACKUP_RESTORE.md`.
 
 ## Optional Media Gateway
 
@@ -214,5 +231,5 @@ Use `.env.example` as a template only.
 1. Run the interactive installer against a disposable Linux target and record any server-package edge cases before using it on production.
 2. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS stream-port ownership and reverse-proxy routing are confirmed.
 3. Extend CI with stream-smoke tests and Docker image build/publish once the stream-core profile is ready for production rollout.
-4. Add backup and restore scripts for PostgreSQL, Redis append-only data, uploaded media, and generated HLS volumes.
-5. Add production monitoring for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
+4. Add production monitoring for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
+5. Add encrypted off-server backup upload and retention once the production storage target is chosen.

@@ -85,5 +85,8 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev
 
-      - name: Validate installer syntax
-        run: bash -n scripts/install-instance.sh
+      - name: Validate maintenance script syntax
+        run: |
+          bash -n scripts/install-instance.sh
+          bash -n scripts/backup-instance.sh
+          bash -n scripts/restore-instance.sh
