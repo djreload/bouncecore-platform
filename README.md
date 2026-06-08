@@ -37,6 +37,7 @@ This scaffold includes:
 - Stream provider interface with mock fallback and stream-core HTTP status provider
 - Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
 - Optional MediaMTX RTMP/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
+- Worker-backed stream-provider sync that records live/offline transitions into stream sessions and stream events
 - Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
 - Adaptive browser playback using HLS variant switching when the playback URL points to a multi-variant `.m3u8` master manifest
 - Optional background worker for chat retention pruning and mobile push dispatch/receipt processing

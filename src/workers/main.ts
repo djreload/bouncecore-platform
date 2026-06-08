@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { pruneExpiredChatHistory } from "../lib/chat/chat-service";
 import { prisma } from "../lib/db/prisma";
 import { checkExpoMobilePushReceipts, processQueuedMobilePushDeliveries } from "../lib/mobile/push-dispatch-service";
+import { syncStreamProviderSnapshot } from "../lib/stream/stream-session-sync-service";
 
 type WorkerTask = {
   enabled: boolean;
@@ -116,6 +117,12 @@ const tasks: WorkerTask[] = [
     run: async () => ({
       deletedMessages: await pruneExpiredChatHistory()
     })
+  },
+  {
+    enabled: envBoolean("WORKER_STREAM_SYNC_ENABLED", true),
+    intervalMs: envNumber("WORKER_STREAM_SYNC_INTERVAL_SECONDS", 15) * 1000,
+    name: "stream-provider-sync",
+    run: syncStreamProviderSnapshot
   },
   {
     enabled: envBoolean("WORKER_MOBILE_PUSH_DISPATCH_ENABLED", true),
