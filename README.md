@@ -97,6 +97,7 @@ This scaffold includes:
 - Database-backed admin Site & Design controls for public page cards, public menu labels/order/visibility, and theme colour token overrides
 - Initial Prisma migration and Owner bootstrap route at `/setup/owner`
 - Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
+- GitHub Actions CI for Prisma validation, migrations, lint, typecheck, build, production dependency audit, and installer syntax checks
 - Required planning, design, navigation, stream-boundary, and deployment docs
 
 ## Local Development
@@ -212,6 +213,6 @@ Use `.env.example` as a template only.
 
 1. Run the interactive installer against a disposable Linux target and record any server-package edge cases before using it on production.
 2. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS stream-port ownership and reverse-proxy routing are confirmed.
-3. Add CI checks for lint, typecheck, build, Prisma validation, and installer syntax.
+3. Extend CI with stream-smoke tests and Docker image build/publish once the stream-core profile is ready for production rollout.
 4. Add backup and restore scripts for PostgreSQL, Redis append-only data, uploaded media, and generated HLS volumes.
 5. Add production monitoring for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
