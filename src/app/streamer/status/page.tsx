@@ -3,6 +3,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { maskIngestUrl } from "@/lib/stream/ingest-url";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getOwnActiveStreamKey } from "@/lib/stream/stream-key-service";
 
@@ -30,6 +31,7 @@ export default async function StreamerStatusPage() {
   const user = await requireUserPermission("stream.dashboard");
   const [liveState, streamKey] = await Promise.all([getPublicLiveState(), getOwnActiveStreamKey(user.id)]);
   const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmp://develop.k-nrg.co.uk/live";
+  const visibleIngestUrl = maskIngestUrl(ingestUrl);
 
   return (
     <DashboardShell
@@ -90,7 +92,7 @@ export default async function StreamerStatusPage() {
               <Signal className="h-4 w-4 text-bc-electric" aria-hidden="true" />
               <h4 className="font-semibold">Ingest URL</h4>
             </div>
-            <p className="mt-3 break-all text-sm text-bc-muted">{ingestUrl}</p>
+            <p className="mt-3 break-all text-sm text-bc-muted">{visibleIngestUrl}</p>
           </article>
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">
             <div className="flex items-center gap-2">

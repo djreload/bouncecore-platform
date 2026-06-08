@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { streamKeyAction } from "@/app/streamer/stream-key/actions";
 import { initialStreamKeyActionState, type StreamKeyActionState } from "@/app/streamer/stream-key/state";
+import { hasStreamKeyPlaceholder, maskIngestUrl, resolveIngestUrlTemplate } from "@/lib/stream/ingest-url";
 import type { StreamKeySummary } from "@/lib/stream/stream-key-service";
 
 type StreamKeyPanelProps = {
   initialKey: StreamKeySummary | null;
   ingestUrl: string;
 };
+
+type CopyTarget = "key" | "url" | null;
 
 function formatDate(date: string | null) {
   return date
@@ -28,18 +31,20 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
     streamKeyAction,
     initialStreamKeyActionState
   );
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<CopyTarget>(null);
   const key = state.key !== undefined ? state.key : initialKey;
   const hasActiveKey = Boolean(key && key.status === "active" && !key.revokedAt);
+  const usesUrlTemplate = hasStreamKeyPlaceholder(ingestUrl);
+  const visibleIngestUrl = state.rawKey ? resolveIngestUrlTemplate(ingestUrl, state.rawKey) : maskIngestUrl(ingestUrl);
 
-  async function copyRawKey() {
-    if (!state.rawKey) {
+  async function copyValue(target: Exclude<CopyTarget, null>, value: string | null) {
+    if (!value) {
       return;
     }
 
-    await navigator.clipboard.writeText(state.rawKey);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2000);
+    await navigator.clipboard.writeText(value);
+    setCopied(target);
+    window.setTimeout(() => setCopied(null), 2000);
   }
 
   return (
@@ -67,12 +72,28 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
           <div className="mt-5 rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Badge tone="acid">Copy now</Badge>
-              <button className="inline-flex items-center gap-2 text-sm font-semibold text-bc-acid hover:text-white" onClick={copyRawKey} type="button">
+              <button className="inline-flex items-center gap-2 text-sm font-semibold text-bc-acid hover:text-white" onClick={() => copyValue("key", state.rawKey ?? null)} type="button">
                 <Copy className="h-4 w-4" aria-hidden="true" />
-                {copied ? "Copied" : "Copy key"}
+                {copied === "key" ? "Copied" : "Copy key"}
               </button>
             </div>
             <p className="mt-3 break-all font-mono text-sm text-white">{state.rawKey}</p>
+            {usesUrlTemplate ? (
+              <div className="mt-4 rounded-md border border-bc-line bg-bc-ink p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <Badge tone="cyan">OBS URL</Badge>
+                  <button
+                    className="inline-flex items-center gap-2 text-sm font-semibold text-bc-electric hover:text-white"
+                    onClick={() => copyValue("url", visibleIngestUrl)}
+                    type="button"
+                  >
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    {copied === "url" ? "Copied" : "Copy URL"}
+                  </button>
+                </div>
+                <p className="mt-3 break-all font-mono text-sm text-bc-muted">{visibleIngestUrl}</p>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="mt-5 rounded-md border border-dashed border-bc-line bg-bc-ink px-3 py-4 font-mono text-sm text-bc-muted">
@@ -125,7 +146,7 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
         <dl className="mt-4 space-y-4 text-sm">
           <div>
             <dt className="font-semibold">Server</dt>
-            <dd className="mt-1 break-all text-bc-muted">{ingestUrl}</dd>
+            <dd className="mt-1 break-all text-bc-muted">{visibleIngestUrl}</dd>
           </div>
           <div>
             <dt className="font-semibold">Stream key</dt>

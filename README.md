@@ -142,6 +142,14 @@ docker compose -f docker-compose.instance.yml --env-file .env.instance --profile
 
 Configure `MEDIA_GATEWAY_PUBLIC_HLS_URL` with a fixed public HLS URL or a `{path}` template. Avoid exposing raw stream keys in public playback URLs; pass stream keys as RTMP credentials/query values whenever possible.
 
+For MediaMTX, set `RTMP_INGEST_URL` as a template such as:
+
+```text
+rtmp://develop.k-nrg.co.uk/live?user=bouncecore&pass={streamKey}
+```
+
+The streamer dashboard masks `{streamKey}` by default and only resolves the full URL immediately after a key is created or rotated.
+
 On Windows/Docker Desktop, run a local RTMP-to-HLS smoke test with a fresh local stream key:
 
 ```powershell
