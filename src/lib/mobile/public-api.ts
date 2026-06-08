@@ -53,8 +53,10 @@ function publicTrack(track: PublicMusicTrack) {
 function publicRoom(room: ChatRoomSummary) {
   return {
     id: room.id,
+    lockedAt: room.lockedAt,
     slug: room.slug,
     name: room.name,
+    slowModeSeconds: room.slowModeSeconds,
     type: room.type,
     messages: room.messages
   };

@@ -10,16 +10,20 @@ import { registerTenorShare } from "@/lib/chat/tenor-service";
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
 
 export type ChatRoomInput = {
+  locked?: boolean;
   roomId?: string;
   name: string;
+  slowModeSeconds?: number;
   slug: string;
   type: ChatRoomType;
 };
 
 export type ChatRoomSummary = {
   id: string;
+  lockedAt: string | null;
   slug: string;
   name: string;
+  slowModeSeconds: number;
   type: string;
   createdAt: string;
   messages: number;
@@ -111,14 +115,17 @@ function normalizeRoomInput(input: ChatRoomInput) {
   assertRoomType(input.type);
 
   const name = input.name.trim();
+  const slowModeSeconds = Math.max(0, Math.min(3600, Math.floor(input.slowModeSeconds ?? 0)));
 
   if (name.length < 2) {
     throw new Error("Chat room name is too short.");
   }
 
   return {
+    locked: Boolean(input.locked),
     roomId: input.roomId,
     name,
+    slowModeSeconds,
     slug: normalizeSlug(input.slug),
     type: input.type
   };
@@ -129,6 +136,8 @@ function toRoomSummary(room: {
   slug: string;
   name: string;
   type: string;
+  lockedAt: Date | null;
+  slowModeSeconds: number;
   createdAt: Date;
   _count: {
     messages: number;
@@ -138,6 +147,8 @@ function toRoomSummary(room: {
     id: room.id,
     slug: room.slug,
     name: room.name,
+    lockedAt: room.lockedAt?.toISOString() ?? null,
+    slowModeSeconds: room.slowModeSeconds,
     type: room.type,
     createdAt: room.createdAt.toISOString(),
     messages: room._count.messages
@@ -328,6 +339,23 @@ export async function getPublicChatMessages(roomId: string) {
   return messages.reverse().map((message) => toMessageSummary(message, authors));
 }
 
+export async function getPublicChatRoom(roomId: string) {
+  const room = await prisma.chatRoom.findUnique({
+    where: {
+      id: roomId
+    },
+    include: {
+      _count: {
+        select: {
+          messages: true
+        }
+      }
+    }
+  });
+
+  return room ? toRoomSummary(room) : null;
+}
+
 export async function getAdminChatroomsData() {
   await pruneExpiredChatHistory();
 
@@ -402,7 +430,9 @@ export async function createChatRoom(input: ChatRoomInput, actorId: string) {
   const roomInput = normalizeRoomInput(input);
   const room = await prisma.chatRoom.create({
     data: {
+      lockedAt: roomInput.locked ? new Date() : null,
       name: roomInput.name,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: roomInput.slug,
       type: roomInput.type
     }
@@ -414,6 +444,8 @@ export async function createChatRoom(input: ChatRoomInput, actorId: string) {
     target: `chat-room:${room.id}`,
     severity: "info",
     metadata: {
+      locked: roomInput.locked,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: room.slug,
       type: room.type
     }
@@ -428,12 +460,22 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
   }
 
   const roomInput = normalizeRoomInput(input);
+  const existingRoom = await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: input.roomId
+    },
+    select: {
+      lockedAt: true
+    }
+  });
   const room = await prisma.chatRoom.update({
     where: {
       id: input.roomId
     },
     data: {
+      lockedAt: roomInput.locked ? existingRoom.lockedAt ?? new Date() : null,
       name: roomInput.name,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: roomInput.slug,
       type: roomInput.type
     }
@@ -445,10 +487,13 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
     target: `chat-room:${room.id}`,
     severity: "info",
     metadata: {
+      locked: roomInput.locked,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: room.slug,
       type: room.type
     }
   });
+  await publishChatRoomChanged(room.id);
 
   return room;
 }

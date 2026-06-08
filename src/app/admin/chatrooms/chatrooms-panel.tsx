@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useActionState } from "react";
-import { MessageSquare, Plus, Radio, Save, ShieldOff } from "lucide-react";
+import { Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
@@ -46,6 +46,19 @@ function imageSize() {
     width: 180,
     height: 120
   };
+}
+
+const slowModeOptions = [
+  { label: "Off", value: 0 },
+  { label: "10 seconds", value: 10 },
+  { label: "30 seconds", value: 30 },
+  { label: "1 minute", value: 60 },
+  { label: "5 minutes", value: 300 },
+  { label: "15 minutes", value: 900 }
+];
+
+function slowModeLabel(seconds: number) {
+  return slowModeOptions.find((option) => option.value === seconds)?.label ?? `${seconds} seconds`;
 }
 
 export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: AdminChatroomsPanelProps) {
@@ -139,7 +152,7 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
       <div className="grid gap-4">
         {rooms.map((room) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={room.id}>
-            <form action={formAction} className="grid gap-4 lg:grid-cols-[1fr_180px_180px_auto]">
+            <form action={formAction} className="grid gap-4 lg:grid-cols-[minmax(220px,1fr)_160px_140px_150px_150px_auto]">
               <input name="intent" type="hidden" value="update" />
               <input name="roomId" type="hidden" value={room.id} />
               <div>
@@ -183,6 +196,37 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`locked-${room.id}`}>
+                  Status
+                </label>
+                <select
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  defaultValue={room.lockedAt ? "true" : "false"}
+                  id={`locked-${room.id}`}
+                  name="locked"
+                >
+                  <option value="false">Unlocked</option>
+                  <option value="true">Locked</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`slow-${room.id}`}>
+                  Slow mode
+                </label>
+                <select
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  defaultValue={String(room.slowModeSeconds)}
+                  id={`slow-${room.id}`}
+                  name="slowModeSeconds"
+                >
+                  {slowModeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="flex items-end">
                 <Button disabled={pending} type="submit" variant="dark">
                   <Save className="h-4 w-4" aria-hidden="true" />
@@ -193,6 +237,14 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge tone={roomTone(room.type)}>{room.type}</Badge>
               <Badge tone="muted">#{room.slug}</Badge>
+              <Badge className="gap-1" tone={room.lockedAt ? "pink" : "acid"}>
+                <Lock className="h-3 w-3" aria-hidden="true" />
+                {room.lockedAt ? "Locked" : "Unlocked"}
+              </Badge>
+              <Badge className="gap-1" tone={room.slowModeSeconds > 0 ? "amber" : "muted"}>
+                <Timer className="h-3 w-3" aria-hidden="true" />
+                {room.slowModeSeconds > 0 ? slowModeLabel(room.slowModeSeconds) : "No slow mode"}
+              </Badge>
               <Badge tone="muted">{room.messages} messages</Badge>
             </div>
           </article>

@@ -24,14 +24,17 @@ function isChatRoomType(value: string): value is ChatRoomType {
 
 function chatRoomInput(formData: FormData): ChatRoomInput {
   const type = formString(formData, "type");
+  const slowModeSeconds = Number(formString(formData, "slowModeSeconds"));
 
   if (!isChatRoomType(type)) {
     throw new Error("Invalid chat room type.");
   }
 
   return {
+    locked: formString(formData, "locked") === "true",
     roomId: formString(formData, "roomId") || undefined,
     name: formString(formData, "name"),
+    slowModeSeconds: Number.isFinite(slowModeSeconds) ? slowModeSeconds : 0,
     slug: formString(formData, "slug"),
     type
   };

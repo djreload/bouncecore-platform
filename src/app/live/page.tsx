@@ -38,16 +38,20 @@ export default async function LivePage() {
   const { channel, status, playbackUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
+    lockedAt: room.lockedAt,
     slug: room.slug,
     name: room.name,
+    slowModeSeconds: room.slowModeSeconds,
     type: room.type,
     messages: room.messages
   }));
   const selectedRoomRow: PublicChatRoomRow | null = chatData.selectedRoom
-    ? {
+      ? {
         id: chatData.selectedRoom.id,
+        lockedAt: chatData.selectedRoom.lockedAt,
         slug: chatData.selectedRoom.slug,
         name: chatData.selectedRoom.name,
+        slowModeSeconds: chatData.selectedRoom.slowModeSeconds,
         type: chatData.selectedRoom.type,
         messages: chatData.selectedRoom.messages
       }

@@ -2,8 +2,10 @@ import type { Role } from "@/lib/auth/rbac";
 
 export type PublicChatRoomRow = {
   id: string;
+  lockedAt: string | null;
   slug: string;
   name: string;
+  slowModeSeconds: number;
   type: string;
   messages: number;
 };

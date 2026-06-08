@@ -387,15 +387,17 @@ model StreamSchedule {
 }
 
 model ChatRoom {
-  id        String        @id @default(cuid())
-  slug      String        @unique
-  name      String
-  type      String        @default("public")
-  messages  ChatMessage[]
-  reports   ChatReport[]
-  bans      ChatBan[]
-  starSends StarSend[]
-  createdAt DateTime      @default(now())
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  name            String
+  type            String        @default("public")
+  lockedAt        DateTime?
+  slowModeSeconds Int           @default(0)
+  messages        ChatMessage[]
+  reports         ChatReport[]
+  bans            ChatBan[]
+  starSends       StarSend[]
+  createdAt       DateTime      @default(now())
 }
 
 model ChatMessage {

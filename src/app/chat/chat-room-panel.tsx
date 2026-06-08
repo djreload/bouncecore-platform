@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Flag, ImageIcon, LogIn, MessageSquare, Search, Send, Star } from "lucide-react";
+import { Flag, ImageIcon, Lock, LogIn, MessageSquare, Search, Send, Star, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { hasPermission } from "@/lib/auth/rbac";
 import {
   initialPublicChatActionState,
   type PublicChatActionState,
@@ -45,6 +46,10 @@ type ChatStreamPayload = {
   messages?: PublicChatMessageRow[];
 };
 
+type ChatRoomStreamPayload = {
+  room?: PublicChatRoomRow | null;
+};
+
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
 const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
@@ -71,6 +76,16 @@ function imageSize(width: number | null, height: number | null) {
   };
 }
 
+function slowModeLabel(seconds: number) {
+  if (seconds >= 60) {
+    const minutes = Math.round(seconds / 60);
+
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
+
 export function ChatRoomPanel({
   rooms,
   selectedRoom,
@@ -91,11 +106,15 @@ export function ChatRoomPanel({
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
+  const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const selectedRoomId = selectedRoom?.id;
+  const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
+  const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
+  const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
 
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -173,6 +192,22 @@ export function ChatRoomPanel({
           }
         } catch {
           // Ignore malformed stream events and keep the current chat view.
+        }
+      });
+
+      eventSource.addEventListener("room", (event) => {
+        if (!active) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as ChatRoomStreamPayload;
+
+          if (payload.room?.id === roomId) {
+            setSyncedRoom(payload.room);
+          }
+        } catch {
+          // Ignore malformed room events and keep the current room state.
         }
       });
 
@@ -264,11 +299,27 @@ export function ChatRoomPanel({
       <div className="border-b border-bc-line p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <Badge tone={selectedRoom ? roomTone(selectedRoom.type) : "muted"}>{selectedRoom?.type ?? "Chat"}</Badge>
-            <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-black`}>{selectedRoom?.name ?? "Chat rooms"}</h2>
+            <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
+            <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-black`}>{visibleRoom?.name ?? "Chat rooms"}</h2>
             <p className="mt-1 text-sm text-bc-muted">
-              {selectedRoom ? `${visibleMessages.length} visible messages in #${selectedRoom.slug}.` : "Create rooms from admin to start chat."}
+              {visibleRoom ? `${visibleMessages.length} visible messages in #${visibleRoom.slug}.` : "Create rooms from admin to start chat."}
             </p>
+            {visibleRoom?.lockedAt || visibleRoom?.slowModeSeconds ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {visibleRoom.lockedAt ? (
+                  <Badge className="gap-1" tone="pink">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    Locked
+                  </Badge>
+                ) : null}
+                {visibleRoom.slowModeSeconds > 0 ? (
+                  <Badge className="gap-1" tone="amber">
+                    <Timer className="h-3 w-3" aria-hidden="true" />
+                    {slowModeLabel(visibleRoom.slowModeSeconds)}
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {currentUser ? (
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -384,7 +435,7 @@ export function ChatRoomPanel({
               <div>
                 <MessageSquare className="mx-auto h-7 w-7 text-bc-electric" aria-hidden="true" />
                 <p className="mt-3 text-sm text-bc-muted">
-                  {selectedRoom ? "No messages yet. Start the room off." : "No chat rooms are configured yet."}
+                  {visibleRoom ? "No messages yet. Start the room off." : "No chat rooms are configured yet."}
                 </p>
               </div>
             </div>
@@ -407,7 +458,12 @@ export function ChatRoomPanel({
 
         {currentUser && selectedRoom ? (
           <div className="grid gap-3">
-            {selectedRoom.type === "live" ? (
+            {roomLockedForUser ? (
+              <div className="rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
+                This chat room is locked by moderation.
+              </div>
+            ) : null}
+            {visibleRoom?.type === "live" ? (
               <form action={formAction} className="grid gap-3 rounded-md border border-bc-acid/25 bg-bc-acid/10 p-3">
                 <input name="intent" type="hidden" value="stars" />
                 <input name="roomId" type="hidden" value={selectedRoom.id} />
@@ -439,7 +495,7 @@ export function ChatRoomPanel({
                     name="note"
                     placeholder="Optional stream alert message"
                   />
-                  <Button disabled={pending || currentStarBalance < liveStarSendAmounts[0]} type="submit" variant="primary">
+                  <Button disabled={pending || roomLockedForUser || currentStarBalance < liveStarSendAmounts[0]} type="submit" variant="primary">
                     <Star className="h-4 w-4" aria-hidden="true" />
                     Send
                   </Button>
@@ -455,14 +511,16 @@ export function ChatRoomPanel({
                 maxLength={500}
                 name="body"
                 onKeyDown={handleComposerKeyDown}
-                placeholder={`Message #${selectedRoom.slug}`}
+                placeholder={`Message #${visibleRoom?.slug ?? selectedRoom.slug}`}
                 ref={textareaRef}
+                disabled={roomLockedForUser}
                 required
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-bc-muted">Press Enter to send message. Shift+Enter for line break.</p>
                 <div className="flex flex-wrap justify-end gap-2">
                   <Button
+                    disabled={roomLockedForUser}
                     onClick={() => setGifPanelOpen((open) => !open)}
                     type="button"
                     variant={gifPanelOpen ? "dark" : "ghost"}
@@ -470,7 +528,7 @@ export function ChatRoomPanel({
                     <ImageIcon className="h-4 w-4" aria-hidden="true" />
                     GIF
                   </Button>
-                  <Button disabled={pending} type="submit" variant="primary">
+                  <Button disabled={pending || roomLockedForUser} type="submit" variant="primary">
                     <Send className="h-4 w-4" aria-hidden="true" />
                     Send
                   </Button>
@@ -519,7 +577,7 @@ export function ChatRoomPanel({
                           <input name="gifQuery" type="hidden" value={gifQuery.trim()} />
                           <button
                             className="bc-focus-ring group relative aspect-square w-full overflow-hidden rounded-md border border-bc-line bg-bc-panel"
-                            disabled={pending}
+                            disabled={pending || roomLockedForUser}
                             title={gif.title}
                             type="submit"
                           >

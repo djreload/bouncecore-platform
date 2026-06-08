@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { subscribeToChatRoomChanges } from "@/lib/chat/chat-realtime";
-import { getPublicChatMessages, type ChatMessageSummary } from "@/lib/chat/chat-service";
+import { getPublicChatMessages, getPublicChatRoom, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,6 +28,10 @@ function messageSignature(messages: ChatMessageSummary[]) {
   const latestMessage = messages.at(-1);
 
   return `${messages.length}:${latestMessage?.id ?? "empty"}:${latestMessage?.createdAt ?? ""}`;
+}
+
+function roomSignature(room: ChatRoomSummary | null) {
+  return `${room?.id ?? "missing"}:${room?.lockedAt ?? "unlocked"}:${room?.slowModeSeconds ?? 0}`;
 }
 
 function waitForNextPoll(signal: AbortSignal, timeoutMs: number) {
@@ -109,9 +113,10 @@ export async function GET(request: Request, context: RouteContext) {
   const { roomId } = await context.params;
 
   let initialMessages: ChatMessageSummary[];
+  let initialRoom: ChatRoomSummary | null;
 
   try {
-    initialMessages = await getPublicChatMessages(roomId);
+    [initialMessages, initialRoom] = await Promise.all([getPublicChatMessages(roomId), getPublicChatRoom(roomId)]);
   } catch {
     return NextResponse.json({ error: "Chat stream is not available right now." }, { status: 404 });
   }
@@ -121,6 +126,7 @@ export async function GET(request: Request, context: RouteContext) {
   const stream = new ReadableStream({
     start(controller) {
       let lastSignature = messageSignature(initialMessages);
+      let lastRoomSignature = roomSignature(initialRoom);
       let lastHeartbeatAt = Date.now();
       const refreshSignal = createRefreshSignal(request.signal);
 
@@ -139,6 +145,7 @@ export async function GET(request: Request, context: RouteContext) {
       }
 
       enqueue(encodeServerEvent("messages", { messages: initialMessages }));
+      enqueue(encodeServerEvent("room", { room: initialRoom }));
 
       async function pumpMessages() {
         const unsubscribe = await subscribeToChatRoomChanges(roomId, refreshSignal.notify).catch(() => null);
@@ -156,8 +163,18 @@ export async function GET(request: Request, context: RouteContext) {
           }
 
           try {
-            const messages = await getPublicChatMessages(roomId);
+            const [messages, room] = await Promise.all([getPublicChatMessages(roomId), getPublicChatRoom(roomId)]);
             const nextSignature = messageSignature(messages);
+            const nextRoomSignature = roomSignature(room);
+
+            if (nextRoomSignature !== lastRoomSignature) {
+              if (!enqueue(encodeServerEvent("room", { room }))) {
+                break;
+              }
+
+              lastRoomSignature = nextRoomSignature;
+              lastHeartbeatAt = Date.now();
+            }
 
             if (nextSignature !== lastSignature) {
               if (!enqueue(encodeServerEvent("messages", { messages }))) {

@@ -28,16 +28,20 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
   const currentStarBalance = await getStarWalletBalance(currentUser?.id);
   const roomRows: PublicChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
+    lockedAt: room.lockedAt,
     slug: room.slug,
     name: room.name,
+    slowModeSeconds: room.slowModeSeconds,
     type: room.type,
     messages: room.messages
   }));
   const selectedRoomRow: PublicChatRoomRow | null = selectedRoom
-    ? {
+      ? {
         id: selectedRoom.id,
+        lockedAt: selectedRoom.lockedAt,
         slug: selectedRoom.slug,
         name: selectedRoom.name,
+        slowModeSeconds: selectedRoom.slowModeSeconds,
         type: selectedRoom.type,
         messages: selectedRoom.messages
       }
