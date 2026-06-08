@@ -122,6 +122,7 @@ export async function getMobileLivePayload() {
   return {
     channel: live.channel,
     health: live.health,
+    offlineImageUrl: live.offlineImageUrl,
     playbackUrl: live.playbackUrl,
     status: live.status,
     viewerCount: live.viewerCount

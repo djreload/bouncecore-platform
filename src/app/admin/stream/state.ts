@@ -7,6 +7,7 @@ export type AdminStreamChannelRow = {
   title: string;
   status: string;
   playbackUrl: string | null;
+  offlineImageUrl: string | null;
   streamProfile: StreamProfileSummary | null;
   streamKeys: number;
   sessions: number;

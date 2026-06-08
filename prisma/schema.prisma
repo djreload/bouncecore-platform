@@ -297,6 +297,7 @@ model StreamChannel {
   slug            String          @unique
   title           String
   playbackUrl     String?
+  offlineImageUrl String?
   status          String          @default("offline")
   streamProfileId String?
   streamProfile   StreamProfile?  @relation(fields: [streamProfileId], references: [id], onDelete: SetNull)

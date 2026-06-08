@@ -15,6 +15,7 @@ export default async function AdminStreamPage() {
     title: channel.title,
     status: channel.status,
     playbackUrl: channel.playbackUrl,
+    offlineImageUrl: channel.offlineImageUrl,
     streamProfile: channel.streamProfile,
     streamKeys: channel.streamKeys,
     sessions: channel.sessions,

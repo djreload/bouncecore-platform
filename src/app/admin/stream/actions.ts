@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { saveOptionalStreamOfflineImageUpload } from "@/lib/media/media-service";
 import {
   createStreamChannel,
   ensureDefaultStreamChannel,
@@ -17,12 +18,18 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File ? value : null;
+}
+
 function isChannelStatus(value: string): value is ChannelStatus {
   return streamStatusOptions.includes(value as ChannelStatus);
 }
 
-function streamChannelInput(formData: FormData) {
+async function streamChannelInput(formData: FormData) {
   const status = formString(formData, "status");
+  const uploadedOfflineImageUrl = await saveOptionalStreamOfflineImageUpload(formFile(formData, "offlineImageFile"));
 
   if (!isChannelStatus(status)) {
     throw new Error("Invalid stream status.");
@@ -33,6 +40,7 @@ function streamChannelInput(formData: FormData) {
     title: formString(formData, "title"),
     slug: formString(formData, "slug"),
     playbackUrl: formString(formData, "playbackUrl") || undefined,
+    offlineImageUrl: (uploadedOfflineImageUrl ?? formString(formData, "offlineImageUrl")) || undefined,
     streamProfileId: formString(formData, "streamProfileId") || undefined,
     status
   };
@@ -110,7 +118,7 @@ export async function adminStreamAction(
     }
 
     if (intent === "create") {
-      const input = streamChannelInput(formData);
+      const input = await streamChannelInput(formData);
       await createStreamChannel(input, actor.id);
       revalidateStreamViews();
 
@@ -121,7 +129,7 @@ export async function adminStreamAction(
     }
 
     if (intent === "update") {
-      const input = streamChannelInput(formData);
+      const input = await streamChannelInput(formData);
       await updateStreamChannel(input, actor.id);
       revalidateStreamViews();
 
@@ -146,10 +154,10 @@ export async function adminStreamAction(
       status: "error",
       message: "Unknown stream channel action."
     };
-  } catch {
+  } catch (error) {
     return {
       status: "error",
-      message: "Stream channel action failed. Check the slug, status, and audit log."
+      message: error instanceof Error ? error.message : "Stream channel action failed. Check the slug, status, and audit log."
     };
   }
 }

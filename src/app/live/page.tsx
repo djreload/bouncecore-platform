@@ -35,7 +35,7 @@ export default async function LivePage() {
     getLiveStarSupportData(),
     getStarWalletBalance(currentUser?.id)
   ]);
-  const { channel, status, playbackUrl, viewerCount, health } = liveState;
+  const { channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -90,6 +90,7 @@ export default async function LivePage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <LivePlaybackPlayer
             healthStatus={health.status}
+            offlineImageUrl={offlineImageUrl}
             playbackUrl={playbackUrl}
             status={status}
             streamProfile={channel?.streamProfile ?? null}
