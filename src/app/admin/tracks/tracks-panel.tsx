@@ -143,6 +143,19 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
         <p className="mt-1 text-xs text-bc-muted">Use square artwork, ideally 500 x 500.</p>
       </div>
       <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`artwork-file-${track.id}`}>
+          Upload artwork
+        </label>
+        <input
+          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={`artwork-file-${track.id}`}
+          name="artworkFile"
+          type="file"
+        />
+      </div>
+      <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`status-${track.id}`}>
           Status
         </label>
@@ -176,6 +189,19 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
         />
       </div>
       <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`preview-file-${track.id}`}>
+          Upload sample MP3
+        </label>
+        <input
+          accept="audio/mpeg,audio/mp3,.mp3"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={`preview-file-${track.id}`}
+          name="previewFile"
+          type="file"
+        />
+      </div>
+      <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`download-${track.id}`}>
           Download URL
         </label>
@@ -187,9 +213,23 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           maxLength={500}
           name="downloadUrl"
           placeholder="MP3/320 under 50MB or Google Drive share link"
-          type="url"
+          type="text"
         />
         <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
+      </div>
+      <div>
+        <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`download-file-${track.id}`}>
+          Upload download MP3
+        </label>
+        <input
+          accept="audio/mpeg,audio/mp3,.mp3"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={`download-file-${track.id}`}
+          name="downloadFile"
+          type="file"
+        />
+        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 50MB maximum.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`license-${track.id}`}>
@@ -344,7 +384,7 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
             </div>
 
             {mode === "catalogue" ? (
-              <form action={formAction} className="grid gap-4 xl:grid-cols-4">
+              <form action={formAction} className="grid gap-4 xl:grid-cols-4" encType="multipart/form-data">
                 <input name="intent" type="hidden" value="update-track" />
                 <input name="trackId" type="hidden" value={track.id} />
                 <TrackFields pending={pending} track={track} />

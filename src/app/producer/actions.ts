@@ -13,7 +13,7 @@ import {
   type DigitalTrackStatus,
   type ProducerProfileInput
 } from "@/lib/music/music-service";
-import { saveOptionalImageUpload, saveOptionalPreviewMp3 } from "@/lib/media/media-service";
+import { saveOptionalDownloadMp3, saveOptionalImageUpload, saveOptionalPreviewMp3 } from "@/lib/media/media-service";
 import type { ProducerActionState } from "@/app/producer/state";
 
 function formString(formData: FormData, key: string) {
@@ -41,9 +41,10 @@ function profileInput(formData: FormData): ProducerProfileInput {
 
 async function trackInput(formData: FormData): Promise<DigitalTrackInput> {
   const status = formString(formData, "status");
-  const [uploadedArtworkUrl, uploadedPreviewUrl] = await Promise.all([
+  const [uploadedArtworkUrl, uploadedPreviewUrl, uploadedDownloadUrl] = await Promise.all([
     saveOptionalImageUpload(formFile(formData, "artworkFile"), "track-artwork"),
-    saveOptionalPreviewMp3(formFile(formData, "previewFile"))
+    saveOptionalPreviewMp3(formFile(formData, "previewFile")),
+    saveOptionalDownloadMp3(formFile(formData, "downloadFile"))
   ]);
 
   if (!isTrackStatus(status)) {
@@ -53,7 +54,7 @@ async function trackInput(formData: FormData): Promise<DigitalTrackInput> {
   return {
     bpm: formString(formData, "bpm"),
     artworkUrl: uploadedArtworkUrl ?? formString(formData, "artworkUrl"),
-    downloadUrl: formString(formData, "downloadUrl"),
+    downloadUrl: uploadedDownloadUrl ?? formString(formData, "downloadUrl"),
     genre: formString(formData, "genre"),
     licenseSummary: formString(formData, "licenseSummary"),
     licenseType: formString(formData, "licenseType"),

@@ -226,9 +226,26 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           maxLength={500}
           name="downloadUrl"
           placeholder="MP3/320 under 50MB or Google Drive share link"
-          type="url"
+          type="text"
         />
         <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
+      </div>
+      <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={track ? `download-file-${track.id}` : "create-download-file"}
+        >
+          Upload download MP3
+        </label>
+        <input
+          accept="audio/mpeg,audio/mp3,.mp3"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={track ? `download-file-${track.id}` : "create-download-file"}
+          name="downloadFile"
+          type="file"
+        />
+        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 50MB maximum.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `license-${track.id}` : "create-license"}>

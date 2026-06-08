@@ -9,6 +9,7 @@ import {
   type AdminTrackInput
 } from "@/lib/music/admin-music-service";
 import { digitalTrackStatusOptions, type DigitalTrackStatus } from "@/lib/music/music-service";
+import { saveOptionalDownloadMp3, saveOptionalImageUpload, saveOptionalPreviewMp3 } from "@/lib/media/media-service";
 import type { AdminTracksActionState } from "@/app/admin/tracks/state";
 
 function formString(formData: FormData, key: string) {
@@ -16,26 +17,36 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File ? value : null;
+}
+
 function isTrackStatus(value: string): value is DigitalTrackStatus {
   return digitalTrackStatusOptions.includes(value as DigitalTrackStatus);
 }
 
-function trackInput(formData: FormData): AdminTrackInput {
+async function trackInput(formData: FormData): Promise<AdminTrackInput> {
   const status = formString(formData, "status");
+  const [uploadedArtworkUrl, uploadedPreviewUrl, uploadedDownloadUrl] = await Promise.all([
+    saveOptionalImageUpload(formFile(formData, "artworkFile"), "track-artwork"),
+    saveOptionalPreviewMp3(formFile(formData, "previewFile")),
+    saveOptionalDownloadMp3(formFile(formData, "downloadFile"))
+  ]);
 
   if (!isTrackStatus(status)) {
     throw new Error("Invalid track status.");
   }
 
   return {
-    artworkUrl: formString(formData, "artworkUrl"),
+    artworkUrl: uploadedArtworkUrl ?? formString(formData, "artworkUrl"),
     bpm: formString(formData, "bpm"),
-    downloadUrl: formString(formData, "downloadUrl"),
+    downloadUrl: uploadedDownloadUrl ?? formString(formData, "downloadUrl"),
     genre: formString(formData, "genre"),
     licenseSummary: formString(formData, "licenseSummary"),
     licenseType: formString(formData, "licenseType"),
     musicalKey: formString(formData, "musicalKey"),
-    previewUrl: formString(formData, "previewUrl"),
+    previewUrl: uploadedPreviewUrl ?? formString(formData, "previewUrl"),
     pricePounds: formString(formData, "pricePounds"),
     slug: formString(formData, "slug"),
     status,
@@ -75,7 +86,7 @@ export async function adminTracksAction(
     const intent = formString(formData, "intent");
 
     if (intent === "update-track") {
-      const track = await updateAdminTrack(actor.id, trackInput(formData));
+      const track = await updateAdminTrack(actor.id, await trackInput(formData));
       revalidateMusicViews();
 
       return {
