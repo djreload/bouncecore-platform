@@ -36,9 +36,13 @@ type GifResult = {
   height: number | null;
 };
 
-type PolledMessages = {
+type SyncedMessages = {
   roomId: string;
   messages: PublicChatMessageRow[];
+};
+
+type ChatStreamPayload = {
+  messages?: PublicChatMessageRow[];
 };
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
@@ -86,11 +90,11 @@ export function ChatRoomPanel({
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
-  const [polledMessages, setPolledMessages] = useState<PolledMessages | null>(null);
+  const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const selectedRoomId = selectedRoom?.id;
-  const visibleMessages = polledMessages && polledMessages.roomId === selectedRoomId ? polledMessages.messages : messages;
+  const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
 
   const scrollToLatestMessage = useCallback(() => {
@@ -112,7 +116,7 @@ export function ChatRoomPanel({
     const payload = (await response.json()) as { messages?: PublicChatMessageRow[] };
 
     if (response.ok && payload.messages) {
-      setPolledMessages({
+      setSyncedMessages({
         roomId,
         messages: payload.messages
       });
@@ -126,6 +130,8 @@ export function ChatRoomPanel({
 
     let active = true;
     const roomId = selectedRoomId;
+    let fallbackInterval: number | null = null;
+    let eventSource: EventSource | null = null;
 
     async function refreshMessages() {
       if (!active) {
@@ -139,11 +145,57 @@ export function ChatRoomPanel({
       }
     }
 
-    const interval = window.setInterval(refreshMessages, 5000);
+    function startPollingFallback() {
+      if (fallbackInterval !== null) {
+        return;
+      }
+
+      void refreshMessages();
+      fallbackInterval = window.setInterval(refreshMessages, 5000);
+    }
+
+    if ("EventSource" in window) {
+      eventSource = new EventSource(`/api/chat/rooms/${encodeURIComponent(roomId)}/stream`);
+
+      eventSource.addEventListener("messages", (event) => {
+        if (!active) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as ChatStreamPayload;
+
+          if (payload.messages) {
+            setSyncedMessages({
+              roomId,
+              messages: payload.messages
+            });
+          }
+        } catch {
+          // Ignore malformed stream events and keep the current chat view.
+        }
+      });
+
+      eventSource.onerror = () => {
+        if (!active) {
+          return;
+        }
+
+        eventSource?.close();
+        eventSource = null;
+        startPollingFallback();
+      };
+    } else {
+      startPollingFallback();
+    }
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      eventSource?.close();
+
+      if (fallbackInterval !== null) {
+        window.clearInterval(fallbackInterval);
+      }
     };
   }, [loadLatestMessages, selectedRoomId]);
 
@@ -160,18 +212,6 @@ export function ChatRoomPanel({
       return () => window.clearTimeout(timer);
     }
   }, [loadLatestMessages, state.status, state.message, selectedRoomId]);
-
-  useEffect(() => {
-    if (!selectedRoomId) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      void loadLatestMessages(selectedRoomId);
-    }, 0);
-
-    return () => window.clearTimeout(timer);
-  }, [loadLatestMessages, selectedRoomId]);
 
   useEffect(() => {
     scrollToLatestMessage();
