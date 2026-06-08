@@ -39,6 +39,32 @@ function envCheck(label: string, key: string): HealthCheck {
   };
 }
 
+function enabled(key: string) {
+  return process.env[key]?.trim().toLowerCase() === "true";
+}
+
+function modeCheck(label: string, active: boolean, detail: string): HealthCheck {
+  return {
+    detail,
+    label,
+    status: "healthy",
+    value: active ? "Enabled" : "Disabled"
+  };
+}
+
+function enabledEnvCheck(label: string, key: string, active: boolean): HealthCheck {
+  if (!active) {
+    return {
+      detail: `${key} is required only when TRANSCODER_ENABLED=true`,
+      label,
+      status: "healthy",
+      value: "Optional"
+    };
+  }
+
+  return envCheck(label, key);
+}
+
 function optionalEnvCheck(label: string, key: string): HealthCheck {
   const configured = Boolean(process.env[key]?.trim());
 
@@ -105,6 +131,7 @@ export async function getAdminSystemHealthData() {
   const memoryTotal = totalmem();
   const memoryFree = freemem();
   const memoryUsedPercent = Math.round(((memoryTotal - memoryFree) / memoryTotal) * 100);
+  const transcoderEnabled = enabled("TRANSCODER_ENABLED");
   const streamHealthDetail =
     "details" in streamResult.health && typeof streamResult.health.details === "string"
       ? streamResult.health.details
@@ -133,6 +160,16 @@ export async function getAdminSystemHealthData() {
     envCheck("RTMP ingest URL", "RTMP_INGEST_URL"),
     envCheck("Stream key validation URL", "STREAM_CORE_KEY_VALIDATION_URL"),
     optionalEnvCheck("Media gateway HLS URL", "MEDIA_GATEWAY_PUBLIC_HLS_URL"),
+    modeCheck(
+      "Adaptive HLS transcoder",
+      transcoderEnabled,
+      transcoderEnabled
+        ? "FFmpeg adaptive HLS profile is expected to serve a multi-variant master playlist."
+        : "Direct HLS remains available; adaptive checks become required when TRANSCODER_ENABLED=true."
+    ),
+    enabledEnvCheck("Adaptive HLS master URL", "TRANSCODER_HLS_PUBLIC_URL", transcoderEnabled),
+    enabledEnvCheck("Transcoder RTMP input", "TRANSCODER_INPUT_URL", transcoderEnabled),
+    enabledEnvCheck("HLS origin host port", "TRANSCODER_HLS_BIND_PORT", transcoderEnabled),
     envCheck("Playback URL", "PUBLIC_PLAYBACK_URL")
   ];
   const criticalChecks = checks.filter((check) => check.status === "critical").length;
@@ -172,6 +209,11 @@ export async function getAdminSystemHealthData() {
         label: "Viewers",
         value: streamResult.viewerCount.toLocaleString("en-GB"),
         detail: streamResult.playbackUrl ?? "No playback URL reported"
+      },
+      {
+        label: "Playback mode",
+        value: transcoderEnabled ? "Adaptive HLS" : "Direct HLS",
+        detail: transcoderEnabled ? process.env.TRANSCODER_HLS_PUBLIC_URL?.trim() || "Missing adaptive master URL" : streamResult.playbackUrl ?? "Provider playback URL"
       }
     ]
   };

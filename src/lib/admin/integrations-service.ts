@@ -49,6 +49,10 @@ function publicValue(key: string) {
   return envValue(key) || "Not configured";
 }
 
+function enabled(key: string) {
+  return envValue(key).toLowerCase() === "true";
+}
+
 function check(label: string, ready: boolean, value: string, detail: string): IntegrationCheck {
   return {
     detail,
@@ -56,6 +60,28 @@ function check(label: string, ready: boolean, value: string, detail: string): In
     status: ready ? "ready" : "missing",
     value
   };
+}
+
+function modeCheck(label: string, active: boolean, activeDetail: string, inactiveDetail: string): IntegrationCheck {
+  return {
+    detail: active ? activeDetail : inactiveDetail,
+    label,
+    status: "ready",
+    value: active ? "Enabled" : "Disabled"
+  };
+}
+
+function enabledEnvCheck(label: string, key: string, active: boolean, detail: string): IntegrationCheck {
+  if (!active) {
+    return {
+      detail: `${key} is only required when TRANSCODER_ENABLED=true.`,
+      label,
+      status: "ready",
+      value: "Optional"
+    };
+  }
+
+  return check(label, configured(key), publicValue(key), detail);
 }
 
 function optionalCheck(label: string, configuredValue: boolean, detail: string): IntegrationCheck {
@@ -99,6 +125,7 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
   const [paypal, stream] = await Promise.all([getPayPalIntegrationData(), getAdminStreamControlData()]);
   const streamProviderMode = getStreamProviderMode();
   const streamProviderReady = streamProviderMode !== "mock" && configured("STREAM_CORE_INTERNAL_URL");
+  const transcoderEnabled = enabled("TRANSCODER_ENABLED");
   const paypalChecks: IntegrationCheck[] = paypal.checks.map((item) => ({
     detail: item.detail,
     label: item.label,
@@ -131,6 +158,30 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       "Media gateway HLS template",
       configured("MEDIA_GATEWAY_PUBLIC_HLS_URL"),
       "Optional MediaMTX HLS URL template used by stream-core after authenticated RTMP publish."
+    ),
+    modeCheck(
+      "Adaptive HLS transcoder",
+      transcoderEnabled,
+      "FFmpeg adaptive HLS is expected to publish a multi-variant master playlist.",
+      "Direct MediaMTX HLS remains available; enable TRANSCODER_ENABLED when the FFmpeg adaptive profile is deployed."
+    ),
+    enabledEnvCheck(
+      "Adaptive HLS master URL",
+      "TRANSCODER_HLS_PUBLIC_URL",
+      transcoderEnabled,
+      "Public multi-variant master playlist used by browser automatic bitrate switching."
+    ),
+    enabledEnvCheck(
+      "Transcoder RTMP input",
+      "TRANSCODER_INPUT_URL",
+      transcoderEnabled,
+      "Internal RTMP source read by the FFmpeg adaptive HLS worker."
+    ),
+    enabledEnvCheck(
+      "HLS origin host port",
+      "TRANSCODER_HLS_BIND_PORT",
+      transcoderEnabled,
+      "Local host port for the static HLS origin serving adaptive playlists and segments."
     ),
     check(
       "Stream-key validation",
