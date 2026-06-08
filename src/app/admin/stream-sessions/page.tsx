@@ -2,7 +2,9 @@ import { Activity, Radio, Sparkles } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { hasPermission } from "@/lib/auth/rbac";
 import { getAdminStreamSessionsData } from "@/lib/stream/stream-channel-service";
+import { SyncProviderButton } from "@/app/admin/stream-sessions/sync-provider-button";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +21,11 @@ function eventPayload(payload: unknown) {
 }
 
 export default async function AdminStreamSessionsPage() {
-  await requireUserPermission("stream.dashboard");
+  const actor = await requireUserPermission("stream.dashboard");
   const { sessions, events } = await getAdminStreamSessionsData();
   const openSessions = sessions.filter((session) => !session.endedAt).length;
   const totalSessionStars = sessions.reduce((total, session) => total + session.starsSent, 0);
+  const canSyncProvider = hasPermission(actor, "stream.settings.manage");
 
   return (
     <AdminShell
@@ -51,6 +54,19 @@ export default async function AdminStreamSessionsPage() {
           <p className="mt-2 text-sm text-bc-muted">Recent status and provider events.</p>
         </article>
       </div>
+
+      <section className="mt-5 rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="pink">Provider sync</Badge>
+            <h3 className="mt-4 text-2xl font-black">Refresh stream state</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              Pull the latest stream provider snapshot into Bouncecore sessions, events, public live state, and stream health views.
+            </p>
+          </div>
+          <SyncProviderButton canSync={canSyncProvider} />
+        </div>
+      </section>
 
       <section className="mt-5 rounded-md border border-bc-line bg-bc-panel">
         <div className="border-b border-bc-line p-4">

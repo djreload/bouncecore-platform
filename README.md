@@ -40,6 +40,7 @@ This scaffold includes:
 - Optional FFmpeg adaptive HLS transcoder profile with low/standard/HD variants and a CORS-enabled HLS origin
 - Admin integrations and system-health checks for direct HLS versus adaptive HLS stream-stack readiness
 - Worker-backed stream-provider sync that records live/offline transitions into stream sessions and stream events
+- Manual admin stream-session sync control with audit logging for provider refreshes
 - Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
 - Adaptive browser playback using HLS variant switching when the playback URL points to a multi-variant `.m3u8` master manifest
 - Optional background worker for chat retention pruning and mobile push dispatch/receipt processing
