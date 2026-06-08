@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { subscribeToChatRoomChanges } from "@/lib/chat/chat-realtime";
 import { getPublicChatMessages, type ChatMessageSummary } from "@/lib/chat/chat-service";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ type RouteContext = {
 };
 
 const chatStreamPollMs = 2500;
+const chatStreamConsistencyPollMs = 30000;
 const chatStreamHeartbeatMs = 15000;
 const encoder = new TextEncoder();
 
@@ -28,25 +30,79 @@ function messageSignature(messages: ChatMessageSummary[]) {
   return `${messages.length}:${latestMessage?.id ?? "empty"}:${latestMessage?.createdAt ?? ""}`;
 }
 
-function waitForNextPoll(signal: AbortSignal) {
-  return new Promise<void>((resolve) => {
+function waitForNextPoll(signal: AbortSignal, timeoutMs: number) {
+  return new Promise<"abort" | "timeout">((resolve) => {
     if (signal.aborted) {
-      resolve();
+      resolve("abort");
       return;
     }
 
     const timer = setTimeout(() => {
       signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, chatStreamPollMs);
+      resolve("timeout");
+    }, timeoutMs);
 
     function onAbort() {
       clearTimeout(timer);
-      resolve();
+      resolve("abort");
     }
 
     signal.addEventListener("abort", onAbort, { once: true });
   });
+}
+
+function createRefreshSignal(signal: AbortSignal) {
+  let pending = false;
+  let wake: (() => void) | null = null;
+
+  return {
+    notify() {
+      pending = true;
+      wake?.();
+    },
+    wait(timeoutMs: number) {
+      return new Promise<"abort" | "notify" | "timeout">((resolve) => {
+        if (signal.aborted) {
+          resolve("abort");
+          return;
+        }
+
+        if (pending) {
+          pending = false;
+          resolve("notify");
+          return;
+        }
+
+        const timer = setTimeout(() => {
+          cleanup();
+          resolve("timeout");
+        }, timeoutMs);
+
+        function cleanup() {
+          clearTimeout(timer);
+          signal.removeEventListener("abort", onAbort);
+
+          if (wake === onNotify) {
+            wake = null;
+          }
+        }
+
+        function onAbort() {
+          cleanup();
+          resolve("abort");
+        }
+
+        function onNotify() {
+          pending = false;
+          cleanup();
+          resolve("notify");
+        }
+
+        wake = onNotify;
+        signal.addEventListener("abort", onAbort, { once: true });
+      });
+    }
+  };
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -66,6 +122,7 @@ export async function GET(request: Request, context: RouteContext) {
     start(controller) {
       let lastSignature = messageSignature(initialMessages);
       let lastHeartbeatAt = Date.now();
+      const refreshSignal = createRefreshSignal(request.signal);
 
       function enqueue(chunk: Uint8Array) {
         if (cancelled || request.signal.aborted) {
@@ -84,10 +141,17 @@ export async function GET(request: Request, context: RouteContext) {
       enqueue(encodeServerEvent("messages", { messages: initialMessages }));
 
       async function pumpMessages() {
-        while (!cancelled && !request.signal.aborted) {
-          await waitForNextPoll(request.signal);
+        const unsubscribe = await subscribeToChatRoomChanges(roomId, refreshSignal.notify).catch(() => null);
+        const refreshIntervalMs = unsubscribe
+          ? Math.min(chatStreamConsistencyPollMs, chatStreamHeartbeatMs)
+          : chatStreamPollMs;
 
-          if (cancelled || request.signal.aborted) {
+        while (!cancelled && !request.signal.aborted) {
+          const reason = unsubscribe
+            ? await refreshSignal.wait(refreshIntervalMs)
+            : await waitForNextPoll(request.signal, refreshIntervalMs);
+
+          if (reason === "abort" || cancelled || request.signal.aborted) {
             break;
           }
 
@@ -117,6 +181,10 @@ export async function GET(request: Request, context: RouteContext) {
             break;
           }
         }
+
+        await unsubscribe?.().catch(() => {
+          // The browser can close the stream while Redis unsubscribe is in flight.
+        });
 
         try {
           controller.close();

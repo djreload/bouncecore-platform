@@ -3,6 +3,7 @@ import { normalizeRoles } from "@/lib/auth/role-normalize";
 import type { Role } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
+import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
@@ -471,7 +472,7 @@ export async function createChatMessage(roomId: string, body: string, userId: st
   });
   await assertUserCanPostInChat(userId, roomId);
 
-  return prisma.chatMessage.create({
+  const message = await prisma.chatMessage.create({
     data: {
       roomId,
       userId,
@@ -479,6 +480,10 @@ export async function createChatMessage(roomId: string, body: string, userId: st
       kind: "text"
     }
   });
+
+  await publishChatRoomChanged(roomId, message.id);
+
+  return message;
 }
 
 function assertTenorMediaUrl(value: string) {
@@ -540,6 +545,7 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
   });
 
   await registerTenorShare(gifId, gif.searchTerm ?? "");
+  await publishChatRoomChanged(roomId, message.id);
 
   return message;
 }
@@ -577,6 +583,7 @@ export async function moderateChatMessage(messageId: string, actorId: string) {
       ...(message.userId ? { userId: message.userId } : {})
     }
   });
+  await publishChatRoomChanged(message.roomId, message.id);
 
   return updated;
 }

@@ -1,5 +1,6 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { pruneExpiredChatHistory } from "@/lib/chat/chat-service";
 import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
@@ -199,6 +200,7 @@ export async function createLiveChatStarSend(
 
     return {
       amount,
+      messageId: message.id,
       roomSlug: room.slug,
       sendId: send.id,
       streamSessionId: session?.id ?? null
@@ -216,6 +218,7 @@ export async function createLiveChatStarSend(
       streamSessionId: result.streamSessionId
     }
   });
+  await publishChatRoomChanged(roomId, result.messageId);
 
   return result;
 }
