@@ -110,7 +110,7 @@ run_as_root() {
 install_system_dependencies() {
   local missing_packages=()
 
-  for command_name in curl git openssl; do
+  for command_name in curl ffmpeg git openssl; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
       missing_packages+=("$command_name")
     fi
@@ -256,6 +256,7 @@ INTERNAL_TASK_TOKEN="$(prompt_optional_secret "Internal task token")"
 INTERNAL_TASK_TOKEN="${INTERNAL_TASK_TOKEN:-$(generate_secret)}"
 ENABLE_STREAM_CORE="$(prompt "Start embedded stream core service now? Use n if another service owns stream ports" "n")"
 ENABLE_MEDIA_GATEWAY="$(prompt "Start MediaMTX RTMP/HLS gateway now? Use n if stream ports are already in use" "n")"
+ENABLE_TRANSCODER="$(prompt "Start FFmpeg adaptive HLS transcoder now? Requires the MediaMTX gateway" "n")"
 ENABLE_WORKER="$(prompt "Start background worker now?" "y")"
 STREAM_CORE_INTERNAL_URL="$(prompt "Stream core internal URL" "http://stream-core:8088")"
 STREAM_CORE_STATUS_PATH="$(prompt "Stream core status path" "/status")"
@@ -271,8 +272,29 @@ MEDIA_GATEWAY_BIND_HOST="$(prompt "Media gateway bind host" "127.0.0.1")"
 MEDIA_GATEWAY_RTMP_BIND_PORT="$(prompt "Media gateway RTMP host port" "1935")"
 MEDIA_GATEWAY_HLS_BIND_PORT="$(prompt "Media gateway HLS host port" "18888")"
 MEDIA_GATEWAY_PUBLIC_HLS_URL="$(prompt "Media gateway public HLS URL template" "$APP_URL/hls/{path}/index.m3u8")"
+TRANSCODER_ENABLED=false
+TRANSCODER_INPUT_URL="rtmp://media-gateway:1935/live"
+TRANSCODER_HLS_BIND_HOST="127.0.0.1"
+TRANSCODER_HLS_BIND_PORT="18889"
+TRANSCODER_HLS_PUBLIC_URL="$APP_URL/hls/live/master.m3u8"
+
+case "$ENABLE_TRANSCODER" in
+  y|Y|yes|YES)
+    TRANSCODER_ENABLED=true
+    TRANSCODER_INPUT_URL="$(prompt "Transcoder RTMP input URL" "$TRANSCODER_INPUT_URL")"
+    TRANSCODER_HLS_BIND_HOST="$(prompt "Transcoder HLS origin bind host" "$TRANSCODER_HLS_BIND_HOST")"
+    TRANSCODER_HLS_BIND_PORT="$(prompt "Transcoder HLS origin host port" "$TRANSCODER_HLS_BIND_PORT")"
+    TRANSCODER_HLS_PUBLIC_URL="$(prompt "Transcoder public HLS master URL" "$TRANSCODER_HLS_PUBLIC_URL")"
+    ;;
+esac
 RTMP_INGEST_URL="$(prompt "Public RTMP ingest URL" "rtmp://$APP_HOST/live?user=bouncecore&pass={streamKey}")"
-PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "$MEDIA_GATEWAY_PUBLIC_HLS_URL")"
+DEFAULT_PUBLIC_PLAYBACK_URL="$MEDIA_GATEWAY_PUBLIC_HLS_URL"
+
+if [ "$TRANSCODER_ENABLED" = "true" ]; then
+  DEFAULT_PUBLIC_PLAYBACK_URL="$TRANSCODER_HLS_PUBLIC_URL"
+fi
+
+PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "$DEFAULT_PUBLIC_PLAYBACK_URL")"
 TENOR_API_KEY="$(prompt_secret_optional "Tenor API key")"
 PUSH_TOKEN_ENCRYPTION_KEY="$(prompt_optional_secret "Push token encryption key")"
 PUSH_TOKEN_ENCRYPTION_KEY="${PUSH_TOKEN_ENCRYPTION_KEY:-$(generate_secret)}"
@@ -356,6 +378,14 @@ MEDIA_GATEWAY_BIND_HOST=$MEDIA_GATEWAY_BIND_HOST
 MEDIA_GATEWAY_RTMP_BIND_PORT=$MEDIA_GATEWAY_RTMP_BIND_PORT
 MEDIA_GATEWAY_HLS_BIND_PORT=$MEDIA_GATEWAY_HLS_BIND_PORT
 MEDIA_GATEWAY_PUBLIC_HLS_URL=$MEDIA_GATEWAY_PUBLIC_HLS_URL
+TRANSCODER_ENABLED=$TRANSCODER_ENABLED
+HLS_ORIGIN_CONTAINER=bouncecore-hls-origin
+TRANSCODER_CONTAINER=bouncecore-media-transcoder
+TRANSCODER_INPUT_URL=$TRANSCODER_INPUT_URL
+TRANSCODER_HLS_BIND_HOST=$TRANSCODER_HLS_BIND_HOST
+TRANSCODER_HLS_BIND_PORT=$TRANSCODER_HLS_BIND_PORT
+TRANSCODER_HLS_PUBLIC_URL=$TRANSCODER_HLS_PUBLIC_URL
+TRANSCODER_HLS_VOLUME=bouncecore_transcoder_hls
 WORKER_CONTAINER=bouncecore-worker
 WORKER_CHAT_PRUNE_ENABLED=true
 WORKER_CHAT_PRUNE_INTERVAL_SECONDS=3600
@@ -408,7 +438,14 @@ case "$ENABLE_STREAM_CORE" in
         info "Embedded stream core will be started with the MediaMTX gateway"
         ;;
       *)
-        warn "Embedded stream core was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core"
+        case "$ENABLE_TRANSCODER" in
+          y|Y|yes|YES)
+            info "Embedded stream core will be started with the adaptive HLS transcoder"
+            ;;
+          *)
+            warn "Embedded stream core was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core"
+            ;;
+        esac
         ;;
     esac
     ;;
@@ -420,7 +457,24 @@ case "$ENABLE_MEDIA_GATEWAY" in
     compose --profile stream-core --profile media-gateway up -d stream-core media-gateway
     ;;
   *)
-    warn "MediaMTX gateway was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway"
+    case "$ENABLE_TRANSCODER" in
+      y|Y|yes|YES)
+        info "MediaMTX gateway will be started with the adaptive HLS transcoder"
+        ;;
+      *)
+        warn "MediaMTX gateway was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway"
+        ;;
+    esac
+    ;;
+esac
+
+case "$ENABLE_TRANSCODER" in
+  y|Y|yes|YES)
+    info "Starting adaptive HLS transcoder"
+    compose --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
+    ;;
+  *)
+    warn "Adaptive HLS transcoder was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder"
     ;;
 esac
 
@@ -446,5 +500,6 @@ printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance logs -f app\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway\n'
+printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile worker up -d worker\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance pull && docker compose -f docker-compose.instance.yml --env-file .env.instance up -d --build\n'

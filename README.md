@@ -37,6 +37,7 @@ This scaffold includes:
 - Stream provider interface with mock fallback and stream-core HTTP status provider
 - Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
 - Optional MediaMTX RTMP/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
+- Optional FFmpeg adaptive HLS transcoder profile with low/standard/HD variants and a CORS-enabled HLS origin
 - Worker-backed stream-provider sync that records live/offline transitions into stream sessions and stream events
 - Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
 - Adaptive browser playback using HLS variant switching when the playback URL points to a multi-variant `.m3u8` master manifest
@@ -160,6 +161,32 @@ npm.cmd run stream:smoke
 
 The smoke test starts the local stream-core/media-gateway profiles, pulls a disposable FFmpeg Docker image if needed, publishes a realtime test pattern over RTMP, and polls the HLS playlist until it is available.
 
+## Optional Adaptive HLS Transcoder
+
+The `transcoder` Docker profile runs an FFmpeg worker that reads from the internal MediaMTX RTMP stream and writes a multi-variant HLS output to a static Nginx origin. It creates `240p`, `480p`, and `720p` variants plus a `master.m3u8` playlist for browser automatic bitrate switching. It is off by default so it does not claim ports or CPU on servers that already run another stream stack.
+
+```bash
+docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
+```
+
+When enabling this path, set:
+
+```text
+TRANSCODER_ENABLED=true
+TRANSCODER_HLS_PUBLIC_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
+PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
+STREAM_CORE_PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
+```
+
+On Windows/Docker Desktop, run the adaptive smoke test with:
+
+```powershell
+$env:STREAM_TEST_KEY = "bc_live_..."
+npm.cmd run stream:smoke -- -UseTranscoder
+```
+
+The adaptive smoke test requires the HLS master playlist to include at least three variant entries before it passes.
+
 ## Secrets Warning
 
 Never commit:
@@ -179,6 +206,6 @@ Use `.env.example` as a template only.
 
 1. Wire real authentication, users, roles, and permission guards.
 2. Create real PostgreSQL migrations and seeds.
-3. Connect the Owncast-derived ingest/transcode service or MediaMTX/FFmpeg pipeline to stream profiles and publish a multi-variant HLS master manifest for adaptive playback.
+3. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS port ownership and reverse-proxy routing are confirmed.
 4. Add realtime Redis/WebSocket chat presence and queue workers.
 5. Harden staging with backups, monitoring, and production deployment checks.

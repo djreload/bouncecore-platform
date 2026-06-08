@@ -12,9 +12,12 @@ It is intentionally opt-in. Do not start it on a server where another streaming 
 - `POST /events/ingest`
 - `POST /status`
 
-The service stores lightweight stream state: live/offline status, playback URL, viewer count, ingest connection state, bitrate, dropped frames, and the latest stream-key fingerprint.
+The service stores lightweight stream state: live/offline status, playback URL, viewer count, ingest connection state, bitrate, dropped frames, and the latest stream-key fingerprint. It also exposes the MediaMTX HTTP auth endpoint used to validate Bouncecore stream keys during RTMP publish attempts.
 
-It does not replace a full RTMP/HLS media engine yet. It is the control and telemetry layer that the platform can poll through `STREAM_PROVIDER=stream-core`.
+It remains the control and telemetry layer that the platform polls through `STREAM_PROVIDER=stream-core`. The optional Compose media profiles provide the local/prod media path:
+
+- `media-gateway`: MediaMTX RTMP ingest and single-rendition HLS playback.
+- `transcoder`: FFmpeg adaptive HLS output plus a CORS-enabled Nginx HLS origin.
 
 ## Docker Profile
 
@@ -26,6 +29,13 @@ docker compose --env-file .env.instance -f docker-compose.instance.yml --profile
 
 Staging deploys should not use this profile while the existing Owncast fork is using the stream ports.
 
+The MediaMTX gateway and adaptive HLS transcoder are also profile-gated:
+
+```bash
+docker compose --env-file .env.instance -f docker-compose.instance.yml --profile stream-core --profile media-gateway up -d stream-core media-gateway
+docker compose --env-file .env.instance -f docker-compose.instance.yml --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
+```
+
 ## Required Environment
 
 ```bash
@@ -35,6 +45,9 @@ STREAM_CORE_STATUS_PATH=/status
 STREAM_CORE_INTERNAL_TOKEN=change-me
 STREAM_CORE_HTTP_BIND_PORT=18088
 STREAM_CORE_OFFLINE_AFTER_SECONDS=30
+MEDIA_GATEWAY_PUBLIC_HLS_URL=https://example.com/hls/{path}/index.m3u8
+TRANSCODER_ENABLED=false
+TRANSCODER_HLS_PUBLIC_URL=https://example.com/hls/live/master.m3u8
 STREAM_CORE_PUBLIC_PLAYBACK_URL=https://example.com/hls/live.m3u8
 ```
 

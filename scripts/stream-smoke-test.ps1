@@ -7,7 +7,8 @@ param(
   [string]$RtmpUrl = "",
   [string]$HlsUrl = "",
   [int]$DurationSeconds = 45,
-  [int]$HlsTimeoutSeconds = 35
+  [int]$HlsTimeoutSeconds = 35,
+  [switch]$UseTranscoder
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,8 +66,13 @@ if (-not (Test-Path -LiteralPath $EnvFile)) {
   Fail "Missing env file: $EnvFile"
 }
 
+if ($UseTranscoder -and -not $PSBoundParameters.ContainsKey("HlsTimeoutSeconds")) {
+  $HlsTimeoutSeconds = 70
+}
+
 $envValues = Read-EnvFile $EnvFile
 $hlsPort = if ($envValues.MEDIA_GATEWAY_HLS_BIND_PORT) { $envValues.MEDIA_GATEWAY_HLS_BIND_PORT } else { "18888" }
+$transcoderHlsPort = if ($envValues.TRANSCODER_HLS_BIND_PORT) { $envValues.TRANSCODER_HLS_BIND_PORT } else { "18889" }
 $streamCorePort = if ($envValues.STREAM_CORE_HTTP_BIND_PORT) { $envValues.STREAM_CORE_HTTP_BIND_PORT } else { "18088" }
 $streamCoreToken = $envValues.STREAM_CORE_INTERNAL_TOKEN
 
@@ -76,14 +82,23 @@ if (-not $RtmpUrl) {
 }
 
 if (-not $HlsUrl) {
-  $HlsUrl = "http://127.0.0.1:$hlsPort/live/index.m3u8"
+  if ($UseTranscoder) {
+    $HlsUrl = "http://127.0.0.1:$transcoderHlsPort/live/master.m3u8"
+  } else {
+    $HlsUrl = "http://127.0.0.1:$hlsPort/live/index.m3u8"
+  }
 }
 
 $containerName = "bouncecore-ffmpeg-smoke-$PID"
 $passed = $false
 
-Write-Host "Starting stream-core and MediaMTX gateway..."
-& docker compose -f $ComposeFile --env-file $EnvFile --profile stream-core --profile media-gateway up -d stream-core media-gateway
+if ($UseTranscoder) {
+  Write-Host "Starting stream-core, MediaMTX gateway, HLS origin, and FFmpeg transcoder..."
+  & docker compose -f $ComposeFile --env-file $EnvFile --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
+} else {
+  Write-Host "Starting stream-core and MediaMTX gateway..."
+  & docker compose -f $ComposeFile --env-file $EnvFile --profile stream-core --profile media-gateway up -d stream-core media-gateway
+}
 
 try {
   Write-Host "Starting disposable FFmpeg container..."
@@ -110,11 +125,22 @@ try {
       $response = Invoke-WebRequest -Uri $HlsUrl -Method GET -TimeoutSec 5
       $playlist = Decode-ResponseContent $response.Content
 
-      if ($response.StatusCode -eq 200 -and $playlist.Contains("#EXTM3U")) {
+      $variantCount = [regex]::Matches($playlist, "#EXT-X-STREAM-INF").Count
+      $playlistReady = $response.StatusCode -eq 200 -and $playlist.Contains("#EXTM3U")
+
+      if ($UseTranscoder) {
+        $playlistReady = $playlistReady -and $variantCount -ge 3
+      }
+
+      if ($playlistReady) {
         Write-Host "HLS playlist is available."
         Write-Host ($playlist.Split("`n") | Select-Object -First 8 | Out-String).Trim()
         $passed = $true
         break
+      }
+
+      if ($UseTranscoder) {
+        Write-Host "Waiting for adaptive HLS variants..."
       }
     } catch {
       Write-Host "Waiting for HLS..."

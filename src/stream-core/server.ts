@@ -78,9 +78,11 @@ const port = configuredNumber("STREAM_CORE_HTTP_PORT", defaultPort);
 const internalToken = envValue("STREAM_CORE_INTERNAL_TOKEN");
 const keyValidationUrl = envValue("STREAM_CORE_KEY_VALIDATION_URL");
 const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envValue("INTERNAL_TASK_TOKEN");
-const mediaGatewayPlaybackUrl = envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
+const transcoderEnabled = envValue("TRANSCODER_ENABLED").toLowerCase() === "true";
+const transcoderPlaybackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") : "";
+const mediaGatewayPlaybackUrl = transcoderPlaybackUrl || envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
-const publicPlaybackUrl = envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
+const publicPlaybackUrl = transcoderPlaybackUrl || envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
 
 let state: StreamCoreState = {

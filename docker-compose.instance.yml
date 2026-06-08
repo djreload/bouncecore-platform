@@ -101,6 +101,62 @@ services:
       - "${MEDIA_GATEWAY_BIND_HOST:-127.0.0.1}:${MEDIA_GATEWAY_RTMP_BIND_PORT:-1935}:1935"
       - "${MEDIA_GATEWAY_BIND_HOST:-127.0.0.1}:${MEDIA_GATEWAY_HLS_BIND_PORT:-18888}:8888"
 
+  hls-origin:
+    profiles:
+      - transcoder
+    image: nginx:1.27-alpine
+    container_name: ${HLS_ORIGIN_CONTAINER:-bouncecore-hls-origin}
+    restart: unless-stopped
+    ports:
+      - "${TRANSCODER_HLS_BIND_HOST:-127.0.0.1}:${TRANSCODER_HLS_BIND_PORT:-18889}:80"
+    volumes:
+      - transcoder_hls_data:/usr/share/nginx/html:ro
+      - ./deploy/nginx/hls-origin.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  media-transcoder:
+    profiles:
+      - transcoder
+    image: jrottenberg/ffmpeg:7.1-alpine
+    container_name: ${TRANSCODER_CONTAINER:-bouncecore-media-transcoder}
+    restart: unless-stopped
+    depends_on:
+      media-gateway:
+        condition: service_started
+    environment:
+      TRANSCODER_INPUT_URL: ${TRANSCODER_INPUT_URL:-rtmp://media-gateway:1935/live}
+    entrypoint:
+      - sh
+      - -lc
+      - |
+        while true; do
+          rm -rf /hls/live
+          mkdir -p /hls/live/240p /hls/live/480p /hls/live/720p
+          ffmpeg -hide_banner -loglevel warning \
+            -i "$$TRANSCODER_INPUT_URL" \
+            -filter_complex "[0:v]split=3[v240][v480][v720];[v240]scale=w=426:h=240:force_original_aspect_ratio=decrease,pad=426:240:(ow-iw)/2:(oh-ih)/2[v240out];[v480]scale=w=854:h=480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2[v480out];[v720]scale=w=1280:h=720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[v720out]" \
+            -map "[v240out]" -map 0:a:0 \
+            -map "[v480out]" -map 0:a:0 \
+            -map "[v720out]" -map 0:a:0 \
+            -c:v libx264 -preset veryfast -g 60 -sc_threshold 0 \
+            -c:a aac -ar 48000 \
+            -b:v:0 500k -maxrate:v:0 535k -bufsize:v:0 1000k -b:a:0 96k \
+            -b:v:1 1200k -maxrate:v:1 1284k -bufsize:v:1 2400k -b:a:1 128k \
+            -b:v:2 3000k -maxrate:v:2 3210k -bufsize:v:2 6000k -b:a:2 160k \
+            -f hls -hls_time 2 -hls_list_size 8 -hls_flags delete_segments+independent_segments \
+            -hls_segment_type fmp4 -master_pl_name master.m3u8 \
+            -var_stream_map "v:0,a:0,name:240p v:1,a:1,name:480p v:2,a:2,name:720p" \
+            -hls_segment_filename "/hls/live/%v/segment_%05d.m4s" \
+            "/hls/live/%v/index.m3u8" || true
+          sleep 3
+        done
+    volumes:
+      - transcoder_hls_data:/hls
+
   worker:
     profiles:
       - worker
@@ -130,3 +186,5 @@ volumes:
     name: ${UPLOADS_VOLUME:-bouncecore_uploads}
   stream_core_data:
     name: ${STREAM_CORE_VOLUME:-bouncecore_stream_core_data}
+  transcoder_hls_data:
+    name: ${TRANSCODER_HLS_VOLUME:-bouncecore_transcoder_hls}
