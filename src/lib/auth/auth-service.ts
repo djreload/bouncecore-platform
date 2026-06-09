@@ -111,10 +111,9 @@ async function assignRegistrationRoles(
 export async function registerUser(input: RegisterInput): Promise<AuthResult> {
   const context = await requestContext();
   const passwordHash = await hashPassword(input.password);
-  let createdUser: { displayName: string; email: string; id: string } | null = null;
 
   try {
-    createdUser = await prisma.$transaction(async (tx) => {
+    const createdUser = await prisma.$transaction(async (tx) => {
       const invite = await loadRegistrationInvite(tx, input.inviteToken, input.email);
       const user = await tx.user.create({
         data: {

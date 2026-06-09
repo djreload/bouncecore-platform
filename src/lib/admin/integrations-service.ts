@@ -160,7 +160,8 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     check("SMTP username", configured("BREVO_SMTP_USER") || configured("SMTP_USER"), configured("BREVO_SMTP_USER") || configured("SMTP_USER") ? "Configured" : "Missing", "Brevo SMTP username from SMTP and API settings."),
     check("SMTP key", configured("BREVO_SMTP_KEY") || configured("BREVO_SMTP_PASSWORD") || configured("SMTP_PASSWORD"), configured("BREVO_SMTP_KEY") || configured("BREVO_SMTP_PASSWORD") || configured("SMTP_PASSWORD") ? "Configured" : "Missing", "Use a Brevo SMTP key for SMTP relay authentication."),
     check("From address", configured("MAIL_FROM") || configured("SMTP_FROM"), envValue("MAIL_FROM") || envValue("SMTP_FROM") || "Missing", "Verified sender address used for account verification and invites."),
-    check("Verification page", true, absolutePath("/auth/verify-email"), "Signup verification and resend flow.")
+    check("Verification page", true, absolutePath("/auth/verify-email"), "Signup verification and resend flow."),
+    check("Password reset page", true, absolutePath("/auth/forgot-password"), "Password reset request and token flow.")
   ];
   const streamChecks: IntegrationCheck[] = [
     check(
@@ -293,7 +294,7 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     },
     {
       checks: mailChecks,
-      description: "Transactional account email for signup verification and admin-created user invites.",
+      description: "Transactional account email for signup verification, password reset, and admin-created user invites.",
       eyebrow: "SMTP relay",
       id: "mail",
       primaryHref: "/auth/verify-email",
@@ -315,6 +316,11 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
           detail: "Users can request another verification email.",
           href: "/auth/verify-email",
           label: "Verification resend"
+        },
+        {
+          detail: "Users can request a one-hour password reset link.",
+          href: "/auth/forgot-password",
+          label: "Password reset"
         }
       ],
       title: "Brevo SMTP email"

@@ -1,6 +1,7 @@
 import { PublicShell } from "@/components/layout/public-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 const errorMessages: Record<string, string> = {
   "email-unverified": "Verify your email before logging in.",
@@ -12,6 +13,7 @@ const errorMessages: Record<string, string> = {
 
 const statusMessages: Record<string, string> = {
   "email-verified": "Email verified. You can log in now.",
+  "password-reset": "Password updated. You can log in now.",
   "signed-out": "You have been signed out."
 };
 
@@ -49,6 +51,11 @@ export default async function LoginPage({
           <Button className="mt-6 w-full" type="submit">
             Login
           </Button>
+          <div className="mt-4 text-right">
+            <Link className="text-sm font-semibold text-bc-electric hover:text-white" href="/auth/forgot-password">
+              Forgot password?
+            </Link>
+          </div>
           <div className="mt-5 flex flex-wrap gap-2">
             <Badge tone="muted">HTTP-only session cookie</Badge>
             <Badge tone="muted">Audit-ready</Badge>
