@@ -5,7 +5,8 @@ import type { AdminUserInviteActionState } from "@/app/admin/users/state";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { addAdminUserRole, removeAdminUserRole, updateAdminUserStatus } from "@/lib/auth/user-admin-service";
-import { createAdminUserInvite, revokeAdminUserInvite } from "@/lib/auth/user-invite-service";
+import { sendInviteEmail } from "@/lib/auth/email-verification-service";
+import { createAdminUserInvite, revokeAdminUserInvite, rolesFromInviteJson } from "@/lib/auth/user-invite-service";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -92,11 +93,23 @@ export async function createAdminUserInviteAction(
       actor.id
     );
 
+    const inviteUrl = adminInviteUrl(invite.token);
+    const inviteEmail = await sendInviteEmail({
+      email: invite.invite.email,
+      inviteUrl,
+      roles: rolesFromInviteJson(invite.invite.roles)
+    }).catch(() => ({
+      configured: true,
+      sent: false
+    }));
+
     revalidateUserAdminViews();
 
     return {
-      inviteUrl: adminInviteUrl(invite.token),
-      message: "Invite created. Copy this link now; the raw token is not stored.",
+      inviteUrl,
+      message: inviteEmail.sent
+        ? "Invite created and emailed. Copy this link now as a backup; the raw token is not stored."
+        : "Invite created. Copy this link now; SMTP is not configured or the email was not sent.",
       status: "success"
     };
   } catch (error) {

@@ -3,10 +3,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 const errorMessages: Record<string, string> = {
+  "email-unverified": "Verify your email before logging in.",
   "invalid-input": "Check your email and password, then try again.",
   "invalid-credentials": "Those login details did not match a Bouncecore account.",
   "account-disabled": "This account cannot sign in right now.",
   "database-unavailable": "The Bouncecore database is not connected yet."
+};
+
+const statusMessages: Record<string, string> = {
+  "email-verified": "Email verified. You can log in now.",
+  "signed-out": "You have been signed out."
 };
 
 export default async function LoginPage({
@@ -22,9 +28,9 @@ export default async function LoginPage({
         <form action="/api/auth/login" className="w-full rounded-md border border-bc-line bg-bc-panel p-6" method="post">
           <p className="text-sm font-semibold uppercase text-bc-electric">Bouncecore account</p>
           <h1 className="mt-2 text-3xl font-black">Login</h1>
-          {status === "signed-out" ? (
+          {status ? (
             <div className="mt-5 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3 text-sm text-bc-acid">
-              You have been signed out.
+              {statusMessages[status] ?? "Account status updated."}
             </div>
           ) : null}
           {error ? (

@@ -9,6 +9,7 @@ const errorMessages: Record<string, string> = {
   "invalid-invite": "That invite link is invalid, expired, revoked, or already used.",
   "invite-email-mismatch": "That invite is locked to a different email address.",
   "email-in-use": "That email is already registered.",
+  "email-verification-send-failed": "Account created, but the verification email could not be sent.",
   "database-unavailable": "The Bouncecore database is not connected yet."
 };
 

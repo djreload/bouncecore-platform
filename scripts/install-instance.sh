@@ -277,8 +277,16 @@ APP_URL="$(prompt "Public app URL" "https://develop.k-nrg.co.uk")"
 APP_HOST="${APP_URL#http://}"
 APP_HOST="${APP_HOST#https://}"
 APP_HOST="${APP_HOST%%/*}"
+APP_MAIL_HOST="${APP_HOST%%:*}"
 APP_BIND_HOST="$(prompt "App bind host" "127.0.0.1")"
 APP_PORT="$(prompt "App host port" "3000")"
+BREVO_SMTP_HOST="$(prompt "Brevo SMTP host" "smtp-relay.brevo.com")"
+BREVO_SMTP_PORT="$(prompt "Brevo SMTP port" "587")"
+BREVO_SMTP_USER="$(prompt "Brevo SMTP username" "")"
+BREVO_SMTP_KEY="$(prompt_secret_optional "Brevo SMTP key")"
+MAIL_FROM="$(prompt "Site email from address" "no-reply@$APP_MAIL_HOST")"
+MAIL_FROM_NAME="$(prompt "Site email sender name" "Bouncecore")"
+MAIL_REPLY_TO="$(prompt "Site email reply-to address" "")"
 POSTGRES_DB="$(prompt "PostgreSQL database name" "bouncecore_platform")"
 POSTGRES_USER="$(prompt "PostgreSQL username" "bouncecore_app")"
 POSTGRES_PASSWORD="$(prompt_optional_secret "PostgreSQL password")"
@@ -366,9 +374,19 @@ require_nonempty "Public app URL" "$APP_URL"
 require_nonempty "PostgreSQL database name" "$POSTGRES_DB"
 require_nonempty "PostgreSQL username" "$POSTGRES_USER"
 require_nonempty "First server owner email" "$OWNER_EMAIL"
+if [ -n "$BREVO_SMTP_USER$BREVO_SMTP_KEY" ]; then
+  require_nonempty "Brevo SMTP username" "$BREVO_SMTP_USER"
+  require_nonempty "Brevo SMTP key" "$BREVO_SMTP_KEY"
+  require_nonempty "Site email from address" "$MAIL_FROM"
+fi
 require_url_safe "PostgreSQL database name" "$POSTGRES_DB"
 require_url_safe "PostgreSQL username" "$POSTGRES_USER"
 require_single_line "PostgreSQL password" "$POSTGRES_PASSWORD"
+require_single_line "Brevo SMTP username" "$BREVO_SMTP_USER"
+require_single_line "Brevo SMTP key" "$BREVO_SMTP_KEY"
+require_single_line "Site email from address" "$MAIL_FROM"
+require_single_line "Site email sender name" "$MAIL_FROM_NAME"
+require_single_line "Site email reply-to address" "$MAIL_REPLY_TO"
 DATABASE_PASSWORD_URLENCODED="$(urlencode "$POSTGRES_PASSWORD")"
 
 if [ "$OWNER_PASSWORD" != "$OWNER_PASSWORD_CONFIRM" ]; then
@@ -413,6 +431,13 @@ REDIS_VOLUME=bouncecore_redis_data
 DATABASE_URL=postgresql://$POSTGRES_USER:$DATABASE_PASSWORD_URLENCODED@postgres:5432/$POSTGRES_DB
 REDIS_URL=redis://redis:6379
 NEXT_PUBLIC_APP_URL=$APP_URL
+BREVO_SMTP_HOST=$BREVO_SMTP_HOST
+BREVO_SMTP_PORT=$BREVO_SMTP_PORT
+BREVO_SMTP_USER=$BREVO_SMTP_USER
+BREVO_SMTP_KEY=$BREVO_SMTP_KEY
+MAIL_FROM=$MAIL_FROM
+MAIL_FROM_NAME=$MAIL_FROM_NAME
+MAIL_REPLY_TO=$MAIL_REPLY_TO
 STREAM_PROVIDER=$STREAM_PROVIDER
 INTERNAL_TASK_TOKEN=$INTERNAL_TASK_TOKEN
 STREAM_CORE_INTERNAL_URL=$STREAM_CORE_INTERNAL_URL

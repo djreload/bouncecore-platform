@@ -1,4 +1,4 @@
-import { Activity, BadgeCheck, Cable, CreditCard, ExternalLink, Image, Radio, Settings2 } from "lucide-react";
+import { Activity, BadgeCheck, Cable, CreditCard, ExternalLink, Image, Mail, Radio, Settings2 } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -24,6 +24,10 @@ function groupIcon(id: string) {
     return Image;
   }
 
+  if (id === "mail") {
+    return Mail;
+  }
+
   if (id === "stream") {
     return Radio;
   }
@@ -38,7 +42,7 @@ export default async function AdminIntegrationsPage() {
   return (
     <AdminShell
       title="Integrations"
-      description="Readiness overview for PayPal, Tenor GIF search, stream-provider wiring, public URLs, and external app surfaces."
+      description="Readiness overview for PayPal, Brevo SMTP email, Tenor GIF search, stream-provider wiring, public URLs, and external app surfaces."
     >
       <div className="space-y-5">
         <section className="grid gap-4 md:grid-cols-3">

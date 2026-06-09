@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { setSessionCookie } from "@/lib/auth/cookies";
 import { registerUser } from "@/lib/auth/auth-service";
 import { formValue, registerSchema } from "@/lib/auth/validation";
-import { appUrl } from "@/lib/http/app-url";
+import { appOrigin, appUrl } from "@/lib/http/app-url";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
@@ -20,7 +20,10 @@ export async function POST(request: Request) {
   let result;
 
   try {
-    result = await registerUser(parsed.data);
+    result = await registerUser({
+      ...parsed.data,
+      origin: appOrigin(request)
+    });
   } catch {
     return NextResponse.redirect(appUrl(request, "/auth/register", { error: "database-unavailable" }), 303);
   }
