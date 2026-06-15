@@ -239,5 +239,5 @@ Use `.env.example` as a template only.
 1. Run the interactive installer against a disposable Linux target and record any server-package edge cases before using it on production.
 2. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS stream-port ownership and reverse-proxy routing are confirmed.
 3. Extend CI with stream-smoke tests and Docker image build/publish once the stream-core profile is ready for production rollout.
-4. Add production monitoring for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
+4. Add external alerting and dashboards for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
 5. Add encrypted off-server backup upload and retention once the production storage target is chosen.

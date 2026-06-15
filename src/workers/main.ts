@@ -4,6 +4,7 @@ import { pruneExpiredChatHistory } from "../lib/chat/chat-service";
 import { prisma } from "../lib/db/prisma";
 import { checkExpoMobilePushReceipts, processQueuedMobilePushDeliveries } from "../lib/mobile/push-dispatch-service";
 import { syncStreamProviderSnapshot } from "../lib/stream/stream-session-sync-service";
+import { recordWorkerHeartbeat, type WorkerHeartbeatTask } from "../lib/workers/worker-heartbeat";
 
 type WorkerTask = {
   enabled: boolean;
@@ -46,20 +47,29 @@ function log(level: "info" | "warn" | "error", message: string, metadata: Record
   );
 }
 
-async function heartbeat() {
-  await writeFile("/tmp/bouncecore-worker-heartbeat", new Date().toISOString()).catch(() => {
-    return;
-  });
+function toHeartbeatTasks(tasks: WorkerTask[]): WorkerHeartbeatTask[] {
+  return tasks.map((task) => ({
+    enabled: task.enabled,
+    intervalMs: task.intervalMs,
+    name: task.name
+  }));
 }
 
-async function runHeartbeatLoop() {
+async function heartbeat(tasks: WorkerTask[]) {
+  await Promise.allSettled([
+    writeFile("/tmp/bouncecore-worker-heartbeat", new Date().toISOString()),
+    recordWorkerHeartbeat(toHeartbeatTasks(tasks))
+  ]);
+}
+
+async function runHeartbeatLoop(tasks: WorkerTask[]) {
   while (!stopping) {
-    await heartbeat();
+    await heartbeat(tasks);
     await sleep(30_000);
   }
 }
 
-async function runLoop(task: WorkerTask) {
+async function runLoop(task: WorkerTask, tasks: WorkerTask[]) {
   if (!task.enabled) {
     log("info", "Worker task disabled.", {
       task: task.name
@@ -77,7 +87,7 @@ async function runLoop(task: WorkerTask) {
 
     try {
       const result = await task.run();
-      await heartbeat();
+      await heartbeat(tasks);
       log("info", "Worker task completed.", {
         durationMs: Date.now() - startedAt,
         result,
@@ -146,6 +156,6 @@ log("info", "Bouncecore worker booting.", {
   }))
 });
 
-await heartbeat();
-void runHeartbeatLoop();
-await Promise.all(tasks.map((task) => runLoop(task)));
+await heartbeat(tasks);
+void runHeartbeatLoop(tasks);
+await Promise.all(tasks.map((task) => runLoop(task, tasks)));

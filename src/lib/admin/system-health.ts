@@ -2,6 +2,7 @@ import { cpus, freemem, totalmem, uptime } from "node:os";
 import { prisma } from "@/lib/db/prisma";
 import { getProviderSnapshot } from "@/lib/stream/stream-channel-service";
 import { getHlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
+import { getLatestWorkerHeartbeat, getWorkerHeartbeatStatus } from "@/lib/workers/worker-heartbeat";
 
 type HealthStatus = "healthy" | "warning" | "critical";
 
@@ -46,6 +47,12 @@ function enabled(key: string) {
 
 function envValue(key: string) {
   return process.env[key]?.trim() ?? "";
+}
+
+function envNumber(key: string, fallback: number) {
+  const value = Number(envValue(key));
+
+  return Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
 }
 
 function modeCheck(label: string, active: boolean, detail: string): HealthCheck {
@@ -96,7 +103,20 @@ async function databaseCheck(): Promise<HealthCheck> {
 
 export async function getAdminSystemHealthData() {
   const chatCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const [databaseResult, streamResult, activeSessions, chatRooms, recentMessages, auditLogs] = await Promise.all([
+  const staleWebhookCutoff = new Date(Date.now() - 15 * 60 * 1000);
+  const recentWebhookCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [
+    databaseResult,
+    streamResult,
+    workerHeartbeat,
+    activeSessions,
+    chatRooms,
+    recentMessages,
+    auditLogs,
+    queuedPushDeliveries,
+    failedPayPalWebhooks,
+    stalePayPalWebhooks
+  ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
       status: "critical",
@@ -114,6 +134,7 @@ export async function getAdminSystemHealthData() {
         details: error instanceof Error ? error.message : "Stream provider unavailable"
       }
     })),
+    getLatestWorkerHeartbeat().catch(() => null),
     prisma.authSession.count({
       where: {
         revokedAt: null,
@@ -131,12 +152,39 @@ export async function getAdminSystemHealthData() {
         deletedAt: null
       }
     }),
-    prisma.auditLog.count()
+    prisma.auditLog.count(),
+    prisma.mobilePushDelivery.count({
+      where: {
+        status: "queued"
+      }
+    }),
+    prisma.payPalWebhookEvent.count({
+      where: {
+        processingStatus: "failed",
+        receivedAt: {
+          gte: recentWebhookCutoff
+        }
+      }
+    }),
+    prisma.payPalWebhookEvent.count({
+      where: {
+        processingStatus: "received",
+        receivedAt: {
+          lt: staleWebhookCutoff
+        }
+      }
+    })
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
   const memoryUsedPercent = Math.round(((memoryTotal - memoryFree) / memoryTotal) * 100);
   const transcoderEnabled = enabled("TRANSCODER_ENABLED");
+  const workerHeartbeatStatus = getWorkerHeartbeatStatus(workerHeartbeat, {
+    staleAfterSeconds: envNumber("WORKER_HEARTBEAT_STALE_SECONDS", 120)
+  });
+  const pushBacklogWarningThreshold = envNumber("WORKER_QUEUE_BACKLOG_WARNING", 250);
+  const paypalWebhookStatus =
+    failedPayPalWebhooks > 0 ? "critical" : stalePayPalWebhooks > 0 ? "warning" : ("healthy" as const);
   const playbackUrl = transcoderEnabled
     ? process.env.TRANSCODER_HLS_PUBLIC_URL?.trim() || streamResult.playbackUrl
     : streamResult.playbackUrl ?? process.env.PUBLIC_PLAYBACK_URL?.trim() ?? null;
@@ -159,6 +207,12 @@ export async function getAdminSystemHealthData() {
       detail: `Node ${process.version}, uptime ${formatUptime(uptime())}`
     },
     databaseResult,
+    {
+      label: "Worker heartbeat",
+      status: workerHeartbeatStatus.status,
+      value: workerHeartbeatStatus.value,
+      detail: workerHeartbeatStatus.detail
+    },
     {
       label: "Stream provider",
       status: streamResult.health.status === "healthy" ? "healthy" : "warning",
@@ -192,6 +246,31 @@ export async function getAdminSystemHealthData() {
       label: "Playback manifest",
       status: playbackManifest.status,
       value: playbackManifest.value
+    },
+    {
+      detail:
+        queuedPushDeliveries > pushBacklogWarningThreshold
+          ? `${queuedPushDeliveries.toLocaleString("en-GB")} push deliveries are queued, above the ${pushBacklogWarningThreshold.toLocaleString("en-GB")} warning threshold.`
+          : `${queuedPushDeliveries.toLocaleString("en-GB")} mobile push deliveries are queued.`,
+      label: "Queue backlog",
+      status: queuedPushDeliveries > pushBacklogWarningThreshold ? "warning" : "healthy",
+      value: queuedPushDeliveries.toLocaleString("en-GB")
+    },
+    {
+      detail:
+        failedPayPalWebhooks > 0
+          ? `${failedPayPalWebhooks.toLocaleString("en-GB")} PayPal webhook events failed processing in the last 24 hours.`
+          : stalePayPalWebhooks > 0
+            ? `${stalePayPalWebhooks.toLocaleString("en-GB")} PayPal webhook events are still marked received after 15 minutes.`
+            : "No failed PayPal webhook events in the last 24 hours.",
+      label: "PayPal webhooks",
+      status: paypalWebhookStatus,
+      value:
+        failedPayPalWebhooks > 0
+          ? `${failedPayPalWebhooks.toLocaleString("en-GB")} failed`
+          : stalePayPalWebhooks > 0
+            ? `${stalePayPalWebhooks.toLocaleString("en-GB")} pending`
+            : "Healthy"
     }
   ];
   const criticalChecks = checks.filter((check) => check.status === "critical").length;
@@ -216,6 +295,11 @@ export async function getAdminSystemHealthData() {
         label: "Audit events",
         value: auditLogs.toLocaleString("en-GB"),
         detail: "Security and operations records"
+      },
+      {
+        label: "Push queue",
+        value: queuedPushDeliveries.toLocaleString("en-GB"),
+        detail: `Warning threshold: ${pushBacklogWarningThreshold.toLocaleString("en-GB")} queued deliveries`
       },
       {
         label: "Memory used",
