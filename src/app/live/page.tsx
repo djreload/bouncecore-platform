@@ -46,7 +46,7 @@ export default async function LivePage() {
     messages: room.messages
   }));
   const selectedRoomRow: PublicChatRoomRow | null = chatData.selectedRoom
-      ? {
+    ? {
         id: chatData.selectedRoom.id,
         lockedAt: chatData.selectedRoom.lockedAt,
         slug: chatData.selectedRoom.slug,
@@ -92,71 +92,34 @@ export default async function LivePage() {
   return (
     <PublicShell>
       <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-5">
-          <p className="text-sm text-bc-muted">Home / Live</p>
-          <h1 className="mt-1 text-4xl font-black">Bouncecore Live</h1>
-          <p className="mt-2 max-w-3xl text-bc-muted">
-            Public playback shell wired to Bouncecore stream channels and the replaceable stream provider. This page never
-            exposes private stream keys.
-          </p>
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm text-bc-muted">Home / Live</p>
+            <h1 className="mt-1 text-4xl font-black">Bouncecore Live</h1>
+            <p className="mt-2 max-w-3xl text-bc-muted">
+              Watch the stream, join the live room, and send stars without leaving the player.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
+            <Badge tone="cyan">{viewerCount.toLocaleString("en-GB")} watching</Badge>
+          </div>
         </div>
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <LivePlaybackPlayer
-            healthStatus={health.status}
-            offlineImageUrl={offlineImageUrl}
-            playbackUrl={playbackUrl}
-            status={status}
-            streamProfile={channel?.streamProfile ?? null}
-            title={channel?.title ?? "Bouncecore Live"}
-            viewerCount={viewerCount}
-          />
-          <aside className="space-y-4">
-            <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-              <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
-              <h2 className="mt-4 text-xl font-black">Stream status</h2>
-              <p className="mt-2 text-sm text-bc-muted">
-                {viewerCount} viewers via stream provider. {channel ? `Channel: ${channel.slug}.` : "No database channel yet."}
-              </p>
-            </div>
-            <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-              <Badge tone="cyan">{health.status.toUpperCase()}</Badge>
-              <h2 className="mt-4 text-xl font-black">Stream health</h2>
-              <p className="mt-2 text-sm text-bc-muted">
-                Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
-              </p>
-            </div>
-            <StarSupportLeaderboard initialData={starSupport} />
-            <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-              <div className="flex items-center justify-between gap-3">
-                <Badge tone="pink">Schedule</Badge>
-                <CalendarClock className="h-5 w-5 text-bc-pink" aria-hidden="true" />
-              </div>
-              <h2 className="mt-4 text-xl font-black">Upcoming sets</h2>
-              <div className="mt-4 space-y-3">
-                {schedules.map((schedule) => (
-                  <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={schedule.id}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge tone={scheduleTone(schedule.status)}>{schedule.status}</Badge>
-                      <Badge tone="muted">/{schedule.channelSlug}</Badge>
-                    </div>
-                    <h3 className="mt-3 font-semibold">{schedule.title}</h3>
-                    <p className="mt-1 text-xs text-bc-muted">
-                      {formatScheduleDate(schedule.startsAt)} to {formatScheduleDate(schedule.endsAt)}
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
-                      <span className="text-xs text-bc-muted">{schedule.hostDisplayName ?? "Host TBC"}</span>
-                      {schedule.hostRoles.map((role) => (
-                        <Badge key={role} tone={roleBadgeTone(role)}>
-                          {roleDisplayName(role, roleDisplayLabels)}
-                        </Badge>
-                      ))}
-                    </div>
-                  </article>
-                ))}
-                {!schedules.length ? <p className="text-sm text-bc-muted">No upcoming stream slots have been scheduled yet.</p> : null}
-              </div>
-            </div>
+
+        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div className="min-w-0">
+            <LivePlaybackPlayer
+              healthStatus={health.status}
+              offlineImageUrl={offlineImageUrl}
+              playbackUrl={playbackUrl}
+              status={status}
+              streamProfile={channel?.streamProfile ?? null}
+              title={channel?.title ?? "Bouncecore Live"}
+              viewerCount={viewerCount}
+            />
+          </div>
+
+          <aside className="min-w-0">
             <ChatRoomPanel
               compact
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
@@ -169,7 +132,59 @@ export default async function LivePage() {
               showRoomLinks={false}
             />
           </aside>
-        </div>
+        </section>
+
+        <section className="mt-6 grid gap-4 md:grid-cols-2">
+          <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+            <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
+            <h2 className="mt-4 text-xl font-black">Stream status</h2>
+            <p className="mt-2 text-sm text-bc-muted">
+              {viewerCount.toLocaleString("en-GB")} viewers on {channel ? `/${channel.slug}` : "the primary live channel"}.
+            </p>
+          </div>
+          <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+            <Badge tone="cyan">{health.status.toUpperCase()}</Badge>
+            <h2 className="mt-4 text-xl font-black">Stream health</h2>
+            <p className="mt-2 text-sm text-bc-muted">
+              Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
+            </p>
+          </div>
+        </section>
+
+        <section className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,420px)_1fr]">
+          <StarSupportLeaderboard initialData={starSupport} />
+          <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+            <div className="flex items-center justify-between gap-3">
+              <Badge tone="pink">Schedule</Badge>
+              <CalendarClock className="h-5 w-5 text-bc-pink" aria-hidden="true" />
+            </div>
+            <h2 className="mt-4 text-xl font-black">Upcoming sets</h2>
+            <div className="mt-4 space-y-3">
+              {schedules.map((schedule) => (
+                <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={schedule.id}>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone={scheduleTone(schedule.status)}>{schedule.status}</Badge>
+                    <Badge tone="muted">/{schedule.channelSlug}</Badge>
+                  </div>
+                  <h3 className="mt-3 font-semibold">{schedule.title}</h3>
+                  <p className="mt-1 text-xs text-bc-muted">
+                    {formatScheduleDate(schedule.startsAt)} to {formatScheduleDate(schedule.endsAt)}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
+                    <span className="text-xs text-bc-muted">{schedule.hostDisplayName ?? "Host TBC"}</span>
+                    {schedule.hostRoles.map((role) => (
+                      <Badge key={role} tone={roleBadgeTone(role)}>
+                        {roleDisplayName(role, roleDisplayLabels)}
+                      </Badge>
+                    ))}
+                  </div>
+                </article>
+              ))}
+              {!schedules.length ? <p className="text-sm text-bc-muted">No upcoming stream slots have been scheduled yet.</p> : null}
+            </div>
+          </div>
+        </section>
       </main>
     </PublicShell>
   );
