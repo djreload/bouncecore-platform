@@ -315,10 +315,10 @@ export function ChatRoomPanel({
   }
 
   return (
-    <section className="rounded-md border border-bc-line bg-bc-panel">
+    <section className="min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel">
       <div className="border-b border-bc-line p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
             <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-black`}>{visibleRoom?.name ?? "Chat rooms"}</h2>
             <p className="mt-1 text-sm text-bc-muted">
@@ -342,7 +342,7 @@ export function ChatRoomPanel({
             ) : null}
           </div>
           {currentUser ? (
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <Badge tone="acid">{currentUser.displayName}</Badge>
               {currentUser.roles.map((role) => (
                 <Badge key={role} tone={roleBadgeTone(role)}>
@@ -373,7 +373,7 @@ export function ChatRoomPanel({
       </div>
 
       <div
-        className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto p-4`}
+        className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto overflow-x-hidden p-4`}
         data-testid="chat-message-list"
         ref={messagesViewportRef}
       >
@@ -384,10 +384,10 @@ export function ChatRoomPanel({
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
             return (
-              <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={message.id}>
+              <article className="min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-ink p-3" key={message.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{message.authorDisplayName}</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
                     {message.authorRoles.map((role) => (
                       <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
                         {roleDisplayName(role, roleDisplayLabels)}
@@ -563,7 +563,7 @@ export function ChatRoomPanel({
                 <div className="grid gap-2 sm:grid-cols-[140px_1fr_auto]">
                   <select
                     aria-label="Star amount"
-                    className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    className="min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                     name="amount"
                   >
                     {liveStarSendAmounts.map((amount) => (
@@ -573,12 +573,17 @@ export function ChatRoomPanel({
                     ))}
                   </select>
                   <input
-                    className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    className="min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                     maxLength={160}
                     name="note"
                     placeholder="Optional stream alert message"
                   />
-                  <Button disabled={pending || roomLockedForUser || currentStarBalance < liveStarSendAmounts[0]} type="submit" variant="primary">
+                  <Button
+                    className="min-w-0 px-3"
+                    disabled={pending || roomLockedForUser || currentStarBalance < liveStarSendAmounts[0]}
+                    type="submit"
+                    variant="primary"
+                  >
                     <Star className="h-4 w-4" aria-hidden="true" />
                     Send
                   </Button>
@@ -590,7 +595,7 @@ export function ChatRoomPanel({
               <input name="intent" type="hidden" value="text" />
               <input name="roomId" type="hidden" value={selectedRoom.id} />
               <textarea
-                className="min-h-24 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                className="min-h-24 min-w-0 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                 maxLength={500}
                 name="body"
                 onChange={(event) => setComposerBody(event.target.value)}
@@ -609,7 +614,7 @@ export function ChatRoomPanel({
               ) : null}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-bc-muted">Press Enter to send message. Shift+Enter for line break.</p>
-                <div className="flex flex-wrap justify-end gap-2">
+                <div className="flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end">
                   <ChatEffectSelector
                     disabled={roomLockedForUser}
                     onChange={setSelectedEffectId}
@@ -625,7 +630,7 @@ export function ChatRoomPanel({
                     type="button"
                     variant={gifPanelOpen ? "dark" : "ghost"}
                   >
-                    <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                    <ImageIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     GIF
                   </Button>
                   <Button
@@ -637,11 +642,11 @@ export function ChatRoomPanel({
                     type="button"
                     variant={assetPanelOpen ? "dark" : "ghost"}
                   >
-                    <Smile className="h-4 w-4" aria-hidden="true" />
+                    <Smile className="h-4 w-4 shrink-0" aria-hidden="true" />
                     Stickers
                   </Button>
                   <Button disabled={pending || roomLockedForUser} type="submit" variant="primary">
-                    <Send className="h-4 w-4" aria-hidden="true" />
+                    <Send className="h-4 w-4 shrink-0" aria-hidden="true" />
                     Send
                   </Button>
                 </div>
@@ -664,7 +669,11 @@ export function ChatRoomPanel({
                       group.items.length ? (
                         <div key={group.label}>
                           <p className="text-xs font-semibold uppercase text-bc-muted">{group.label}</p>
-                          <div className={`mt-2 grid gap-2 ${compact ? "grid-cols-3" : "grid-cols-3 sm:grid-cols-4 md:grid-cols-6"}`}>
+                          <div
+                            className={`mt-2 grid gap-2 ${
+                              compact ? "grid-cols-[repeat(auto-fit,minmax(88px,1fr))]" : "grid-cols-3 sm:grid-cols-4 md:grid-cols-6"
+                            }`}
+                          >
                             {group.items.map((asset) => (
                               <form action={formAction} className="min-w-0" key={asset.id}>
                                 <input name="intent" type="hidden" value="asset" />
@@ -720,9 +729,9 @@ export function ChatRoomPanel({
                   <Badge tone="cyan">GIFs</Badge>
                   <span className="text-xs font-semibold text-bc-muted">GIFs by Tenor</span>
                 </div>
-                <form className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]" onSubmit={searchGifs}>
+                <form className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={searchGifs}>
                   <input
-                    className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                    className="min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
                     maxLength={80}
                     onChange={(event) => setGifQuery(event.target.value)}
                     placeholder="Search GIFs"
@@ -738,7 +747,11 @@ export function ChatRoomPanel({
                 {gifError ? <p className="mt-3 text-sm text-bc-muted">{gifError}</p> : null}
 
                 {gifResults.length ? (
-                  <div className={`mt-3 grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"}`}>
+                  <div
+                    className={`mt-3 grid gap-2 ${
+                      compact ? "grid-cols-[repeat(auto-fit,minmax(120px,1fr))]" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+                    }`}
+                  >
                     {gifResults.map((gif) => {
                       const resultSize = imageSize(gif.width, gif.height);
 
