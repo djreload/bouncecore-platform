@@ -182,6 +182,14 @@ npm.cmd run stream:smoke
 
 The smoke test starts the local stream-core/media-gateway profiles, pulls a disposable FFmpeg Docker image if needed, publishes a realtime test pattern over RTMP, and polls the HLS playlist until it is available.
 
+On the WSL dev install, run a temporary-key smoke test against the deployed services:
+
+```bash
+sudo bash /opt/bouncecore/scripts/stream-smoke-wsl-dev.sh --email owner@example.com
+```
+
+The WSL smoke test creates a disposable stream key for the supplied account, publishes a test pattern to `rtmp://127.0.0.1:1935/live` with the key as the RTMP password, waits for MediaMTX HLS at `http://127.0.0.1:18888/live/index.m3u8`, reports stream-core health, then revokes the temporary key.
+
 ## Optional Adaptive HLS Transcoder
 
 The `transcoder` Docker profile runs an FFmpeg worker that reads from the internal MediaMTX RTMP stream and writes a multi-variant HLS output to a static Nginx origin. It creates `240p`, `480p`, and `720p` variants plus a `master.m3u8` playlist for browser automatic bitrate switching. It is off by default so it does not claim ports or CPU on servers that already run another stream stack.
