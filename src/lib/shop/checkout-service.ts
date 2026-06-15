@@ -225,6 +225,20 @@ export async function completeShopCheckout(userId: string, orderId: string, payp
   }
 
   const updated = await prisma.$transaction(async (tx) => {
+    const claim = await tx.order.updateMany({
+      where: {
+        id: order.id,
+        status: "pending"
+      },
+      data: {
+        status: "processing"
+      }
+    });
+
+    if (claim.count !== 1) {
+      throw new Error("This order was already processed.");
+    }
+
     for (const item of order.items) {
       if (!item.productVariantId) {
         continue;
