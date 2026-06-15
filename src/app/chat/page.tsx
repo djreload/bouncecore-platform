@@ -58,6 +58,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     mediaSourceId: message.mediaSourceId,
     mediaWidth: message.mediaWidth,
     mediaHeight: message.mediaHeight,
+    effectId: message.effectId,
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,

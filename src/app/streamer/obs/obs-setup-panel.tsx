@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Copy, KeyRound, Link2, Radio, Sparkles, Settings2, Signal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { hasStreamKeyPlaceholder, maskIngestUrl } from "@/lib/stream/ingest-url";
+import { obsServerUrlFromIngestUrl } from "@/lib/stream/ingest-url";
 import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
 
 type ObsSetupPanelProps = {
@@ -58,8 +58,7 @@ export function ObsSetupPanel({
   starOverlayUrl
 }: ObsSetupPanelProps) {
   const [copied, setCopied] = useState<CopyTarget>(null);
-  const usesUrlTemplate = hasStreamKeyPlaceholder(ingestUrl);
-  const visibleIngestUrl = maskIngestUrl(ingestUrl);
+  const obsServerUrl = obsServerUrlFromIngestUrl(ingestUrl);
 
   async function copyValue(target: Exclude<CopyTarget, null>, value: string | null) {
     if (!value) {
@@ -95,9 +94,9 @@ export function ObsSetupPanel({
                 <Signal className="h-4 w-4 text-bc-electric" aria-hidden="true" />
                 <h4 className="font-semibold">Server</h4>
               </div>
-              <CopyButton copied={copied === "ingest"} disabled={usesUrlTemplate} onCopy={() => copyValue("ingest", visibleIngestUrl)} />
+              <CopyButton copied={copied === "ingest"} onCopy={() => copyValue("ingest", obsServerUrl)} />
             </div>
-            <p className="mt-3 break-all font-mono text-sm text-bc-muted">{visibleIngestUrl}</p>
+            <p className="mt-3 break-all font-mono text-sm text-bc-muted">{obsServerUrl}</p>
           </article>
 
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">
@@ -109,7 +108,9 @@ export function ObsSetupPanel({
               <Badge tone={hasActiveKey ? "acid" : "amber"}>{hasActiveKey ? "Active" : "Create key"}</Badge>
             </div>
             <p className="mt-3 text-sm text-bc-muted">
-              {keyFingerprint ? `Active key fingerprint ${keyFingerprint}. Raw keys are only shown immediately after create or rotate.` : "No active key yet."}
+              {keyFingerprint
+                ? `Active key fingerprint ${keyFingerprint}. Paste the raw private key into OBS Stream Key. Raw keys are only shown immediately after create or rotate.`
+                : "No active key yet."}
             </p>
           </article>
 

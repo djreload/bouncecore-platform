@@ -68,6 +68,7 @@ export default async function LivePage() {
     mediaSourceId: message.mediaSourceId,
     mediaWidth: message.mediaWidth,
     mediaHeight: message.mediaHeight,
+    effectId: message.effectId,
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,

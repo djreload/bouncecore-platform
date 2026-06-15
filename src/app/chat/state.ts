@@ -22,6 +22,7 @@ export type PublicChatMessageRow = {
   mediaSourceId: string | null;
   mediaWidth: number | null;
   mediaHeight: number | null;
+  effectId: string | null;
   starAmount: number | null;
   starNote: string | null;
   createdAt: string;

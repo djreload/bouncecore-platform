@@ -7,6 +7,8 @@ import { Flag, ImageIcon, Lock, LogIn, MessageSquare, Search, Send, Smile, Star,
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
+import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
+import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
@@ -110,6 +112,8 @@ export function ChatRoomPanel({
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
+  const [composerBody, setComposerBody] = useState("");
+  const [selectedEffectId, setSelectedEffectId] = useState("");
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -242,17 +246,26 @@ export function ChatRoomPanel({
   }, [loadLatestMessages, selectedRoomId]);
 
   useEffect(() => {
-    if (state.status === "success" && textareaRef.current) {
-      textareaRef.current.value = "";
+    if (state.status !== "success") {
+      return;
     }
 
-    if (state.status === "success" && selectedRoomId) {
-      const timer = window.setTimeout(() => {
-        void loadLatestMessages(selectedRoomId);
-      }, 0);
+    const resetTimer = window.setTimeout(() => {
+      setComposerBody("");
+    }, 0);
+    const syncTimer = selectedRoomId
+      ? window.setTimeout(() => {
+          void loadLatestMessages(selectedRoomId);
+        }, 0)
+      : null;
 
-      return () => window.clearTimeout(timer);
-    }
+    return () => {
+      window.clearTimeout(resetTimer);
+
+      if (syncTimer !== null) {
+        window.clearTimeout(syncTimer);
+      }
+    };
   }, [loadLatestMessages, state.status, state.message, selectedRoomId]);
 
   useEffect(() => {
@@ -424,7 +437,7 @@ export function ChatRoomPanel({
                     />
                   </div>
                 ) : (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.body}</p>
+                  <ChatEffectText body={message.body} effectId={message.effectId} />
                 )}
 
                 {selectedRoom && !message.deletedAt ? (
@@ -580,15 +593,29 @@ export function ChatRoomPanel({
                 className="min-h-24 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                 maxLength={500}
                 name="body"
+                onChange={(event) => setComposerBody(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
                 placeholder={`Message #${visibleRoom?.slug ?? selectedRoom.slug}`}
                 ref={textareaRef}
                 disabled={roomLockedForUser}
                 required
+                value={composerBody}
               />
+              {composerBody.trim() && selectedEffectId ? (
+                <div className="rounded-md border border-bc-line bg-bc-ink px-3 py-2">
+                  <div className="text-xs font-semibold uppercase text-bc-muted">Preview</div>
+                  <ChatEffectText body={composerBody} className="mt-2" effectId={selectedEffectId} />
+                </div>
+              ) : null}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs text-bc-muted">Press Enter to send message. Shift+Enter for line break.</p>
                 <div className="flex flex-wrap justify-end gap-2">
+                  <ChatEffectSelector
+                    disabled={roomLockedForUser}
+                    onChange={setSelectedEffectId}
+                    selectedEffectId={selectedEffectId}
+                    userRoles={currentUser.roles}
+                  />
                   <Button
                     disabled={roomLockedForUser}
                     onClick={() => {

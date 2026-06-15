@@ -10,6 +10,7 @@
     "stream-core": "tsx src/stream-core/server.ts",
     "worker": "tsx src/workers/main.ts",
     "lint": "eslint .",
+    "test": "node tests/chat-effects.test.mjs",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "db:validate": "prisma validate",

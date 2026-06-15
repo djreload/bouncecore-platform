@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "intent must be text, gif, or stars." }, { status: 400 });
     }
 
-    const message = await createChatMessage(roomId, bodyString(payload, "body"), user.id);
+    const message = await createChatMessage(roomId, bodyString(payload, "body"), user.id, bodyString(payload, "effectId"));
 
     return NextResponse.json({ id: message.id, kind: message.kind, ok: true });
   } catch (error) {

@@ -6,6 +6,7 @@ import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
 import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat, getActiveChatBan } from "@/lib/chat/moderation-service";
 import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/chat-asset-service";
+import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
@@ -43,6 +44,7 @@ export type ChatMessageSummary = {
   mediaSourceId: string | null;
   mediaWidth: number | null;
   mediaHeight: number | null;
+  effectId: string | null;
   starAmount: number | null;
   starNote: string | null;
   createdAt: string;
@@ -250,6 +252,7 @@ function toMessageSummary(
     mediaSourceId: string | null;
     mediaWidth: number | null;
     mediaHeight: number | null;
+    effectId: string | null;
     starSend?: {
       amount: number;
       note: string | null;
@@ -275,6 +278,7 @@ function toMessageSummary(
     mediaSourceId: message.deletedAt ? null : message.mediaSourceId,
     mediaWidth: message.deletedAt ? null : message.mediaWidth,
     mediaHeight: message.deletedAt ? null : message.mediaHeight,
+    effectId: !message.deletedAt && getChatEffectById(message.effectId) ? message.effectId : null,
     starAmount: message.deletedAt ? null : message.starSend?.amount ?? null,
     starNote: message.deletedAt ? null : message.starSend?.note ?? null,
     createdAt: message.createdAt.toISOString(),
@@ -284,6 +288,23 @@ function toMessageSummary(
     authorRoles: author?.roles ?? [],
     reactions: message.deletedAt ? [] : summarizeReactions(message.reactions, currentUserId)
   };
+}
+
+async function getChatEffectUserRoles(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        }
+      }
+    }
+  });
+
+  return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 }
 
 async function getRooms() {
@@ -565,7 +586,7 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
   return room;
 }
 
-export async function createChatMessage(roomId: string, body: string, userId: string) {
+export async function createChatMessage(roomId: string, body: string, userId: string, effectId?: string | null) {
   await pruneExpiredChatHistory();
 
   const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
@@ -583,13 +604,16 @@ export async function createChatMessage(roomId: string, body: string, userId: st
     }
   });
   await assertUserCanPostInChat(userId, roomId);
+  const userRoles = await getChatEffectUserRoles(userId);
+  const validatedEffectId = validateChatEffectSelection(userRoles, effectId);
 
   const message = await prisma.chatMessage.create({
     data: {
       roomId,
       userId,
       body: normalizedBody,
-      kind: "text"
+      kind: "text",
+      effectId: validatedEffectId
     }
   });
 

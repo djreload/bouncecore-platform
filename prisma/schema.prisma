@@ -415,6 +415,7 @@ model ChatMessage {
   mediaSourceId   String?
   mediaWidth      Int?
   mediaHeight     Int?
+  effectId        String?
   deletedAt       DateTime?
   createdAt       DateTime @default(now())
   room            ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)

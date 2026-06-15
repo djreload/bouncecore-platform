@@ -75,6 +75,7 @@ function publicMessage(message: ChatMessageSummary) {
     mediaAlt: message.mediaAlt,
     mediaWidth: message.mediaWidth,
     mediaHeight: message.mediaHeight,
+    effectId: message.effectId,
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,

@@ -65,7 +65,7 @@ export async function publicChatAction(
         note: formString(formData, "note")
       });
     } else {
-      await createChatMessage(roomId, body, user.id);
+      await createChatMessage(roomId, body, user.id, formString(formData, "effectId"));
     }
 
     revalidatePath("/chat");

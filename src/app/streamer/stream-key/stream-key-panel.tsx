@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { streamKeyAction } from "@/app/streamer/stream-key/actions";
 import { initialStreamKeyActionState, type StreamKeyActionState } from "@/app/streamer/stream-key/state";
-import { hasStreamKeyPlaceholder, maskIngestUrl, resolveIngestUrlTemplate } from "@/lib/stream/ingest-url";
+import { obsServerUrlFromIngestUrl } from "@/lib/stream/ingest-url";
 import type { StreamKeySummary } from "@/lib/stream/stream-key-service";
 
 type StreamKeyPanelProps = {
@@ -14,7 +14,7 @@ type StreamKeyPanelProps = {
   ingestUrl: string;
 };
 
-type CopyTarget = "key" | "url" | null;
+type CopyTarget = "key" | "server" | null;
 
 function formatDate(date: string | null) {
   return date
@@ -34,8 +34,7 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
   const [copied, setCopied] = useState<CopyTarget>(null);
   const key = state.key !== undefined ? state.key : initialKey;
   const hasActiveKey = Boolean(key && key.status === "active" && !key.revokedAt);
-  const usesUrlTemplate = hasStreamKeyPlaceholder(ingestUrl);
-  const visibleIngestUrl = state.rawKey ? resolveIngestUrlTemplate(ingestUrl, state.rawKey) : maskIngestUrl(ingestUrl);
+  const obsServerUrl = obsServerUrlFromIngestUrl(ingestUrl);
 
   async function copyValue(target: Exclude<CopyTarget, null>, value: string | null) {
     if (!value) {
@@ -71,29 +70,28 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
         {state.rawKey ? (
           <div className="mt-5 rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <Badge tone="acid">Copy now</Badge>
+              <Badge tone="acid">OBS stream key</Badge>
               <button className="inline-flex items-center gap-2 text-sm font-semibold text-bc-acid hover:text-white" onClick={() => copyValue("key", state.rawKey ?? null)} type="button">
                 <Copy className="h-4 w-4" aria-hidden="true" />
                 {copied === "key" ? "Copied" : "Copy key"}
               </button>
             </div>
             <p className="mt-3 break-all font-mono text-sm text-white">{state.rawKey}</p>
-            {usesUrlTemplate ? (
-              <div className="mt-4 rounded-md border border-bc-line bg-bc-ink p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <Badge tone="cyan">OBS URL</Badge>
-                  <button
-                    className="inline-flex items-center gap-2 text-sm font-semibold text-bc-electric hover:text-white"
-                    onClick={() => copyValue("url", visibleIngestUrl)}
-                    type="button"
-                  >
-                    <Copy className="h-4 w-4" aria-hidden="true" />
-                    {copied === "url" ? "Copied" : "Copy URL"}
-                  </button>
-                </div>
-                <p className="mt-3 break-all font-mono text-sm text-bc-muted">{visibleIngestUrl}</p>
+            <p className="mt-2 text-xs text-bc-muted">Paste this value into OBS Stream Key, not into the Server field.</p>
+            <div className="mt-4 rounded-md border border-bc-line bg-bc-ink p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Badge tone="cyan">OBS server</Badge>
+                <button
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-bc-electric hover:text-white"
+                  onClick={() => copyValue("server", obsServerUrl)}
+                  type="button"
+                >
+                  <Copy className="h-4 w-4" aria-hidden="true" />
+                  {copied === "server" ? "Copied" : "Copy server"}
+                </button>
               </div>
-            ) : null}
+              <p className="mt-3 break-all font-mono text-sm text-bc-muted">{obsServerUrl}</p>
+            </div>
           </div>
         ) : (
           <div className="mt-5 rounded-md border border-dashed border-bc-line bg-bc-ink px-3 py-4 font-mono text-sm text-bc-muted">
@@ -146,7 +144,7 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
         <dl className="mt-4 space-y-4 text-sm">
           <div>
             <dt className="font-semibold">Server</dt>
-            <dd className="mt-1 break-all text-bc-muted">{visibleIngestUrl}</dd>
+            <dd className="mt-1 break-all text-bc-muted">{obsServerUrl}</dd>
           </div>
           <div>
             <dt className="font-semibold">Stream key</dt>
