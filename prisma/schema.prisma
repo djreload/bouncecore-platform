@@ -725,6 +725,26 @@ model ProducerPayoutItem {
   @@index([createdAt])
 }
 
+model PayPalWebhookEvent {
+  id                 String   @id @default(cuid())
+  paypalEventId      String   @unique
+  transmissionId     String?
+  eventType          String
+  resourceType       String?
+  resourceId         String?
+  verificationStatus String   @default("verified")
+  processingStatus   String   @default("recorded")
+  payload            Json
+  errorMessage       String?
+  receivedAt         DateTime @default(now())
+  processedAt        DateTime?
+
+  @@index([eventType])
+  @@index([processingStatus])
+  @@index([receivedAt])
+  @@index([resourceType, resourceId])
+}
+
 model StarWallet {
   id        String   @id @default(cuid())
   userId    String   @unique
