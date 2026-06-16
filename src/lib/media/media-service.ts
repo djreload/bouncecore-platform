@@ -214,51 +214,6 @@ function normalizeGoogleDriveUrl(value: string) {
   return direct.toString();
 }
 
-function imageDimensions(buffer: Buffer, contentType: string) {
-  if (contentType === "image/png" && buffer.length >= 24 && buffer.toString("ascii", 1, 4) === "PNG") {
-    return {
-      height: buffer.readUInt32BE(20),
-      width: buffer.readUInt32BE(16)
-    };
-  }
-
-  if (contentType === "image/gif" && buffer.length >= 10 && buffer.toString("ascii", 0, 3) === "GIF") {
-    return {
-      height: buffer.readUInt16LE(8),
-      width: buffer.readUInt16LE(6)
-    };
-  }
-
-  if (contentType === "image/jpeg" && buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
-    let offset = 2;
-
-    while (offset + 9 < buffer.length) {
-      if (buffer[offset] !== 0xff) {
-        offset += 1;
-        continue;
-      }
-
-      const marker = buffer[offset + 1];
-      const length = buffer.readUInt16BE(offset + 2);
-
-      if (length < 2) {
-        return null;
-      }
-
-      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
-        return {
-          height: buffer.readUInt16BE(offset + 5),
-          width: buffer.readUInt16BE(offset + 7)
-        };
-      }
-
-      offset += 2 + length;
-    }
-  }
-
-  return null;
-}
-
 function id3Offset(buffer: Buffer) {
   if (buffer.length < 10 || buffer.toString("ascii", 0, 3) !== "ID3") {
     return 0;
@@ -297,18 +252,6 @@ function mp3BitrateKbps(buffer: Buffer) {
   }
 
   return null;
-}
-
-function assertSquareImageUpload(buffer: Buffer, contentType: string) {
-  const dimensions = imageDimensions(buffer, contentType);
-
-  if (!dimensions) {
-    return;
-  }
-
-  if (dimensions.width !== dimensions.height) {
-    throw new Error("Image upload must be square. Use artwork around 500 x 500.");
-  }
 }
 
 function assertMp3Upload(buffer: Buffer, require320Kbps: boolean, label: string) {
@@ -543,8 +486,6 @@ export async function saveOptionalImageUpload(file: File | null | undefined, kin
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const image = validateImageUpload(file, buffer, "Image upload");
-
-  assertSquareImageUpload(buffer, image.contentType);
 
   return savePublicUpload(kind, file, maxImageBytes, "Image upload", image.extension, buffer);
 }

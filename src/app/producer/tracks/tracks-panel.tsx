@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useActionState } from "react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { Archive, Disc3, Image as ImageIcon, Plus, Save } from "lucide-react";
 import { producerAction } from "@/app/producer/actions";
 import { initialProducerActionState, type ProducerActionState } from "@/app/producer/state";
@@ -15,6 +15,7 @@ type ProducerTracksPanelProps = {
 };
 
 const producerTrackStatusOptions = ["draft", "pending", "approved", "archived"] as const;
+type ProducerUploadKind = "artwork" | "preview" | "download";
 
 function formatMoney(pence: number) {
   return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
@@ -38,6 +39,29 @@ function statusTone(status: string) {
   }
 
   return "cyan" as const;
+}
+
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value : null;
+}
+
+async function uploadProducerFile(kind: ProducerUploadKind, file: File) {
+  const uploadData = new FormData();
+  uploadData.set("kind", kind);
+  uploadData.set("file", file);
+
+  const response = await fetch("/api/producer/uploads", {
+    method: "POST",
+    body: uploadData
+  });
+  const result = (await response.json().catch(() => null)) as { error?: string; url?: string } | null;
+
+  if (!response.ok || !result?.url) {
+    throw new Error(result?.error ?? "Upload failed.");
+  }
+
+  return result.url;
 }
 
 function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTrackRow }) {
@@ -284,6 +308,47 @@ export function ProducerTracksPanel({ data, mode = "full" }: ProducerTracksPanel
     producerAction,
     initialProducerActionState
   );
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const busy = pending || uploading;
+
+  async function handleTrackSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    setUploadError(null);
+    setUploading(true);
+
+    try {
+      const artworkFile = formFile(formData, "artworkFile");
+      const previewFile = formFile(formData, "previewFile");
+      const downloadFile = formFile(formData, "downloadFile");
+
+      if (artworkFile) {
+        formData.set("artworkUrl", await uploadProducerFile("artwork", artworkFile));
+      }
+
+      if (previewFile) {
+        formData.set("previewUrl", await uploadProducerFile("preview", previewFile));
+      }
+
+      if (downloadFile) {
+        formData.set("downloadUrl", await uploadProducerFile("download", downloadFile));
+      }
+
+      formData.delete("artworkFile");
+      formData.delete("previewFile");
+      formData.delete("downloadFile");
+
+      startTransition(() => {
+        formAction(formData);
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -315,24 +380,29 @@ export function ProducerTracksPanel({ data, mode = "full" }: ProducerTracksPanel
           <Disc3 className="h-5 w-5 text-bc-acid" aria-hidden="true" />
           <h3 className="text-xl font-black">Add track</h3>
         </div>
-        {state.message ? (
+        {uploadError || state.message ? (
           <div
             className={`mt-5 rounded-md border p-3 text-sm ${
-              state.status === "error"
+              uploadError || state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
                 : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
             }`}
           >
-            {state.message}
+            {uploadError ?? state.message}
           </div>
         ) : null}
-        <form action={formAction} className="mt-5 grid gap-4 xl:grid-cols-4" encType="multipart/form-data">
+        <form
+          action={formAction}
+          className="mt-5 grid gap-4 xl:grid-cols-4"
+          encType="multipart/form-data"
+          onSubmit={handleTrackSubmit}
+        >
           <input name="intent" type="hidden" value="create-track" />
-          <TrackFields pending={pending} />
+          <TrackFields pending={busy} />
           <div className="flex items-end">
-            <Button disabled={pending} type="submit" variant="primary">
+            <Button disabled={busy} type="submit" variant="primary">
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Create
+              {uploading ? "Uploading..." : "Create"}
             </Button>
           </div>
         </form>
@@ -367,21 +437,26 @@ export function ProducerTracksPanel({ data, mode = "full" }: ProducerTracksPanel
                   <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
                   {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
                 </div>
-                <form action={formAction} className="grid gap-4 xl:grid-cols-4" encType="multipart/form-data">
+                <form
+                  action={formAction}
+                  className="grid gap-4 xl:grid-cols-4"
+                  encType="multipart/form-data"
+                  onSubmit={handleTrackSubmit}
+                >
                   <input name="intent" type="hidden" value="update-track" />
                   <input name="trackId" type="hidden" value={track.id} />
-                  <TrackFields pending={pending} track={track} />
+                  <TrackFields pending={busy} track={track} />
                   <div className="flex items-end gap-2">
-                    <Button disabled={pending} type="submit" variant="dark">
+                    <Button disabled={busy} type="submit" variant="dark">
                       <Save className="h-4 w-4" aria-hidden="true" />
-                      Save
+                      {uploading ? "Uploading..." : "Save"}
                     </Button>
                   </div>
                 </form>
                 <form action={formAction} className="mt-3 flex justify-end">
                   <input name="intent" type="hidden" value="archive-track" />
                   <input name="trackId" type="hidden" value={track.id} />
-                  <Button disabled={pending || track.status === "archived"} size="sm" type="submit" variant="pink">
+                  <Button disabled={busy || track.status === "archived"} size="sm" type="submit" variant="pink">
                     <Archive className="h-4 w-4" aria-hidden="true" />
                     Archive
                   </Button>
