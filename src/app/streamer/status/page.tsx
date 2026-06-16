@@ -30,7 +30,7 @@ function formatDate(value: string | null) {
 export default async function StreamerStatusPage() {
   const user = await requireUserPermission("stream.dashboard");
   const [liveState, streamKey] = await Promise.all([getPublicLiveState(), getOwnActiveStreamKey(user.id)]);
-  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmp://develop.k-nrg.co.uk/live";
+  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://develop.k-nrg.co.uk:1936/live/{streamKey}";
   const obsServerUrl = obsServerUrlFromIngestUrl(ingestUrl);
 
   return (

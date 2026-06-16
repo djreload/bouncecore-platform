@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { resolveTranscoderSourceUrlTemplate } from "../lib/stream/transcoder-source";
 
 type StreamStatus = "offline" | "starting" | "live" | "degraded";
 type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
@@ -25,6 +26,7 @@ type StreamCoreState = {
   checkedAt: string;
   droppedFrames: number | null;
   ingestConnected: boolean;
+  ingestPath: string | null;
   lastIngestAt: string | null;
   playbackUrl: string | null;
   status: StreamStatus;
@@ -81,6 +83,8 @@ const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envVa
 const transcoderEnabled = envValue("TRANSCODER_ENABLED").toLowerCase() === "true";
 const transcoderPlaybackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") : "";
 const mediaGatewayPlaybackUrl = transcoderPlaybackUrl || envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
+const transcoderSourceUrlTemplate =
+  envValue("STREAM_CORE_TRANSCODER_SOURCE_URL") || envValue("TRANSCODER_INPUT_URL") || "rtmp://media-gateway:1935/{path}";
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
 const publicPlaybackUrl = transcoderPlaybackUrl || envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
@@ -93,6 +97,7 @@ let state: StreamCoreState = {
   checkedAt: new Date().toISOString(),
   droppedFrames: null,
   ingestConnected: false,
+  ingestPath: null,
   lastIngestAt: null,
   playbackUrl: publicPlaybackUrl,
   status: "offline",
@@ -119,6 +124,13 @@ function text(response: ServerResponse, status: number, body: string) {
     "content-type": "text/plain; charset=utf-8"
   });
   response.end(body);
+}
+
+function noContent(response: ServerResponse) {
+  response.writeHead(204, {
+    "cache-control": "no-store"
+  });
+  response.end();
 }
 
 function methodNotAllowed(response: ServerResponse) {
@@ -363,6 +375,14 @@ function mediaGatewayHlsUrl(path: string | null) {
   return mediaGatewayPlaybackUrl.replace("{path}", safePath || "live");
 }
 
+function currentTranscoderSourceUrl() {
+  if (!transcoderSourceUrlTemplate) {
+    return null;
+  }
+
+  return resolveTranscoderSourceUrlTemplate(transcoderSourceUrlTemplate, state.ingestPath || "live");
+}
+
 function toMediaGatewayAction(value: unknown) {
   const action = toStringValue(value)?.toLowerCase();
 
@@ -462,6 +482,7 @@ async function loadState() {
         checkedAt: toStringValue(parsed.checkedAt) ?? state.checkedAt,
         droppedFrames: toNumber(parsed.droppedFrames),
         ingestConnected: Boolean(parsed.ingestConnected),
+        ingestPath: toStringValue(parsed.ingestPath),
         lastIngestAt: toStringValue(parsed.lastIngestAt),
         playbackUrl: toStringValue(parsed.playbackUrl) ?? state.playbackUrl,
         status: toStatus(parsed.status) ?? state.status,
@@ -687,8 +708,9 @@ async function handleMediaGatewayAuth(request: IncomingMessage, response: Server
   applyValidatedStreamKey(result);
   state.checkedAt = now;
   state.ingestConnected = true;
+  state.ingestPath = path ?? "live";
   state.lastIngestAt = now;
-  state.status = "starting";
+  state.status = "live";
 
   if (playbackUrl) {
     state.playbackUrl = playbackUrl;
@@ -834,6 +856,32 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       json(response, 200, {
         playbackUrl: derivedState().playbackUrl
       });
+      return;
+    }
+
+    if (url.pathname === "/transcoder/source" || url.pathname === "/api/transcoder/source") {
+      if (request.method !== "GET") {
+        methodNotAllowed(response);
+        return;
+      }
+
+      if (!requireAuth(request, response)) {
+        return;
+      }
+
+      if (!derivedState().health.ingestConnected) {
+        noContent(response);
+        return;
+      }
+
+      const sourceUrl = currentTranscoderSourceUrl();
+
+      if (!sourceUrl) {
+        noContent(response);
+        return;
+      }
+
+      text(response, 200, `${sourceUrl}\n`);
       return;
     }
 

@@ -14,7 +14,7 @@ export default async function StreamerObsPage() {
     getOwnActiveStreamKey(user.id),
     getStreamProfiles()
   ]);
-  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmp://develop.k-nrg.co.uk/live";
+  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://develop.k-nrg.co.uk:1936/live/{streamKey}";
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ?? "http://localhost:3000";
   const starOverlayUrl = `${appOrigin}/overlay/stars`;
   const activeProfile =

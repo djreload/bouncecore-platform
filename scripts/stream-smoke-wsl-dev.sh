@@ -7,7 +7,7 @@ USER_EMAIL="${STREAM_SMOKE_USER_EMAIL:-}"
 DURATION_SECONDS=30
 HLS_TIMEOUT_SECONDS=45
 RTMP_URL=""
-HLS_URL="http://127.0.0.1:18888/live/index.m3u8?cookieCheck=1"
+HLS_URL="http://127.0.0.1/hls/live/master.m3u8"
 STATUS_URL="http://127.0.0.1:8088/api/status"
 APP_HEALTH_URL="http://127.0.0.1:3100/api/health"
 KEY_ID=""
@@ -121,7 +121,7 @@ set -a
 . "$ENV_FILE"
 set +a
 
-RTMP_URL="${RTMP_URL:-rtmp://127.0.0.1:1935/live?user=bouncecore&pass=}"
+RTMP_URL="${RTMP_URL:-rtmps://127.0.0.1:1936/live/}"
 
 curl -fsS "$APP_HEALTH_URL" >/dev/null || die "Bouncecore app health check failed at $APP_HEALTH_URL."
 curl -fsS -H "Authorization: Bearer ${STREAM_CORE_INTERNAL_TOKEN}" "$STATUS_URL" >/dev/null ||

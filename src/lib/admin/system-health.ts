@@ -179,6 +179,8 @@ export async function getAdminSystemHealthData() {
   const memoryFree = freemem();
   const memoryUsedPercent = Math.round(((memoryTotal - memoryFree) / memoryTotal) * 100);
   const transcoderEnabled = enabled("TRANSCODER_ENABLED");
+  const rtmpEncryption = envValue("MEDIA_GATEWAY_RTMP_ENCRYPTION") || "no";
+  const rtmpsEnabled = rtmpEncryption === "optional" || rtmpEncryption === "strict";
   const workerHeartbeatStatus = getWorkerHeartbeatStatus(workerHeartbeat, {
     staleAfterSeconds: envNumber("WORKER_HEARTBEAT_STALE_SECONDS", 120)
   });
@@ -227,6 +229,18 @@ export async function getAdminSystemHealthData() {
     envCheck("PayPal client secret", "PAYPAL_CLIENT_SECRET"),
     envCheck("PayPal webhook ID", "PAYPAL_WEBHOOK_ID"),
     envCheck("RTMP ingest URL", "RTMP_INGEST_URL"),
+    {
+      detail: rtmpsEnabled
+        ? "MediaMTX is configured to accept encrypted RTMPS ingest."
+        : "Set MEDIA_GATEWAY_RTMP_ENCRYPTION to optional or strict to enable RTMPS ingest.",
+      label: "RTMPS ingest",
+      status: rtmpsEnabled ? "healthy" : "warning",
+      value: rtmpEncryption
+    },
+    rtmpsEnabled ? envCheck("RTMPS port", "MEDIA_GATEWAY_RTMPS_BIND_PORT") : optionalEnvCheck("RTMPS port", "MEDIA_GATEWAY_RTMPS_BIND_PORT"),
+    rtmpsEnabled
+      ? envCheck("RTMPS certificate directory", "MEDIA_GATEWAY_RTMPS_CERT_DIR")
+      : optionalEnvCheck("RTMPS certificate directory", "MEDIA_GATEWAY_RTMPS_CERT_DIR"),
     envCheck("Stream key validation URL", "STREAM_CORE_KEY_VALIDATION_URL"),
     optionalEnvCheck("Media gateway HLS URL", "MEDIA_GATEWAY_PUBLIC_HLS_URL"),
     modeCheck(

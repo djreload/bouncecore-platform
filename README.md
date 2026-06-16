@@ -36,7 +36,7 @@ This scaffold includes:
 - Role and permission constants
 - Stream provider interface with mock fallback and stream-core HTTP status provider
 - Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
-- Optional MediaMTX RTMP/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
+- Optional MediaMTX RTMP/RTMPS/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
 - Optional FFmpeg adaptive HLS transcoder profile with low/standard/HD variants and a CORS-enabled HLS origin
 - Admin integrations and system-health checks for direct HLS versus adaptive HLS stream-stack readiness
 - Admin HLS manifest reachability checks while streams are active, including adaptive variant-count validation
@@ -157,21 +157,23 @@ Backups can contain private data and paid media files, so keep them out of git a
 
 ## Optional Media Gateway
 
-The `media-gateway` Docker profile runs MediaMTX for RTMP ingest and HLS playback. It delegates publish authentication to stream-core at `/api/mediamtx/auth`, so only active Bouncecore stream keys are accepted. It is off by default because live stream ports may already be owned by another service.
+The `media-gateway` Docker profile runs MediaMTX for RTMP/RTMPS ingest and HLS playback. It delegates publish authentication to stream-core at `/api/mediamtx/auth`, so only active Bouncecore stream keys are accepted. It is off by default because live stream ports may already be owned by another service.
 
 ```bash
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway
 ```
 
-Configure `MEDIA_GATEWAY_PUBLIC_HLS_URL` with a fixed public HLS URL or a `{path}` template. Avoid exposing raw stream keys in public playback URLs; pass stream keys as RTMP credentials/query values whenever possible.
+Configure `MEDIA_GATEWAY_PUBLIC_HLS_URL` with a fixed public HLS URL or a `{path}` template. Direct MediaMTX HLS mirrors the RTMP publish path. When OBS sends `Server` plus a separate `Stream Key`, the publish path becomes `live/<stream-key>`, so production installs should enable the adaptive transcoder and expose the stable `TRANSCODER_HLS_PUBLIC_URL` instead of exposing a key-derived HLS URL.
 
-For MediaMTX, set `RTMP_INGEST_URL` as a template such as:
+For encrypted OBS ingest, set `MEDIA_GATEWAY_RTMP_ENCRYPTION=optional` or `strict`, place `server.crt` and `server.key` in `MEDIA_GATEWAY_RTMPS_CERT_DIR`, and set `RTMP_INGEST_URL` as a template such as:
 
 ```text
-rtmp://develop.k-nrg.co.uk/live?user=bouncecore&pass={streamKey}
+rtmps://develop.k-nrg.co.uk:1936/live/{streamKey}
 ```
 
-The streamer dashboard masks `{streamKey}` by default and only resolves the full URL immediately after a key is created or rotated.
+The streamer dashboard shows the OBS server URL separately from the private Stream Key. The full template is used internally for validation/smoke tests and must not be published to viewers.
+
+Cloudflare Zero Trust web tunnels handle HTTP/HTTPS traffic, not public raw RTMP/RTMPS from OBS. For remote OBS ingest, expose the RTMPS TCP port through a server/firewall path that supports raw TCP, Cloudflare Spectrum, a VPN, or cloudflared client access. For the WSL dev install on the same PC, use the local RTMPS server shown by the streamer OBS page.
 
 On Windows/Docker Desktop, run a local RTMP-to-HLS smoke test with a fresh local stream key:
 
@@ -188,11 +190,11 @@ On the WSL dev install, run a temporary-key smoke test against the deployed serv
 sudo bash /opt/bouncecore/scripts/stream-smoke-wsl-dev.sh --email owner@example.com
 ```
 
-The WSL smoke test creates a disposable stream key for the supplied account, publishes a test pattern to `rtmp://127.0.0.1:1935/live` with the key as the RTMP password, waits for MediaMTX HLS at `http://127.0.0.1:18888/live/index.m3u8`, reports stream-core health, then revokes the temporary key.
+The WSL smoke test creates a disposable stream key for the supplied account, publishes a test pattern to `rtmps://127.0.0.1:1936/live` using the same separate stream-key shape as OBS, waits for the stable adaptive HLS playlist at `http://127.0.0.1/hls/live/master.m3u8`, reports stream-core health, then revokes the temporary key.
 
 ## Optional Adaptive HLS Transcoder
 
-The `transcoder` Docker profile runs an FFmpeg worker that reads from the internal MediaMTX RTMP stream and writes a multi-variant HLS output to a static Nginx origin. It creates `240p`, `480p`, and `720p` variants plus a `master.m3u8` playlist for browser automatic bitrate switching. It is off by default so it does not claim ports or CPU on servers that already run another stream stack.
+The `transcoder` Docker profile runs an FFmpeg worker that asks stream-core for the current authenticated ingest path, reads that internal MediaMTX RTMP source, and writes a multi-variant HLS output to a static Nginx origin. It creates `240p`, `480p`, and `720p` variants plus a `master.m3u8` playlist for browser automatic bitrate switching. It is off by default so it does not claim ports or CPU on servers that already run another stream stack.
 
 ```bash
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
@@ -202,6 +204,7 @@ When enabling this path, set:
 
 ```text
 TRANSCODER_ENABLED=true
+TRANSCODER_INPUT_URL=rtmp://media-gateway:1935/{path}
 TRANSCODER_HLS_PUBLIC_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
 HLS_PLAYBACK_HEALTH_URL=http://hls-origin/live/master.m3u8
 PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8

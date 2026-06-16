@@ -9,6 +9,7 @@
 secrets/
 generated-secrets/
 /stream-keys/
+.instance-certs/
 
 # Dependencies
 node_modules/

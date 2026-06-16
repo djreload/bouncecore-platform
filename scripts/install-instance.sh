@@ -126,6 +126,52 @@ require_nonempty() {
   fi
 }
 
+resolve_app_path() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *) printf '%s/%s' "$APP_ROOT" "$1" ;;
+  esac
+}
+
+generate_rtmps_certificate() {
+  local cert_dir="$1"
+  local domain="$2"
+
+  if [ -s "$cert_dir/server.crt" ] && [ -s "$cert_dir/server.key" ]; then
+    return
+  fi
+
+  warn "Generating a self-signed RTMPS certificate in $cert_dir. Replace it with a trusted certificate before public production ingest."
+  run_as_root install -d -m 700 "$cert_dir"
+
+  run_as_root tee "$cert_dir/server.cnf" >/dev/null <<CERTCONF
+[req]
+distinguished_name=req_distinguished_name
+x509_extensions=v3_req
+prompt=no
+
+[req_distinguished_name]
+CN=${domain}
+
+[v3_req]
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=@alt_names
+
+[alt_names]
+DNS.1=${domain}
+DNS.2=localhost
+IP.1=127.0.0.1
+CERTCONF
+
+  run_as_root openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 825 \
+    -keyout "$cert_dir/server.key" \
+    -out "$cert_dir/server.crt" \
+    -config "$cert_dir/server.cnf"
+  run_as_root chmod 600 "$cert_dir/server.key"
+  run_as_root chmod 644 "$cert_dir/server.crt"
+}
+
 compose() {
   docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
 }
@@ -313,11 +359,14 @@ STREAM_CORE_BIND_HOST="$(prompt "Stream core bind host" "127.0.0.1")"
 STREAM_CORE_HTTP_BIND_PORT="$(prompt "Stream core host HTTP port" "18088")"
 STREAM_CORE_OFFLINE_AFTER_SECONDS="$(prompt "Stream core offline timeout seconds" "30")"
 MEDIA_GATEWAY_BIND_HOST="$(prompt "Media gateway bind host" "127.0.0.1")"
+MEDIA_GATEWAY_RTMP_ENCRYPTION="$(prompt "Media gateway RTMP encryption mode (no, optional, strict)" "optional")"
 MEDIA_GATEWAY_RTMP_BIND_PORT="$(prompt "Media gateway RTMP host port" "1935")"
+MEDIA_GATEWAY_RTMPS_BIND_PORT="$(prompt "Media gateway RTMPS host port" "1936")"
+MEDIA_GATEWAY_RTMPS_CERT_DIR="$(prompt "Media gateway RTMPS certificate directory" "./.instance-certs/rtmps")"
 MEDIA_GATEWAY_HLS_BIND_PORT="$(prompt "Media gateway HLS host port" "18888")"
 MEDIA_GATEWAY_PUBLIC_HLS_URL="$(prompt "Media gateway public HLS URL template" "$APP_URL/hls/{path}/index.m3u8")"
 TRANSCODER_ENABLED=false
-TRANSCODER_INPUT_URL="rtmp://media-gateway:1935/live"
+TRANSCODER_INPUT_URL="rtmp://media-gateway:1935/{path}"
 TRANSCODER_HLS_BIND_HOST="127.0.0.1"
 TRANSCODER_HLS_BIND_PORT="18889"
 TRANSCODER_HLS_PUBLIC_URL="$APP_URL/hls/live/master.m3u8"
@@ -325,13 +374,24 @@ TRANSCODER_HLS_PUBLIC_URL="$APP_URL/hls/live/master.m3u8"
 case "$ENABLE_TRANSCODER" in
   y|Y|yes|YES)
     TRANSCODER_ENABLED=true
-    TRANSCODER_INPUT_URL="$(prompt "Transcoder RTMP input URL" "$TRANSCODER_INPUT_URL")"
+    TRANSCODER_INPUT_URL="$(prompt "Transcoder RTMP input URL template" "$TRANSCODER_INPUT_URL")"
     TRANSCODER_HLS_BIND_HOST="$(prompt "Transcoder HLS origin bind host" "$TRANSCODER_HLS_BIND_HOST")"
     TRANSCODER_HLS_BIND_PORT="$(prompt "Transcoder HLS origin host port" "$TRANSCODER_HLS_BIND_PORT")"
     TRANSCODER_HLS_PUBLIC_URL="$(prompt "Transcoder public HLS master URL" "$TRANSCODER_HLS_PUBLIC_URL")"
     ;;
 esac
-RTMP_INGEST_URL="$(prompt "Public RTMP ingest URL" "rtmp://$APP_HOST/live?user=bouncecore&pass={streamKey}")"
+case "$MEDIA_GATEWAY_RTMP_ENCRYPTION" in
+  no|optional|strict) ;;
+  *) die "Media gateway RTMP encryption mode must be no, optional, or strict." ;;
+esac
+
+if [ "$MEDIA_GATEWAY_RTMP_ENCRYPTION" = "no" ]; then
+  DEFAULT_RTMP_INGEST_URL="rtmp://$APP_HOST/live/{streamKey}"
+else
+  DEFAULT_RTMP_INGEST_URL="rtmps://$APP_HOST:$MEDIA_GATEWAY_RTMPS_BIND_PORT/live/{streamKey}"
+fi
+
+RTMP_INGEST_URL="$(prompt "Public RTMP/RTMPS ingest URL" "$DEFAULT_RTMP_INGEST_URL")"
 DEFAULT_PUBLIC_PLAYBACK_URL="$MEDIA_GATEWAY_PUBLIC_HLS_URL"
 
 if [ "$TRANSCODER_ENABLED" = "true" ]; then
@@ -402,6 +462,10 @@ if [ "${#OWNER_PASSWORD}" -lt 12 ]; then
   die "Owner password must be at least 12 characters."
 fi
 
+if [ "$MEDIA_GATEWAY_RTMP_ENCRYPTION" != "no" ]; then
+  generate_rtmps_certificate "$(resolve_app_path "$MEDIA_GATEWAY_RTMPS_CERT_DIR")" "$APP_HOST"
+fi
+
 LOCAL_HEALTH_HOST="$APP_BIND_HOST"
 if [ "$LOCAL_HEALTH_HOST" = "0.0.0.0" ]; then
   LOCAL_HEALTH_HOST="127.0.0.1"
@@ -453,7 +517,10 @@ STREAM_CORE_OFFLINE_AFTER_SECONDS=$STREAM_CORE_OFFLINE_AFTER_SECONDS
 STREAM_CORE_PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
 MEDIA_GATEWAY_CONTAINER=bouncecore-media-gateway
 MEDIA_GATEWAY_BIND_HOST=$MEDIA_GATEWAY_BIND_HOST
+MEDIA_GATEWAY_RTMP_ENCRYPTION=$MEDIA_GATEWAY_RTMP_ENCRYPTION
 MEDIA_GATEWAY_RTMP_BIND_PORT=$MEDIA_GATEWAY_RTMP_BIND_PORT
+MEDIA_GATEWAY_RTMPS_BIND_PORT=$MEDIA_GATEWAY_RTMPS_BIND_PORT
+MEDIA_GATEWAY_RTMPS_CERT_DIR=$MEDIA_GATEWAY_RTMPS_CERT_DIR
 MEDIA_GATEWAY_HLS_BIND_PORT=$MEDIA_GATEWAY_HLS_BIND_PORT
 MEDIA_GATEWAY_PUBLIC_HLS_URL=$MEDIA_GATEWAY_PUBLIC_HLS_URL
 HLS_PLAYBACK_HEALTH_URL=$HLS_PLAYBACK_HEALTH_URL
