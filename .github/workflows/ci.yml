@@ -88,5 +88,6 @@ jobs:
       - name: Validate maintenance script syntax
         run: |
           bash -n scripts/install-instance.sh
+          bash -n scripts/install-debian-main.sh
           bash -n scripts/backup-instance.sh
           bash -n scripts/restore-instance.sh

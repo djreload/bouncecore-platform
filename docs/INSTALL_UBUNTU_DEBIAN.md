@@ -2,6 +2,32 @@
 
 This guide installs Bouncecore on a fresh Ubuntu or Debian server using Docker Compose. It uses dummy domains throughout. Replace `bouncecore.example.com` with your own domain.
 
+## Quick Main-Branch Auto Installer
+
+For a fresh Debian/Ubuntu server, the fastest install path pulls from the GitHub `main` branch and configures the full RTMPS stream stack automatically:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/djreload/bouncecore-platform/main/scripts/install-debian-main.sh -o install-bouncecore.sh
+bash install-bouncecore.sh
+```
+
+The auto installer uses:
+
+- Repository: `https://github.com/djreload/bouncecore-platform.git`
+- Branch: `main`
+- Install path: `/opt/bouncecore`
+- App bind: `127.0.0.1:3000`
+- PostgreSQL and Redis in Docker
+- nginx and Let's Encrypt for HTTPS
+- RTMPS ingest on `1936`
+- unencrypted RTMP bound to localhost only
+- adaptive HLS at `/hls/live/master.m3u8`
+- generated internal tokens and database password
+
+It only prompts for the public URL and operating credentials: first Owner login, Brevo SMTP credentials, Tenor API key, PayPal credentials, and optional Expo push token.
+
+Use the manual sections below if you need custom ports, a panel-managed reverse proxy, a different repository, or a staged install.
+
 ## 1. Requirements
 
 - Ubuntu 22.04, Ubuntu 24.04, Debian 12, or newer Debian stable.
@@ -119,9 +145,12 @@ Start embedded stream core service now: y
 Start MediaMTX RTMP/HLS gateway now: y
 Start FFmpeg adaptive HLS transcoder now: y
 Start background worker now: y
-Media gateway bind host: 0.0.0.0
+Media gateway bind host: 127.0.0.1
 Media gateway RTMP encryption mode: optional
+Media gateway RTMP bind host: 127.0.0.1
 Media gateway RTMPS host port: 1936
+Media gateway RTMPS bind host: 0.0.0.0
+Media gateway HLS bind host: 127.0.0.1
 Media gateway HLS host port: 18888
 Public RTMP/RTMPS ingest URL: rtmps://bouncecore.example.com:1936/live/{streamKey}
 Public playback URL: https://bouncecore.example.com/hls/live/master.m3u8

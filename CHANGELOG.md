@@ -35,6 +35,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added database-backed stream profiles for low bitrate through high-HD stream configurations.
 - Added backup and restore scripts for PostgreSQL and Docker volumes used by uploads, Redis, stream-core state, and transcoder HLS output.
 - Added interactive Linux instance installer for Docker Compose deployments.
+- Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 
 ### Changed
 
@@ -46,6 +47,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Increased upload limits to: product/track images 100MB, chat stickers/animated emoji 150MB, sample MP3s 100MB, download MP3s 200MB, and server action body limit 512MB.
 - Rewrote public repository docs to use dummy domains and generic deployment examples.
 - Replaced environment-specific README deployment notes with a portable install and operations summary.
+- Split MediaMTX RTMP, RTMPS, and HLS bind-host settings so production installs can expose RTMPS publicly while keeping unencrypted RTMP and HLS origins local.
 
 ### Fixed
 
