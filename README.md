@@ -192,6 +192,15 @@ sudo bash /opt/bouncecore/scripts/stream-smoke-wsl-dev.sh --email owner@example.
 
 The WSL smoke test creates a disposable stream key for the supplied account, publishes a test pattern to `rtmps://127.0.0.1:1936/live` using the same separate stream-key shape as OBS, waits for the stable adaptive HLS playlist at `http://127.0.0.1/hls/live/master.m3u8`, reports stream-core health, then revokes the temporary key.
 
+For Windows streaming apps pointed at a WSL install, Windows may expose WSL stream ports on `localhost`/IPv6 but not literal `127.0.0.1`. If Streamlabs or OBS must use `127.0.0.1`, start the user-mode relay with the current WSL IP:
+
+```powershell
+$wslIp = (wsl.exe -d Debian -- hostname -I).Trim().Split(" ")[0]
+node scripts/wsl-port-forward.mjs --target $wslIp --ports 1935,1936
+```
+
+Then use `rtmps://127.0.0.1:1936/live` as the OBS server and paste only the raw Bouncecore stream key into the Stream Key field. RTMPS also requires Windows to trust the local RTMPS certificate when a self-signed WSL certificate is used.
+
 ## Optional Adaptive HLS Transcoder
 
 The `transcoder` Docker profile runs an FFmpeg worker that asks stream-core for the current authenticated ingest path, reads that internal MediaMTX RTMP source, and writes a multi-variant HLS output to a static Nginx origin. It creates `240p`, `480p`, and `720p` variants plus a `master.m3u8` playlist for browser automatic bitrate switching. It is off by default so it does not claim ports or CPU on servers that already run another stream stack.
