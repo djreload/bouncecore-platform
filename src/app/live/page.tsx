@@ -1,4 +1,15 @@
-import { CalendarClock, UserRound } from "lucide-react";
+import {
+  CalendarClock,
+  ExternalLink,
+  Globe2,
+  Link2,
+  MessageCircle,
+  Music,
+  Radio,
+  Share2,
+  UserRound,
+  Video
+} from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
 import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
@@ -9,6 +20,7 @@ import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
+import { getPublicSiteSettings, type LiveSocialLink } from "@/lib/admin/site-settings-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
 import { getLiveStarSupportData, getStarWalletBalance } from "@/lib/stars/star-send-service";
@@ -23,13 +35,79 @@ function scheduleTone(status: string) {
   return status === "live" ? ("acid" as const) : ("cyan" as const);
 }
 
+function socialIcon(platform: string) {
+  const key = platform.toLowerCase();
+
+  if (["youtube", "twitch", "kick", "video", "tv"].some((value) => key.includes(value))) {
+    return Video;
+  }
+
+  if (["instagram", "tiktok", "soundcloud", "mixcloud", "music"].some((value) => key.includes(value))) {
+    return Music;
+  }
+
+  if (["discord", "facebook", "messenger", "chat"].some((value) => key.includes(value))) {
+    return MessageCircle;
+  }
+
+  if (["radio", "live", "stream"].some((value) => key.includes(value))) {
+    return Radio;
+  }
+
+  if (["web", "site", "home"].some((value) => key.includes(value))) {
+    return Globe2;
+  }
+
+  return Link2;
+}
+
+function LiveSocialLinks({ links }: { links: LiveSocialLink[] }) {
+  const enabledLinks = links.filter((link) => link.enabled);
+
+  return (
+    <section className="mt-3 rounded-md border border-bc-line bg-bc-panel/90 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Share2 className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+          <h2 className="text-sm font-black uppercase">Follow the stream</h2>
+        </div>
+        <Badge tone={enabledLinks.length ? "cyan" : "muted"}>{enabledLinks.length ? `${enabledLinks.length} links` : "Not configured"}</Badge>
+      </div>
+      {enabledLinks.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {enabledLinks.map((link) => {
+            const Icon = socialIcon(link.platform);
+
+            return (
+              <a
+                className="bc-focus-ring inline-flex min-h-10 items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-semibold text-white transition hover:border-bc-electric/60 hover:bg-bc-electric/10"
+                href={link.url}
+                key={`${link.platform}-${link.url}`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <Icon className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                <span>{link.label}</span>
+                <ExternalLink className="h-3.5 w-3.5 text-bc-muted" aria-hidden="true" />
+              </a>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-bc-muted">Social links can be added from Admin / General settings.</p>
+      )}
+    </section>
+  );
+}
+
 export default async function LivePage() {
   const currentUser = await getCurrentUser();
-  const [liveState, chatData, roleDisplayLabels, schedules] = await Promise.all([
+  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings] = await Promise.all([
     getPublicLiveState(),
     getPublicChatData("live", currentUser?.id),
     getRoleDisplayNameOverrides(),
-    getPublicUpcomingStreamSchedules()
+    getPublicUpcomingStreamSchedules(),
+    getPublicSiteSettings()
   ]);
   const [starSupport, currentStarBalance] = await Promise.all([
     getLiveStarSupportData(),
@@ -90,12 +168,13 @@ export default async function LivePage() {
   }));
 
   return (
-    <PublicShell>
-      <main className="mx-auto max-w-7xl px-4 py-8">
-        <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+    <PublicShell siteSettings={siteSettings}>
+      <main className="w-full px-3 py-4 sm:px-4 lg:px-5 xl:px-6">
+        <div className="mx-auto max-w-[1800px]">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm text-bc-muted">Home / Live</p>
-            <h1 className="mt-1 text-4xl font-black">Bouncecore Live</h1>
+            <h1 className="mt-1 text-3xl font-black sm:text-4xl">Bouncecore Live</h1>
             <p className="mt-2 max-w-3xl text-bc-muted">
               Watch the stream, join the live room, and send stars without leaving the player.
             </p>
@@ -106,7 +185,7 @@ export default async function LivePage() {
           </div>
         </div>
 
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_430px]">
+        <section className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,410px)] 2xl:grid-cols-[minmax(0,1fr)_450px]">
           <div className="min-w-0">
             <LivePlaybackPlayer
               healthStatus={health.status}
@@ -117,14 +196,17 @@ export default async function LivePage() {
               title={channel?.title ?? "Bouncecore Live"}
               viewerCount={viewerCount}
             />
+            <LiveSocialLinks links={siteSettings.liveSocialLinks} />
           </div>
 
-          <aside className="min-w-0">
+          <aside className="min-w-0 lg:sticky lg:top-24 lg:h-[calc(100vh-7rem)]">
             <ChatRoomPanel
+              className="lg:flex lg:h-full lg:flex-col"
               compact
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
               currentStarBalance={currentStarBalance}
               assets={assetRows}
+              messagesClassName="max-h-[420px] lg:min-h-0 lg:flex-1 lg:max-h-none"
               messages={messageRows}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
@@ -134,7 +216,7 @@ export default async function LivePage() {
           </aside>
         </section>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-2">
+        <section className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-md border border-bc-line bg-bc-panel p-5">
             <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
             <h2 className="mt-4 text-xl font-black">Stream status</h2>
@@ -185,6 +267,7 @@ export default async function LivePage() {
             </div>
           </div>
         </section>
+        </div>
       </main>
     </PublicShell>
   );

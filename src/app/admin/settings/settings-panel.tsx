@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Globe2, Megaphone, Save, Settings } from "lucide-react";
+import { Globe2, Megaphone, Save, Settings, Share2 } from "lucide-react";
 import { adminSettingsAction } from "@/app/admin/settings/actions";
 import { initialAdminSettingsActionState, type AdminSettingsActionState } from "@/app/admin/settings/state";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,16 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
     adminSettingsAction,
     initialAdminSettingsActionState
   );
+  const socialLinkRows = Array.from({ length: 8 }, (_value, index) => {
+    const link = data.settings.liveSocialLinks[index];
+
+    return {
+      enabled: link?.enabled ?? false,
+      label: link?.label ?? "",
+      platform: link?.platform ?? "",
+      url: link?.url ?? ""
+    };
+  });
 
   return (
     <div className="space-y-5">
@@ -153,6 +163,76 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
           </div>
 
           <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Share2 className="h-5 w-5 text-bc-electric" aria-hidden="true" />
+                  <h4 className="font-black">Live page social links</h4>
+                </div>
+                <p className="mt-2 text-sm text-bc-muted">
+                  These links appear directly below the live video player for viewers.
+                </p>
+              </div>
+              <Badge tone="cyan">{data.settings.liveSocialLinks.filter((link) => link.enabled).length} enabled</Badge>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {socialLinkRows.map((link, index) => (
+                <div className="grid gap-3 rounded-md border border-bc-line bg-bc-panel p-3 lg:grid-cols-[96px_1fr_150px_2fr]" key={index}>
+                  <label className="flex items-center gap-2 text-sm text-bc-muted">
+                    <input
+                      defaultChecked={link.enabled}
+                      disabled={pending}
+                      name={`liveSocialLinks.${index}.enabled`}
+                      type="checkbox"
+                    />
+                    Enabled
+                  </label>
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`social-label-${index}`}>
+                      Label
+                    </label>
+                    <input
+                      className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      defaultValue={link.label}
+                      disabled={pending}
+                      id={`social-label-${index}`}
+                      name={`liveSocialLinks.${index}.label`}
+                      placeholder="Instagram"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`social-platform-${index}`}>
+                      Platform
+                    </label>
+                    <input
+                      className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      defaultValue={link.platform}
+                      disabled={pending}
+                      id={`social-platform-${index}`}
+                      name={`liveSocialLinks.${index}.platform`}
+                      placeholder="instagram"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`social-url-${index}`}>
+                      URL
+                    </label>
+                    <input
+                      className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      defaultValue={link.url}
+                      disabled={pending}
+                      id={`social-url-${index}`}
+                      name={`liveSocialLinks.${index}.url`}
+                      placeholder="https://..."
+                      type="url"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
             <div className="flex items-center gap-2">
               <Megaphone className="h-5 w-5 text-bc-amber" aria-hidden="true" />
               <h4 className="font-black">Homepage announcement</h4>
@@ -228,7 +308,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
           <h3 className="text-xl font-black">Readiness</h3>
           <Globe2 className="h-5 w-5 text-bc-electric" aria-hidden="true" />
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {data.checks.map((check) => (
             <div className="rounded-md border border-bc-line bg-bc-ink p-3" key={check.label}>
               <div className="flex flex-wrap items-center justify-between gap-3">

@@ -12,6 +12,7 @@ import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
+import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
   type PublicChatActionState,
@@ -29,7 +30,9 @@ type ChatRoomPanelProps = {
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
   roleDisplayLabels: RoleDisplayNameMap;
+  className?: string;
   compact?: boolean;
+  messagesClassName?: string;
   showRoomLinks?: boolean;
 };
 
@@ -99,7 +102,9 @@ export function ChatRoomPanel({
   currentUser,
   currentStarBalance = 0,
   roleDisplayLabels,
+  className,
   compact = false,
+  messagesClassName,
   showRoomLinks = true
 }: ChatRoomPanelProps) {
   const [state, formAction, pending] = useActionState<PublicChatActionState, FormData>(
@@ -315,7 +320,7 @@ export function ChatRoomPanel({
   }
 
   return (
-    <section className="min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel">
+    <section className={cn("min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
       <div className="border-b border-bc-line p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -373,7 +378,7 @@ export function ChatRoomPanel({
       </div>
 
       <div
-        className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto overflow-x-hidden p-4`}
+        className={cn(compact ? "max-h-[380px]" : "max-h-[560px]", "overflow-y-auto overflow-x-hidden p-4", messagesClassName)}
         data-testid="chat-message-list"
         ref={messagesViewportRef}
       >

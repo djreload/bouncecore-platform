@@ -13,9 +13,22 @@ export type SiteSettingsInput = {
   footerSummary?: string;
   homepageBadge?: string;
   homepageIntro?: string;
+  liveSocialLinks: Array<{
+    enabled: boolean;
+    label?: string;
+    platform?: string;
+    url?: string;
+  }>;
   siteName?: string;
   stagingTarget?: string;
   supportEmail?: string;
+};
+
+export type LiveSocialLink = {
+  enabled: boolean;
+  label: string;
+  platform: string;
+  url: string;
 };
 
 export type SiteSettings = {
@@ -29,6 +42,7 @@ export type SiteSettings = {
   footerSummary: string;
   homepageBadge: string;
   homepageIntro: string;
+  liveSocialLinks: LiveSocialLink[];
   siteName: string;
   stagingTarget: string | null;
   supportEmail: string | null;
@@ -59,6 +73,7 @@ function defaultSiteSettings(): SiteSettings {
     homepageBadge: "Bouncecore platform",
     homepageIntro:
       "A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
+    liveSocialLinks: [],
     siteName: "Bouncecore",
     stagingTarget: "develop.k-nrg.co.uk",
     supportEmail: null
@@ -131,6 +146,64 @@ function normalizedUrl(value: string | undefined, label: string) {
   return url;
 }
 
+function normalizedExternalUrl(value: string | undefined, label: string) {
+  const url = normalizedText(value, 300);
+
+  if (!url) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      throw new Error();
+    }
+  } catch {
+    throw new Error(`${label} must be a full http/https URL.`);
+  }
+
+  return url;
+}
+
+function normalizePlatform(value: string | undefined) {
+  const platform = normalizedText(value, 40)?.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+
+  return platform || "link";
+}
+
+function normalizeLiveSocialLinks(
+  links: Array<{
+    enabled: boolean;
+    label?: string;
+    platform?: string;
+    url?: string;
+  }>
+) {
+  return links
+    .slice(0, 8)
+    .map((link, index) => {
+      const url = normalizedExternalUrl(link.url, `Social link ${index + 1}`);
+      const label = normalizedText(link.label, 40);
+
+      if (!url && !label) {
+        return null;
+      }
+
+      if (!url || !label) {
+        throw new Error(`Social link ${index + 1} needs both label and URL.`);
+      }
+
+      return {
+        enabled: link.enabled,
+        label,
+        platform: normalizePlatform(link.platform || label),
+        url
+      };
+    })
+    .filter((link): link is LiveSocialLink => Boolean(link));
+}
+
 function mergeSiteSettings(value: unknown): SiteSettings {
   const settings = defaultSiteSettings();
 
@@ -183,6 +256,32 @@ function mergeSiteSettings(value: unknown): SiteSettings {
     }
   }
 
+  if (Array.isArray(value.liveSocialLinks)) {
+    settings.liveSocialLinks = value.liveSocialLinks
+      .map((link) => {
+        if (!isObject(link)) {
+          return null;
+        }
+
+        const label = typeof link.label === "string" ? link.label.trim().slice(0, 40) : "";
+        const platform = typeof link.platform === "string" ? normalizePlatform(link.platform) : normalizePlatform(label);
+        const url = typeof link.url === "string" ? link.url.trim().slice(0, 300) : "";
+
+        if (!label || !url) {
+          return null;
+        }
+
+        return {
+          enabled: typeof link.enabled === "boolean" ? link.enabled : true,
+          label,
+          platform,
+          url
+        };
+      })
+      .filter((link): link is LiveSocialLink => Boolean(link))
+      .slice(0, 8);
+  }
+
   return settings;
 }
 
@@ -211,6 +310,7 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),
     homepageBadge: normalizedRequiredText(input.homepageBadge, 80, "Homepage badge"),
     homepageIntro: normalizedRequiredText(input.homepageIntro, 320, "Homepage intro"),
+    liveSocialLinks: normalizeLiveSocialLinks(input.liveSocialLinks),
     siteName: normalizedRequiredText(input.siteName, 80, "Site name"),
     stagingTarget: normalizedText(input.stagingTarget, 160),
     supportEmail: normalizedEmail(input.supportEmail)
@@ -266,6 +366,14 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
         label: "Support email",
         status: settings.supportEmail ? "ready" : "warning",
         value: settings.supportEmail ? "set" : "missing"
+      },
+      {
+        detail: settings.liveSocialLinks.some((link) => link.enabled)
+          ? `${settings.liveSocialLinks.filter((link) => link.enabled).length} live-page social links are enabled.`
+          : "No live-page social links are enabled.",
+        label: "Live social links",
+        status: settings.liveSocialLinks.some((link) => link.enabled) ? "ready" : "warning",
+        value: settings.liveSocialLinks.filter((link) => link.enabled).length.toString()
       }
     ],
     settings,
@@ -301,6 +409,7 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
     severity: settings.announcement.enabled ? "warning" : "info",
     metadata: {
       announcementEnabled: settings.announcement.enabled,
+      liveSocialLinks: settings.liveSocialLinks.filter((link) => link.enabled).length,
       siteName: settings.siteName,
       supportEmailSet: Boolean(settings.supportEmail)
     }

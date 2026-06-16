@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Radio } from "lucide-react";
 import { NavList } from "@/components/navigation/nav-list";
+import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
 import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
@@ -44,9 +45,9 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
               Register
             </ButtonLink>
           </div>
-        </div>
-        <div className="border-t border-bc-line/60 px-4 py-2 lg:hidden">
-          <NavList items={navigationItems} orientation="horizontal" />
+          <div className="ml-auto sm:ml-0">
+            <PublicMobileMenu items={navigationItems} siteName={siteName} />
+          </div>
         </div>
       </header>
       <StarSupportOverlay />

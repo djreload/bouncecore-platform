@@ -11,6 +11,13 @@ function formBoolean(formData: FormData, key: string) {
 }
 
 export function adminSettingsInput(formData: FormData): SiteSettingsInput {
+  const liveSocialLinks = Array.from({ length: 8 }, (_value, index) => ({
+    enabled: formBoolean(formData, `liveSocialLinks.${index}.enabled`),
+    label: formString(formData, `liveSocialLinks.${index}.label`),
+    platform: formString(formData, `liveSocialLinks.${index}.platform`),
+    url: formString(formData, `liveSocialLinks.${index}.url`)
+  }));
+
   return {
     announcementBody: formString(formData, "announcementBody"),
     announcementCtaHref: formString(formData, "announcementCtaHref"),
@@ -20,6 +27,7 @@ export function adminSettingsInput(formData: FormData): SiteSettingsInput {
     footerSummary: formString(formData, "footerSummary"),
     homepageBadge: formString(formData, "homepageBadge"),
     homepageIntro: formString(formData, "homepageIntro"),
+    liveSocialLinks,
     siteName: formString(formData, "siteName"),
     stagingTarget: formString(formData, "stagingTarget"),
     supportEmail: formString(formData, "supportEmail")
