@@ -90,7 +90,11 @@ services:
       MTX_AUTHHTTPADDRESS: http://stream-core:8088/api/mediamtx/auth?token=${STREAM_CORE_INTERNAL_TOKEN:?STREAM_CORE_INTERNAL_TOKEN is required}
       MTX_RTSP: "false"
       MTX_RTMP: "true"
+      MTX_RTMPENCRYPTION: ${MEDIA_GATEWAY_RTMP_ENCRYPTION:-no}
       MTX_RTMPADDRESS: :1935
+      MTX_RTMPSADDRESS: :1936
+      MTX_RTMPSERVERKEY: /certs/server.key
+      MTX_RTMPSERVERCERT: /certs/server.crt
       MTX_HLS: "true"
       MTX_HLSADDRESS: :8888
       MTX_HLSALLOWORIGINS: "*"
@@ -98,8 +102,11 @@ services:
       MTX_SRT: "false"
       MTX_MOQ: "false"
     ports:
-      - "127.0.0.1:${MEDIA_GATEWAY_RTMP_BIND_PORT:-1935}:1935"
-      - "127.0.0.1:${MEDIA_GATEWAY_HLS_BIND_PORT:-18888}:8888"
+      - "${MEDIA_GATEWAY_RTMP_BIND_HOST:-127.0.0.1}:${MEDIA_GATEWAY_RTMP_BIND_PORT:-1935}:1935"
+      - "${MEDIA_GATEWAY_RTMPS_BIND_HOST:-127.0.0.1}:${MEDIA_GATEWAY_RTMPS_BIND_PORT:-1936}:1936"
+      - "${MEDIA_GATEWAY_HLS_BIND_HOST:-127.0.0.1}:${MEDIA_GATEWAY_HLS_BIND_PORT:-18888}:8888"
+    volumes:
+      - "${MEDIA_GATEWAY_RTMPS_CERT_DIR:-./.instance-certs/rtmps}:/certs:ro"
 
   hls-origin:
     profiles:
