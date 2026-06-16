@@ -37,7 +37,7 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
           <div className="hidden flex-1 justify-center lg:flex">
             <NavList items={navigationItems} orientation="horizontal" />
           </div>
-          <div className="ml-auto hidden items-center gap-2 sm:flex">
+          <div className="ml-auto hidden items-center gap-2 lg:flex">
             <ButtonLink href="/auth/login" variant="ghost" size="sm">
               Login
             </ButtonLink>
@@ -45,7 +45,7 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
               Register
             </ButtonLink>
           </div>
-          <div className="ml-auto sm:ml-0">
+          <div className="ml-auto lg:hidden">
             <PublicMobileMenu items={navigationItems} siteName={siteName} />
           </div>
         </div>

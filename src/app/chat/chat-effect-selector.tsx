@@ -3,8 +3,10 @@
 import { Sparkles } from "lucide-react";
 import { chatEffectGroups, getAvailableChatEffects } from "@/lib/chat/chat-effects";
 import type { Role } from "@/lib/auth/rbac";
+import { cn } from "@/lib/utils";
 
 type ChatEffectSelectorProps = {
+  className?: string;
   disabled?: boolean;
   selectedEffectId: string;
   userRoles: Role[];
@@ -19,11 +21,16 @@ const groupLabels: Record<(typeof chatEffectGroups)[number], string> = {
   owner: "Owner"
 };
 
-export function ChatEffectSelector({ disabled, onChange, selectedEffectId, userRoles }: ChatEffectSelectorProps) {
+export function ChatEffectSelector({ className, disabled, onChange, selectedEffectId, userRoles }: ChatEffectSelectorProps) {
   const availableEffects = getAvailableChatEffects(userRoles);
 
   return (
-    <label className="inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-md border border-bc-line bg-white/5 px-3 py-2 text-sm font-semibold text-white">
+    <label
+      className={cn(
+        "inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-md border border-bc-line bg-white/5 px-3 py-2 text-sm font-semibold text-white",
+        className
+      )}
+    >
       <Sparkles className="h-4 w-4 shrink-0 text-bc-acid" aria-hidden="true" />
       <span className="sr-only">Chat text effect</span>
       <select

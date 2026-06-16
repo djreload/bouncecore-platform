@@ -34,14 +34,14 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[70] lg:hidden">
           <button
             aria-label="Close site menu overlay"
-            className="absolute inset-0 bg-black/70"
+            className="absolute inset-0 bg-black/75"
             onClick={closeMenu}
             type="button"
           />
-          <aside className="absolute right-0 top-0 flex h-full w-[min(360px,calc(100vw-2rem))] flex-col border-l border-bc-line bg-bc-ink shadow-2xl shadow-black/50">
+          <aside className="relative z-10 ml-auto grid h-full w-[min(360px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
             <div className="flex items-center justify-between gap-3 border-b border-bc-line p-4">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
@@ -57,7 +57,7 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
               </button>
             </div>
 
-            <nav className="min-h-0 flex-1 overflow-y-auto p-3">
+            <nav className="overflow-y-auto p-3">
               <div className="grid gap-1">
                 {items.map((item) => {
                   const Icon = icons[item.icon];
@@ -66,7 +66,7 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
                   return (
                     <Link
                       className={cn(
-                        "bc-focus-ring flex min-h-12 items-center gap-3 rounded-md border border-transparent px-3 py-2 text-sm font-semibold text-bc-muted transition hover:border-bc-line hover:bg-white/5 hover:text-white",
+                        "bc-focus-ring flex min-h-12 items-center gap-3 rounded-md border border-transparent bg-bc-ink/70 px-3 py-2 text-sm font-semibold text-white transition hover:border-bc-line hover:bg-white/5",
                         active && "border-bc-electric/45 bg-bc-electric/10 text-white shadow-[0_0_24px_rgba(0,213,255,0.16)]"
                       )}
                       href={item.href}
@@ -86,7 +86,7 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
               </div>
             </nav>
 
-            <div className="grid gap-2 border-t border-bc-line p-4">
+            <div className="grid gap-2 border-t border-bc-line bg-bc-ink p-4">
               <Link
                 className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 text-sm font-semibold text-white"
                 href="/auth/login"
