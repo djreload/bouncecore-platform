@@ -147,7 +147,7 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           placeholder="https://.../cover.jpg or uploaded file path"
           type="text"
         />
-        <p className="mt-1 text-xs text-bc-muted">Use square JPG, PNG, WebP, GIF, or AVIF artwork. Maximum 15MB.</p>
+        <p className="mt-1 text-xs text-bc-muted">Use square JPG, PNG, WebP, GIF, or AVIF artwork. Maximum 100MB.</p>
       </div>
       <div>
         <label
@@ -225,7 +225,7 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           id={track ? `download-${track.id}` : "create-download"}
           maxLength={500}
           name="downloadUrl"
-          placeholder="MP3/320 under 50MB or Google Drive share link"
+          placeholder="MP3/320 up to 200MB or Google Drive share link"
           type="text"
         />
         <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
@@ -245,7 +245,7 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           name="downloadFile"
           type="file"
         />
-        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 50MB maximum.</p>
+        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 200MB maximum.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `license-${track.id}` : "create-license"}>

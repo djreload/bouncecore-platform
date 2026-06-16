@@ -212,7 +212,7 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           id={`download-${track.id}`}
           maxLength={500}
           name="downloadUrl"
-          placeholder="MP3/320 under 50MB or Google Drive share link"
+          placeholder="MP3/320 up to 200MB or Google Drive share link"
           type="text"
         />
         <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
@@ -229,7 +229,7 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           name="downloadFile"
           type="file"
         />
-        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 50MB maximum.</p>
+        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 200MB maximum.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`license-${track.id}`}>

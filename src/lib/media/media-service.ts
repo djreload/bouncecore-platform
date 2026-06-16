@@ -3,10 +3,10 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 const publicUploadsRoot = path.join(process.cwd(), "public", "uploads");
-const maxPreviewMp3Bytes = 50 * 1024 * 1024;
-const maxImageBytes = 15 * 1024 * 1024;
-const maxChatImageBytes = 25 * 1024 * 1024;
-const maxDownloadBytes = 50 * 1024 * 1024;
+const maxPreviewMp3Bytes = 100 * 1024 * 1024;
+const maxImageBytes = 100 * 1024 * 1024;
+const maxChatImageBytes = 150 * 1024 * 1024;
+const maxDownloadBytes = 200 * 1024 * 1024;
 const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
 const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
 const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
@@ -490,7 +490,7 @@ export async function normalizeDownloadUrl(value: string | undefined) {
     const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
 
     if (length > maxDownloadBytes) {
-      throw new Error("Download MP3 must be no larger than 50MB.");
+      throw new Error(`Download MP3 must be no larger than ${formatBytes(maxDownloadBytes)}.`);
     }
 
     if (contentType && !contentType.includes("audio") && !contentType.includes("mpeg") && !contentType.includes("octet-stream")) {
@@ -503,7 +503,7 @@ export async function normalizeDownloadUrl(value: string | undefined) {
       throw new Error("Download MP3 must be encoded at 320kbps.");
     }
   } catch (error) {
-    if (error instanceof Error && (error.message.includes("50MB") || error.message.includes("MP3 audio") || error.message.includes("320kbps"))) {
+    if (error instanceof Error && (error.message.includes("Download MP3 must") || error.message.includes("MP3 audio") || error.message.includes("320kbps"))) {
       throw error;
     }
   }

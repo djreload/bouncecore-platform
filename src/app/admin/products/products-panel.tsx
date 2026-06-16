@@ -85,7 +85,7 @@ function ProductFields({ pending, product }: { pending: boolean; product?: Produ
           placeholder="https://.../image.jpg or uploaded file path"
           type="text"
         />
-        <p className="mt-1 text-xs text-bc-muted">Use a square JPG, PNG, WebP, GIF, or AVIF image. Maximum 15MB.</p>
+        <p className="mt-1 text-xs text-bc-muted">Use a square JPG, PNG, WebP, GIF, or AVIF image. Maximum 100MB.</p>
       </div>
       <div>
         <label

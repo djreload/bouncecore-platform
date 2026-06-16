@@ -97,3 +97,41 @@ test("download MP3 uploads still require 320kbps frames", async () => {
     });
   }
 });
+
+test("upload limits match production asset requirements", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+  const overLimitFile = (name, type, size) => ({
+    arrayBuffer() {
+      throw new Error("Oversized files should fail before reading file bytes.");
+    },
+    name,
+    size,
+    type
+  });
+
+  try {
+    await assert.rejects(
+      () => mediaService.saveOptionalImageUpload(overLimitFile("cover.png", "image/png", 101 * 1024 * 1024), "product-images"),
+      /Maximum 100MB/
+    );
+    await assert.rejects(
+      () => mediaService.saveOptionalChatAssetUpload(overLimitFile("sticker.gif", "image/gif", 151 * 1024 * 1024), "chat-stickers"),
+      /Maximum 150MB/
+    );
+    await assert.rejects(
+      () => mediaService.saveOptionalPreviewMp3(overLimitFile("sample.mp3", "audio/mpeg", 101 * 1024 * 1024)),
+      /Maximum 100MB/
+    );
+    await assert.rejects(
+      () => mediaService.saveOptionalDownloadMp3(overLimitFile("download.mp3", "audio/mpeg", 201 * 1024 * 1024)),
+      /Maximum 200MB/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});

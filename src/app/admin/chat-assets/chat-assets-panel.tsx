@@ -276,7 +276,7 @@ export function AdminChatAssetsPanel({ packs, stats }: AdminChatAssetsPanelProps
                   type="file"
                 />
                 <p className="text-xs text-bc-muted lg:col-span-6">
-                  Stickers and animated emoji support JPG, PNG, WebP, GIF, and AVIF uploads up to 25MB.
+                  Stickers and animated emoji support JPG, PNG, WebP, GIF, and AVIF uploads up to 150MB.
                 </p>
                 <input
                   className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white lg:col-span-3"
