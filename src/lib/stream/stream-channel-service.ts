@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
+import { normalizeOptionalStreamOfflineImageUrl } from "@/lib/media/media-service";
 import { getStreamProvider, type StreamHealth, type StreamStatus } from "@/lib/stream/stream-provider";
 import {
   ensureDefaultStreamProfiles,
@@ -16,6 +17,7 @@ export type StreamChannelInput = {
   slug: string;
   status: ChannelStatus;
   playbackUrl?: string;
+  offlineImageUrl?: string;
   streamProfileId?: string;
 };
 
@@ -25,6 +27,7 @@ export type StreamChannelSummary = {
   title: string;
   status: string;
   playbackUrl: string | null;
+  offlineImageUrl: string | null;
   streamProfile: StreamProfileSummary | null;
   streamKeys: number;
   sessions: number;
@@ -44,11 +47,13 @@ export type PublicLiveState = {
     title: string;
     status: string;
     playbackUrl: string | null;
+    offlineImageUrl: string | null;
     streamProfile: StreamProfileSummary | null;
   } | null;
   provider: StreamProviderSnapshot;
   status: string;
   playbackUrl: string | null;
+  offlineImageUrl: string | null;
   viewerCount: number;
   health: StreamHealth;
 };
@@ -75,6 +80,7 @@ function toSummary(channel: {
   title: string;
   status: string;
   playbackUrl: string | null;
+  offlineImageUrl: string | null;
   streamProfile: StreamProfileSummary | null;
   _count: {
     streamKeys: number;
@@ -88,6 +94,7 @@ function toSummary(channel: {
     title: channel.title,
     status: channel.status,
     playbackUrl: channel.playbackUrl,
+    offlineImageUrl: channel.offlineImageUrl,
     streamProfile: streamProfileToSummary(channel.streamProfile),
     streamKeys: channel._count.streamKeys,
     sessions: channel._count.sessions,
@@ -187,9 +194,40 @@ export async function getAdminStreamSessionsData() {
       take: 50
     })
   ]);
+  const starsBySession = sessions.length
+    ? await prisma.starSend.groupBy({
+        by: ["streamSessionId"],
+        where: {
+          streamSessionId: {
+            in: sessions.map((session) => session.id)
+          }
+        },
+        _count: {
+          _all: true
+        },
+        _sum: {
+          amount: true
+        }
+      })
+    : [];
+  const starsBySessionId = new Map(
+    starsBySession
+      .filter((row) => row.streamSessionId)
+      .map((row) => [
+        row.streamSessionId as string,
+        {
+          sendCount: row._count._all,
+          stars: row._sum.amount ?? 0
+        }
+      ])
+  );
 
   return {
-    sessions,
+    sessions: sessions.map((session) => ({
+      ...session,
+      starSendCount: starsBySessionId.get(session.id)?.sendCount ?? 0,
+      starsSent: starsBySessionId.get(session.id)?.stars ?? 0
+    })),
     events
   };
 }
@@ -254,6 +292,7 @@ export async function createStreamChannel(input: StreamChannelInput, actorId: st
       title: input.title.trim(),
       status: input.status,
       playbackUrl: input.playbackUrl?.trim() || null,
+      offlineImageUrl: normalizeOptionalStreamOfflineImageUrl(input.offlineImageUrl),
       streamProfileId
     }
   });
@@ -297,6 +336,7 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
         title: input.title.trim(),
         status: input.status,
         playbackUrl: input.playbackUrl?.trim() || null,
+        offlineImageUrl: normalizeOptionalStreamOfflineImageUrl(input.offlineImageUrl),
         streamProfileId
       }
     });
@@ -356,12 +396,14 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
             title: channel.title,
             status: channel.status,
             playbackUrl: channel.playbackUrl,
+            offlineImageUrl: channel.offlineImageUrl,
             streamProfile: streamProfileToSummary(channel.streamProfile) ?? defaultProfile
           }
         : null,
       provider,
       status,
       playbackUrl: channel?.playbackUrl ?? provider.playbackUrl,
+      offlineImageUrl: channel?.offlineImageUrl ?? null,
       viewerCount: provider.viewerCount,
       health: provider.health
     };
@@ -371,6 +413,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       provider,
       status: provider.status,
       playbackUrl: provider.playbackUrl,
+      offlineImageUrl: null,
       viewerCount: provider.viewerCount,
       health: provider.health
     };

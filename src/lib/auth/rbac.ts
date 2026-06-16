@@ -7,6 +7,11 @@ export const roleDefinitions = [
     description: "Server-owner control, owner-only settings, admin management, stream-key audit, and system ownership."
   },
   {
+    key: "developer",
+    label: "Developer",
+    description: "Developer tag for internal testing, developer-only chat effects, and diagnostic visibility without admin access by default."
+  },
+  {
     key: "admin",
     label: "Stream Owner",
     description: "Stream-owner operations across users, streams, chat, shop, music, payments, rewards, mobile, and site settings."
@@ -73,6 +78,7 @@ export type Permission = (typeof permissionDefinitions)[number]["key"];
 
 export const rolePermissions = {
   owner: permissionDefinitions.map((permission) => permission.key),
+  developer: [],
   admin: permissionDefinitions
     .map((permission) => permission.key)
     .filter((permission) => permission !== "settings.manage" && permission !== "stream.keys.view.raw.any"),

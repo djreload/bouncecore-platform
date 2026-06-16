@@ -6,6 +6,7 @@ import { hashPassword, verifyPassword } from "@/lib/auth/passwords";
 import { type Role } from "@/lib/auth/rbac";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { createSecretToken, hashSecretToken, tokenFingerprint } from "@/lib/auth/tokens";
+import { issueEmailVerification } from "@/lib/auth/email-verification-service";
 import { rolesFromInviteJson } from "@/lib/auth/user-invite-service";
 
 export const sessionMaxAgeSeconds = 60 * 60 * 24 * 30;
@@ -18,6 +19,7 @@ type RegisterInput = {
   displayName: string;
   email: string;
   inviteToken?: string;
+  origin?: string;
   password: string;
 };
 
@@ -40,7 +42,7 @@ function sessionExpiry() {
 }
 
 function allowedLoginStatus(status: UserStatus) {
-  return status === "active" || status === "pending";
+  return status === "active";
 }
 
 class RegistrationInviteError extends Error {
@@ -109,18 +111,16 @@ async function assignRegistrationRoles(
 export async function registerUser(input: RegisterInput): Promise<AuthResult> {
   const context = await requestContext();
   const passwordHash = await hashPassword(input.password);
-  const token = createSecretToken("bc_session");
-  const tokenHash = hashSecretToken(token);
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const createdUser = await prisma.$transaction(async (tx) => {
       const invite = await loadRegistrationInvite(tx, input.inviteToken, input.email);
       const user = await tx.user.create({
         data: {
           email: input.email,
           displayName: input.displayName,
           passwordHash,
-          status: invite ? "active" : "pending",
+          status: "pending",
           profile: {
             create: {
               slug: makeProfileSlug(input.displayName)
@@ -144,16 +144,6 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
         });
       }
 
-      await tx.authSession.create({
-        data: {
-          userId: user.id,
-          tokenHash,
-          expiresAt: sessionExpiry(),
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent
-        }
-      });
-
       await tx.auditLog.create({
         data: {
           actorId: user.id,
@@ -162,16 +152,31 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
           severity: invite ? "warning" : "info",
           metadata: {
             inviteId: invite?.id ?? null,
-            roles: invite?.roles ?? ["viewer"],
-            sessionFingerprint: tokenFingerprint(token)
+            roles: invite?.roles ?? ["viewer"]
           },
           ipAddress: context.ipAddress,
           userAgent: context.userAgent
         }
       });
+
+      return {
+        displayName: user.displayName,
+        email: user.email,
+        id: user.id
+      };
     });
 
-    return { ok: true, token, redirectTo: "/account/security" };
+    const verification = await issueEmailVerification({
+      displayName: createdUser.displayName,
+      email: createdUser.email,
+      origin: input.origin
+    });
+
+    return {
+      ok: false,
+      error: verification.sent ? "email-verification-required" : "email-verification-send-failed",
+      redirectTo: `/auth/verify-email?email=${encodeURIComponent(createdUser.email)}&status=${verification.sent ? "sent" : "not-configured"}`
+    };
   } catch (error) {
     if (error instanceof RegistrationInviteError) {
       return { ok: false, error: error.code, redirectTo: `/auth/register?error=${error.code}` };
@@ -193,6 +198,26 @@ export async function loginUser(input: LoginInput): Promise<AuthResult> {
     return { ok: false, error: "invalid-credentials", redirectTo: "/auth/login?error=invalid-credentials" };
   }
 
+  if (user.status === "pending") {
+    await writeAuditLog({
+      actorId: user.id,
+      action: "auth.login_unverified",
+      target: `user:${user.id}`,
+      severity: "warning",
+      metadata: {
+        status: user.status
+      },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return {
+      ok: false,
+      error: "email-unverified",
+      redirectTo: `/auth/verify-email?email=${encodeURIComponent(user.email)}&error=email-unverified`
+    };
+  }
+
   if (!allowedLoginStatus(user.status)) {
     await writeAuditLog({
       actorId: user.id,
@@ -205,6 +230,26 @@ export async function loginUser(input: LoginInput): Promise<AuthResult> {
     });
 
     return { ok: false, error: "account-disabled", redirectTo: "/auth/login?error=account-disabled" };
+  }
+
+  if (!user.emailVerifiedAt) {
+    await writeAuditLog({
+      actorId: user.id,
+      action: "auth.login_unverified",
+      target: `user:${user.id}`,
+      severity: "warning",
+      metadata: {
+        status: user.status
+      },
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    });
+
+    return {
+      ok: false,
+      error: "email-unverified",
+      redirectTo: `/auth/verify-email?email=${encodeURIComponent(user.email)}&error=email-unverified`
+    };
   }
 
   const token = createSecretToken("bc_session");

@@ -12,9 +12,12 @@ It is intentionally opt-in. Do not start it on a server where another streaming 
 - `POST /events/ingest`
 - `POST /status`
 
-The service stores lightweight stream state: live/offline status, playback URL, viewer count, ingest connection state, bitrate, dropped frames, and the latest stream-key fingerprint.
+The service stores lightweight stream state: live/offline status, playback URL, viewer count, ingest connection state, bitrate, dropped frames, the authenticated ingest path, and the latest stream-key fingerprint. It also exposes the MediaMTX HTTP auth endpoint used to validate Bouncecore stream keys during RTMP publish attempts.
 
-It does not replace a full RTMP/HLS media engine yet. It is the control and telemetry layer that the platform can poll through `STREAM_PROVIDER=stream-core`.
+It remains the control and telemetry layer that the platform polls through `STREAM_PROVIDER=stream-core`. The optional Compose media profiles provide the local/prod media path:
+
+- `media-gateway`: MediaMTX RTMP/RTMPS ingest and single-rendition HLS playback.
+- `transcoder`: FFmpeg adaptive HLS output plus a CORS-enabled Nginx HLS origin. This is the preferred public playback path for OBS split `Server` plus `Stream Key` ingest because it keeps key-derived MediaMTX paths internal.
 
 ## Docker Profile
 
@@ -26,6 +29,13 @@ docker compose --env-file .env.instance -f docker-compose.instance.yml --profile
 
 Staging deploys should not use this profile while the existing Owncast fork is using the stream ports.
 
+The MediaMTX gateway and adaptive HLS transcoder are also profile-gated:
+
+```bash
+docker compose --env-file .env.instance -f docker-compose.instance.yml --profile stream-core --profile media-gateway up -d stream-core media-gateway
+docker compose --env-file .env.instance -f docker-compose.instance.yml --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
+```
+
 ## Required Environment
 
 ```bash
@@ -35,8 +45,19 @@ STREAM_CORE_STATUS_PATH=/status
 STREAM_CORE_INTERNAL_TOKEN=change-me
 STREAM_CORE_HTTP_BIND_PORT=18088
 STREAM_CORE_OFFLINE_AFTER_SECONDS=30
-STREAM_CORE_PUBLIC_PLAYBACK_URL=https://example.com/hls/live.m3u8
+MEDIA_GATEWAY_PUBLIC_HLS_URL=https://example.com/hls/{path}/index.m3u8
+MEDIA_GATEWAY_RTMP_ENCRYPTION=optional
+MEDIA_GATEWAY_RTMPS_BIND_PORT=1936
+MEDIA_GATEWAY_RTMPS_CERT_DIR=./.instance-certs/rtmps
+TRANSCODER_ENABLED=false
+TRANSCODER_INPUT_URL=rtmp://media-gateway:1935/{path}
+TRANSCODER_HLS_PUBLIC_URL=https://example.com/hls/live/master.m3u8
+STREAM_CORE_PUBLIC_PLAYBACK_URL=https://example.com/hls/live/master.m3u8
 ```
+
+RTMPS requires `server.crt` and `server.key` in `MEDIA_GATEWAY_RTMPS_CERT_DIR`. The interactive installer creates a self-signed pair when RTMPS is enabled; replace it with a trusted certificate for public production ingest. Standard Cloudflare Zero Trust web tunnels do not expose public raw RTMP/RTMPS for OBS, so remote ingest needs a TCP-capable route such as an open server port, Cloudflare Spectrum, VPN, or cloudflared client access.
+
+Stream-core also exposes `GET /api/transcoder/source` for internal FFmpeg workers. It requires `Authorization: Bearer <STREAM_CORE_INTERNAL_TOKEN>` and returns the current source URL resolved from `TRANSCODER_INPUT_URL`; do not expose this endpoint publicly.
 
 Mutating endpoints require `Authorization: Bearer <STREAM_CORE_INTERNAL_TOKEN>` or `x-internal-stream-token`.
 

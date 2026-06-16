@@ -3,6 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
 import { getStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
 
+export { getStarPackage, starPackages, type StarPackage } from "@/lib/rewards/star-packages";
+
 export type StarWalletRow = {
   userId: string;
   displayName: string;
@@ -60,13 +62,6 @@ export type AdminStarsData = PublicRewardsData & {
   users: StarWalletRow[];
 };
 
-export type StarPackage = {
-  id: string;
-  label: string;
-  stars: number;
-  pricePence: number;
-};
-
 export type StarPurchaseRow = {
   id: string;
   status: string;
@@ -87,27 +82,6 @@ export type AdminStarPurchaseRow = StarPurchaseRow & {
   customerName: string;
 };
 
-export const starPackages: StarPackage[] = [
-  {
-    id: "starter",
-    label: "Starter stars",
-    pricePence: 199,
-    stars: 100
-  },
-  {
-    id: "supporter",
-    label: "Supporter stack",
-    pricePence: 499,
-    stars: 300
-  },
-  {
-    id: "headliner",
-    label: "Headliner bundle",
-    pricePence: 999,
-    stars: 750
-  }
-];
-
 function parseInteger(value: string, label: string, min: number, max: number) {
   const number = Number(value);
 
@@ -124,16 +98,6 @@ export function parseStarBalance(value: string) {
 
 export function parseStarAdjustment(value: string) {
   return parseInteger(value, "Star adjustment", -999999, 999999);
-}
-
-export function getStarPackage(packageId: string) {
-  const starPackage = starPackages.find((pack) => pack.id === packageId);
-
-  if (!starPackage) {
-    throw new Error("Choose a stars package.");
-  }
-
-  return starPackage;
 }
 
 function toStarPurchaseRow(purchase: {

@@ -81,6 +81,42 @@ require_url_safe() {
   fi
 }
 
+require_single_line() {
+  local label="$1"
+  local value="$2"
+
+  case "$value" in
+    *$'\n'*|*$'\r'*)
+      die "$label must be a single line."
+      ;;
+  esac
+}
+
+urlencode() {
+  local value="$1"
+  local encoded=""
+  local char
+  local hex
+  local i
+  local LC_ALL=C
+
+  for ((i = 0; i < ${#value}; i += 1)); do
+    char="${value:i:1}"
+
+    case "$char" in
+      [A-Za-z0-9_.~-])
+        encoded+="$char"
+        ;;
+      *)
+        printf -v hex '%%%02X' "'$char"
+        encoded+="$hex"
+        ;;
+    esac
+  done
+
+  printf '%s' "$encoded"
+}
+
 require_nonempty() {
   local label="$1"
   local value="$2"
@@ -88,6 +124,52 @@ require_nonempty() {
   if [ -z "$value" ]; then
     die "$label is required."
   fi
+}
+
+resolve_app_path() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *) printf '%s/%s' "$APP_ROOT" "$1" ;;
+  esac
+}
+
+generate_rtmps_certificate() {
+  local cert_dir="$1"
+  local domain="$2"
+
+  if [ -s "$cert_dir/server.crt" ] && [ -s "$cert_dir/server.key" ]; then
+    return
+  fi
+
+  warn "Generating a self-signed RTMPS certificate in $cert_dir. Replace it with a trusted certificate before public production ingest."
+  run_as_root install -d -m 700 "$cert_dir"
+
+  run_as_root tee "$cert_dir/server.cnf" >/dev/null <<CERTCONF
+[req]
+distinguished_name=req_distinguished_name
+x509_extensions=v3_req
+prompt=no
+
+[req_distinguished_name]
+CN=${domain}
+
+[v3_req]
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth
+subjectAltName=@alt_names
+
+[alt_names]
+DNS.1=${domain}
+DNS.2=localhost
+IP.1=127.0.0.1
+CERTCONF
+
+  run_as_root openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 825 \
+    -keyout "$cert_dir/server.key" \
+    -out "$cert_dir/server.crt" \
+    -config "$cert_dir/server.cnf"
+  run_as_root chmod 600 "$cert_dir/server.key"
+  run_as_root chmod 644 "$cert_dir/server.crt"
 }
 
 compose() {
@@ -110,7 +192,7 @@ run_as_root() {
 install_system_dependencies() {
   local missing_packages=()
 
-  for command_name in curl git openssl; do
+  for command_name in curl ffmpeg git openssl; do
     if ! command -v "$command_name" >/dev/null 2>&1; then
       missing_packages+=("$command_name")
     fi
@@ -237,9 +319,20 @@ if [ -f "$ENV_FILE" ]; then
   fi
 fi
 
-APP_URL="$(prompt "Public app URL" "https://develop.k-nrg.co.uk")"
+APP_URL="$(prompt "Public app URL" "https://bouncecore.example.com")"
+APP_HOST="${APP_URL#http://}"
+APP_HOST="${APP_HOST#https://}"
+APP_HOST="${APP_HOST%%/*}"
+APP_MAIL_HOST="${APP_HOST%%:*}"
 APP_BIND_HOST="$(prompt "App bind host" "127.0.0.1")"
 APP_PORT="$(prompt "App host port" "3000")"
+BREVO_SMTP_HOST="$(prompt "Brevo SMTP host" "smtp-relay.brevo.com")"
+BREVO_SMTP_PORT="$(prompt "Brevo SMTP port" "587")"
+BREVO_SMTP_USER="$(prompt "Brevo SMTP username" "")"
+BREVO_SMTP_KEY="$(prompt_secret_optional "Brevo SMTP key")"
+MAIL_FROM="$(prompt "Site email from address" "no-reply@$APP_MAIL_HOST")"
+MAIL_FROM_NAME="$(prompt "Site email sender name" "Bouncecore")"
+MAIL_REPLY_TO="$(prompt "Site email reply-to address" "")"
 POSTGRES_DB="$(prompt "PostgreSQL database name" "bouncecore_platform")"
 POSTGRES_USER="$(prompt "PostgreSQL username" "bouncecore_app")"
 POSTGRES_PASSWORD="$(prompt_optional_secret "PostgreSQL password")"
@@ -252,6 +345,8 @@ STREAM_PROVIDER="$(prompt "Stream provider" "mock")"
 INTERNAL_TASK_TOKEN="$(prompt_optional_secret "Internal task token")"
 INTERNAL_TASK_TOKEN="${INTERNAL_TASK_TOKEN:-$(generate_secret)}"
 ENABLE_STREAM_CORE="$(prompt "Start embedded stream core service now? Use n if another service owns stream ports" "n")"
+ENABLE_MEDIA_GATEWAY="$(prompt "Start MediaMTX RTMP/HLS gateway now? Use n if stream ports are already in use" "n")"
+ENABLE_TRANSCODER="$(prompt "Start FFmpeg adaptive HLS transcoder now? Requires the MediaMTX gateway" "n")"
 ENABLE_WORKER="$(prompt "Start background worker now?" "y")"
 STREAM_CORE_INTERNAL_URL="$(prompt "Stream core internal URL" "http://stream-core:8088")"
 STREAM_CORE_STATUS_PATH="$(prompt "Stream core status path" "/status")"
@@ -263,8 +358,63 @@ STREAM_CORE_KEY_VALIDATION_TOKEN="${STREAM_CORE_KEY_VALIDATION_TOKEN:-$INTERNAL_
 STREAM_CORE_BIND_HOST="$(prompt "Stream core bind host" "127.0.0.1")"
 STREAM_CORE_HTTP_BIND_PORT="$(prompt "Stream core host HTTP port" "18088")"
 STREAM_CORE_OFFLINE_AFTER_SECONDS="$(prompt "Stream core offline timeout seconds" "30")"
-RTMP_INGEST_URL="$(prompt "Public RTMP ingest URL" "rtmp://develop.k-nrg.co.uk/live")"
-PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "https://develop.k-nrg.co.uk/hls/live.m3u8")"
+MEDIA_GATEWAY_BIND_HOST="$(prompt "Media gateway bind host" "127.0.0.1")"
+MEDIA_GATEWAY_RTMP_ENCRYPTION="$(prompt "Media gateway RTMP encryption mode (no, optional, strict)" "optional")"
+MEDIA_GATEWAY_RTMP_BIND_PORT="$(prompt "Media gateway RTMP host port" "1935")"
+MEDIA_GATEWAY_RTMPS_BIND_PORT="$(prompt "Media gateway RTMPS host port" "1936")"
+MEDIA_GATEWAY_RTMPS_CERT_DIR="$(prompt "Media gateway RTMPS certificate directory" "./.instance-certs/rtmps")"
+MEDIA_GATEWAY_HLS_BIND_PORT="$(prompt "Media gateway HLS host port" "18888")"
+MEDIA_GATEWAY_PUBLIC_HLS_URL="$(prompt "Media gateway public HLS URL template" "$APP_URL/hls/{path}/index.m3u8")"
+TRANSCODER_ENABLED=false
+TRANSCODER_INPUT_URL="rtmp://media-gateway:1935/{path}"
+TRANSCODER_HLS_BIND_HOST="127.0.0.1"
+TRANSCODER_HLS_BIND_PORT="18889"
+TRANSCODER_HLS_PUBLIC_URL="$APP_URL/hls/live/master.m3u8"
+
+case "$ENABLE_TRANSCODER" in
+  y|Y|yes|YES)
+    TRANSCODER_ENABLED=true
+    TRANSCODER_INPUT_URL="$(prompt "Transcoder RTMP input URL template" "$TRANSCODER_INPUT_URL")"
+    TRANSCODER_HLS_BIND_HOST="$(prompt "Transcoder HLS origin bind host" "$TRANSCODER_HLS_BIND_HOST")"
+    TRANSCODER_HLS_BIND_PORT="$(prompt "Transcoder HLS origin host port" "$TRANSCODER_HLS_BIND_PORT")"
+    TRANSCODER_HLS_PUBLIC_URL="$(prompt "Transcoder public HLS master URL" "$TRANSCODER_HLS_PUBLIC_URL")"
+    ;;
+esac
+case "$MEDIA_GATEWAY_RTMP_ENCRYPTION" in
+  no|optional|strict) ;;
+  *) die "Media gateway RTMP encryption mode must be no, optional, or strict." ;;
+esac
+
+if [ "$MEDIA_GATEWAY_RTMP_ENCRYPTION" = "no" ]; then
+  DEFAULT_RTMP_INGEST_URL="rtmp://$APP_HOST/live/{streamKey}"
+else
+  DEFAULT_RTMP_INGEST_URL="rtmps://$APP_HOST:$MEDIA_GATEWAY_RTMPS_BIND_PORT/live/{streamKey}"
+fi
+
+RTMP_INGEST_URL="$(prompt "Public RTMP/RTMPS ingest URL" "$DEFAULT_RTMP_INGEST_URL")"
+DEFAULT_PUBLIC_PLAYBACK_URL="$MEDIA_GATEWAY_PUBLIC_HLS_URL"
+
+if [ "$TRANSCODER_ENABLED" = "true" ]; then
+  DEFAULT_PUBLIC_PLAYBACK_URL="$TRANSCODER_HLS_PUBLIC_URL"
+fi
+
+PUBLIC_PLAYBACK_URL="$(prompt "Public playback URL" "$DEFAULT_PUBLIC_PLAYBACK_URL")"
+DEFAULT_HLS_PLAYBACK_HEALTH_URL=""
+
+case "$ENABLE_TRANSCODER" in
+  y|Y|yes|YES)
+    DEFAULT_HLS_PLAYBACK_HEALTH_URL="http://hls-origin/live/master.m3u8"
+    ;;
+  *)
+    case "$ENABLE_MEDIA_GATEWAY" in
+      y|Y|yes|YES)
+        DEFAULT_HLS_PLAYBACK_HEALTH_URL="http://media-gateway:8888/live/index.m3u8"
+        ;;
+    esac
+    ;;
+esac
+
+HLS_PLAYBACK_HEALTH_URL="$(prompt "Server-side HLS health URL, blank to use public playback URL" "$DEFAULT_HLS_PLAYBACK_HEALTH_URL")"
 TENOR_API_KEY="$(prompt_secret_optional "Tenor API key")"
 PUSH_TOKEN_ENCRYPTION_KEY="$(prompt_optional_secret "Push token encryption key")"
 PUSH_TOKEN_ENCRYPTION_KEY="${PUSH_TOKEN_ENCRYPTION_KEY:-$(generate_secret)}"
@@ -284,9 +434,20 @@ require_nonempty "Public app URL" "$APP_URL"
 require_nonempty "PostgreSQL database name" "$POSTGRES_DB"
 require_nonempty "PostgreSQL username" "$POSTGRES_USER"
 require_nonempty "First server owner email" "$OWNER_EMAIL"
+if [ -n "$BREVO_SMTP_USER$BREVO_SMTP_KEY" ]; then
+  require_nonempty "Brevo SMTP username" "$BREVO_SMTP_USER"
+  require_nonempty "Brevo SMTP key" "$BREVO_SMTP_KEY"
+  require_nonempty "Site email from address" "$MAIL_FROM"
+fi
 require_url_safe "PostgreSQL database name" "$POSTGRES_DB"
 require_url_safe "PostgreSQL username" "$POSTGRES_USER"
-require_url_safe "PostgreSQL password" "$POSTGRES_PASSWORD"
+require_single_line "PostgreSQL password" "$POSTGRES_PASSWORD"
+require_single_line "Brevo SMTP username" "$BREVO_SMTP_USER"
+require_single_line "Brevo SMTP key" "$BREVO_SMTP_KEY"
+require_single_line "Site email from address" "$MAIL_FROM"
+require_single_line "Site email sender name" "$MAIL_FROM_NAME"
+require_single_line "Site email reply-to address" "$MAIL_REPLY_TO"
+DATABASE_PASSWORD_URLENCODED="$(urlencode "$POSTGRES_PASSWORD")"
 
 if [ "$OWNER_PASSWORD" != "$OWNER_PASSWORD_CONFIRM" ]; then
   die "Owner passwords do not match."
@@ -299,6 +460,10 @@ esac
 
 if [ "${#OWNER_PASSWORD}" -lt 12 ]; then
   die "Owner password must be at least 12 characters."
+fi
+
+if [ "$MEDIA_GATEWAY_RTMP_ENCRYPTION" != "no" ]; then
+  generate_rtmps_certificate "$(resolve_app_path "$MEDIA_GATEWAY_RTMPS_CERT_DIR")" "$APP_HOST"
 fi
 
 LOCAL_HEALTH_HOST="$APP_BIND_HOST"
@@ -327,9 +492,16 @@ REDIS_BIND_HOST=$REDIS_BIND_HOST
 REDIS_PORT=$REDIS_PORT
 REDIS_VOLUME=bouncecore_redis_data
 
-DATABASE_URL=postgresql://$POSTGRES_USER:$POSTGRES_PASSWORD@postgres:5432/$POSTGRES_DB
+DATABASE_URL=postgresql://$POSTGRES_USER:$DATABASE_PASSWORD_URLENCODED@postgres:5432/$POSTGRES_DB
 REDIS_URL=redis://redis:6379
 NEXT_PUBLIC_APP_URL=$APP_URL
+BREVO_SMTP_HOST=$BREVO_SMTP_HOST
+BREVO_SMTP_PORT=$BREVO_SMTP_PORT
+BREVO_SMTP_USER=$BREVO_SMTP_USER
+BREVO_SMTP_KEY=$BREVO_SMTP_KEY
+MAIL_FROM=$MAIL_FROM
+MAIL_FROM_NAME=$MAIL_FROM_NAME
+MAIL_REPLY_TO=$MAIL_REPLY_TO
 STREAM_PROVIDER=$STREAM_PROVIDER
 INTERNAL_TASK_TOKEN=$INTERNAL_TASK_TOKEN
 STREAM_CORE_INTERNAL_URL=$STREAM_CORE_INTERNAL_URL
@@ -343,14 +515,35 @@ STREAM_CORE_HTTP_BIND_PORT=$STREAM_CORE_HTTP_BIND_PORT
 STREAM_CORE_VOLUME=bouncecore_stream_core_data
 STREAM_CORE_OFFLINE_AFTER_SECONDS=$STREAM_CORE_OFFLINE_AFTER_SECONDS
 STREAM_CORE_PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
+MEDIA_GATEWAY_CONTAINER=bouncecore-media-gateway
+MEDIA_GATEWAY_BIND_HOST=$MEDIA_GATEWAY_BIND_HOST
+MEDIA_GATEWAY_RTMP_ENCRYPTION=$MEDIA_GATEWAY_RTMP_ENCRYPTION
+MEDIA_GATEWAY_RTMP_BIND_PORT=$MEDIA_GATEWAY_RTMP_BIND_PORT
+MEDIA_GATEWAY_RTMPS_BIND_PORT=$MEDIA_GATEWAY_RTMPS_BIND_PORT
+MEDIA_GATEWAY_RTMPS_CERT_DIR=$MEDIA_GATEWAY_RTMPS_CERT_DIR
+MEDIA_GATEWAY_HLS_BIND_PORT=$MEDIA_GATEWAY_HLS_BIND_PORT
+MEDIA_GATEWAY_PUBLIC_HLS_URL=$MEDIA_GATEWAY_PUBLIC_HLS_URL
+HLS_PLAYBACK_HEALTH_URL=$HLS_PLAYBACK_HEALTH_URL
+TRANSCODER_ENABLED=$TRANSCODER_ENABLED
+HLS_ORIGIN_CONTAINER=bouncecore-hls-origin
+TRANSCODER_CONTAINER=bouncecore-media-transcoder
+TRANSCODER_INPUT_URL=$TRANSCODER_INPUT_URL
+TRANSCODER_HLS_BIND_HOST=$TRANSCODER_HLS_BIND_HOST
+TRANSCODER_HLS_BIND_PORT=$TRANSCODER_HLS_BIND_PORT
+TRANSCODER_HLS_PUBLIC_URL=$TRANSCODER_HLS_PUBLIC_URL
+TRANSCODER_HLS_VOLUME=bouncecore_transcoder_hls
 WORKER_CONTAINER=bouncecore-worker
 WORKER_CHAT_PRUNE_ENABLED=true
 WORKER_CHAT_PRUNE_INTERVAL_SECONDS=3600
+WORKER_STREAM_SYNC_ENABLED=true
+WORKER_STREAM_SYNC_INTERVAL_SECONDS=15
 WORKER_MOBILE_PUSH_DISPATCH_ENABLED=true
 WORKER_MOBILE_PUSH_DISPATCH_INTERVAL_SECONDS=60
 WORKER_MOBILE_PUSH_RECEIPTS_ENABLED=true
 WORKER_MOBILE_PUSH_RECEIPT_INTERVAL_SECONDS=300
 WORKER_MOBILE_PUSH_LIMIT=50
+WORKER_HEARTBEAT_STALE_SECONDS=120
+WORKER_QUEUE_BACKLOG_WARNING=250
 RTMP_INGEST_URL=$RTMP_INGEST_URL
 PUBLIC_PLAYBACK_URL=$PUBLIC_PLAYBACK_URL
 TENOR_API_KEY=$TENOR_API_KEY
@@ -388,7 +581,48 @@ case "$ENABLE_STREAM_CORE" in
     compose --profile stream-core up -d stream-core
     ;;
   *)
-    warn "Embedded stream core was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core"
+    case "$ENABLE_MEDIA_GATEWAY" in
+      y|Y|yes|YES)
+        info "Embedded stream core will be started with the MediaMTX gateway"
+        ;;
+      *)
+        case "$ENABLE_TRANSCODER" in
+          y|Y|yes|YES)
+            info "Embedded stream core will be started with the adaptive HLS transcoder"
+            ;;
+          *)
+            warn "Embedded stream core was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core"
+            ;;
+        esac
+        ;;
+    esac
+    ;;
+esac
+
+case "$ENABLE_MEDIA_GATEWAY" in
+  y|Y|yes|YES)
+    info "Starting MediaMTX RTMP/HLS gateway"
+    compose --profile stream-core --profile media-gateway up -d stream-core media-gateway
+    ;;
+  *)
+    case "$ENABLE_TRANSCODER" in
+      y|Y|yes|YES)
+        info "MediaMTX gateway will be started with the adaptive HLS transcoder"
+        ;;
+      *)
+        warn "MediaMTX gateway was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway"
+        ;;
+    esac
+    ;;
+esac
+
+case "$ENABLE_TRANSCODER" in
+  y|Y|yes|YES)
+    info "Starting adaptive HLS transcoder"
+    compose --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
+    ;;
+  *)
+    warn "Adaptive HLS transcoder was not started. Start later with: docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder"
     ;;
 esac
 
@@ -413,5 +647,7 @@ printf '\nUseful commands:\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance ps\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance logs -f app\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core\n'
+printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway\n'
+printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance --profile worker up -d worker\n'
 printf '  docker compose -f docker-compose.instance.yml --env-file .env.instance pull && docker compose -f docker-compose.instance.yml --env-file .env.instance up -d --build\n'

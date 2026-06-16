@@ -56,7 +56,7 @@ export async function getCurrentUserByTokenHash(tokenHash: string | null): Promi
       }
     });
 
-    if (!session || session.user.status === "banned" || session.user.status === "suspended") {
+    if (!session || session.user.status !== "active" || !session.user.emailVerifiedAt) {
       return null;
     }
 

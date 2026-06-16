@@ -16,6 +16,17 @@ export async function POST(request: Request) {
     const result = await registerUser(parsed.data);
 
     if (!result.ok) {
+      if (result.error === "email-verification-required" || result.error === "email-verification-send-failed") {
+        return NextResponse.json(
+          {
+            authenticated: false,
+            error: result.error,
+            verificationRequired: true
+          },
+          { status: 202 }
+        );
+      }
+
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
 

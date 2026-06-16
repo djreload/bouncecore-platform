@@ -3,27 +3,37 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Flag, ImageIcon, LogIn, MessageSquare, Search, Send, Star } from "lucide-react";
+import { Flag, ImageIcon, Lock, LogIn, MessageSquare, Search, Send, Smile, Star, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
+import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
+import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { hasPermission } from "@/lib/auth/rbac";
+import { chatReactionOptions } from "@/lib/chat/reactions";
+import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
   type PublicChatActionState,
+  type PublicChatAssetRow,
   type PublicChatMessageRow,
   type PublicChatRoomRow,
   type PublicChatUser
 } from "@/app/chat/state";
 
 type ChatRoomPanelProps = {
+  assets: PublicChatAssetRow[];
   rooms: PublicChatRoomRow[];
   selectedRoom: PublicChatRoomRow | null;
   messages: PublicChatMessageRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
   roleDisplayLabels: RoleDisplayNameMap;
+  className?: string;
   compact?: boolean;
+  mobileLiveMode?: boolean;
+  messagesClassName?: string;
   showRoomLinks?: boolean;
 };
 
@@ -36,9 +46,17 @@ type GifResult = {
   height: number | null;
 };
 
-type PolledMessages = {
+type SyncedMessages = {
   roomId: string;
   messages: PublicChatMessageRow[];
+};
+
+type ChatStreamPayload = {
+  messages?: PublicChatMessageRow[];
+};
+
+type ChatRoomStreamPayload = {
+  room?: PublicChatRoomRow | null;
 };
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
@@ -67,14 +85,28 @@ function imageSize(width: number | null, height: number | null) {
   };
 }
 
+function slowModeLabel(seconds: number) {
+  if (seconds >= 60) {
+    const minutes = Math.round(seconds / 60);
+
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+
+  return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
+
 export function ChatRoomPanel({
+  assets,
   rooms,
   selectedRoom,
   messages,
   currentUser,
   currentStarBalance = 0,
   roleDisplayLabels,
+  className,
   compact = false,
+  mobileLiveMode = false,
+  messagesClassName,
   showRoomLinks = true
 }: ChatRoomPanelProps) {
   const [state, formAction, pending] = useActionState<PublicChatActionState, FormData>(
@@ -82,16 +114,27 @@ export function ChatRoomPanel({
     initialPublicChatActionState
   );
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
+  const [assetPanelOpen, setAssetPanelOpen] = useState(false);
+  const [starsPanelOpen, setStarsPanelOpen] = useState(false);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
-  const [polledMessages, setPolledMessages] = useState<PolledMessages | null>(null);
+  const [composerBody, setComposerBody] = useState("");
+  const [selectedEffectId, setSelectedEffectId] = useState("");
+  const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
+  const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const selectedRoomId = selectedRoom?.id;
-  const visibleMessages = polledMessages && polledMessages.roomId === selectedRoomId ? polledMessages.messages : messages;
+  const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
+  const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
+  const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
+  const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
+  const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
+  const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
+  const liveStarsEnabled = Boolean(selectedRoom && visibleRoom?.type === "live");
 
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -112,7 +155,7 @@ export function ChatRoomPanel({
     const payload = (await response.json()) as { messages?: PublicChatMessageRow[] };
 
     if (response.ok && payload.messages) {
-      setPolledMessages({
+      setSyncedMessages({
         roomId,
         messages: payload.messages
       });
@@ -126,6 +169,8 @@ export function ChatRoomPanel({
 
     let active = true;
     const roomId = selectedRoomId;
+    let fallbackInterval: number | null = null;
+    let eventSource: EventSource | null = null;
 
     async function refreshMessages() {
       if (!active) {
@@ -139,39 +184,98 @@ export function ChatRoomPanel({
       }
     }
 
-    const interval = window.setInterval(refreshMessages, 5000);
+    function startPollingFallback() {
+      if (fallbackInterval !== null) {
+        return;
+      }
+
+      void refreshMessages();
+      fallbackInterval = window.setInterval(refreshMessages, 5000);
+    }
+
+    if ("EventSource" in window) {
+      eventSource = new EventSource(`/api/chat/rooms/${encodeURIComponent(roomId)}/stream`);
+
+      eventSource.addEventListener("messages", (event) => {
+        if (!active) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as ChatStreamPayload;
+
+          if (payload.messages) {
+            setSyncedMessages({
+              roomId,
+              messages: payload.messages
+            });
+          }
+        } catch {
+          // Ignore malformed stream events and keep the current chat view.
+        }
+      });
+
+      eventSource.addEventListener("room", (event) => {
+        if (!active) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as ChatRoomStreamPayload;
+
+          if (payload.room?.id === roomId) {
+            setSyncedRoom(payload.room);
+          }
+        } catch {
+          // Ignore malformed room events and keep the current room state.
+        }
+      });
+
+      eventSource.onerror = () => {
+        if (!active) {
+          return;
+        }
+
+        eventSource?.close();
+        eventSource = null;
+        startPollingFallback();
+      };
+    } else {
+      startPollingFallback();
+    }
 
     return () => {
       active = false;
-      window.clearInterval(interval);
+      eventSource?.close();
+
+      if (fallbackInterval !== null) {
+        window.clearInterval(fallbackInterval);
+      }
     };
   }, [loadLatestMessages, selectedRoomId]);
 
   useEffect(() => {
-    if (state.status === "success" && textareaRef.current) {
-      textareaRef.current.value = "";
-    }
-
-    if (state.status === "success" && selectedRoomId) {
-      const timer = window.setTimeout(() => {
-        void loadLatestMessages(selectedRoomId);
-      }, 0);
-
-      return () => window.clearTimeout(timer);
-    }
-  }, [loadLatestMessages, state.status, state.message, selectedRoomId]);
-
-  useEffect(() => {
-    if (!selectedRoomId) {
+    if (state.status !== "success") {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      void loadLatestMessages(selectedRoomId);
+    const resetTimer = window.setTimeout(() => {
+      setComposerBody("");
     }, 0);
+    const syncTimer = selectedRoomId
+      ? window.setTimeout(() => {
+          void loadLatestMessages(selectedRoomId);
+        }, 0)
+      : null;
 
-    return () => window.clearTimeout(timer);
-  }, [loadLatestMessages, selectedRoomId]);
+    return () => {
+      window.clearTimeout(resetTimer);
+
+      if (syncTimer !== null) {
+        window.clearTimeout(syncTimer);
+      }
+    };
+  }, [loadLatestMessages, state.status, state.message, selectedRoomId]);
 
   useEffect(() => {
     scrollToLatestMessage();
@@ -219,19 +323,91 @@ export function ChatRoomPanel({
     }
   }
 
+  function renderStarsForm(className?: string, compactStarForm = false) {
+    if (!selectedRoom || visibleRoom?.type !== "live") {
+      return null;
+    }
+
+    return (
+      <form action={formAction} className={cn("grid gap-3 rounded-md border border-bc-acid/25 bg-bc-acid/10 p-3", className)}>
+        <input name="intent" type="hidden" value="stars" />
+        <input name="roomId" type="hidden" value={selectedRoom.id} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
+            <span className="font-black">Send stars</span>
+            <Badge tone="acid">{currentStarBalance.toLocaleString("en-GB")} available</Badge>
+          </div>
+          <ButtonLink href="/account/rewards" size="sm" variant="dark">
+            Buy stars
+          </ButtonLink>
+        </div>
+        <div className={cn("grid gap-2 sm:grid-cols-[140px_1fr_auto]", compactStarForm && "grid-cols-[minmax(0,1fr)_auto]")}>
+          <select
+            aria-label="Star amount"
+            className="min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+            name="amount"
+          >
+            {liveStarSendAmounts.map((amount) => (
+              <option key={amount} value={amount}>
+                {amount} stars
+              </option>
+            ))}
+          </select>
+          <input
+            className={cn(
+              "min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
+              compactStarForm && "col-span-full sm:col-auto"
+            )}
+            maxLength={160}
+            name="note"
+            placeholder="Optional stream alert message"
+          />
+          <Button
+            className="min-w-0 px-3"
+            disabled={pending || roomLockedForUser || currentStarBalance < liveStarSendAmounts[0]}
+            type="submit"
+            variant="primary"
+          >
+            <Star className="h-4 w-4" aria-hidden="true" />
+            Send
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
   return (
-    <section className="rounded-md border border-bc-line bg-bc-panel">
-      <div className="border-b border-bc-line p-4">
+    <section className={cn("min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
+      <div className={cn("border-b border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <Badge tone={selectedRoom ? roomTone(selectedRoom.type) : "muted"}>{selectedRoom?.type ?? "Chat"}</Badge>
-            <h2 className={`${compact ? "text-xl" : "text-2xl"} mt-3 font-black`}>{selectedRoom?.name ?? "Chat rooms"}</h2>
-            <p className="mt-1 text-sm text-bc-muted">
-              {selectedRoom ? `${visibleMessages.length} visible messages in #${selectedRoom.slug}.` : "Create rooms from admin to start chat."}
+          <div className="min-w-0">
+            <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
+            <h2 className={cn("mt-3 font-black", compact ? "text-xl" : "text-2xl", mobileLiveMode && "mt-2 text-lg lg:mt-3 lg:text-xl")}>
+              {visibleRoom?.name ?? "Chat rooms"}
+            </h2>
+            <p className={cn("mt-1 text-sm text-bc-muted", mobileLiveMode && "text-xs lg:text-sm")}>
+              {visibleRoom ? `${visibleMessages.length} visible messages in #${visibleRoom.slug}.` : "Create rooms from admin to start chat."}
             </p>
+            {visibleRoom?.lockedAt || visibleRoom?.slowModeSeconds ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {visibleRoom.lockedAt ? (
+                  <Badge className="gap-1" tone="pink">
+                    <Lock className="h-3 w-3" aria-hidden="true" />
+                    Locked
+                  </Badge>
+                ) : null}
+                {visibleRoom.slowModeSeconds > 0 ? (
+                  <Badge className="gap-1" tone="amber">
+                    <Timer className="h-3 w-3" aria-hidden="true" />
+                    {slowModeLabel(visibleRoom.slowModeSeconds)}
+                  </Badge>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           {currentUser ? (
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
               <Badge tone="acid">{currentUser.displayName}</Badge>
               {currentUser.roles.map((role) => (
                 <Badge key={role} tone={roleBadgeTone(role)}>
@@ -262,7 +438,11 @@ export function ChatRoomPanel({
       </div>
 
       <div
-        className={`${compact ? "max-h-[380px]" : "max-h-[560px]"} overflow-y-auto p-4`}
+        className={cn(
+          compact ? "max-h-[380px]" : "max-h-[560px]",
+          "overflow-y-auto overflow-x-hidden p-4",
+          messagesClassName
+        )}
         data-testid="chat-message-list"
         ref={messagesViewportRef}
       >
@@ -270,12 +450,19 @@ export function ChatRoomPanel({
           {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
             const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
+            const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
             return (
-              <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={message.id}>
+              <article
+                className={cn(
+                  "min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-ink p-3",
+                  mobileLiveMode && "bg-bc-ink/80 backdrop-blur-sm lg:bg-bc-ink lg:backdrop-blur-none"
+                )}
+                key={message.id}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">{message.authorDisplayName}</span>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
                     {message.authorRoles.map((role) => (
                       <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
                         {roleDisplayName(role, roleDisplayLabels)}
@@ -309,9 +496,71 @@ export function ChatRoomPanel({
                       width={mediaSize.width}
                     />
                   </div>
+                ) : isCustomAssetMessage ? (
+                  <div className="mt-3">
+                    <Image
+                      alt={message.mediaAlt ?? message.body}
+                      className={`h-auto w-auto max-w-full object-contain ${
+                        message.kind === "emoji" ? "max-h-20" : compact ? "max-h-36" : "max-h-56"
+                      }`}
+                      height={message.kind === "emoji" ? 96 : 240}
+                      onLoad={scrollToLatestMessage}
+                      sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
+                      src={message.mediaUrl ?? ""}
+                      unoptimized
+                      width={message.kind === "emoji" ? 96 : 240}
+                    />
+                  </div>
                 ) : (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.body}</p>
+                  <ChatEffectText body={message.body} effectId={message.effectId} />
                 )}
+
+                {selectedRoom && !message.deletedAt ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-bc-line pt-3">
+                    {currentUser
+                      ? chatReactionOptions.map((reaction) => {
+                          const summary = message.reactions.find((item) => item.key === reaction.key);
+                          const count = summary?.count ?? 0;
+
+                          return (
+                            <form action={formAction} key={reaction.key}>
+                              <input name="intent" type="hidden" value="reaction" />
+                              <input name="roomId" type="hidden" value={selectedRoom.id} />
+                              <input name="messageId" type="hidden" value={message.id} />
+                              <input name="reactionKey" type="hidden" value={reaction.key} />
+                              <button
+                                aria-label={reaction.label}
+                                className={`bc-focus-ring inline-flex min-h-8 items-center gap-1 rounded-full border px-2 text-sm transition disabled:opacity-50 ${
+                                  summary?.reacted
+                                    ? "border-bc-electric/60 bg-bc-electric/15 text-white"
+                                    : "border-bc-line bg-bc-panel text-bc-muted hover:border-bc-electric/50 hover:text-white"
+                                }`}
+                                disabled={pending || roomLockedForUser}
+                                title={reaction.label}
+                                type="submit"
+                              >
+                                <span aria-hidden="true">{reaction.icon}</span>
+                                {count > 0 ? <span className="text-xs font-semibold">{count}</span> : null}
+                              </button>
+                            </form>
+                          );
+                        })
+                      : message.reactions.map((reaction) => {
+                          const option = chatReactionOptions.find((item) => item.key === reaction.key);
+
+                          return option ? (
+                            <span
+                              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-bc-line bg-bc-panel px-2 text-sm text-bc-muted"
+                              key={reaction.key}
+                              title={option.label}
+                            >
+                              <span aria-hidden="true">{option.icon}</span>
+                              <span className="text-xs font-semibold">{reaction.count}</span>
+                            </span>
+                          ) : null;
+                        })}
+                  </div>
+                ) : null}
 
                 {canReportMessage && selectedRoom ? (
                   <form action={formAction} className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-bc-line pt-3">
@@ -344,7 +593,7 @@ export function ChatRoomPanel({
               <div>
                 <MessageSquare className="mx-auto h-7 w-7 text-bc-electric" aria-hidden="true" />
                 <p className="mt-3 text-sm text-bc-muted">
-                  {selectedRoom ? "No messages yet. Start the room off." : "No chat rooms are configured yet."}
+                  {visibleRoom ? "No messages yet. Start the room off." : "No chat rooms are configured yet."}
                 </p>
               </div>
             </div>
@@ -352,7 +601,7 @@ export function ChatRoomPanel({
         </div>
       </div>
 
-      <div className="border-t border-bc-line p-4">
+      <div className={cn("border-t border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
         {state.message ? (
           <div
             className={`mb-3 rounded-md border p-3 text-sm ${
@@ -367,76 +616,188 @@ export function ChatRoomPanel({
 
         {currentUser && selectedRoom ? (
           <div className="grid gap-3">
-            {selectedRoom.type === "live" ? (
-              <form action={formAction} className="grid gap-3 rounded-md border border-bc-acid/25 bg-bc-acid/10 p-3">
-                <input name="intent" type="hidden" value="stars" />
-                <input name="roomId" type="hidden" value={selectedRoom.id} />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
-                    <span className="font-black">Send stars</span>
-                    <Badge tone="acid">{currentStarBalance.toLocaleString("en-GB")} available</Badge>
-                  </div>
-                  <ButtonLink href="/account/rewards" size="sm" variant="dark">
-                    Buy stars
-                  </ButtonLink>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-[140px_1fr_auto]">
-                  <select
-                    aria-label="Star amount"
-                    className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    name="amount"
-                  >
-                    {liveStarSendAmounts.map((amount) => (
-                      <option key={amount} value={amount}>
-                        {amount} stars
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    maxLength={160}
-                    name="note"
-                    placeholder="Optional stream alert message"
-                  />
-                  <Button disabled={pending || currentStarBalance < liveStarSendAmounts[0]} type="submit" variant="primary">
-                    <Star className="h-4 w-4" aria-hidden="true" />
-                    Send
-                  </Button>
-                </div>
-              </form>
+            {roomLockedForUser ? (
+              <div className="rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
+                This chat room is locked by moderation.
+              </div>
             ) : null}
+            {visibleRoom?.type === "live" ? renderStarsForm(mobileLiveMode ? "hidden lg:grid" : undefined) : null}
 
-            <form action={formAction} className="grid gap-3">
+            <form action={formAction} className={cn("grid gap-3", mobileLiveMode && "gap-2 lg:gap-3")}>
               <input name="intent" type="hidden" value="text" />
               <input name="roomId" type="hidden" value={selectedRoom.id} />
               <textarea
-                className="min-h-24 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                className={cn(
+                  "min-h-24 min-w-0 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
+                  mobileLiveMode && "min-h-14 max-h-20 resize-none lg:min-h-24 lg:max-h-none lg:resize-y"
+                )}
                 maxLength={500}
                 name="body"
+                onChange={(event) => setComposerBody(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
-                placeholder={`Message #${selectedRoom.slug}`}
+                placeholder={`Message #${visibleRoom?.slug ?? selectedRoom.slug}`}
                 ref={textareaRef}
+                disabled={roomLockedForUser}
                 required
+                value={composerBody}
               />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-bc-muted">Press Enter to send message. Shift+Enter for line break.</p>
-                <div className="flex flex-wrap justify-end gap-2">
+              {composerBody.trim() && selectedEffectId ? (
+                <div className={cn("rounded-md border border-bc-line bg-bc-ink px-3 py-2", mobileLiveMode && "max-h-20 overflow-hidden lg:max-h-none")}>
+                  <div className="text-xs font-semibold uppercase text-bc-muted">Preview</div>
+                  <ChatEffectText body={composerBody} className="mt-2" effectId={selectedEffectId} />
+                </div>
+              ) : null}
+              <div
+                className={cn(
+                  "flex flex-wrap items-center justify-between gap-3",
+                  mobileLiveMode &&
+                    "sticky bottom-0 z-20 -mx-3 -mb-3 border-t border-bc-line bg-bc-panel/90 px-3 py-2 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+                )}
+              >
+                <p className={cn("text-xs text-bc-muted", mobileLiveMode && "hidden lg:block")}>
+                  Press Enter to send message. Shift+Enter for line break.
+                </p>
+                <div
+                  className={cn(
+                    "flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end",
+                    mobileLiveMode && "flex-nowrap overflow-x-auto pb-1 lg:w-auto lg:flex-wrap lg:overflow-visible lg:pb-0"
+                  )}
+                >
+                  <ChatEffectSelector
+                    className={mobileLiveMode ? "min-h-9 shrink-0 px-2 py-1 text-xs lg:min-h-10 lg:px-3 lg:py-2 lg:text-sm" : undefined}
+                    disabled={roomLockedForUser}
+                    onChange={setSelectedEffectId}
+                    selectedEffectId={selectedEffectId}
+                    userRoles={currentUser.roles}
+                  />
+                  {mobileLiveMode && liveStarsEnabled ? (
+                    <Button
+                      className="min-h-9 shrink-0 px-3 text-xs lg:hidden"
+                      disabled={roomLockedForUser}
+                      onClick={() => {
+                        setStarsPanelOpen((open) => !open);
+                        setGifPanelOpen(false);
+                        setAssetPanelOpen(false);
+                      }}
+                      type="button"
+                      variant={starsPanelOpen ? "dark" : "ghost"}
+                    >
+                      <Star className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      Stars
+                    </Button>
+                  ) : null}
                   <Button
-                    onClick={() => setGifPanelOpen((open) => !open)}
+                    className={mobileLiveMode ? "min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    disabled={roomLockedForUser}
+                    onClick={() => {
+                      setGifPanelOpen((open) => !open);
+                      setAssetPanelOpen(false);
+                      setStarsPanelOpen(false);
+                    }}
                     type="button"
                     variant={gifPanelOpen ? "dark" : "ghost"}
                   >
-                    <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                    <ImageIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     GIF
                   </Button>
-                  <Button disabled={pending} type="submit" variant="primary">
-                    <Send className="h-4 w-4" aria-hidden="true" />
+                  <Button
+                    className={mobileLiveMode ? "min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    disabled={roomLockedForUser}
+                    onClick={() => {
+                      setAssetPanelOpen((open) => !open);
+                      setGifPanelOpen(false);
+                      setStarsPanelOpen(false);
+                    }}
+                    type="button"
+                    variant={assetPanelOpen ? "dark" : "ghost"}
+                  >
+                    <Smile className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    Stickers
+                  </Button>
+                  <Button
+                    className={mobileLiveMode ? "min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    disabled={pending || roomLockedForUser}
+                    type="submit"
+                    variant="primary"
+                  >
+                    <Send className="h-4 w-4 shrink-0" aria-hidden="true" />
                     Send
                   </Button>
                 </div>
               </div>
             </form>
+
+            {mobileLiveMode && starsPanelOpen ? renderStarsForm("lg:hidden", true) : null}
+
+            {assetPanelOpen ? (
+              <section className="rounded-md border border-bc-line bg-bc-ink p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Badge tone="pink">Custom chat assets</Badge>
+                  <span className="text-xs font-semibold text-bc-muted">{assets.length} available</span>
+                </div>
+
+                {assets.length ? (
+                  <div className="mt-3 grid gap-4">
+                    {[
+                      { label: "Stickers", items: stickerAssets },
+                      { label: "Animated emoji", items: emojiAssets }
+                    ].map((group) =>
+                      group.items.length ? (
+                        <div key={group.label}>
+                          <p className="text-xs font-semibold uppercase text-bc-muted">{group.label}</p>
+                          <div
+                            className={`mt-2 grid gap-2 ${
+                              compact ? "grid-cols-[repeat(auto-fit,minmax(88px,1fr))]" : "grid-cols-3 sm:grid-cols-4 md:grid-cols-6"
+                            }`}
+                          >
+                            {group.items.map((asset) => (
+                              <form action={formAction} className="min-w-0" key={asset.id}>
+                                <input name="intent" type="hidden" value="asset" />
+                                <input name="roomId" type="hidden" value={selectedRoom.id} />
+                                <input name="assetId" type="hidden" value={asset.id} />
+                                <button
+                                  className="bc-focus-ring group grid w-full gap-2 rounded-md border border-bc-line bg-bc-panel p-2 text-left transition hover:border-bc-electric/60"
+                                  disabled={pending || roomLockedForUser}
+                                  title={`${asset.name} ${asset.shortcode}`}
+                                  type="submit"
+                                >
+                                  <span className="relative aspect-square w-full overflow-hidden rounded-md bg-bc-void">
+                                    <Image
+                                      alt={asset.name}
+                                      className="h-full w-full object-contain transition group-hover:scale-105"
+                                      height={160}
+                                      sizes={compact ? "96px" : "140px"}
+                                      src={asset.imageUrl}
+                                      unoptimized
+                                      width={160}
+                                    />
+                                  </span>
+                                  <span className="truncate text-xs font-semibold text-white">{asset.name}</span>
+                                  <span className="flex flex-wrap gap-1">
+                                    <Badge className="py-0.5" tone={asset.kind === "emoji" ? "cyan" : "pink"}>
+                                      {asset.kind}
+                                    </Badge>
+                                    {asset.isAnimated ? (
+                                      <Badge className="py-0.5" tone="acid">
+                                        Animated
+                                      </Badge>
+                                    ) : null}
+                                  </span>
+                                </button>
+                              </form>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-3 rounded-md border border-dashed border-bc-line bg-bc-panel p-3 text-sm text-bc-muted">
+                    No custom stickers or emoji are available yet.
+                  </p>
+                )}
+              </section>
+            ) : null}
 
             {gifPanelOpen ? (
               <section className="rounded-md border border-bc-line bg-bc-ink p-3">
@@ -444,9 +805,9 @@ export function ChatRoomPanel({
                   <Badge tone="cyan">GIFs</Badge>
                   <span className="text-xs font-semibold text-bc-muted">GIFs by Tenor</span>
                 </div>
-                <form className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]" onSubmit={searchGifs}>
+                <form className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={searchGifs}>
                   <input
-                    className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                    className="min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
                     maxLength={80}
                     onChange={(event) => setGifQuery(event.target.value)}
                     placeholder="Search GIFs"
@@ -462,7 +823,11 @@ export function ChatRoomPanel({
                 {gifError ? <p className="mt-3 text-sm text-bc-muted">{gifError}</p> : null}
 
                 {gifResults.length ? (
-                  <div className={`mt-3 grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"}`}>
+                  <div
+                    className={`mt-3 grid gap-2 ${
+                      compact ? "grid-cols-[repeat(auto-fit,minmax(120px,1fr))]" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+                    }`}
+                  >
                     {gifResults.map((gif) => {
                       const resultSize = imageSize(gif.width, gif.height);
 
@@ -479,7 +844,7 @@ export function ChatRoomPanel({
                           <input name="gifQuery" type="hidden" value={gifQuery.trim()} />
                           <button
                             className="bc-focus-ring group relative aspect-square w-full overflow-hidden rounded-md border border-bc-line bg-bc-panel"
-                            disabled={pending}
+                            disabled={pending || roomLockedForUser}
                             title={gif.title}
                             type="submit"
                           >

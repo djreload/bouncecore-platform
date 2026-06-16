@@ -9,6 +9,7 @@ import { updateSiteSettings } from "@/lib/admin/site-settings-service";
 
 function revalidateSiteSettingsViews() {
   revalidatePath("/");
+  revalidatePath("/live");
   revalidatePath("/admin/settings");
   revalidatePath("/admin/audit-logs");
 }

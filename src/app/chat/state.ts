@@ -2,8 +2,10 @@ import type { Role } from "@/lib/auth/rbac";
 
 export type PublicChatRoomRow = {
   id: string;
+  lockedAt: string | null;
   slug: string;
   name: string;
+  slowModeSeconds: number;
   type: string;
   messages: number;
 };
@@ -20,12 +22,32 @@ export type PublicChatMessageRow = {
   mediaSourceId: string | null;
   mediaWidth: number | null;
   mediaHeight: number | null;
+  effectId: string | null;
   starAmount: number | null;
   starNote: string | null;
   createdAt: string;
+  deletedAt: string | null;
   authorDisplayName: string;
   authorUserId: string | null;
   authorRoles: Role[];
+  reactions: PublicChatReactionRow[];
+};
+
+export type PublicChatReactionRow = {
+  key: string;
+  count: number;
+  reacted: boolean;
+};
+
+export type PublicChatAssetRow = {
+  id: string;
+  packId: string;
+  packName: string;
+  name: string;
+  shortcode: string;
+  imageUrl: string;
+  kind: "sticker" | "emoji";
+  isAnimated: boolean;
 };
 
 export type PublicChatUser = {

@@ -12,8 +12,10 @@ export default async function AdminChatroomsPage() {
   const [{ rooms, messages }, roleDisplayLabels] = await Promise.all([getAdminChatroomsData(), getRoleDisplayNameOverrides()]);
   const roomRows: AdminChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
+    lockedAt: room.lockedAt,
     slug: room.slug,
     name: room.name,
+    slowModeSeconds: room.slowModeSeconds,
     type: room.type,
     createdAt: room.createdAt,
     messages: room.messages

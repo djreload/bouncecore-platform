@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createChatGifMessage, createChatMessage } from "@/lib/chat/chat-service";
+import { createChatGifMessage, createChatMessage, createChatStickerMessage, toggleChatMessageReaction } from "@/lib/chat/chat-service";
 import { createChatReport } from "@/lib/chat/moderation-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
@@ -55,13 +55,17 @@ export async function publicChatAction(
         width: Number(formString(formData, "gifWidth")) || null,
         height: Number(formString(formData, "gifHeight")) || null
       });
+    } else if (intent === "asset") {
+      await createChatStickerMessage(roomId, user.id, formString(formData, "assetId"));
+    } else if (intent === "reaction") {
+      await toggleChatMessageReaction(formString(formData, "messageId"), user.id, formString(formData, "reactionKey"));
     } else if (intent === "stars") {
       await createLiveChatStarSend(roomId, user.id, {
         amount: formString(formData, "amount"),
         note: formString(formData, "note")
       });
     } else {
-      await createChatMessage(roomId, body, user.id);
+      await createChatMessage(roomId, body, user.id, formString(formData, "effectId"));
     }
 
     revalidatePath("/chat");
@@ -78,6 +82,10 @@ export async function publicChatAction(
           ? "Report sent to moderators."
           : intent === "gif"
             ? "GIF sent."
+            : intent === "asset"
+              ? "Sticker sent."
+              : intent === "reaction"
+                ? "Reaction updated."
             : intent === "stars"
               ? "Stars sent to live chat."
               : "Message sent."
@@ -97,6 +105,10 @@ export async function publicChatAction(
           ? error.message
           : intent === "gif"
             ? "GIF was not sent. Try another result."
+            : intent === "asset"
+              ? "Sticker was not sent."
+              : intent === "reaction"
+                ? "Reaction was not saved."
             : intent === "stars"
               ? "Stars were not sent."
             : "Message was not sent. Keep it between 1 and 500 characters."

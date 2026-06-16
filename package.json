@@ -10,13 +10,16 @@
     "stream-core": "tsx src/stream-core/server.ts",
     "worker": "tsx src/workers/main.ts",
     "lint": "eslint .",
+    "test": "node tests/run-tests.mjs",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "db:validate": "prisma validate",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
-    "docker:build": "docker build -t bouncecore-platform:staging ."
+    "docker:build": "docker build -t bouncecore-platform:staging .",
+    "stream:smoke": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-test.ps1",
+    "stream:smoke:temp-key": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-with-temp-key.ps1"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
@@ -30,6 +33,7 @@
     "pg": "^8.21.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "redis": "^6.0.0",
     "tailwind-merge": "3.6.0",
     "zod": "4.4.3"
   },

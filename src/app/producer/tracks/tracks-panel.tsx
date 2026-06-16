@@ -147,7 +147,7 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           placeholder="https://.../cover.jpg or uploaded file path"
           type="text"
         />
-        <p className="mt-1 text-xs text-bc-muted">Use square artwork, ideally 500 x 500.</p>
+        <p className="mt-1 text-xs text-bc-muted">Use square JPG, PNG, WebP, GIF, or AVIF artwork. Maximum 100MB.</p>
       </div>
       <div>
         <label
@@ -157,7 +157,7 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           Upload artwork
         </label>
         <input
-          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif"
           className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
           disabled={pending}
           id={track ? `artwork-file-${track.id}` : "create-artwork-file"}
@@ -206,7 +206,7 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           Upload sample MP3
         </label>
         <input
-          accept="audio/mpeg,audio/mp3,.mp3"
+          accept=".mp3,audio/mpeg,audio/mp3,audio/x-mpeg,audio/x-mp3,application/octet-stream"
           className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
           disabled={pending}
           id={track ? `preview-file-${track.id}` : "create-preview-file"}
@@ -225,10 +225,27 @@ function TrackFields({ pending, track }: { pending: boolean; track?: ProducerTra
           id={track ? `download-${track.id}` : "create-download"}
           maxLength={500}
           name="downloadUrl"
-          placeholder="MP3/320 under 50MB or Google Drive share link"
-          type="url"
+          placeholder="MP3/320 up to 200MB or Google Drive share link"
+          type="text"
         />
         <p className="mt-1 text-xs text-bc-muted">Google Drive file links are converted to direct downloads when saved.</p>
+      </div>
+      <div>
+        <label
+          className="text-xs font-semibold uppercase text-bc-muted"
+          htmlFor={track ? `download-file-${track.id}` : "create-download-file"}
+        >
+          Upload download MP3
+        </label>
+        <input
+          accept=".mp3,audio/mpeg,audio/mp3,audio/x-mpeg,audio/x-mp3,application/octet-stream"
+          className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+          disabled={pending}
+          id={track ? `download-file-${track.id}` : "create-download-file"}
+          name="downloadFile"
+          type="file"
+        />
+        <p className="mt-1 text-xs text-bc-muted">MP3 only, 320kbps, 200MB maximum.</p>
       </div>
       <div>
         <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={track ? `license-${track.id}` : "create-license"}>

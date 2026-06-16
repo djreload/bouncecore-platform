@@ -106,7 +106,11 @@ export function AdminStreamControlPanel({ channels, provider, streamProfiles }: 
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <Badge tone="cyan">New channel</Badge>
-        <form action={formAction} className="mt-4 grid gap-3 lg:grid-cols-[1fr_180px_170px_1fr_240px_auto]">
+        <form
+          action={formAction}
+          className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_150px_1fr_1fr_220px_auto]"
+          encType="multipart/form-data"
+        >
           <input name="intent" type="hidden" value="create" />
           <input
             className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
@@ -132,6 +136,11 @@ export function AdminStreamControlPanel({ channels, provider, streamProfiles }: 
             name="playbackUrl"
             placeholder="https://.../live.m3u8"
           />
+          <input
+            className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+            name="offlineImageUrl"
+            placeholder="Offline image URL"
+          />
           <select
             className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
             name="streamProfileId"
@@ -153,7 +162,11 @@ export function AdminStreamControlPanel({ channels, provider, streamProfiles }: 
       <div className="grid gap-4">
         {channels.map((channel) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={channel.id}>
-            <form action={formAction} className="grid gap-4 xl:grid-cols-[1fr_170px_170px_1fr_240px_auto]">
+            <form
+              action={formAction}
+              className="grid gap-4 xl:grid-cols-[1fr_160px_150px_1fr_1fr_220px_auto]"
+              encType="multipart/form-data"
+            >
               <input name="intent" type="hidden" value="update" />
               <input name="channelId" type="hidden" value={channel.id} />
               <div>
@@ -208,6 +221,27 @@ export function AdminStreamControlPanel({ channels, provider, streamProfiles }: 
                   name="playbackUrl"
                   placeholder="https://.../live.m3u8"
                 />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`offline-image-${channel.id}`}>
+                  Offline image
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  defaultValue={channel.offlineImageUrl ?? ""}
+                  id={`offline-image-${channel.id}`}
+                  name="offlineImageUrl"
+                  placeholder="https://.../offline.jpg or uploaded file path"
+                  type="text"
+                />
+                <input
+                  accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+                  id={`offline-image-file-${channel.id}`}
+                  name="offlineImageFile"
+                  type="file"
+                />
+                <p className="mt-1 text-xs text-bc-muted">Landscape image, ideally 1920 x 1080.</p>
               </div>
               <div>
                 <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`profile-${channel.id}`}>

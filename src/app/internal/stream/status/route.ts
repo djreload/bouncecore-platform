@@ -7,6 +7,7 @@ export async function GET() {
   return NextResponse.json({
     status: liveState.status,
     health: liveState.health,
+    offlineImageUrl: liveState.offlineImageUrl,
     playbackUrl: liveState.playbackUrl,
     viewerCount: liveState.viewerCount,
     channel: liveState.channel,

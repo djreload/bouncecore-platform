@@ -1,5 +1,6 @@
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
+import { getHlsPlaybackHealth, type HlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getStreamProviderMode } from "@/lib/stream/stream-provider";
 
 export type IntegrationStatus = "ready" | "partial" | "missing";
@@ -49,6 +50,10 @@ function publicValue(key: string) {
   return envValue(key) || "Not configured";
 }
 
+function enabled(key: string) {
+  return envValue(key).toLowerCase() === "true";
+}
+
 function check(label: string, ready: boolean, value: string, detail: string): IntegrationCheck {
   return {
     detail,
@@ -58,12 +63,43 @@ function check(label: string, ready: boolean, value: string, detail: string): In
   };
 }
 
+function modeCheck(label: string, active: boolean, activeDetail: string, inactiveDetail: string): IntegrationCheck {
+  return {
+    detail: active ? activeDetail : inactiveDetail,
+    label,
+    status: "ready",
+    value: active ? "Enabled" : "Disabled"
+  };
+}
+
+function enabledEnvCheck(label: string, key: string, active: boolean, detail: string): IntegrationCheck {
+  if (!active) {
+    return {
+      detail: `${key} is only required when TRANSCODER_ENABLED=true.`,
+      label,
+      status: "ready",
+      value: "Optional"
+    };
+  }
+
+  return check(label, configured(key), publicValue(key), detail);
+}
+
 function optionalCheck(label: string, configuredValue: boolean, detail: string): IntegrationCheck {
   return {
     detail,
     label,
     status: "ready",
     value: configuredValue ? "Configured" : "Optional"
+  };
+}
+
+function manifestCheck(playbackHealth: HlsPlaybackHealth): IntegrationCheck {
+  return {
+    detail: playbackHealth.detail,
+    label: "Playback manifest",
+    status: playbackHealth.status === "healthy" ? "ready" : "partial",
+    value: playbackHealth.value
   };
 }
 
@@ -99,6 +135,14 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
   const [paypal, stream] = await Promise.all([getPayPalIntegrationData(), getAdminStreamControlData()]);
   const streamProviderMode = getStreamProviderMode();
   const streamProviderReady = streamProviderMode !== "mock" && configured("STREAM_CORE_INTERNAL_URL");
+  const transcoderEnabled = enabled("TRANSCODER_ENABLED");
+  const streamIsActive = stream.provider.health.ingestConnected || stream.provider.status !== "offline";
+  const playbackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") || stream.provider.playbackUrl : stream.provider.playbackUrl;
+  const playbackHealth = await getHlsPlaybackHealth({
+    adaptive: transcoderEnabled,
+    live: streamIsActive,
+    playbackUrl: envValue("HLS_PLAYBACK_HEALTH_URL") || playbackUrl
+  });
   const paypalChecks: IntegrationCheck[] = paypal.checks.map((item) => ({
     detail: item.detail,
     label: item.label,
@@ -109,6 +153,15 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     check("Tenor API key", configured("TENOR_API_KEY"), configured("TENOR_API_KEY") ? "Configured" : "Missing", "TENOR_API_KEY is required for GIF search in chat."),
     check("Client key", true, "bouncecore-platform", "Tenor requests use a fixed Bouncecore client key."),
     check("Content filter", true, "Medium", "GIF search is restricted to the GB locale with medium content filtering.")
+  ];
+  const mailChecks: IntegrationCheck[] = [
+    check("Brevo SMTP host", configured("BREVO_SMTP_HOST") || configured("SMTP_HOST"), envValue("BREVO_SMTP_HOST") || envValue("SMTP_HOST") || "smtp-relay.brevo.com", "SMTP relay host for transactional account emails."),
+    check("Brevo SMTP port", configured("BREVO_SMTP_PORT") || configured("SMTP_PORT"), envValue("BREVO_SMTP_PORT") || envValue("SMTP_PORT") || "587", "Brevo recommends port 587 for SMTP submission."),
+    check("SMTP username", configured("BREVO_SMTP_USER") || configured("SMTP_USER"), configured("BREVO_SMTP_USER") || configured("SMTP_USER") ? "Configured" : "Missing", "Brevo SMTP username from SMTP and API settings."),
+    check("SMTP key", configured("BREVO_SMTP_KEY") || configured("BREVO_SMTP_PASSWORD") || configured("SMTP_PASSWORD"), configured("BREVO_SMTP_KEY") || configured("BREVO_SMTP_PASSWORD") || configured("SMTP_PASSWORD") ? "Configured" : "Missing", "Use a Brevo SMTP key for SMTP relay authentication."),
+    check("From address", configured("MAIL_FROM") || configured("SMTP_FROM"), envValue("MAIL_FROM") || envValue("SMTP_FROM") || "Missing", "Verified sender address used for account verification and invites."),
+    check("Verification page", true, absolutePath("/auth/verify-email"), "Signup verification and resend flow."),
+    check("Password reset page", true, absolutePath("/auth/forgot-password"), "Password reset request and token flow.")
   ];
   const streamChecks: IntegrationCheck[] = [
     check(
@@ -126,7 +179,42 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       "Internal HTTP source for stream status, health, playback, and viewer telemetry."
     ),
     check("Public playback URL", Boolean(stream.provider.playbackUrl), stream.provider.playbackUrl ?? "Not configured", "Used by the live player and public status surfaces."),
+    optionalCheck(
+      "Playback health URL",
+      configured("HLS_PLAYBACK_HEALTH_URL"),
+      "Optional server-side HLS URL for admin manifest checks when the public URL is not reachable from the app container."
+    ),
+    manifestCheck(playbackHealth),
     check("RTMP ingest URL", configured("RTMP_INGEST_URL"), publicValue("RTMP_INGEST_URL"), "Shown to streamers in OBS setup."),
+    optionalCheck(
+      "Media gateway HLS template",
+      configured("MEDIA_GATEWAY_PUBLIC_HLS_URL"),
+      "Optional MediaMTX HLS URL template used by stream-core after authenticated RTMP publish."
+    ),
+    modeCheck(
+      "Adaptive HLS transcoder",
+      transcoderEnabled,
+      "FFmpeg adaptive HLS is expected to publish a multi-variant master playlist.",
+      "Direct MediaMTX HLS remains available; enable TRANSCODER_ENABLED when the FFmpeg adaptive profile is deployed."
+    ),
+    enabledEnvCheck(
+      "Adaptive HLS master URL",
+      "TRANSCODER_HLS_PUBLIC_URL",
+      transcoderEnabled,
+      "Public multi-variant master playlist used by browser automatic bitrate switching."
+    ),
+    enabledEnvCheck(
+      "Transcoder RTMP input",
+      "TRANSCODER_INPUT_URL",
+      transcoderEnabled,
+      "Internal RTMP source read by the FFmpeg adaptive HLS worker."
+    ),
+    enabledEnvCheck(
+      "HLS origin host port",
+      "TRANSCODER_HLS_BIND_PORT",
+      transcoderEnabled,
+      "Local host port for the static HLS origin serving adaptive playlists and segments."
+    ),
     check(
       "Stream-key validation",
       configured("STREAM_CORE_KEY_VALIDATION_URL") && configured("INTERNAL_TASK_TOKEN"),
@@ -203,6 +291,39 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
         }
       ],
       title: "Tenor GIF search"
+    },
+    {
+      checks: mailChecks,
+      description: "Transactional account email for signup verification, password reset, and admin-created user invites.",
+      eyebrow: "SMTP relay",
+      id: "mail",
+      primaryHref: "/auth/verify-email",
+      primaryLabel: "Open verification",
+      status: groupStatus(mailChecks),
+      statusLabel: statusLabel(groupStatus(mailChecks)),
+      surfaces: [
+        {
+          detail: "New accounts receive a verification link before login is allowed.",
+          href: "/auth/register",
+          label: "Registration"
+        },
+        {
+          detail: "Admins can create user invites and email the invite link automatically.",
+          href: "/admin/users",
+          label: "User invites"
+        },
+        {
+          detail: "Users can request another verification email.",
+          href: "/auth/verify-email",
+          label: "Verification resend"
+        },
+        {
+          detail: "Users can request a one-hour password reset link.",
+          href: "/auth/forgot-password",
+          label: "Password reset"
+        }
+      ],
+      title: "Brevo SMTP email"
     },
     {
       checks: streamChecks,

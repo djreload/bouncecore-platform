@@ -43,6 +43,7 @@ model User {
   chatBans        ChatBan[] @relation("ChatBanUser")
   chatBansCreated ChatBan[] @relation("ChatBanCreatedBy")
   chatBansRevoked ChatBan[] @relation("ChatBanRevokedBy")
+  chatReactions   ChatReaction[]
   prizeClaims     PrizeClaim[] @relation("PrizeClaimUser")
   prizeClaimsResolved PrizeClaim[] @relation("PrizeClaimResolvedBy")
   invitesCreated  UserInvite[] @relation("UserInviteCreatedBy")
@@ -297,6 +298,7 @@ model StreamChannel {
   slug            String          @unique
   title           String
   playbackUrl     String?
+  offlineImageUrl String?
   status          String          @default("offline")
   streamProfileId String?
   streamProfile   StreamProfile?  @relation(fields: [streamProfileId], references: [id], onDelete: SetNull)
@@ -387,15 +389,17 @@ model StreamSchedule {
 }
 
 model ChatRoom {
-  id        String        @id @default(cuid())
-  slug      String        @unique
-  name      String
-  type      String        @default("public")
-  messages  ChatMessage[]
-  reports   ChatReport[]
-  bans      ChatBan[]
-  starSends StarSend[]
-  createdAt DateTime      @default(now())
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  name            String
+  type            String        @default("public")
+  lockedAt        DateTime?
+  slowModeSeconds Int           @default(0)
+  messages        ChatMessage[]
+  reports         ChatReport[]
+  bans            ChatBan[]
+  starSends       StarSend[]
+  createdAt       DateTime      @default(now())
 }
 
 model ChatMessage {
@@ -411,11 +415,59 @@ model ChatMessage {
   mediaSourceId   String?
   mediaWidth      Int?
   mediaHeight     Int?
+  effectId        String?
   deletedAt       DateTime?
   createdAt       DateTime @default(now())
   room            ChatRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
   reports         ChatReport[]
   starSend        StarSend?
+  reactions       ChatReaction[]
+}
+
+model ChatStickerPack {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  name        String
+  description String?
+  status      String        @default("active")
+  sortOrder   Int           @default(0)
+  stickers    ChatSticker[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([status, sortOrder])
+}
+
+model ChatSticker {
+  id         String          @id @default(cuid())
+  packId     String
+  name       String
+  shortcode  String          @unique
+  imageUrl   String
+  kind       String          @default("sticker")
+  isAnimated Boolean         @default(false)
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  pack       ChatStickerPack @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@index([packId, sortOrder])
+  @@index([kind, sortOrder])
+}
+
+model ChatReaction {
+  id          String      @id @default(cuid())
+  messageId   String
+  userId      String
+  reactionKey String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  message     ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([messageId, reactionKey])
+  @@index([userId])
 }
 
 model StarSend {
@@ -671,6 +723,26 @@ model ProducerPayoutItem {
   @@index([producerId])
   @@index([status])
   @@index([createdAt])
+}
+
+model PayPalWebhookEvent {
+  id                 String   @id @default(cuid())
+  paypalEventId      String   @unique
+  transmissionId     String?
+  eventType          String
+  resourceType       String?
+  resourceId         String?
+  verificationStatus String   @default("verified")
+  processingStatus   String   @default("recorded")
+  payload            Json
+  errorMessage       String?
+  receivedAt         DateTime @default(now())
+  processedAt        DateTime?
+
+  @@index([eventType])
+  @@index([processingStatus])
+  @@index([receivedAt])
+  @@index([resourceType, resourceId])
 }
 
 model StarWallet {

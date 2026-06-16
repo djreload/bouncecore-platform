@@ -1,24 +1,32 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
-import type { Role } from "@/lib/auth/rbac";
+import { hasPermission, type Role } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
-import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
+import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
+import { assertUserCanPostInChat, getActiveChatBan } from "@/lib/chat/moderation-service";
+import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/chat-asset-service";
+import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
+import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
 
 export type ChatRoomInput = {
+  locked?: boolean;
   roomId?: string;
   name: string;
+  slowModeSeconds?: number;
   slug: string;
   type: ChatRoomType;
 };
 
 export type ChatRoomSummary = {
   id: string;
+  lockedAt: string | null;
   slug: string;
   name: string;
+  slowModeSeconds: number;
   type: string;
   createdAt: string;
   messages: number;
@@ -36,6 +44,7 @@ export type ChatMessageSummary = {
   mediaSourceId: string | null;
   mediaWidth: number | null;
   mediaHeight: number | null;
+  effectId: string | null;
   starAmount: number | null;
   starNote: string | null;
   createdAt: string;
@@ -43,6 +52,7 @@ export type ChatMessageSummary = {
   authorDisplayName: string;
   authorUserId: string | null;
   authorRoles: Role[];
+  reactions: ChatReactionSummary[];
 };
 
 export type ChatGifMessageInput = {
@@ -55,9 +65,27 @@ export type ChatGifMessageInput = {
   height?: number | null;
 };
 
+export type ChatReactionSummary = {
+  key: ChatReactionKey;
+  count: number;
+  reacted: boolean;
+};
+
+export type PublicChatData = {
+  rooms: ChatRoomSummary[];
+  selectedRoom: ChatRoomSummary | null;
+  messages: ChatMessageSummary[];
+  assets: ChatStickerAssetSummary[];
+};
+
 type AuthorSummary = {
   displayName: string;
   roles: Role[];
+};
+
+type ReactionSource = {
+  reactionKey: string;
+  userId: string;
 };
 
 function chatHistoryCutoff() {
@@ -110,14 +138,17 @@ function normalizeRoomInput(input: ChatRoomInput) {
   assertRoomType(input.type);
 
   const name = input.name.trim();
+  const slowModeSeconds = Math.max(0, Math.min(3600, Math.floor(input.slowModeSeconds ?? 0)));
 
   if (name.length < 2) {
     throw new Error("Chat room name is too short.");
   }
 
   return {
+    locked: Boolean(input.locked),
     roomId: input.roomId,
     name,
+    slowModeSeconds,
     slug: normalizeSlug(input.slug),
     type: input.type
   };
@@ -128,6 +159,8 @@ function toRoomSummary(room: {
   slug: string;
   name: string;
   type: string;
+  lockedAt: Date | null;
+  slowModeSeconds: number;
   createdAt: Date;
   _count: {
     messages: number;
@@ -137,6 +170,8 @@ function toRoomSummary(room: {
     id: room.id,
     slug: room.slug,
     name: room.name,
+    lockedAt: room.lockedAt?.toISOString() ?? null,
+    slowModeSeconds: room.slowModeSeconds,
     type: room.type,
     createdAt: room.createdAt.toISOString(),
     messages: room._count.messages
@@ -174,6 +209,35 @@ async function getAuthorSummaries(userIds: string[]) {
   );
 }
 
+function summarizeReactions(reactions: ReactionSource[] | undefined, currentUserId?: string | null): ChatReactionSummary[] {
+  if (!reactions?.length) {
+    return [];
+  }
+
+  const counts = new Map<ChatReactionKey, number>();
+  const reacted = new Set<ChatReactionKey>();
+
+  for (const reaction of reactions) {
+    if (!isChatReactionKey(reaction.reactionKey)) {
+      continue;
+    }
+
+    counts.set(reaction.reactionKey, (counts.get(reaction.reactionKey) ?? 0) + 1);
+
+    if (currentUserId && reaction.userId === currentUserId) {
+      reacted.add(reaction.reactionKey);
+    }
+  }
+
+  return chatReactionOptions
+    .map((option) => ({
+      key: option.key,
+      count: counts.get(option.key) ?? 0,
+      reacted: reacted.has(option.key)
+    }))
+    .filter((reaction) => reaction.count > 0 || reaction.reacted);
+}
+
 function toMessageSummary(
   message: {
     id: string;
@@ -188,14 +252,17 @@ function toMessageSummary(
     mediaSourceId: string | null;
     mediaWidth: number | null;
     mediaHeight: number | null;
+    effectId: string | null;
     starSend?: {
       amount: number;
       note: string | null;
     } | null;
     deletedAt: Date | null;
     createdAt: Date;
+    reactions?: ReactionSource[];
   },
-  authors: Map<string, AuthorSummary>
+  authors: Map<string, AuthorSummary>,
+  currentUserId?: string | null
 ): ChatMessageSummary {
   const author = message.userId ? authors.get(message.userId) : null;
 
@@ -211,14 +278,33 @@ function toMessageSummary(
     mediaSourceId: message.deletedAt ? null : message.mediaSourceId,
     mediaWidth: message.deletedAt ? null : message.mediaWidth,
     mediaHeight: message.deletedAt ? null : message.mediaHeight,
+    effectId: !message.deletedAt && getChatEffectById(message.effectId) ? message.effectId : null,
     starAmount: message.deletedAt ? null : message.starSend?.amount ?? null,
     starNote: message.deletedAt ? null : message.starSend?.note ?? null,
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
     authorUserId: message.userId,
-    authorRoles: author?.roles ?? []
+    authorRoles: author?.roles ?? [],
+    reactions: message.deletedAt ? [] : summarizeReactions(message.reactions, currentUserId)
   };
+}
+
+async function getChatEffectUserRoles(userId: string) {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        }
+      }
+    }
+  });
+
+  return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 }
 
 async function getRooms() {
@@ -241,10 +327,10 @@ async function getRooms() {
   });
 }
 
-export async function getPublicChatData(roomSlug?: string) {
+export async function getPublicChatData(roomSlug?: string, currentUserId?: string | null): Promise<PublicChatData> {
   await pruneExpiredChatHistory();
 
-  const rooms = await getRooms();
+  const [rooms, assets] = await Promise.all([getRooms(), getPublicChatAssets()]);
   const roomSummaries = rooms.map(toRoomSummary);
   const preferredSlug = roomSlug ? normalizeSlug(roomSlug) : "live";
   const selectedRoom =
@@ -257,7 +343,8 @@ export async function getPublicChatData(roomSlug?: string) {
     return {
       rooms: roomSummaries,
       selectedRoom: null,
-      messages: []
+      messages: [],
+      assets
     };
   }
 
@@ -272,6 +359,12 @@ export async function getPublicChatData(roomSlug?: string) {
           amount: true,
           note: true
         }
+      },
+      reactions: {
+        select: {
+          reactionKey: true,
+          userId: true
+        }
       }
     },
     orderBy: {
@@ -284,11 +377,12 @@ export async function getPublicChatData(roomSlug?: string) {
   return {
     rooms: roomSummaries,
     selectedRoom: toRoomSummary(selectedRoom),
-    messages: messages.reverse().map((message) => toMessageSummary(message, authors))
+    messages: messages.reverse().map((message) => toMessageSummary(message, authors, currentUserId)),
+    assets
   };
 }
 
-export async function getPublicChatMessages(roomId: string) {
+export async function getPublicChatMessages(roomId: string, currentUserId?: string | null) {
   await pruneExpiredChatHistory();
 
   if (!roomId) {
@@ -315,6 +409,12 @@ export async function getPublicChatMessages(roomId: string) {
           amount: true,
           note: true
         }
+      },
+      reactions: {
+        select: {
+          reactionKey: true,
+          userId: true
+        }
       }
     },
     orderBy: {
@@ -324,7 +424,24 @@ export async function getPublicChatMessages(roomId: string) {
   });
   const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
 
-  return messages.reverse().map((message) => toMessageSummary(message, authors));
+  return messages.reverse().map((message) => toMessageSummary(message, authors, currentUserId));
+}
+
+export async function getPublicChatRoom(roomId: string) {
+  const room = await prisma.chatRoom.findUnique({
+    where: {
+      id: roomId
+    },
+    include: {
+      _count: {
+        select: {
+          messages: true
+        }
+      }
+    }
+  });
+
+  return room ? toRoomSummary(room) : null;
 }
 
 export async function getAdminChatroomsData() {
@@ -401,7 +518,9 @@ export async function createChatRoom(input: ChatRoomInput, actorId: string) {
   const roomInput = normalizeRoomInput(input);
   const room = await prisma.chatRoom.create({
     data: {
+      lockedAt: roomInput.locked ? new Date() : null,
       name: roomInput.name,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: roomInput.slug,
       type: roomInput.type
     }
@@ -413,6 +532,8 @@ export async function createChatRoom(input: ChatRoomInput, actorId: string) {
     target: `chat-room:${room.id}`,
     severity: "info",
     metadata: {
+      locked: roomInput.locked,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: room.slug,
       type: room.type
     }
@@ -427,12 +548,22 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
   }
 
   const roomInput = normalizeRoomInput(input);
+  const existingRoom = await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: input.roomId
+    },
+    select: {
+      lockedAt: true
+    }
+  });
   const room = await prisma.chatRoom.update({
     where: {
       id: input.roomId
     },
     data: {
+      lockedAt: roomInput.locked ? existingRoom.lockedAt ?? new Date() : null,
       name: roomInput.name,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: roomInput.slug,
       type: roomInput.type
     }
@@ -444,15 +575,18 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
     target: `chat-room:${room.id}`,
     severity: "info",
     metadata: {
+      locked: roomInput.locked,
+      slowModeSeconds: roomInput.slowModeSeconds,
       slug: room.slug,
       type: room.type
     }
   });
+  await publishChatRoomChanged(room.id);
 
   return room;
 }
 
-export async function createChatMessage(roomId: string, body: string, userId: string) {
+export async function createChatMessage(roomId: string, body: string, userId: string, effectId?: string | null) {
   await pruneExpiredChatHistory();
 
   const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
@@ -470,15 +604,22 @@ export async function createChatMessage(roomId: string, body: string, userId: st
     }
   });
   await assertUserCanPostInChat(userId, roomId);
+  const userRoles = await getChatEffectUserRoles(userId);
+  const validatedEffectId = validateChatEffectSelection(userRoles, effectId);
 
-  return prisma.chatMessage.create({
+  const message = await prisma.chatMessage.create({
     data: {
       roomId,
       userId,
       body: normalizedBody,
-      kind: "text"
+      kind: "text",
+      effectId: validatedEffectId
     }
   });
+
+  await publishChatRoomChanged(roomId, message.id);
+
+  return message;
 }
 
 function assertTenorMediaUrl(value: string) {
@@ -540,8 +681,165 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
   });
 
   await registerTenorShare(gifId, gif.searchTerm ?? "");
+  await publishChatRoomChanged(roomId, message.id);
 
   return message;
+}
+
+export async function createChatStickerMessage(roomId: string, userId: string, assetId: string) {
+  await pruneExpiredChatHistory();
+
+  const asset = await prisma.chatSticker.findFirst({
+    where: {
+      id: assetId,
+      pack: {
+        status: "active"
+      }
+    },
+    include: {
+      pack: {
+        select: {
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!asset) {
+    throw new Error("That sticker or emoji is not available.");
+  }
+
+  await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: roomId
+    },
+    select: {
+      id: true
+    }
+  });
+  await assertUserCanPostInChat(userId, roomId);
+
+  const message = await prisma.chatMessage.create({
+    data: {
+      roomId,
+      userId,
+      body: asset.shortcode,
+      kind: asset.kind === "emoji" ? "emoji" : "sticker",
+      mediaUrl: asset.imageUrl,
+      mediaPreviewUrl: asset.imageUrl,
+      mediaAlt: asset.name,
+      mediaSource: "custom_chat_asset",
+      mediaSourceId: asset.id
+    }
+  });
+
+  await publishChatRoomChanged(roomId, message.id);
+
+  return message;
+}
+
+async function assertUserCanReactInChat(userId: string, roomId: string) {
+  const [ban, room] = await Promise.all([
+    getActiveChatBan(userId, roomId),
+    prisma.chatRoom.findUniqueOrThrow({
+      where: {
+        id: roomId
+      },
+      select: {
+        lockedAt: true,
+        name: true
+      }
+    })
+  ]);
+
+  if (ban) {
+    throw new Error(
+      ban.expiresAt
+        ? `You are banned from chat until ${new Date(ban.expiresAt).toLocaleString("en-GB")}.`
+        : "You are permanently banned from chat."
+    );
+  }
+
+  if (!room.lockedAt) {
+    return;
+  }
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        }
+      }
+    }
+  });
+  const roles = normalizeRoles(user.roles.map((userRole) => userRole.role.name));
+
+  if (!hasPermission({ roles }, "moderation.use")) {
+    throw new Error(`${room.name} is locked by moderation.`);
+  }
+}
+
+export async function toggleChatMessageReaction(messageId: string, userId: string, reactionKey: string) {
+  if (!isChatReactionKey(reactionKey)) {
+    throw new Error("Choose a valid chat reaction.");
+  }
+
+  const message = await prisma.chatMessage.findUniqueOrThrow({
+    where: {
+      id: messageId
+    },
+    select: {
+      deletedAt: true,
+      id: true,
+      roomId: true
+    }
+  });
+
+  if (message.deletedAt) {
+    throw new Error("You cannot react to a removed message.");
+  }
+
+  await assertUserCanReactInChat(userId, message.roomId);
+
+  const existing = await prisma.chatReaction.findUnique({
+    where: {
+      messageId_userId: {
+        messageId,
+        userId
+      }
+    }
+  });
+
+  if (existing?.reactionKey === reactionKey) {
+    await prisma.chatReaction.delete({
+      where: {
+        id: existing.id
+      }
+    });
+  } else if (existing) {
+    await prisma.chatReaction.update({
+      where: {
+        id: existing.id
+      },
+      data: {
+        reactionKey
+      }
+    });
+  } else {
+    await prisma.chatReaction.create({
+      data: {
+        messageId,
+        reactionKey,
+        userId
+      }
+    });
+  }
+
+  await publishChatRoomChanged(message.roomId, message.id);
 }
 
 export async function moderateChatMessage(messageId: string, actorId: string) {
@@ -577,6 +875,7 @@ export async function moderateChatMessage(messageId: string, actorId: string) {
       ...(message.userId ? { userId: message.userId } : {})
     }
   });
+  await publishChatRoomChanged(message.roomId, message.id);
 
   return updated;
 }

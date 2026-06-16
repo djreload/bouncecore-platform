@@ -1,0 +1,186 @@
+import { prisma } from "@/lib/db/prisma";
+import { getDefaultStreamProfile } from "@/lib/stream/stream-profile-service";
+import { getProviderSnapshot, type StreamProviderSnapshot } from "@/lib/stream/stream-channel-service";
+
+type StreamSyncPayload = {
+  bitrateKbps: number | null;
+  checkedAt: string;
+  droppedFrames: number | null;
+  healthStatus: string;
+  ingestConnected: boolean;
+  playbackUrl: string | null;
+  providerStatus: string;
+  viewerCount: number;
+};
+
+export type StreamSessionSyncResult = {
+  channelId: string;
+  eventTypes: string[];
+  ingestConnected: boolean;
+  openSessionId: string | null;
+  playbackUrl: string | null;
+  providerStatus: string;
+  sessionsClosed: number;
+  sessionStarted: boolean;
+  status: string;
+  viewerCount: number;
+};
+
+function providerIsActive(snapshot: StreamProviderSnapshot) {
+  return snapshot.health.ingestConnected || snapshot.status === "live" || snapshot.status === "starting" || snapshot.status === "degraded";
+}
+
+function channelStatusFromSnapshot(snapshot: StreamProviderSnapshot) {
+  if (!providerIsActive(snapshot)) {
+    return "offline";
+  }
+
+  return snapshot.status === "offline" ? "live" : snapshot.status;
+}
+
+function syncPayload(snapshot: StreamProviderSnapshot): StreamSyncPayload {
+  return {
+    bitrateKbps: snapshot.health.bitrateKbps ?? null,
+    checkedAt: snapshot.health.checkedAt,
+    droppedFrames: snapshot.health.droppedFrames ?? null,
+    healthStatus: snapshot.health.status,
+    ingestConnected: snapshot.health.ingestConnected,
+    playbackUrl: snapshot.playbackUrl,
+    providerStatus: snapshot.status,
+    viewerCount: snapshot.viewerCount
+  };
+}
+
+async function ensurePrimaryChannel() {
+  const existing = await prisma.streamChannel.findFirst({
+    orderBy: {
+      slug: "asc"
+    }
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const streamProfile = await getDefaultStreamProfile();
+
+  return prisma.streamChannel.create({
+    data: {
+      playbackUrl: process.env.PUBLIC_PLAYBACK_URL ?? null,
+      slug: "main",
+      status: "offline",
+      streamProfileId: streamProfile?.id ?? null,
+      title: "Bouncecore Live"
+    }
+  });
+}
+
+export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapshot): Promise<StreamSessionSyncResult> {
+  snapshot ??= await getProviderSnapshot();
+
+  const channel = await ensurePrimaryChannel();
+  const active = providerIsActive(snapshot);
+  const targetStatus = channelStatusFromSnapshot(snapshot);
+  const payload = syncPayload(snapshot);
+  const now = new Date();
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "StreamChannel" WHERE id = ${channel.id} FOR UPDATE`;
+
+    const openSession = await tx.streamSession.findFirst({
+      orderBy: {
+        startedAt: "desc"
+      },
+      where: {
+        channelId: channel.id,
+        endedAt: null
+      }
+    });
+    const eventTypes: string[] = [];
+    let sessionStarted = false;
+    let openSessionId = openSession?.id ?? null;
+    let sessionsClosed = 0;
+
+    if (active) {
+      if (openSession) {
+        await tx.streamSession.update({
+          data: {
+            peakViewers: Math.max(openSession.peakViewers, snapshot.viewerCount)
+          },
+          where: {
+            id: openSession.id
+          }
+        });
+      } else {
+        const session = await tx.streamSession.create({
+          data: {
+            channelId: channel.id,
+            peakViewers: snapshot.viewerCount,
+            startedAt: now
+          }
+        });
+
+        openSessionId = session.id;
+        sessionStarted = true;
+        eventTypes.push("stream.provider.connected");
+      }
+    } else if (openSession) {
+      const result = await tx.streamSession.updateMany({
+        data: {
+          endedAt: now
+        },
+        where: {
+          channelId: channel.id,
+          endedAt: null
+        }
+      });
+
+      sessionsClosed = result.count;
+      eventTypes.push("stream.provider.disconnected");
+      openSessionId = null;
+    }
+
+    if (channel.status !== targetStatus && !eventTypes.includes("stream.provider.connected") && !eventTypes.includes("stream.provider.disconnected")) {
+      eventTypes.push("stream.provider.status");
+    }
+
+    await tx.streamChannel.update({
+      data: {
+        playbackUrl: snapshot.playbackUrl ?? channel.playbackUrl,
+        status: targetStatus
+      },
+      where: {
+        id: channel.id
+      }
+    });
+
+    for (const type of eventTypes) {
+      await tx.streamEvent.create({
+        data: {
+          channelId: channel.id,
+          payload: {
+            ...payload,
+            from: channel.status,
+            openSessionId,
+            sessionsClosed,
+            to: targetStatus
+          },
+          type
+        }
+      });
+    }
+
+    return {
+      channelId: channel.id,
+      eventTypes,
+      ingestConnected: active,
+      openSessionId,
+      playbackUrl: snapshot.playbackUrl ?? channel.playbackUrl,
+      providerStatus: snapshot.status,
+      sessionsClosed,
+      sessionStarted,
+      status: targetStatus,
+      viewerCount: snapshot.viewerCount
+    };
+  });
+}

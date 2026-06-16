@@ -232,3 +232,525 @@ select {
     transform: scale(1);
   }
 }
+
+.bc-chat-effect {
+  font-weight: 800;
+  letter-spacing: 0;
+  overflow-wrap: anywhere;
+  will-change: transform, opacity, text-shadow, background-position, filter;
+}
+
+.bc-chat-effect-letter {
+  display: inline-block;
+  min-width: 0.08em;
+  white-space: pre-wrap;
+  animation-delay: calc(var(--bc-chat-effect-index) * 58ms);
+}
+
+.bc-chat-effect-rainbow,
+.bc-chat-effect-shine,
+.bc-chat-effect-gold,
+.bc-chat-effect-fire,
+.bc-chat-effect-ice,
+.bc-chat-effect-matrix,
+.bc-chat-effect-laser,
+.bc-chat-effect-galaxy,
+.bc-chat-effect-inferno,
+.bc-chat-effect-legend,
+.bc-chat-effect-founder,
+.bc-chat-effect-bouncecore,
+.bc-chat-effect-reload,
+.bc-chat-effect-mythic,
+.bc-chat-effect-crown,
+.bc-chat-effect-compile,
+.bc-chat-effect-syntax {
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  background-size: 260% 100%;
+  animation: bc-chat-effect-gradient 5.6s linear infinite;
+}
+
+.bc-chat-effect-glow {
+  color: #f7fbff;
+  animation: bc-chat-effect-glow 2.8s ease-in-out infinite;
+}
+
+.bc-chat-effect-bounce {
+  animation: bc-chat-effect-bounce 2.6s ease-in-out infinite;
+}
+
+.bc-chat-effect-wave .bc-chat-effect-letter {
+  animation-name: bc-chat-effect-letter-wave;
+  animation-duration: 1.8s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.bc-chat-effect-pulse {
+  animation: bc-chat-effect-pulse 2.4s ease-in-out infinite;
+}
+
+.bc-chat-effect-rainbow {
+  background-image: linear-gradient(90deg, #ff2bd6, #ffb020, #b6ff2e, #00d5ff, #8b5cf6, #ff2bd6);
+}
+
+.bc-chat-effect-float {
+  animation: bc-chat-effect-float 3.6s ease-in-out infinite;
+}
+
+.bc-chat-effect-shine {
+  background-image: linear-gradient(100deg, #f7fbff 0%, #a7b0c4 34%, #ffffff 50%, #00d5ff 62%, #f7fbff 100%);
+}
+
+.bc-chat-effect-spark {
+  animation: bc-chat-effect-spark 1.8s ease-in-out infinite;
+}
+
+.bc-chat-effect-shadow {
+  animation: bc-chat-effect-shadow 3s ease-in-out infinite;
+}
+
+.bc-chat-effect-typing .bc-chat-effect-letter {
+  animation-name: bc-chat-effect-typing;
+  animation-duration: 2.9s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.bc-chat-effect-neon {
+  color: #f7fbff;
+  animation: bc-chat-effect-neon 2.6s ease-in-out infinite;
+}
+
+.bc-chat-effect-gold {
+  background-image: linear-gradient(90deg, #fff7bf, #ffb020, #f97316, #fff7bf);
+}
+
+.bc-chat-effect-fire {
+  background-image: linear-gradient(90deg, #fff2b8, #ffb020, #ff4d00, #ff2bd6, #fff2b8);
+  text-shadow: 0 0 14px rgba(255, 80, 0, 0.42);
+}
+
+.bc-chat-effect-ice {
+  background-image: linear-gradient(90deg, #ffffff, #b9f7ff, #00d5ff, #8b5cf6, #ffffff);
+  text-shadow: 0 0 14px rgba(0, 213, 255, 0.32);
+}
+
+.bc-chat-effect-heartbeat {
+  color: #ff7ae7;
+  animation: bc-chat-effect-heartbeat 2.2s ease-in-out infinite;
+}
+
+.bc-chat-effect-matrix {
+  background-image: linear-gradient(90deg, #b6ff2e, #37ff8b, #101a11, #b6ff2e);
+  text-shadow: 0 0 10px rgba(182, 255, 46, 0.42);
+}
+
+.bc-chat-effect-slide {
+  animation: bc-chat-effect-slide 3s ease-in-out infinite;
+}
+
+.bc-chat-effect-storm {
+  color: #eefbff;
+  animation: bc-chat-effect-storm 2.4s ease-in-out infinite;
+}
+
+.bc-chat-effect-glitch {
+  color: #f7fbff;
+  animation: bc-chat-effect-glitch 2s steps(2, end) infinite;
+}
+
+.bc-chat-effect-hype {
+  color: #b6ff2e;
+  animation: bc-chat-effect-hype 1.8s ease-in-out infinite;
+}
+
+.bc-chat-effect-vhs {
+  color: #f7fbff;
+  animation: bc-chat-effect-vhs 3.2s ease-in-out infinite;
+}
+
+.bc-chat-effect-laser {
+  background-image: linear-gradient(90deg, #f7fbff, #ff2bd6, #ffffff, #00d5ff, #f7fbff);
+}
+
+.bc-chat-effect-galaxy {
+  background-image: linear-gradient(90deg, #00d5ff, #8b5cf6, #ff2bd6, #111421, #b6ff2e, #00d5ff);
+}
+
+.bc-chat-effect-inferno {
+  background-image: linear-gradient(90deg, #fff7c2, #ffb020, #ff4d00, #9f1239, #fff7c2);
+}
+
+.bc-chat-effect-legend {
+  background-image: linear-gradient(90deg, #ffffff, #b6ff2e, #00d5ff, #ff2bd6, #ffffff);
+  filter: drop-shadow(0 0 10px rgba(182, 255, 46, 0.32));
+}
+
+.bc-chat-effect-moderator,
+.bc-chat-effect-shield,
+.bc-chat-effect-staff-pulse,
+.bc-chat-effect-authority,
+.bc-chat-effect-watchtower {
+  color: #ffcf6a;
+}
+
+.bc-chat-effect-moderator {
+  animation: bc-chat-effect-staff 2.4s ease-in-out infinite;
+}
+
+.bc-chat-effect-shield {
+  text-shadow: 0 0 14px rgba(255, 176, 32, 0.5);
+  animation: bc-chat-effect-shield 3s ease-in-out infinite;
+}
+
+.bc-chat-effect-staff-pulse {
+  animation: bc-chat-effect-pulse 1.9s ease-in-out infinite;
+}
+
+.bc-chat-effect-authority {
+  text-shadow: 1px 0 0 #ff2bd6, -1px 0 0 #00d5ff;
+  animation: bc-chat-effect-authority 3.4s ease-in-out infinite;
+}
+
+.bc-chat-effect-watchtower {
+  animation: bc-chat-effect-watchtower 2.8s linear infinite;
+}
+
+.bc-chat-effect-devmode,
+.bc-chat-effect-debug,
+.bc-chat-effect-terminal {
+  color: #b6ff2e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.bc-chat-effect-devmode {
+  animation: bc-chat-effect-devmode 2.5s ease-in-out infinite;
+}
+
+.bc-chat-effect-debug {
+  animation: bc-chat-effect-debug 3s steps(4, end) infinite;
+}
+
+.bc-chat-effect-compile {
+  background-image: linear-gradient(90deg, #b6ff2e, #00d5ff, #ffffff, #b6ff2e);
+}
+
+.bc-chat-effect-terminal::after {
+  display: inline-block;
+  width: 0.65em;
+  margin-left: 0.12em;
+  color: #b6ff2e;
+  content: "_";
+  animation: bc-chat-effect-cursor 1s steps(2, end) infinite;
+}
+
+.bc-chat-effect-syntax {
+  background-image: linear-gradient(90deg, #ff2bd6, #00d5ff, #b6ff2e, #ffb020, #ff2bd6);
+}
+
+.bc-chat-effect-founder {
+  background-image: linear-gradient(90deg, #ffffff, #ffb020, #ff2bd6, #ffffff);
+}
+
+.bc-chat-effect-bouncecore {
+  background-image: linear-gradient(90deg, #00d5ff, #b6ff2e, #ff2bd6, #00d5ff);
+}
+
+.bc-chat-effect-reload {
+  background-image: linear-gradient(90deg, #ff2bd6, #ffffff, #00d5ff, #b6ff2e, #ff2bd6);
+  animation-duration: 2.8s;
+}
+
+.bc-chat-effect-mythic {
+  background-image: linear-gradient(90deg, #ffffff, #8b5cf6, #ff2bd6, #ffb020, #ffffff);
+  filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.38));
+}
+
+.bc-chat-effect-crown {
+  background-image: linear-gradient(90deg, #fff7bf, #ffb020, #ffffff, #ff2bd6, #fff7bf);
+  filter: drop-shadow(0 0 14px rgba(255, 176, 32, 0.42));
+}
+
+@keyframes bc-chat-effect-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  100% {
+    background-position: 260% 50%;
+  }
+}
+
+@keyframes bc-chat-effect-glow {
+  0%,
+  100% {
+    text-shadow: 0 0 6px rgba(0, 213, 255, 0.35);
+  }
+
+  50% {
+    text-shadow: 0 0 14px rgba(0, 213, 255, 0.74), 0 0 24px rgba(255, 43, 214, 0.32);
+  }
+}
+
+@keyframes bc-chat-effect-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes bc-chat-effect-letter-wave {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(-0.22em);
+  }
+}
+
+@keyframes bc-chat-effect-pulse {
+  0%,
+  100% {
+    opacity: 0.9;
+    text-shadow: 0 0 6px rgba(247, 251, 255, 0.16);
+  }
+
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 16px rgba(247, 251, 255, 0.48);
+  }
+}
+
+@keyframes bc-chat-effect-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes bc-chat-effect-spark {
+  0%,
+  100% {
+    text-shadow: 0 0 4px rgba(182, 255, 46, 0.24);
+  }
+
+  35% {
+    text-shadow: 0 0 12px rgba(182, 255, 46, 0.68), 0 0 18px rgba(0, 213, 255, 0.35);
+  }
+
+  62% {
+    text-shadow: 0 0 9px rgba(255, 43, 214, 0.44);
+  }
+}
+
+@keyframes bc-chat-effect-shadow {
+  0%,
+  100% {
+    text-shadow: 1px 1px 0 rgba(0, 213, 255, 0.4);
+  }
+
+  50% {
+    text-shadow: 3px 3px 0 rgba(255, 43, 214, 0.34);
+  }
+}
+
+@keyframes bc-chat-effect-typing {
+  0%,
+  30% {
+    opacity: 0.38;
+    transform: translateY(1px);
+  }
+
+  48%,
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bc-chat-effect-neon {
+  0%,
+  100% {
+    text-shadow: 0 0 8px rgba(0, 213, 255, 0.6), 0 0 18px rgba(255, 43, 214, 0.28);
+  }
+
+  50% {
+    text-shadow: 0 0 16px rgba(255, 43, 214, 0.68), 0 0 26px rgba(0, 213, 255, 0.44);
+  }
+}
+
+@keyframes bc-chat-effect-heartbeat {
+  0%,
+  24%,
+  44%,
+  100% {
+    transform: scale(1);
+  }
+
+  32%,
+  54% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes bc-chat-effect-slide {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes bc-chat-effect-storm {
+  0%,
+  100% {
+    text-shadow: 0 0 5px rgba(0, 213, 255, 0.24);
+  }
+
+  47% {
+    text-shadow: -1px 0 0 #00d5ff, 1px 0 0 #ff2bd6, 0 0 18px rgba(247, 251, 255, 0.72);
+  }
+}
+
+@keyframes bc-chat-effect-glitch {
+  0%,
+  100% {
+    transform: translateX(0);
+    text-shadow: 1px 0 0 rgba(0, 213, 255, 0.45), -1px 0 0 rgba(255, 43, 214, 0.45);
+  }
+
+  50% {
+    transform: translateX(1px);
+    text-shadow: -1px 0 0 rgba(0, 213, 255, 0.45), 1px 0 0 rgba(255, 43, 214, 0.45);
+  }
+}
+
+@keyframes bc-chat-effect-hype {
+  0%,
+  100% {
+    transform: scale(1);
+    text-shadow: 0 0 8px rgba(182, 255, 46, 0.34);
+  }
+
+  48% {
+    transform: scale(1.028);
+    text-shadow: 0 0 16px rgba(182, 255, 46, 0.72);
+  }
+}
+
+@keyframes bc-chat-effect-vhs {
+  0%,
+  100% {
+    text-shadow: 1px 0 0 rgba(255, 43, 214, 0.36), -1px 0 0 rgba(0, 213, 255, 0.36);
+  }
+
+  50% {
+    text-shadow: 2px 0 0 rgba(255, 43, 214, 0.42), -2px 0 0 rgba(0, 213, 255, 0.42);
+  }
+}
+
+@keyframes bc-chat-effect-staff {
+  0%,
+  100% {
+    text-shadow: 0 0 8px rgba(255, 176, 32, 0.32);
+  }
+
+  50% {
+    text-shadow: 0 0 16px rgba(255, 176, 32, 0.72), 0 0 22px rgba(255, 43, 214, 0.22);
+  }
+}
+
+@keyframes bc-chat-effect-shield {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 4px rgba(255, 176, 32, 0.28));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 12px rgba(255, 176, 32, 0.58));
+  }
+}
+
+@keyframes bc-chat-effect-authority {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  50% {
+    transform: translateX(1px);
+  }
+}
+
+@keyframes bc-chat-effect-watchtower {
+  0% {
+    text-shadow: -8px 0 10px rgba(255, 176, 32, 0);
+  }
+
+  45% {
+    text-shadow: 0 0 16px rgba(255, 176, 32, 0.68);
+  }
+
+  100% {
+    text-shadow: 8px 0 10px rgba(255, 176, 32, 0);
+  }
+}
+
+@keyframes bc-chat-effect-devmode {
+  0%,
+  100% {
+    text-shadow: 0 0 8px rgba(182, 255, 46, 0.32);
+  }
+
+  50% {
+    text-shadow: 0 0 14px rgba(182, 255, 46, 0.68), 0 0 20px rgba(0, 213, 255, 0.2);
+  }
+}
+
+@keyframes bc-chat-effect-debug {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.78;
+  }
+}
+
+@keyframes bc-chat-effect-cursor {
+  0%,
+  49% {
+    opacity: 1;
+  }
+
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bc-chat-effect,
+  .bc-chat-effect::after,
+  .bc-chat-effect .bc-chat-effect-letter {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}

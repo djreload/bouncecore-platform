@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import Hls from "hls.js";
 import type { ErrorData, Level } from "hls.js";
@@ -11,6 +12,7 @@ type LivePlaybackPlayerProps = {
   title: string;
   status: string;
   playbackUrl: string | null;
+  offlineImageUrl: string | null;
   viewerCount: number;
   healthStatus: string;
   streamProfile: StreamProfileSummary | null;
@@ -24,6 +26,30 @@ type PlaybackLevel = {
   index: number;
   label: string;
   width: number | null;
+};
+
+type LivePlaybackState = {
+  title: string;
+  status: string;
+  playbackUrl: string | null;
+  offlineImageUrl: string | null;
+  viewerCount: number;
+  healthStatus: string;
+  streamProfile: StreamProfileSummary | null;
+};
+
+type LiveStatusPayload = {
+  status?: unknown;
+  playbackUrl?: unknown;
+  offlineImageUrl?: unknown;
+  viewerCount?: unknown;
+  health?: {
+    status?: unknown;
+  };
+  channel?: {
+    title?: unknown;
+    streamProfile?: StreamProfileSummary | null;
+  } | null;
 };
 
 function statusTone(status: string) {
@@ -97,6 +123,7 @@ export function LivePlaybackPlayer({
   title,
   status,
   playbackUrl,
+  offlineImageUrl,
   viewerCount,
   healthStatus,
   streamProfile
@@ -109,14 +136,71 @@ export function LivePlaybackPlayer({
   const [currentLevel, setCurrentLevel] = useState<number>(-1);
   const [selectedLevel, setSelectedLevel] = useState<number>(-1);
   const [bandwidthEstimate, setBandwidthEstimate] = useState<number | null>(null);
-  const canAttemptPlayback = Boolean(playbackUrl) && status !== "offline";
-  const sourceLabel = useMemo(() => hostLabel(playbackUrl), [playbackUrl]);
+  const [liveState, setLiveState] = useState<LivePlaybackState>({
+    title,
+    status,
+    playbackUrl,
+    offlineImageUrl,
+    viewerCount,
+    healthStatus,
+    streamProfile
+  });
+  const canAttemptPlayback = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
+  const sourceLabel = useMemo(() => hostLabel(liveState.playbackUrl), [liveState.playbackUrl]);
   const activeLevel = currentLevel >= 0 ? levels.find((level) => level.index === currentLevel) : null;
   const adaptiveEnabled = playbackEngine === "hls-js" || playbackEngine === "native-hls";
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function refreshStatus() {
+      try {
+        const response = await fetch("/internal/stream/status", {
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as LiveStatusPayload;
+
+        if (cancelled) {
+          return;
+        }
+
+        setLiveState((current) => ({
+          title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
+          status: typeof payload.status === "string" ? payload.status : current.status,
+          playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
+          offlineImageUrl:
+            typeof payload.offlineImageUrl === "string"
+              ? payload.offlineImageUrl
+              : payload.offlineImageUrl === null
+                ? null
+                : current.offlineImageUrl,
+          viewerCount: typeof payload.viewerCount === "number" ? payload.viewerCount : current.viewerCount,
+          healthStatus: typeof payload.health?.status === "string" ? payload.health.status : current.healthStatus,
+          streamProfile: payload.channel?.streamProfile ?? current.streamProfile
+        }));
+      } catch {
+        // Keep the last known state if the transient status poll fails.
+      }
+    }
+
+    void refreshStatus();
+    const interval = window.setInterval(refreshStatus, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
     const video = videoRef.current;
     let cancelled = false;
+    const currentPlaybackUrl = liveState.playbackUrl;
 
     function applyState(update: () => void) {
       window.queueMicrotask(() => {
@@ -146,13 +230,13 @@ export function LivePlaybackPlayer({
     video.removeAttribute("src");
     video.load();
 
-    if (!canAttemptPlayback || !playbackUrl) {
+    if (!canAttemptPlayback || !currentPlaybackUrl) {
       return () => {
         cancelled = true;
       };
     }
 
-    const hlsPlayback = isLikelyHls(playbackUrl);
+    const hlsPlayback = isLikelyHls(currentPlaybackUrl);
 
     if (hlsPlayback && Hls.isSupported()) {
       const hls = new Hls({
@@ -211,7 +295,7 @@ export function LivePlaybackPlayer({
       });
 
       hls.attachMedia(video);
-      hls.loadSource(playbackUrl);
+      hls.loadSource(currentPlaybackUrl);
 
       return () => {
         cancelled = true;
@@ -221,7 +305,7 @@ export function LivePlaybackPlayer({
 
     if (hlsPlayback && video.canPlayType("application/vnd.apple.mpegurl")) {
       applyState(() => setPlaybackEngine("native-hls"));
-      video.src = playbackUrl;
+      video.src = currentPlaybackUrl;
       void video.play().catch(() => undefined);
       return () => {
         cancelled = true;
@@ -229,13 +313,13 @@ export function LivePlaybackPlayer({
     }
 
     applyState(() => setPlaybackEngine("browser"));
-    video.src = playbackUrl;
+    video.src = currentPlaybackUrl;
     void video.play().catch(() => undefined);
 
     return () => {
       cancelled = true;
     };
-  }, [canAttemptPlayback, playbackUrl]);
+  }, [canAttemptPlayback, liveState.playbackUrl]);
 
   function updateSelectedLevel(value: string) {
     const nextLevel = Number.parseInt(value, 10);
@@ -265,25 +349,39 @@ export function LivePlaybackPlayer({
           preload="metadata"
         />
       ) : (
-        <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_center,rgba(0,213,255,0.16),transparent_42%),linear-gradient(135deg,rgba(255,43,214,0.10),transparent_45%),#070914] px-6 text-center">
+        <div className="absolute inset-0">
+          {liveState.offlineImageUrl ? (
+            <img alt="" className="absolute inset-0 h-full w-full object-cover" src={liveState.offlineImageUrl} />
+          ) : null}
+        </div>
+      )}
+
+      {!canAttemptPlayback ? (
+        <div
+          className={`absolute inset-0 grid place-items-center px-6 text-center ${
+            liveState.offlineImageUrl
+              ? "bg-black/45"
+              : "bg-[radial-gradient(circle_at_center,rgba(0,213,255,0.16),transparent_42%),linear-gradient(135deg,rgba(255,43,214,0.10),transparent_45%),#070914]"
+          }`}
+        >
           <div className="max-w-xl">
-            {playbackUrl ? (
+            {liveState.playbackUrl ? (
               <WifiOff className="mx-auto h-14 w-14 text-bc-muted" aria-hidden="true" />
             ) : (
               <Radio className="mx-auto h-14 w-14 text-bc-electric" aria-hidden="true" />
             )}
-            <h2 className="mt-4 text-2xl font-black">{title}</h2>
-            <p className="mt-2 text-sm text-bc-muted">
-              {playbackUrl
+            <h2 className="mt-4 text-2xl font-black">{liveState.title}</h2>
+            <p className="mt-2 text-sm text-white/80">
+              {liveState.playbackUrl
                 ? "The stream is offline. Playback will appear here when the channel is live."
                 : "Playback is waiting for a public stream URL in the stream dashboard."}
             </p>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
-        <Badge tone={statusTone(status)}>{status.toUpperCase()}</Badge>
+        <Badge tone={statusTone(liveState.status)}>{liveState.status.toUpperCase()}</Badge>
         <Badge tone="muted">{sourceLabel}</Badge>
         <Badge tone={adaptiveEnabled ? "acid" : "muted"}>{adaptiveEnabled ? "AUTO ABR" : "SINGLE SOURCE"}</Badge>
       </div>
@@ -291,16 +389,16 @@ export function LivePlaybackPlayer({
       <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-md border border-white/10 bg-black/68 px-4 py-3 backdrop-blur">
         <div>
           <p className="text-xs font-semibold uppercase text-bc-muted">Now playing</p>
-          <h2 className="mt-1 text-lg font-black">{title}</h2>
+          <h2 className="mt-1 text-lg font-black">{liveState.title}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-bc-muted">
           <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
             <SignalHigh className="h-3.5 w-3.5 text-bc-acid" aria-hidden="true" />
-            {viewerCount} viewers
+            {liveState.viewerCount} viewers
           </span>
           <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
             <Radio className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
-            {healthStatus.toUpperCase()}
+            {liveState.healthStatus.toUpperCase()}
           </span>
           <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
             <Wifi className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
@@ -308,7 +406,7 @@ export function LivePlaybackPlayer({
           </span>
           <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
             <SlidersHorizontal className="h-3.5 w-3.5 text-bc-pink" aria-hidden="true" />
-            {activeLevel?.label ?? configuredProfileLabel(streamProfile)}
+            {activeLevel?.label ?? configuredProfileLabel(liveState.streamProfile)}
           </span>
           {playbackEngine === "hls-js" && levels.length > 1 ? (
             <select

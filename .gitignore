@@ -9,6 +9,7 @@
 secrets/
 generated-secrets/
 /stream-keys/
+.instance-certs/
 
 # Dependencies
 node_modules/
@@ -27,6 +28,7 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+backups/
 .npm/
 .eslintcache
 tsconfig.tsbuildinfo

@@ -157,7 +157,7 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
                 {checkoutReadiness.reason}
               </div>
             ) : null}
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {starPackages.map((pack) => (
                 <form action="/account/rewards/stars/checkout" className="rounded-md border border-bc-line bg-bc-panel p-4" key={pack.id} method="post">
                   <input name="packageId" type="hidden" value={pack.id} />

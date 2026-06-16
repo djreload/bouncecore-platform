@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getPublicChatMessages } from "@/lib/chat/chat-service";
+import { getCurrentUser } from "@/lib/auth/session";
 
 type RouteContext = {
   params: Promise<{
@@ -11,7 +12,8 @@ export async function GET(_request: Request, context: RouteContext) {
   const { roomId } = await context.params;
 
   try {
-    const messages = await getPublicChatMessages(roomId);
+    const user = await getCurrentUser();
+    const messages = await getPublicChatMessages(roomId, user?.id);
 
     return NextResponse.json({ messages });
   } catch {

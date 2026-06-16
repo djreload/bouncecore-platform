@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Radio } from "lucide-react";
 import { NavList } from "@/components/navigation/nav-list";
+import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
 import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
@@ -21,7 +22,7 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
   const footerSummary =
     resolvedSiteSettings.footerSummary ??
     "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.";
-  const stagingTarget = resolvedSiteSettings.stagingTarget ?? "develop.k-nrg.co.uk";
+  const stagingTarget = resolvedSiteSettings.stagingTarget ?? null;
 
   return (
     <div className="min-h-screen bg-bc-void text-white" style={themeStyle}>
@@ -36,7 +37,7 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
           <div className="hidden flex-1 justify-center lg:flex">
             <NavList items={navigationItems} orientation="horizontal" />
           </div>
-          <div className="ml-auto hidden items-center gap-2 sm:flex">
+          <div className="ml-auto hidden items-center gap-2 lg:flex">
             <ButtonLink href="/auth/login" variant="ghost" size="sm">
               Login
             </ButtonLink>
@@ -44,9 +45,9 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
               Register
             </ButtonLink>
           </div>
-        </div>
-        <div className="border-t border-bc-line/60 px-4 py-2 lg:hidden">
-          <NavList items={navigationItems} orientation="horizontal" />
+          <div className="ml-auto lg:hidden">
+            <PublicMobileMenu items={navigationItems} siteName={siteName} />
+          </div>
         </div>
       </header>
       <StarSupportOverlay />

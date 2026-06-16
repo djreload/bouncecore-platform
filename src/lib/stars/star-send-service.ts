@@ -1,9 +1,11 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { pruneExpiredChatHistory } from "@/lib/chat/chat-service";
 import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
 import { getStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
+import { syncStreamProviderSnapshot } from "@/lib/stream/stream-session-sync-service";
 
 export const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
@@ -102,6 +104,10 @@ export async function createLiveChatStarSend(
   const amount = parseStarSendAmount(input.amount);
   const note = normalizeNote(input.note);
 
+  await syncStreamProviderSnapshot().catch(() => {
+    return null;
+  });
+
   const result = await prisma.$transaction(async (tx) => {
     const room = await tx.chatRoom.findUniqueOrThrow({
       where: {
@@ -194,6 +200,7 @@ export async function createLiveChatStarSend(
 
     return {
       amount,
+      messageId: message.id,
       roomSlug: room.slug,
       sendId: send.id,
       streamSessionId: session?.id ?? null
@@ -211,6 +218,7 @@ export async function createLiveChatStarSend(
       streamSessionId: result.streamSessionId
     }
   });
+  await publishChatRoomChanged(roomId, result.messageId);
 
   return result;
 }

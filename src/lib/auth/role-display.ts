@@ -22,6 +22,10 @@ export function roleBadgeTone(role: Role | string) {
     return "pink" as const;
   }
 
+  if (role === "developer") {
+    return "cyan" as const;
+  }
+
   if (role === "admin" || role === "moderator") {
     return "amber" as const;
   }

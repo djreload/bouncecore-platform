@@ -1,6 +1,7 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
-import type { Role } from "@/lib/auth/rbac";
+import { hasPermission, type Role } from "@/lib/auth/rbac";
+import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { prisma } from "@/lib/db/prisma";
 
 export const chatReportReasons = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
@@ -232,7 +233,19 @@ export async function getActiveChatBan(userId: string, roomId: string): Promise<
 }
 
 export async function assertUserCanPostInChat(userId: string, roomId: string) {
-  const ban = await getActiveChatBan(userId, roomId);
+  const [ban, room] = await Promise.all([
+    getActiveChatBan(userId, roomId),
+    prisma.chatRoom.findUniqueOrThrow({
+      where: {
+        id: roomId
+      },
+      select: {
+        lockedAt: true,
+        name: true,
+        slowModeSeconds: true
+      }
+    })
+  ]);
 
   if (ban) {
     throw new Error(
@@ -240,6 +253,57 @@ export async function assertUserCanPostInChat(userId: string, roomId: string) {
         ? `You are banned from chat until ${new Date(ban.expiresAt).toLocaleString("en-GB")}.`
         : "You are permanently banned from chat."
     );
+  }
+
+  if (!room.lockedAt && room.slowModeSeconds < 1) {
+    return;
+  }
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        }
+      }
+    }
+  });
+  const roles = toRoleList(user.roles.map((userRole) => userRole.role.name));
+
+  if (hasPermission({ roles }, "moderation.use")) {
+    return;
+  }
+
+  if (room.lockedAt) {
+    throw new Error(`${room.name} is locked by moderation.`);
+  }
+
+  if (room.slowModeSeconds > 0) {
+    const latestMessage = await prisma.chatMessage.findFirst({
+      where: {
+        deletedAt: null,
+        roomId,
+        userId
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      select: {
+        createdAt: true
+      }
+    });
+
+    if (latestMessage) {
+      const elapsedSeconds = Math.floor((Date.now() - latestMessage.createdAt.getTime()) / 1000);
+      const remainingSeconds = room.slowModeSeconds - elapsedSeconds;
+
+      if (remainingSeconds > 0) {
+        throw new Error(`Slow mode is active. Wait ${remainingSeconds} more second${remainingSeconds === 1 ? "" : "s"} before posting again.`);
+      }
+    }
   }
 }
 
@@ -485,6 +549,7 @@ export async function hideReportedMessage(reportId: string, actorId: string) {
       roomSlug: report.room?.slug
     }
   });
+  await publishChatRoomChanged(report.message.roomId, messageId);
 }
 
 export async function getAdminBansData(): Promise<AdminBansData> {

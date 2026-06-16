@@ -1,17 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
-import { AlertTriangle, BadgeCheck, CreditCard, KeyRound, RefreshCw, Save, Send, WalletCards } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CreditCard, KeyRound, RefreshCw, Save, Send, WalletCards, Webhook } from "lucide-react";
 import { adminPaymentsAction } from "@/app/admin/payments/actions";
 import { initialAdminPaymentsActionState, type AdminPaymentsActionState } from "@/app/admin/payments/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
+import type { PayPalWebhookEventSummary } from "@/lib/payments/paypal-webhook-service";
 import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
 
 type AdminPaymentsPanelProps = {
   data: PayPalIntegrationData;
   payouts: AdminProducerPayoutsData;
+  webhookEvents: PayPalWebhookEventSummary[];
 };
 
 const paypalModeOptions = ["sandbox", "live"] as const;
@@ -22,6 +24,13 @@ function checkTone(status: string) {
 
 function formatMoney(pence: number) {
   return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
 function payoutStatusTone(status: string) {
@@ -40,7 +49,19 @@ function payoutStatusTone(status: string) {
   return "muted" as const;
 }
 
-export function AdminPaymentsPanel({ data, payouts }: AdminPaymentsPanelProps) {
+function webhookStatusTone(status: string) {
+  if (status === "recorded" || status === "verified") {
+    return "acid" as const;
+  }
+
+  if (status === "duplicate") {
+    return "cyan" as const;
+  }
+
+  return "amber" as const;
+}
+
+export function AdminPaymentsPanel({ data, payouts, webhookEvents }: AdminPaymentsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminPaymentsActionState, FormData>(
     adminPaymentsAction,
     initialAdminPaymentsActionState
@@ -241,6 +262,48 @@ export function AdminPaymentsPanel({ data, payouts }: AdminPaymentsPanelProps) {
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="cyan">Webhooks</Badge>
+            <h3 className="mt-4 text-xl font-black">Verified PayPal events</h3>
+            <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+              Configure PayPal to POST events to <span className="font-semibold text-white">/api/payments/paypal/webhook</span>.
+              Verified events are recorded once by PayPal event ID before any future reconciliation is added.
+            </p>
+          </div>
+          <Webhook className="h-7 w-7 text-bc-electric" aria-hidden="true" />
+        </div>
+        <div className="mt-5 grid gap-3">
+          {webhookEvents.map((event) => (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={event.id}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={webhookStatusTone(event.verificationStatus)}>{event.verificationStatus}</Badge>
+                    <Badge tone={webhookStatusTone(event.processingStatus)}>{event.processingStatus}</Badge>
+                  </div>
+                  <h4 className="mt-3 font-black">{event.eventType}</h4>
+                  <p className="mt-1 text-xs text-bc-muted">{event.paypalEventId}</p>
+                </div>
+                <p className="text-right text-xs text-bc-muted">{formatDateTime(event.createdAt)}</p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-bc-muted">
+                {event.resourceType ? <Badge tone="muted">{event.resourceType}</Badge> : null}
+                {event.resourceId ? <Badge tone="muted">{event.resourceId}</Badge> : null}
+                {event.transmissionId ? <Badge tone="muted">Transmission {event.transmissionId}</Badge> : null}
+              </div>
+              {event.errorMessage ? <p className="mt-3 text-sm text-bc-pink">{event.errorMessage}</p> : null}
+            </article>
+          ))}
+          {!webhookEvents.length ? (
+            <div className="rounded-md border border-bc-line bg-bc-ink p-5 text-sm text-bc-muted">
+              No verified PayPal webhook events have been received yet.
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
