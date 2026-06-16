@@ -128,6 +128,11 @@ Never commit real `.env` files, generated credentials, API keys, database passwo
 ## Service Profiles
 
 Base services:
+- Temporary domain: whatever domain
+- VPS: a good one
+- Target path: `/var/www/bouncecore-platform`
+
+Do not edit global nginx, Apache, mail, database, or unrelated site configs without confirming the domain layout first.
 
 ```bash
 docker compose -f docker-compose.instance.yml --env-file .env.instance up -d postgres redis app
