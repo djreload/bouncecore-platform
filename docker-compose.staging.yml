@@ -135,16 +135,22 @@ services:
       media-gateway:
         condition: service_started
     environment:
-      TRANSCODER_INPUT_URL: ${TRANSCODER_INPUT_URL:-rtmp://media-gateway:1935/live}
+      STREAM_CORE_INTERNAL_TOKEN: ${STREAM_CORE_INTERNAL_TOKEN:?STREAM_CORE_INTERNAL_TOKEN is required}
+      TRANSCODER_SOURCE_URL: http://stream-core:8088/api/transcoder/source
     entrypoint:
-      - sh
+      - /bin/sh
       - -lc
       - |
         while true; do
+          source_url="$$(wget -q -T 5 -O - --header "Authorization: Bearer $$STREAM_CORE_INTERNAL_TOKEN" "$$TRANSCODER_SOURCE_URL" 2>/dev/null || true)"
+          if [ -z "$$source_url" ]; then
+            sleep 2
+            continue
+          fi
           rm -rf /hls/live
           mkdir -p /hls/live/240p /hls/live/480p /hls/live/720p
           ffmpeg -hide_banner -loglevel warning \
-            -i "$$TRANSCODER_INPUT_URL" \
+            -i "$$source_url" \
             -filter_complex "[0:v]split=3[v240][v480][v720];[v240]scale=w=426:h=240:force_original_aspect_ratio=decrease,pad=426:240:(ow-iw)/2:(oh-ih)/2[v240out];[v480]scale=w=854:h=480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2[v480out];[v720]scale=w=1280:h=720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[v720out]" \
             -map "[v240out]" -map 0:a:0 \
             -map "[v480out]" -map 0:a:0 \
