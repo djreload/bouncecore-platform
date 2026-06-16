@@ -26,6 +26,15 @@ MediaMTX internal HLS: 127.0.0.1:18888
 Adaptive HLS origin: 127.0.0.1:18889
 ```
 
+For RTMPS-first production installs, bind MediaMTX ports separately:
+
+```text
+MEDIA_GATEWAY_RTMP_BIND_HOST=127.0.0.1
+MEDIA_GATEWAY_RTMPS_BIND_HOST=0.0.0.0
+MEDIA_GATEWAY_HLS_BIND_HOST=127.0.0.1
+MEDIA_GATEWAY_RTMP_ENCRYPTION=optional
+```
+
 ## Reverse Proxy
 
 The public HTTPS vhost should proxy:

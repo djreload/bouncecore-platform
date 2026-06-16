@@ -83,6 +83,15 @@ npm.cmd run build
 
 ## Production Install
 
+For a fresh Debian/Ubuntu server that should install directly from the GitHub `main` branch, use the auto installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/djreload/bouncecore-platform/main/scripts/install-debian-main.sh -o install-bouncecore.sh
+bash install-bouncecore.sh
+```
+
+This installs system packages, clones or fast-forwards `/opt/bouncecore` from `main`, configures nginx and Let's Encrypt, generates internal secrets, enables RTMPS ingest, starts PostgreSQL, Redis, the app, worker, stream-core, MediaMTX, and adaptive HLS. It prompts for the public URL, first Owner login, Brevo SMTP credentials, Tenor API key, PayPal credentials, and optional Expo push token.
+
 The recommended Ubuntu/Debian install path is Docker Compose with the included interactive installer:
 
 ```bash
