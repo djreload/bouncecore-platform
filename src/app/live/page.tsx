@@ -203,15 +203,15 @@ export default async function LivePage() {
               </div>
             </div>
 
-            <aside className="relative z-30 -mt-8 min-w-0 px-3 pb-3 sm:px-4 lg:sticky lg:top-24 lg:mt-0 lg:h-[calc(100vh-7rem)] lg:px-0 lg:pb-0">
+            <aside className="relative z-30 -mt-[36vw] min-w-0 px-3 pb-3 sm:-mt-56 sm:px-4 md:-mt-64 lg:sticky lg:top-24 lg:mt-0 lg:h-[calc(100vh-7rem)] lg:px-0 lg:pb-0">
               <ChatRoomPanel
-                className="overflow-visible border-white/15 bg-bc-panel/75 shadow-2xl shadow-black/35 backdrop-blur-md lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:border-bc-line lg:bg-bc-panel lg:shadow-none lg:backdrop-blur-none"
+                className="overflow-visible border-white/15 bg-bc-panel/70 shadow-2xl shadow-black/35 backdrop-blur-md lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:border-bc-line lg:bg-bc-panel lg:shadow-none lg:backdrop-blur-none"
                 compact
                 mobileLiveMode
                 currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
                 currentStarBalance={currentStarBalance}
                 assets={assetRows}
-                messagesClassName="max-h-[42vh] p-3 lg:min-h-0 lg:flex-1 lg:max-h-none lg:p-4"
+                messagesClassName="max-h-[34dvh] p-3 lg:min-h-0 lg:flex-1 lg:max-h-none lg:p-4"
                 messages={messageRows}
                 roleDisplayLabels={roleDisplayLabels}
                 rooms={roomRows}

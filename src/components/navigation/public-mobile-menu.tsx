@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { icons } from "@/components/navigation/icons";
-import type { NavigationItem } from "@/config/navigation";
+import { publicNavigation, type NavigationItem } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 
 type PublicMobileMenuProps = {
@@ -16,6 +16,7 @@ type PublicMobileMenuProps = {
 export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const visibleItems = items.length ? items : publicNavigation;
 
   function closeMenu() {
     setOpen(false);
@@ -41,32 +42,34 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
             onClick={closeMenu}
             type="button"
           />
-          <aside className="relative z-10 ml-auto grid h-full w-[min(360px,calc(100vw-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
-            <div className="flex items-center justify-between gap-3 border-b border-bc-line p-4">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
-                <h2 className="truncate text-xl font-black">{siteName}</h2>
+          <aside className="fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
+            <div className="shrink-0 border-b border-bc-line bg-bc-ink p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
+                  <h2 className="truncate text-xl font-black">{siteName}</h2>
+                </div>
+                <button
+                  aria-label="Close site menu"
+                  className="bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
+                  onClick={closeMenu}
+                  type="button"
+                >
+                  <X className="h-5 w-5" aria-hidden="true" />
+                </button>
               </div>
-              <button
-                aria-label="Close site menu"
-                className="bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
-                onClick={closeMenu}
-                type="button"
-              >
-                <X className="h-5 w-5" aria-hidden="true" />
-              </button>
             </div>
 
-            <nav className="overflow-y-auto p-3">
+            <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
               <div className="grid gap-1">
-                {items.map((item) => {
+                {visibleItems.map((item) => {
                   const Icon = icons[item.icon];
                   const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.activePrefix ?? item.href));
 
                   return (
                     <Link
                       className={cn(
-                        "bc-focus-ring flex min-h-12 items-center gap-3 rounded-md border border-transparent bg-bc-ink/70 px-3 py-2 text-sm font-semibold text-white transition hover:border-bc-line hover:bg-white/5",
+                        "bc-focus-ring flex min-h-12 items-center gap-3 rounded-md border border-bc-line/70 bg-bc-ink px-3 py-2 text-sm font-semibold text-white transition hover:border-bc-electric/60 hover:bg-bc-electric/10",
                         active && "border-bc-electric/45 bg-bc-electric/10 text-white shadow-[0_0_24px_rgba(0,213,255,0.16)]"
                       )}
                       href={item.href}
@@ -86,7 +89,7 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
               </div>
             </nav>
 
-            <div className="grid gap-2 border-t border-bc-line bg-bc-ink p-4">
+            <div className="grid shrink-0 gap-2 border-t border-bc-line bg-bc-ink p-4">
               <Link
                 className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 text-sm font-semibold text-white"
                 href="/auth/login"

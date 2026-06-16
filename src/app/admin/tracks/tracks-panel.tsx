@@ -147,7 +147,7 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           Upload artwork
         </label>
         <input
-          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif"
           className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
           disabled={pending}
           id={`artwork-file-${track.id}`}
@@ -193,7 +193,7 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           Upload sample MP3
         </label>
         <input
-          accept="audio/mpeg,audio/mp3,.mp3"
+          accept=".mp3,audio/mpeg,audio/mp3,audio/x-mpeg,audio/x-mp3,application/octet-stream"
           className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
           disabled={pending}
           id={`preview-file-${track.id}`}
@@ -222,7 +222,7 @@ function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTr
           Upload download MP3
         </label>
         <input
-          accept="audio/mpeg,audio/mp3,.mp3"
+          accept=".mp3,audio/mpeg,audio/mp3,audio/x-mpeg,audio/x-mp3,application/octet-stream"
           className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
           disabled={pending}
           id={`download-file-${track.id}`}

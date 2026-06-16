@@ -21,7 +21,7 @@ type AdminChatAssetsPanelProps = {
 
 const packStatusOptions = ["active", "draft", "archived"] as const;
 const assetKindOptions = ["sticker", "emoji"] as const;
-const imageAccept = "image/jpeg,image/png,image/webp,image/gif,image/avif";
+const imageAccept = ".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif";
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -275,6 +275,9 @@ export function AdminChatAssetsPanel({ packs, stats }: AdminChatAssetsPanelProps
                   name="imageUpload"
                   type="file"
                 />
+                <p className="text-xs text-bc-muted lg:col-span-6">
+                  Stickers and animated emoji support JPG, PNG, WebP, GIF, and AVIF uploads up to 25MB.
+                </p>
                 <input
                   className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white lg:col-span-3"
                   name="imageUrl"

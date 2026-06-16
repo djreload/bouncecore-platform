@@ -85,7 +85,7 @@ function ProductFields({ pending, product }: { pending: boolean; product?: Produ
           placeholder="https://.../image.jpg or uploaded file path"
           type="text"
         />
-        <p className="mt-1 text-xs text-bc-muted">Use a square image, ideally 500 x 500.</p>
+        <p className="mt-1 text-xs text-bc-muted">Use a square JPG, PNG, WebP, GIF, or AVIF image. Maximum 15MB.</p>
       </div>
       <div>
         <label
@@ -95,7 +95,7 @@ function ProductFields({ pending, product }: { pending: boolean; product?: Produ
           Upload image
         </label>
         <input
-          accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+          accept=".jpg,.jpeg,.png,.webp,.gif,.avif,image/jpeg,image/png,image/webp,image/gif,image/avif"
           className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
           disabled={pending}
           id={product ? `image-file-${product.id}` : "create-image-file"}

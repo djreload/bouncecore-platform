@@ -3,9 +3,25 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 const publicUploadsRoot = path.join(process.cwd(), "public", "uploads");
-const maxPreviewMp3Bytes = 20 * 1024 * 1024;
-const maxImageBytes = 5 * 1024 * 1024;
+const maxPreviewMp3Bytes = 50 * 1024 * 1024;
+const maxImageBytes = 15 * 1024 * 1024;
+const maxChatImageBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 50 * 1024 * 1024;
+const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
+const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
+const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
+const mp3UploadTypes = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/mpeg3",
+  "audio/mpga",
+  "audio/x-mpeg",
+  "audio/x-mpeg-3",
+  "audio/x-mp3",
+  "application/octet-stream",
+  "binary/octet-stream",
+  ""
+];
 
 type UploadKind =
   | "product-images"
@@ -18,6 +34,135 @@ type UploadKind =
 
 function fileExtension(name: string) {
   return path.extname(name).toLowerCase().replace(/[^a-z0-9.]/g, "");
+}
+
+function formatBytes(value: number) {
+  return `${Math.round(value / (1024 * 1024))}MB`;
+}
+
+function normalizedContentType(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function isGenericUploadType(value: string) {
+  return genericUploadTypes.includes(normalizedContentType(value));
+}
+
+function canonicalImageContentType(value: string) {
+  const contentType = normalizedContentType(value);
+
+  if (contentType === "image/jpg" || contentType === "image/pjpeg") {
+    return "image/jpeg";
+  }
+
+  if (contentType === "image/x-png") {
+    return "image/png";
+  }
+
+  return contentType;
+}
+
+function imageContentTypeFromExtension(extension: string) {
+  switch (extension) {
+    case ".jpg":
+    case ".jpeg":
+    case ".jfif":
+      return "image/jpeg";
+    case ".png":
+      return "image/png";
+    case ".webp":
+      return "image/webp";
+    case ".gif":
+      return "image/gif";
+    case ".avif":
+      return "image/avif";
+    default:
+      return null;
+  }
+}
+
+function canonicalImageExtension(extension: string, contentType: string) {
+  if (extension === ".jpg" || extension === ".jpeg" || extension === ".jfif") {
+    return ".jpg";
+  }
+
+  if (imageUploadExtensions.includes(extension)) {
+    return extension;
+  }
+
+  switch (contentType) {
+    case "image/png":
+      return ".png";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    case "image/avif":
+      return ".avif";
+    default:
+      return ".jpg";
+  }
+}
+
+function sniffImageContentType(buffer: Buffer) {
+  if (buffer.length >= 12 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+
+  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer.toString("ascii", 1, 4) === "PNG") {
+    return "image/png";
+  }
+
+  if (buffer.length >= 10 && buffer.toString("ascii", 0, 3) === "GIF") {
+    return "image/gif";
+  }
+
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WEBP") {
+    return "image/webp";
+  }
+
+  if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp" && buffer.toString("ascii", 8, 16).includes("avif")) {
+    return "image/avif";
+  }
+
+  return null;
+}
+
+function validateImageUpload(file: File, buffer: Buffer, label: string) {
+  const extension = fileExtension(file.name);
+  const contentType = canonicalImageContentType(file.type);
+  const sniffedContentType = sniffImageContentType(buffer);
+  const extensionContentType = imageContentTypeFromExtension(extension);
+  const extensionAllowed = imageUploadExtensions.includes(extension);
+  const contentTypeAllowed = imageUploadTypes.includes(normalizedContentType(file.type)) || imageUploadTypes.includes(contentType);
+
+  if (!extensionAllowed && !contentTypeAllowed && !sniffedContentType) {
+    throw new Error(`${label} must be a JPG, PNG, WebP, GIF, or AVIF image.`);
+  }
+
+  if (!contentTypeAllowed && !isGenericUploadType(file.type) && !sniffedContentType) {
+    throw new Error(`${label} has an unsupported MIME type: ${file.type}.`);
+  }
+
+  const resolvedContentType = sniffedContentType ?? extensionContentType ?? contentType;
+
+  return {
+    contentType: resolvedContentType,
+    extension: canonicalImageExtension(extension, resolvedContentType)
+  };
+}
+
+function validateMp3Upload(file: File, label: string) {
+  const extension = fileExtension(file.name);
+  const contentType = normalizedContentType(file.type);
+
+  if (extension !== ".mp3") {
+    throw new Error(`${label} must use a .mp3 file extension.`);
+  }
+
+  if (!mp3UploadTypes.includes(contentType)) {
+    throw new Error(`${label} has an unsupported MIME type: ${file.type}.`);
+  }
 }
 
 function publicUploadPath(kind: UploadKind, filename: string) {
@@ -366,22 +511,17 @@ export async function normalizeDownloadUrl(value: string | undefined) {
   return normalized;
 }
 
-async function savePublicUpload(kind: UploadKind, file: File, allowedTypes: string[], maxBytes: number, label: string, buffer?: Buffer) {
+async function savePublicUpload(kind: UploadKind, file: File, maxBytes: number, label: string, extension: string, buffer?: Buffer) {
   if (!file.size) {
     return null;
   }
 
   if (file.size > maxBytes) {
-    throw new Error(`${label} is too large.`);
+    throw new Error(`${label} is too large. Maximum ${formatBytes(maxBytes)}.`);
   }
 
-  if (!allowedTypes.includes(file.type)) {
-    throw new Error(`${label} must use one of: ${allowedTypes.join(", ")}.`);
-  }
-
-  const ext = fileExtension(file.name) || (file.type === "audio/mpeg" ? ".mp3" : ".jpg");
   const uploadDir = path.join(publicUploadsRoot, kind);
-  const filename = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${ext}`;
+  const filename = `${new Date().toISOString().slice(0, 10)}-${randomUUID()}${extension}`;
   const uploadBuffer = buffer ?? Buffer.from(await file.arrayBuffer());
 
   await mkdir(uploadDir, {
@@ -398,14 +538,15 @@ export async function saveOptionalImageUpload(file: File | null | undefined, kin
   }
 
   if (file.size > maxImageBytes) {
-    throw new Error("Image upload is too large.");
+    throw new Error(`Image upload is too large. Maximum ${formatBytes(maxImageBytes)}.`);
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Image upload");
 
-  assertSquareImageUpload(buffer, file.type);
+  assertSquareImageUpload(buffer, image.contentType);
 
-  return savePublicUpload(kind, file, ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"], maxImageBytes, "Image upload", buffer);
+  return savePublicUpload(kind, file, maxImageBytes, "Image upload", image.extension, buffer);
 }
 
 export async function saveOptionalStreamOfflineImageUpload(file: File | null | undefined) {
@@ -414,19 +555,13 @@ export async function saveOptionalStreamOfflineImageUpload(file: File | null | u
   }
 
   if (file.size > maxImageBytes) {
-    throw new Error("Offline image upload is too large.");
+    throw new Error(`Offline image upload is too large. Maximum ${formatBytes(maxImageBytes)}.`);
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Offline image upload");
 
-  return savePublicUpload(
-    "stream-offline-images",
-    file,
-    ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
-    maxImageBytes,
-    "Offline image upload",
-    buffer
-  );
+  return savePublicUpload("stream-offline-images", file, maxImageBytes, "Offline image upload", image.extension, buffer);
 }
 
 export async function saveOptionalChatAssetUpload(file: File | null | undefined, kind: "chat-stickers" | "chat-emojis") {
@@ -434,20 +569,14 @@ export async function saveOptionalChatAssetUpload(file: File | null | undefined,
     return null;
   }
 
-  if (file.size > maxImageBytes) {
-    throw new Error("Chat image upload is too large.");
+  if (file.size > maxChatImageBytes) {
+    throw new Error(`Chat image upload is too large. Maximum ${formatBytes(maxChatImageBytes)}.`);
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Chat image upload");
 
-  return savePublicUpload(
-    kind,
-    file,
-    ["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"],
-    maxImageBytes,
-    "Chat image upload",
-    buffer
-  );
+  return savePublicUpload(kind, file, maxChatImageBytes, "Chat image upload", image.extension, buffer);
 }
 
 export async function saveOptionalPreviewMp3(file: File | null | undefined) {
@@ -456,18 +585,15 @@ export async function saveOptionalPreviewMp3(file: File | null | undefined) {
   }
 
   if (file.size > maxPreviewMp3Bytes) {
-    throw new Error("Sample MP3 upload is too large.");
+    throw new Error(`Sample MP3 upload is too large. Maximum ${formatBytes(maxPreviewMp3Bytes)}.`);
   }
 
-  if (!file.name.toLowerCase().endsWith(".mp3")) {
-    throw new Error("Sample audio upload must be an MP3 file.");
-  }
-
+  validateMp3Upload(file, "Sample MP3 upload");
   const buffer = Buffer.from(await file.arrayBuffer());
 
   assertMp3Upload(buffer, false, "Sample MP3 upload");
 
-  return savePublicUpload("music-previews", file, ["audio/mpeg", "audio/mp3"], maxPreviewMp3Bytes, "Sample MP3 upload", buffer);
+  return savePublicUpload("music-previews", file, maxPreviewMp3Bytes, "Sample MP3 upload", ".mp3", buffer);
 }
 
 export async function saveOptionalDownloadMp3(file: File | null | undefined) {
@@ -476,16 +602,13 @@ export async function saveOptionalDownloadMp3(file: File | null | undefined) {
   }
 
   if (file.size > maxDownloadBytes) {
-    throw new Error("Download MP3 upload is too large.");
+    throw new Error(`Download MP3 upload is too large. Maximum ${formatBytes(maxDownloadBytes)}.`);
   }
 
-  if (!file.name.toLowerCase().endsWith(".mp3")) {
-    throw new Error("Download upload must be an MP3 file.");
-  }
-
+  validateMp3Upload(file, "Download MP3 upload");
   const buffer = Buffer.from(await file.arrayBuffer());
 
   assertMp3Upload(buffer, true, "Download MP3 upload");
 
-  return savePublicUpload("music-downloads", file, ["audio/mpeg", "audio/mp3"], maxDownloadBytes, "Download MP3 upload", buffer);
+  return savePublicUpload("music-downloads", file, maxDownloadBytes, "Download MP3 upload", ".mp3", buffer);
 }
