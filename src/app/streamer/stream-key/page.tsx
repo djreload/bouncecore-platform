@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function StreamKeyPage() {
   const user = await requireUserPermission("stream.keys.manage.own");
   const streamKey = await getOwnActiveStreamKey(user.id);
-  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://develop.k-nrg.co.uk:1936/live/{streamKey}";
+  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://bouncecore.example.com:1936/live/{streamKey}";
 
   return (
     <DashboardShell

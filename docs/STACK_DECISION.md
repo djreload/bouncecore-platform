@@ -18,7 +18,7 @@ Bouncecore starts as a TypeScript-first modular monolith:
 - Better Auth planned for Phase 1 authentication
 - BullMQ planned for jobs and scheduled work
 - Socket.IO or a lightweight WebSocket service planned for realtime chat and presence
-- Nginx reverse proxy, managed through Plesk-safe configuration on the staging VPS
+- Nginx reverse proxy, managed through domain-specific or panel-safe configuration on production hosts
 
 ## Why This Stack
 
@@ -58,7 +58,7 @@ Project package versions:
 - lucide-react: 1.17.0
 - eslint: 9.39.4
 
-Server versions discovered:
+Example server versions from an early staging inspection:
 
 - OS: Debian GNU/Linux 13.5 trixie
 - Kernel: 6.12.74+deb13+1-amd64
@@ -91,13 +91,11 @@ BullMQ backed by Redis is the planned queue layer for notifications, emails, pay
 
 ## Deployment Architecture
 
-Initial local scaffold only:
-
 - Next.js app builds as a standalone Node process.
-- Future staging should run under `/var/www/bouncecore-platform`.
-- A systemd service should run the Next.js server.
-- Separate systemd services should run the realtime worker and queue worker once implemented.
-- Plesk-safe nginx reverse proxy should route `develop.k-nrg.co.uk` to the local app port.
+- Production installs should run under a dedicated path such as `/opt/bouncecore`.
+- Docker Compose is the current preferred deployment path for the app, PostgreSQL, Redis, worker, stream-core, MediaMTX, and optional transcoder profiles.
+- A reverse proxy should route `https://bouncecore.example.com` to the local app port.
+- Panel-managed servers should use domain-specific includes rather than global web-server edits.
 
 ## Reverse Proxy Choice
 

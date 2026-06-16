@@ -1,16 +1,25 @@
 # Bouncecore Platform
 
-Bouncecore is a new all-in-one UK rave/music livestream platform foundation. It is designed to own the public site, accounts, roles, DJ/Streamer dashboards, stream-key management, native chatrooms, merch shop, music marketplace, rewards, mobile APIs, and admin control room.
+Bouncecore is a self-hosted livestream and creator-commerce platform for music communities. It combines live video, chat, stream keys, animated chat features, stars donations, merch, music downloads, producer tools, mobile APIs, and an admin control room in one Next.js application.
 
-## Architecture Summary
+The project is built to run as a normal web app plus optional worker and stream services. The web app owns users, roles, payments, uploads, chat data, dashboards, and public pages. The stream stack is kept behind service boundaries so it can run locally for testing or be replaced by another compatible provider later.
 
-- Main platform repo: `bouncecore-platform`
-- Future stream engine repo: `bouncecore-stream-core`
-- The platform owns users, login, roles, dashboards, admin, chat, commerce, music, rewards, stream keys, and mobile APIs.
-- Stream-engine code stays behind a replaceable `StreamProvider` boundary.
-- Owncast-derived media-server code is not included in this repo; the embedded stream-core exposes compatible control/auth hooks for a future headless ingest/transcode service.
+## Main Capabilities
 
-## Chosen Stack
+- Public homepage, live page, music catalogue, merch shop, DJ profiles, and account area.
+- Authentication, owner bootstrap, email verification, sessions, invites, RBAC, and role-aware navigation.
+- Admin dashboards for users, roles, permissions, menus, pages, theme settings, integrations, system health, chat moderation, supporters, schedules, products, fulfilment, music, stars, and stream keys.
+- Live chat with Tenor GIFs, uploaded stickers, animated emoji, message reactions, animated text effects, role badges, reports, bans, auto-scroll, and 24 hour retention pruning.
+- Stars donations with PayPal checkout, user wallets, live chat sending, leaderboard data, stream overlay alerts, animations, and alert queueing.
+- Streamer dashboard with stream keys, OBS setup, stream health, stream profiles, offline image handling, and optional embedded stream-core.
+- Optional MediaMTX RTMP/RTMPS ingest, FFmpeg adaptive HLS transcoding, and browser HLS playback with automatic profile switching.
+- Producer dashboards for profile management, track uploads, review state, sample MP3s, artwork, delivery links, sales, downloads, and payout visibility.
+- Merch shop with product images, inventory, PayPal checkout, orders, and fulfilment workflow.
+- Mobile v1 APIs for public feeds, auth, account data, notifications, orders, downloads, rewards, chat, stars, shop checkout, music checkout, and push devices.
+- Background worker for chat pruning, stream-provider sync, mobile push dispatch, push receipt polling, and worker health.
+- Backup and restore scripts for PostgreSQL and Docker volumes.
+
+## Stack
 
 - Next.js 16 App Router
 - React 19
@@ -18,238 +27,197 @@ Bouncecore is a new all-in-one UK rave/music livestream platform foundation. It 
 - Node.js 24 LTS
 - npm 11
 - Tailwind CSS 4
-- Prisma 7 with PostgreSQL target
-- Prisma PostgreSQL driver adapter
-- Redis planned for realtime, queues, and presence
+- Prisma 7 with PostgreSQL
+- Redis for worker and realtime-adjacent state
+- Docker Compose for instance deployment
+- MediaMTX for optional RTMP/RTMPS ingest
+- FFmpeg for optional adaptive HLS transcoding
+- PayPal for shop, music, stars, and producer payout flows
+- Brevo SMTP for site email and verification
+- Tenor API for GIF search
 
-## Current Status
+## Repository Layout
 
-This scaffold includes:
-
-- Rave-themed public shell and homepage
-- Editable public navigation and stage-1 public modules
-- Account dashboard shell
-- Admin control room shell with grouped sidebar
-- Data-backed streamer dashboard and stream-key management
-- Producer dashboard shell
-- Central navigation config
-- Role and permission constants
-- Stream provider interface with mock fallback and stream-core HTTP status provider
-- Optional embedded stream-core control service with internal status, playback, health, ingest heartbeat, manual status, and stream-key auth endpoints
-- Optional MediaMTX RTMP/RTMPS/HLS gateway profile with Bouncecore stream-key HTTP auth for local/prod ingest trials
-- Optional FFmpeg adaptive HLS transcoder profile with low/standard/HD variants and a CORS-enabled HLS origin
-- Admin integrations and system-health checks for direct HLS versus adaptive HLS stream-stack readiness
-- Admin HLS manifest reachability checks while streams are active, including adaptive variant-count validation
-- Worker-backed stream-provider sync that records live/offline transitions into stream sessions and stream events
-- Manual admin stream-session sync control with audit logging for provider refreshes
-- Database-backed stream profiles for low bitrate through high-HD OBS/transcoding settings
-- Adaptive browser playback using HLS variant switching when the playback URL points to a multi-variant `.m3u8` master manifest
-- Optional background worker for chat retention pruning and mobile push dispatch/receipt processing
-- Health endpoint
-- Mobile config endpoint
-- Prisma schema and deployed migration set
-- Phase 1 RBAC foundation with role and permission catalogue
-- Admin Users, Roles, and Permissions pages
-- Admin user invite links with hashed invite tokens, role presets, expiry, and revoke controls
-- Password/session/token helper scaffolding
-- Form-backed login, register, logout, and session route scaffolding
-- Dedicated account security page
-- Data-backed account overview, profile editor, settings summary, and notifications inbox
-- Role-aware account dashboard links for assigned Admin, Moderator, Streamer, Producer, and Supporter workspaces
-- Data-backed mobile app configuration API with admin feature flags, maintenance mode, and announcements
-- Mobile v1 public feeds for live status, chat, shop, music, and rewards data
-- Mobile v1 bearer-token auth and account feeds for profile, notifications, orders, downloads, and rewards
-- Mobile v1 account registration and profile update endpoints using the shared session/auth model
-- Mobile v1 push-device registration, listing, and revocation using hashed plus encrypted token storage
-- Mobile push delivery queue records for admin notification sends, with blocked-state tracking when encryption is missing
-- Admin-triggered Expo mobile push dispatch with provider ticket and receipt tracking, plus unsupported-provider blocking
-- Token-protected internal mobile push task endpoint for scheduled queue and receipt processing
-- Mobile v1 authenticated chat actions for text, Tenor GIFs, live stars, and message reports
-- Mobile v1 PayPal checkout start, capture, and cancel endpoints for shop, music, and stars
-- Admin notification sender for account/mobile notification surfaces
-- Account session directory with current-session sign out and other-session revoke controls
-- Native chat GIF search and media messages through the Tenor API
-- Automatic chat-history pruning for messages older than 24 hours
-- Auto-refreshing public and live chat message feeds
-- Chat report intake, admin report review, and global or room-specific chat bans
-- Database-backed admin system-health dashboard
-- Database-backed admin VIP supporter directory and role controls
-- Database-backed admin stream schedule management
-- Streamer and public live schedule views
-- Data-backed streamer overview, status, and health dashboards
-- Data-backed OBS setup help for streamer connection settings
-- Data-backed streamer profile editor and public DJ directory
-- Data-backed producer profiles, track management, and public music catalogue
-- Producer track artwork, MP3 sample uploads, and Google Drive/direct MP3 delivery-link normalization
-- Data-backed admin music track management and producer approval queue
-- Data-backed merch product catalogue and admin product management
-- Merch product image URLs/uploads displayed in public shop cards
-- Data-backed account orders, admin order management, and fulfilment queue
-- PayPal shop checkout routes with order line items, capture references, and stock decrement on paid orders
-- PayPal stars checkout with purchase records, wallet credits, and admin purchase visibility for live support
-- PayPal music checkout with track purchase records and producer earnings visibility
-- Music download entitlements with buyer downloads, license snapshots, and producer delivery dashboards
-- PayPal producer payout batches with recipient setup, local ledger records, and status sync
-- Data-backed stars wallets, live chat star sending, stream overlay alerts, and sent-stars leaderboards
-- Data-backed reward spin-wheel configuration and prize-claim fulfilment admin
-- PayPal-only payment integration foundation for stars, shop checkout, and producer payouts
-- Admin integrations readiness overview for PayPal, Tenor GIF search, stream-provider wiring, and public app URLs
-- Database-backed admin Site & Design controls for public page cards, public menu labels/order/visibility, and theme colour token overrides
-- Initial Prisma migration and Owner bootstrap route at `/setup/owner`
-- Docker staging scaffold for isolated app, PostgreSQL, and Redis containers
-- GitHub Actions CI for Prisma validation, migrations, lint, typecheck, build, production dependency audit, and installer syntax checks
-- Backup and restore scripts for PostgreSQL plus Docker volumes used by uploads, Redis, stream-core state, and adaptive HLS output
-- Required planning, design, navigation, stream-boundary, and deployment docs
+```text
+src/app/                 Next.js routes, pages, server actions, and API handlers
+src/components/          Shared UI and feature components
+src/config/              Navigation and platform configuration
+src/lib/                 Domain services, auth, permissions, chat, media, payments
+src/stream-core/         Embedded stream-core HTTP service
+src/workers/             Background worker entrypoint
+prisma/                  Prisma schema, migrations, and seed data
+public/                  Public assets and upload mount point
+deploy/                  Reverse-proxy and service support files
+docs/                    Architecture, install, backup, and operations docs
+scripts/                 Install, backup, restore, stream smoke, and utility scripts
+tests/                   Node-based unit and integration test runner
+```
 
 ## Local Development
 
-Use `npm.cmd` in PowerShell if the npm PowerShell shim is blocked by execution policy.
+Use `npm.cmd` on Windows PowerShell if the npm shim is blocked by execution policy.
 
 ```powershell
 npm.cmd install
-npm.cmd run dev
-npm.cmd run lint
-npm.cmd run typecheck
-npm.cmd run build
+Copy-Item .env.example .env.local
+npm.cmd run prisma:generate
 npm.cmd run db:migrate
 npm.cmd run db:seed
+npm.cmd run dev
 ```
 
-Open the app locally at:
+Open the app at:
 
 ```text
 http://localhost:3000
 ```
 
-## Staging Deployment Target
+Useful checks:
 
-- Temporary domain: `develop.k-nrg.co.uk`
-- VPS: `root@77.68.103.65`
-- Target path: `/var/www/bouncecore-platform`
+```powershell
+npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run test
+npm.cmd run build
+```
 
-The VPS currently appears to be Plesk-managed. Do not edit global nginx, Apache, mail, database, or unrelated site configs without confirming the Plesk domain layout first.
+## Production Install
 
-## Interactive Server Install
-
-For a fresh Linux server with a checked-out copy of this repo, run:
+The recommended Ubuntu/Debian install path is Docker Compose with the included interactive installer:
 
 ```bash
 bash scripts/install-instance.sh
 ```
 
-The installer prompts for the public URL, bind ports, PostgreSQL database/user/password, stream URLs/tokens, stream-key validation endpoint/token, internal task token, Tenor GIF API key, push-token encryption key, optional Expo push access token, PayPal app details, and the first server-owner account. Database passwords can include normal strong-password punctuation; the installer URL-encodes the database password inside `DATABASE_URL`. It writes `.env.instance`, starts PostgreSQL/Redis/app with `docker-compose.instance.yml`, runs migrations and seeds, then bootstraps the owner account through the setup endpoint.
+The installer asks for the public URL, local bind ports, database name/user/password, email settings, stream settings, Tenor key, PayPal settings, push settings, and the first Owner account. It writes `.env.instance`, builds the app image, starts PostgreSQL and Redis, applies migrations, seeds defaults, starts selected service profiles, and bootstraps the Owner account.
 
-## Backup and Restore
+For a full step-by-step Linux install guide, see [docs/INSTALL_UBUNTU_DEBIAN.md](docs/INSTALL_UBUNTU_DEBIAN.md).
 
-Create a dated local backup bundle with:
+## Environment
 
-```bash
-bash scripts/backup-instance.sh
+Start from `.env.example` and replace every placeholder before production use. Important values include:
+
+```text
+DATABASE_URL=postgresql://bouncecore:change-me@localhost:5432/bouncecore_platform
+REDIS_URL=redis://localhost:6379
+NEXT_PUBLIC_APP_URL=https://bouncecore.example.com
+
+BREVO_SMTP_HOST=smtp-relay.brevo.com
+BREVO_SMTP_PORT=587
+BREVO_SMTP_USER=
+BREVO_SMTP_KEY=
+MAIL_FROM=no-reply@example.com
+
+STREAM_PROVIDER=mock
+INTERNAL_TASK_TOKEN=
+STREAM_CORE_INTERNAL_TOKEN=
+STREAM_CORE_KEY_VALIDATION_TOKEN=
+
+RTMP_INGEST_URL=rtmps://bouncecore.example.com:1936/live/{streamKey}
+PUBLIC_PLAYBACK_URL=https://bouncecore.example.com/hls/live/master.m3u8
+
+TENOR_API_KEY=
+PAYPAL_MODE=sandbox
+PAYPAL_CLIENT_ID=
+PAYPAL_CLIENT_SECRET=
+PAYPAL_WEBHOOK_ID=
 ```
 
-Restore a backup bundle with:
+Never commit real `.env` files, generated credentials, API keys, database passwords, PayPal secrets, SMTP keys, push tokens, private stream keys, or RTMPS private keys.
+
+## Service Profiles
+
+Base services:
 
 ```bash
-bash scripts/restore-instance.sh backups/20260608T203000Z
+docker compose -f docker-compose.instance.yml --env-file .env.instance up -d postgres redis app
 ```
 
-Backups can contain private data and paid media files, so keep them out of git and copy them to secure off-server storage. See `docs/BACKUP_RESTORE.md`.
+Background worker:
 
-## Optional Media Gateway
+```bash
+docker compose -f docker-compose.instance.yml --env-file .env.instance --profile worker up -d worker
+```
 
-The `media-gateway` Docker profile runs MediaMTX for RTMP/RTMPS ingest and HLS playback. It delegates publish authentication to stream-core at `/api/mediamtx/auth`, so only active Bouncecore stream keys are accepted. It is off by default because live stream ports may already be owned by another service.
+Embedded stream core:
+
+```bash
+docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core up -d stream-core
+```
+
+MediaMTX RTMP/RTMPS gateway:
 
 ```bash
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway up -d stream-core media-gateway
 ```
 
-Configure `MEDIA_GATEWAY_PUBLIC_HLS_URL` with a fixed public HLS URL or a `{path}` template. Direct MediaMTX HLS mirrors the RTMP publish path. When OBS sends `Server` plus a separate `Stream Key`, the publish path becomes `live/<stream-key>`, so production installs should enable the adaptive transcoder and expose the stable `TRANSCODER_HLS_PUBLIC_URL` instead of exposing a key-derived HLS URL.
-
-For encrypted OBS ingest, set `MEDIA_GATEWAY_RTMP_ENCRYPTION=optional` or `strict`, place `server.crt` and `server.key` in `MEDIA_GATEWAY_RTMPS_CERT_DIR`, and set `RTMP_INGEST_URL` as a template such as:
-
-```text
-rtmps://develop.k-nrg.co.uk:1936/live/{streamKey}
-```
-
-The streamer dashboard shows the OBS server URL separately from the private Stream Key. The full template is used internally for validation/smoke tests and must not be published to viewers.
-
-Cloudflare Zero Trust web tunnels handle HTTP/HTTPS traffic, not public raw RTMP/RTMPS from OBS. For remote OBS ingest, expose the RTMPS TCP port through a server/firewall path that supports raw TCP, Cloudflare Spectrum, a VPN, or cloudflared client access. For the WSL dev install on the same PC, use the local RTMPS server shown by the streamer OBS page.
-
-On Windows/Docker Desktop, run a local RTMP-to-HLS smoke test with a fresh local stream key:
-
-```powershell
-$env:STREAM_TEST_KEY = "bc_live_..."
-npm.cmd run stream:smoke
-```
-
-The smoke test starts the local stream-core/media-gateway profiles, pulls a disposable FFmpeg Docker image if needed, publishes a realtime test pattern over RTMP, and polls the HLS playlist until it is available.
-
-On the WSL dev install, run a temporary-key smoke test against the deployed services:
-
-```bash
-sudo bash /opt/bouncecore/scripts/stream-smoke-wsl-dev.sh --email owner@example.com
-```
-
-The WSL smoke test creates a disposable stream key for the supplied account, publishes a test pattern to `rtmps://127.0.0.1:1936/live` using the same separate stream-key shape as OBS, waits for the stable adaptive HLS playlist at `http://127.0.0.1/hls/live/master.m3u8`, reports stream-core health, then revokes the temporary key.
-
-For Windows streaming apps pointed at a WSL install, Windows may expose WSL stream ports on `localhost`/IPv6 but not literal `127.0.0.1`. If Streamlabs or OBS must use `127.0.0.1`, start the user-mode relay with the current WSL IP:
-
-```powershell
-$wslIp = (wsl.exe -d Debian -- hostname -I).Trim().Split(" ")[0]
-node scripts/wsl-port-forward.mjs --target $wslIp --ports 1935,1936
-```
-
-Then use `rtmps://127.0.0.1:1936/live` as the OBS server and paste only the raw Bouncecore stream key into the Stream Key field. RTMPS also requires Windows to trust the local RTMPS certificate when a self-signed WSL certificate is used.
-
-## Optional Adaptive HLS Transcoder
-
-The `transcoder` Docker profile runs an FFmpeg worker that asks stream-core for the current authenticated ingest path, reads that internal MediaMTX RTMP source, and writes a multi-variant HLS output to a static Nginx origin. It creates `240p`, `480p`, and `720p` variants plus a `master.m3u8` playlist for browser automatic bitrate switching. It is off by default so it does not claim ports or CPU on servers that already run another stream stack.
+Adaptive HLS transcoder:
 
 ```bash
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
 ```
 
-When enabling this path, set:
+For OBS, use a separate server URL and stream key:
 
 ```text
-TRANSCODER_ENABLED=true
-TRANSCODER_INPUT_URL=rtmp://media-gateway:1935/{path}
-TRANSCODER_HLS_PUBLIC_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
-HLS_PLAYBACK_HEALTH_URL=http://hls-origin/live/master.m3u8
-PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
-STREAM_CORE_PUBLIC_PLAYBACK_URL=https://develop.k-nrg.co.uk/hls/live/master.m3u8
+Server: rtmps://bouncecore.example.com:1936/live
+Stream Key: value from the streamer dashboard
 ```
 
-`HLS_PLAYBACK_HEALTH_URL` is optional and server-side only. Use it when the app container should check an internal HLS origin URL while browsers use the public playback URL.
+## Upload Limits
 
-On Windows/Docker Desktop, run the adaptive smoke test with:
+The application and production proxy should allow at least 512MB request bodies. Current application limits are:
+
+- Product images and track artwork: 100MB
+- Chat stickers and animated emoji: 150MB
+- Producer sample MP3 uploads: 100MB
+- Producer download MP3 uploads: 200MB
+- Next.js server action body limit: 512MB
+
+Production nginx, Apache, Plesk, Caddy, or CDN limits must be raised to match the app or uploads will fail before they reach Next.js.
+
+## Backup and Restore
+
+Create a backup:
+
+```bash
+bash scripts/backup-instance.sh
+```
+
+Restore a backup:
+
+```bash
+bash scripts/restore-instance.sh backups/20260608T203000Z
+```
+
+Backups include private user data and paid media. Store them encrypted or in access-controlled off-server storage. See [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md).
+
+## Operations Checks
+
+```bash
+docker compose -f docker-compose.instance.yml --env-file .env.instance ps
+docker compose -f docker-compose.instance.yml --env-file .env.instance logs -f app
+curl -fsS http://127.0.0.1:3000/api/health
+```
+
+For stream testing, use the stream smoke scripts after creating a valid stream key:
 
 ```powershell
-$env:STREAM_TEST_KEY = "bc_live_..."
+$env:STREAM_TEST_KEY = "bc_live_example"
+npm.cmd run stream:smoke
 npm.cmd run stream:smoke -- -UseTranscoder
 ```
 
-The adaptive smoke test requires the HLS master playlist to include at least three variant entries before it passes.
+## Documentation
 
-## Secrets Warning
+- [CHANGELOG.md](CHANGELOG.md)
+- [docs/INSTALL_UBUNTU_DEBIAN.md](docs/INSTALL_UBUNTU_DEBIAN.md)
+- [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
+- [docs/EMBEDDED_STREAM_CORE.md](docs/EMBEDDED_STREAM_CORE.md)
+- [docs/STREAM_CORE_BOUNDARY.md](docs/STREAM_CORE_BOUNDARY.md)
+- [docs/BOUNCECORE_PLATFORM_BLUEPRINT.md](docs/BOUNCECORE_PLATFORM_BLUEPRINT.md)
+- [docs/IMPLEMENTATION_PHASES.md](docs/IMPLEMENTATION_PHASES.md)
 
-Never commit:
+## License
 
-- `.env`
-- API keys
-- database passwords
-- SSH keys
-- private tokens
-- generated app keys
-- raw stream keys
-- generated credentials
-
-Use `.env.example` as a template only.
-
-## Next Steps
-
-1. Run the interactive installer against a disposable Linux target and record any server-package edge cases before using it on production.
-2. Promote the local MediaMTX/FFmpeg stream stack to a hardened production rollout once VPS stream-port ownership and reverse-proxy routing are confirmed.
-3. Extend CI with stream-smoke tests and Docker image build/publish once the stream-core profile is ready for production rollout.
-4. Add external alerting and dashboards for app health, worker heartbeat, stream-core health, HLS manifest reachability, queue backlog, and PayPal webhook failures.
-5. Add encrypted off-server backup upload and retention once the production storage target is chosen.
+See [LICENSE_PLACEHOLDER.md](LICENSE_PLACEHOLDER.md). Replace the placeholder before distributing the project publicly.

@@ -22,7 +22,7 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
   const footerSummary =
     resolvedSiteSettings.footerSummary ??
     "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.";
-  const stagingTarget = resolvedSiteSettings.stagingTarget ?? "develop.k-nrg.co.uk";
+  const stagingTarget = resolvedSiteSettings.stagingTarget ?? null;
 
   return (
     <div className="min-h-screen bg-bc-void text-white" style={themeStyle}>

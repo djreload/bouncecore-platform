@@ -75,7 +75,7 @@ function defaultSiteSettings(): SiteSettings {
       "A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
     liveSocialLinks: [],
     siteName: "Bouncecore",
-    stagingTarget: "develop.k-nrg.co.uk",
+    stagingTarget: null,
     supportEmail: null
   };
 }

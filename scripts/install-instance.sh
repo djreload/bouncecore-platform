@@ -319,7 +319,7 @@ if [ -f "$ENV_FILE" ]; then
   fi
 fi
 
-APP_URL="$(prompt "Public app URL" "https://develop.k-nrg.co.uk")"
+APP_URL="$(prompt "Public app URL" "https://bouncecore.example.com")"
 APP_HOST="${APP_URL#http://}"
 APP_HOST="${APP_HOST#https://}"
 APP_HOST="${APP_HOST%%/*}"
