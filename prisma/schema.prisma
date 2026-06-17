@@ -54,6 +54,7 @@ model User {
   starPurchases   StarPurchase[]
   starSends       StarSend[] @relation("StarSendUser")
   trackPurchases  DigitalTrackPurchase[]
+  musicCheckouts  MusicCheckout[]
   requestedPayoutBatches ProducerPayoutBatch[] @relation("ProducerPayoutBatchRequestedBy")
   mobileDevices   MobileDevice[]
 
@@ -646,6 +647,7 @@ model DigitalTrackPurchase {
   buyerId               String
   trackId               String
   producerId            String
+  checkoutId            String?
   status                String          @default("pending")
   trackTitle            String
   producerName          String
@@ -668,11 +670,34 @@ model DigitalTrackPurchase {
   buyer                 User            @relation(fields: [buyerId], references: [id], onDelete: Cascade)
   track                 DigitalTrack    @relation(fields: [trackId], references: [id], onDelete: Cascade)
   producer              ProducerProfile @relation(fields: [producerId], references: [id], onDelete: Cascade)
+  checkout              MusicCheckout?  @relation(fields: [checkoutId], references: [id], onDelete: Cascade)
   payoutItems           ProducerPayoutItem[]
 
   @@index([buyerId])
   @@index([trackId])
   @@index([producerId])
+  @@index([checkoutId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MusicCheckout {
+  id              String   @id @default(cuid())
+  buyerId         String
+  status          String   @default("pending")
+  totalPence      Int
+  currency        String   @default("GBP")
+  paypalOrderId   String?  @unique
+  paypalCaptureId String?
+  paypalPayerEmail String?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  buyer           User     @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  purchases       DigitalTrackPurchase[]
+
+  @@index([buyerId])
   @@index([status])
   @@index([createdAt])
 }

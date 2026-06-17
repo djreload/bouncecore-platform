@@ -1,12 +1,13 @@
 /* eslint-disable @next/next/no-img-element */
-import { CreditCard, Disc3, Download, LogIn, Music, Play, ShoppingCart, SlidersHorizontal, Trophy } from "lucide-react";
+import { CreditCard, Disc3, Download, Music, Play, SlidersHorizontal, Trophy } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTopDownloadedMusicTracks } from "@/lib/music/music-ranking";
 import { getPublicMusicTracks, getPurchasedMusicTrackIds, type PublicMusicTrack } from "@/lib/music/music-service";
 import { getPayPalIntegrationData, getPayPalMusicReadiness } from "@/lib/payments/paypal-service";
+import { MusicCartButton, MusicCartProvider, type MusicCartTrack } from "./music-cart-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -83,48 +84,6 @@ function TrackArtwork({ size = "large", track }: { size?: "large" | "small"; tra
   );
 }
 
-function TrackPurchaseAction({
-  checkoutReady,
-  owned,
-  signedIn,
-  size = "md",
-  track
-}: {
-  checkoutReady: boolean;
-  owned: boolean;
-  signedIn: boolean;
-  size?: "sm" | "md";
-  track: PublicMusicTrack;
-}) {
-  if (owned) {
-    return (
-      <ButtonLink href="/account/downloads" size={size} variant="primary">
-        <Download className="h-4 w-4" aria-hidden="true" />
-        Downloads
-      </ButtonLink>
-    );
-  }
-
-  if (!signedIn) {
-    return (
-      <ButtonLink href="/auth/login?error=auth-required" size={size} variant="primary">
-        <LogIn className="h-4 w-4" aria-hidden="true" />
-        Login to buy
-      </ButtonLink>
-    );
-  }
-
-  return (
-    <form action="/music/checkout" method="post">
-      <input name="trackId" type="hidden" value={track.id} />
-      <Button disabled={!checkoutReady || track.pricePence <= 0} size={size} type="submit" variant="primary">
-        <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-        Add to cart
-      </Button>
-    </form>
-  );
-}
-
 export default async function MusicPage({ searchParams }: MusicPageProps) {
   const params = searchParams ? await searchParams : {};
   const [tracks, paypal, currentUser] = await Promise.all([getPublicMusicTracks(), getPayPalIntegrationData(), getCurrentUser()]);
@@ -136,10 +95,24 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
   const averagePrice = tracks.length ? tracks.reduce((total, track) => total + track.pricePence, 0) / tracks.length : 0;
   const totalDownloads = tracks.reduce((total, track) => total + track.successfulDownloads, 0);
   const signedIn = Boolean(currentUser);
+  const cartTracks: MusicCartTrack[] = tracks.map((track) => ({
+    artworkUrl: track.artworkUrl,
+    id: track.id,
+    owned: purchasedTrackIds.has(track.id),
+    pricePence: track.pricePence,
+    producerName: track.producerName,
+    title: track.title
+  }));
 
   return (
     <PublicShell>
-      <main className="mx-auto max-w-[1500px] px-4 py-10">
+      <MusicCartProvider
+        checkoutReady={checkoutReadiness.ready}
+        checkoutReason={checkoutReadiness.reason}
+        signedIn={signedIn}
+        tracks={cartTracks}
+      >
+        <main className="mx-auto max-w-[1500px] px-4 py-10">
         <section className="rounded-md border border-bc-line bg-bc-panel p-6">
           <Badge tone="acid">Marketplace</Badge>
           <h1 className="mt-4 text-4xl font-black">Bouncecore Music</h1>
@@ -233,7 +206,14 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                             Preview
                           </ButtonLink>
                         ) : null}
-                        <TrackPurchaseAction checkoutReady={checkoutReadiness.ready} owned={owned} signedIn={signedIn} size="sm" track={track} />
+                        {owned ? (
+                          <ButtonLink href="/account/downloads" size="sm" variant="primary">
+                            <Download className="h-4 w-4" aria-hidden="true" />
+                            Downloads
+                          </ButtonLink>
+                        ) : (
+                          <MusicCartButton disabled={track.pricePence <= 0} size="sm" trackId={track.id} />
+                        )}
                       </div>
                     </div>
                   </article>
@@ -282,7 +262,14 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                         </div>
                       </div>
                       <div className="mt-3 flex justify-end">
-                        <TrackPurchaseAction checkoutReady={checkoutReadiness.ready} owned={owned} signedIn={signedIn} size="sm" track={track} />
+                        {owned ? (
+                          <ButtonLink href="/account/downloads" size="sm" variant="primary">
+                            <Download className="h-4 w-4" aria-hidden="true" />
+                            Downloads
+                          </ButtonLink>
+                        ) : (
+                          <MusicCartButton disabled={track.pricePence <= 0} size="sm" trackId={track.id} />
+                        )}
                       </div>
                     </li>
                   );
@@ -304,7 +291,8 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
             {checkoutReadiness.ready ? "Checkout is ready for approved tracks." : checkoutReadiness.reason}
           </p>
         </section>
-      </main>
+        </main>
+      </MusicCartProvider>
     </PublicShell>
   );
 }

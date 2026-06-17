@@ -279,6 +279,55 @@ async function findTrackPurchase(details: PayPalCaptureDetails) {
   return null;
 }
 
+async function findMusicCheckout(details: PayPalCaptureDetails) {
+  if (details.paypalOrderId) {
+    const checkout = await prisma.musicCheckout.findUnique({
+      include: {
+        purchases: true
+      },
+      where: {
+        paypalOrderId: details.paypalOrderId
+      }
+    });
+
+    if (checkout) {
+      return checkout;
+    }
+  }
+
+  if (details.captureId) {
+    const checkout = await prisma.musicCheckout.findFirst({
+      include: {
+        purchases: true
+      },
+      where: {
+        paypalCaptureId: details.captureId
+      }
+    });
+
+    if (checkout) {
+      return checkout;
+    }
+  }
+
+  for (const id of details.localIds) {
+    const checkout = await prisma.musicCheckout.findUnique({
+      include: {
+        purchases: true
+      },
+      where: {
+        id
+      }
+    });
+
+    if (checkout) {
+      return checkout;
+    }
+  }
+
+  return null;
+}
+
 async function findStarPurchase(details: PayPalCaptureDetails) {
   if (details.paypalOrderId) {
     const purchase = await prisma.starPurchase.findUnique({
@@ -421,6 +470,93 @@ async function reconcileShopCapture(details: PayPalCaptureDetails): Promise<Reco
   return {
     action: "shop-order-paid",
     target: `order:${order.id}`
+  };
+}
+
+async function reconcileMusicCheckoutCapture(details: PayPalCaptureDetails): Promise<ReconciliationResult | null> {
+  const checkout = await findMusicCheckout(details);
+
+  if (!checkout) {
+    return null;
+  }
+
+  if (checkout.status === "paid") {
+    if (details.captureId && !checkout.paypalCaptureId) {
+      await prisma.musicCheckout.update({
+        data: {
+          paypalCaptureId: details.captureId,
+          paypalPayerEmail: details.payerEmail
+        },
+        where: {
+          id: checkout.id
+        }
+      });
+    }
+
+    return {
+      action: "music-checkout-already-paid",
+      target: `music-checkout:${checkout.id}`
+    };
+  }
+
+  if (checkout.status !== "pending") {
+    return {
+      action: `music-checkout-ignored-${checkout.status}`,
+      target: `music-checkout:${checkout.id}`
+    };
+  }
+
+  requireMatchingAmount(details.amountPence, checkout.totalPence, "music basket checkout");
+  requireMatchingCurrency(details.currency, checkout.currency, "music basket checkout");
+
+  await prisma.$transaction(async (tx) => {
+    const update = await tx.musicCheckout.updateMany({
+      data: {
+        completedAt: new Date(),
+        paypalCaptureId: details.captureId,
+        paypalPayerEmail: details.payerEmail,
+        status: "paid"
+      },
+      where: {
+        id: checkout.id,
+        status: "pending"
+      }
+    });
+
+    if (update.count !== 1) {
+      throw new Error("This music basket checkout was already processed.");
+    }
+
+    await tx.digitalTrackPurchase.updateMany({
+      data: {
+        completedAt: new Date(),
+        paypalCaptureId: details.captureId,
+        paypalPayerEmail: details.payerEmail,
+        status: "paid"
+      },
+      where: {
+        checkoutId: checkout.id,
+        status: "pending"
+      }
+    });
+  });
+
+  await writeAuditLog({
+    action: "payments.paypal.webhook.music_cart_capture",
+    metadata: {
+      paypalCaptureId: details.captureId,
+      paypalOrderId: checkout.paypalOrderId,
+      purchaseIds: checkout.purchases.map((purchase) => purchase.id),
+      totalPence: checkout.totalPence,
+      trackIds: checkout.purchases.map((purchase) => purchase.trackId)
+    },
+    severity: "warning",
+    target: `music-checkout:${checkout.id}`
+  });
+
+  return {
+    action: "music-checkout-paid",
+    target: `music-checkout:${checkout.id}`
   };
 }
 
@@ -595,6 +731,7 @@ async function reconcileCaptureCompleted(event: Record<string, unknown>) {
 
   return (
     (await reconcileShopCapture(details)) ??
+    (await reconcileMusicCheckoutCapture(details)) ??
     (await reconcileTrackCapture(details)) ??
     (await reconcileStarsCapture(details)) ?? {
       action: "capture-completed-unmatched"
