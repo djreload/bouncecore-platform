@@ -633,8 +633,12 @@ model DigitalTrack {
   licenseType  String          @default("personal")
   licenseSummary String?
   status      String          @default("draft")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   producer    ProducerProfile @relation(fields: [producerId], references: [id], onDelete: Cascade)
   purchases   DigitalTrackPurchase[]
+
+  @@index([createdAt])
 }
 
 model DigitalTrackPurchase {

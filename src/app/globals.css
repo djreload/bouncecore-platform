@@ -745,10 +745,42 @@ select {
   }
 }
 
+@keyframes bc-music-top-five-glow {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(182, 255, 46, 0.14), 0 0 0 rgba(182, 255, 46, 0);
+  }
+
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(182, 255, 46, 0.42), 0 0 24px rgba(182, 255, 46, 0.18);
+  }
+}
+
+.bc-music-top-five {
+  animation: bc-music-top-five-glow 2.8s ease-in-out infinite;
+}
+
+.bc-music-top-five:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.bc-music-top-five:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.bc-music-top-five:nth-child(4) {
+  animation-delay: 0.54s;
+}
+
+.bc-music-top-five:nth-child(5) {
+  animation-delay: 0.72s;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bc-chat-effect,
   .bc-chat-effect::after,
-  .bc-chat-effect .bc-chat-effect-letter {
+  .bc-chat-effect .bc-chat-effect-letter,
+  .bc-music-top-five {
     animation: none !important;
     transform: none !important;
     transition: none !important;

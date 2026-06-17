@@ -44,6 +44,8 @@ export type ProducerTrackRow = {
   licenseType: string;
   licenseSummary: string | null;
   status: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ProducerWorkspaceData = {
@@ -107,6 +109,7 @@ export type PublicMusicTrack = ProducerTrackRow & {
   producerName: string;
   producerSlug: string;
   producerBio: string | null;
+  successfulDownloads: number;
 };
 
 export type PublicProducerProfile = {
@@ -295,6 +298,8 @@ function toTrackRow(track: {
   licenseType: string;
   licenseSummary: string | null;
   status: string;
+  createdAt: Date;
+  updatedAt: Date;
 }): ProducerTrackRow {
   return {
     id: track.id,
@@ -309,7 +314,9 @@ function toTrackRow(track: {
     downloadUrl: track.downloadUrl,
     licenseType: track.licenseType,
     licenseSummary: track.licenseSummary,
-    status: track.status
+    status: track.status,
+    createdAt: track.createdAt.toISOString(),
+    updatedAt: track.updatedAt.toISOString()
   };
 }
 
@@ -327,17 +334,23 @@ function toPublicTrack(track: {
   licenseType: string;
   licenseSummary: string | null;
   status: string;
+  createdAt: Date;
+  updatedAt: Date;
   producer: {
     name: string;
     slug: string;
     bio: string | null;
   };
+  purchases?: {
+    downloadCount: number;
+  }[];
 }): PublicMusicTrack {
   return {
     ...toTrackRow(track),
     producerName: track.producer.name,
     producerSlug: track.producer.slug,
-    producerBio: track.producer.bio
+    producerBio: track.producer.bio,
+    successfulDownloads: track.purchases?.reduce((total, purchase) => total + purchase.downloadCount, 0) ?? 0
   };
 }
 
@@ -768,10 +781,19 @@ export async function getPublicMusicTracks(): Promise<PublicMusicTrack[]> {
     where: {
       status: "approved"
     },
-    orderBy: {
-      title: "asc"
-    },
+    orderBy: [{ createdAt: "asc" }, { title: "asc" }],
     include: {
+      purchases: {
+        where: {
+          downloadCount: {
+            gt: 0
+          },
+          status: "paid"
+        },
+        select: {
+          downloadCount: true
+        }
+      },
       producer: {
         select: {
           bio: true,
@@ -1060,8 +1082,19 @@ export async function getPublicProducerProfiles(): Promise<PublicProducerProfile
         where: {
           status: "approved"
         },
-        orderBy: {
-          title: "asc"
+        orderBy: [{ createdAt: "asc" }, { title: "asc" }],
+        include: {
+          purchases: {
+            where: {
+              downloadCount: {
+                gt: 0
+              },
+              status: "paid"
+            },
+            select: {
+              downloadCount: true
+            }
+          }
         },
         take: 6
       }
@@ -1098,8 +1131,19 @@ export async function getPublicProducerProfileBySlug(slug: string): Promise<Publ
         where: {
           status: "approved"
         },
-        orderBy: {
-          title: "asc"
+        orderBy: [{ createdAt: "asc" }, { title: "asc" }],
+        include: {
+          purchases: {
+            where: {
+              downloadCount: {
+                gt: 0
+              },
+              status: "paid"
+            },
+            select: {
+              downloadCount: true
+            }
+          }
         }
       }
     }
