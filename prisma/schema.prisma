@@ -246,10 +246,14 @@ model Notification {
   type      String
   title     String
   body      String?
+  dedupeKey String?   @unique
   readAt    DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   pushDeliveries MobilePushDelivery[]
+
+  @@index([userId])
+  @@index([createdAt])
 }
 
 model MobilePushDelivery {

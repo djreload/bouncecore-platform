@@ -1,5 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
+import {
+  notifyMusicCheckoutPaid,
+  notifyMusicPurchasePaid,
+  notifyShopOrderPaid,
+  notifyStarsPurchasePaid
+} from "@/lib/checkout/checkout-confirmation-service";
 import { prisma } from "@/lib/db/prisma";
 import { getPayPalSettings } from "@/lib/payments/paypal-service";
 import {
@@ -388,6 +394,8 @@ async function reconcileShopCapture(details: PayPalCaptureDetails): Promise<Reco
       });
     }
 
+    await notifyShopOrderPaid(order.id);
+
     return {
       action: "shop-order-already-paid",
       target: `order:${order.id}`
@@ -467,6 +475,8 @@ async function reconcileShopCapture(details: PayPalCaptureDetails): Promise<Reco
     target: `order:${order.id}`
   });
 
+  await notifyShopOrderPaid(order.id);
+
   return {
     action: "shop-order-paid",
     target: `order:${order.id}`
@@ -492,6 +502,8 @@ async function reconcileMusicCheckoutCapture(details: PayPalCaptureDetails): Pro
         }
       });
     }
+
+    await notifyMusicCheckoutPaid(checkout.id);
 
     return {
       action: "music-checkout-already-paid",
@@ -554,6 +566,8 @@ async function reconcileMusicCheckoutCapture(details: PayPalCaptureDetails): Pro
     target: `music-checkout:${checkout.id}`
   });
 
+  await notifyMusicCheckoutPaid(checkout.id);
+
   return {
     action: "music-checkout-paid",
     target: `music-checkout:${checkout.id}`
@@ -579,6 +593,8 @@ async function reconcileTrackCapture(details: PayPalCaptureDetails): Promise<Rec
         }
       });
     }
+
+    await notifyMusicPurchasePaid(purchase.id);
 
     return {
       action: "track-purchase-already-paid",
@@ -626,6 +642,8 @@ async function reconcileTrackCapture(details: PayPalCaptureDetails): Promise<Rec
     target: `track-purchase:${purchase.id}`
   });
 
+  await notifyMusicPurchasePaid(purchase.id);
+
   return {
     action: "track-purchase-paid",
     target: `track-purchase:${purchase.id}`
@@ -651,6 +669,8 @@ async function reconcileStarsCapture(details: PayPalCaptureDetails): Promise<Rec
         }
       });
     }
+
+    await notifyStarsPurchasePaid(purchase.id);
 
     return {
       action: "stars-purchase-already-paid",
@@ -713,6 +733,8 @@ async function reconcileStarsCapture(details: PayPalCaptureDetails): Promise<Rec
     severity: "warning",
     target: `star-purchase:${purchase.id}`
   });
+
+  await notifyStarsPurchasePaid(purchase.id);
 
   return {
     action: "stars-purchase-paid",

@@ -1,4 +1,5 @@
 import { writeAuditLog } from "@/lib/auth/audit";
+import { notifyMusicCheckoutPaid, notifyMusicPurchasePaid } from "@/lib/checkout/checkout-confirmation-service";
 import {
   capturePayPalCheckoutOrder,
   createPayPalCheckoutOrder,
@@ -344,6 +345,8 @@ export async function completeTrackCheckout(userId: string, purchaseId: string, 
   }
 
   if (purchase.status === "paid") {
+    await notifyMusicPurchasePaid(purchase.id);
+
     return purchase;
   }
 
@@ -399,6 +402,8 @@ export async function completeTrackCheckout(userId: string, purchaseId: string, 
     }
   });
 
+  await notifyMusicPurchasePaid(updated.id);
+
   return updated;
 }
 
@@ -426,6 +431,8 @@ export async function completeTrackCartCheckout(userId: string, checkoutId: stri
   }
 
   if (checkout.status === "paid") {
+    await notifyMusicCheckoutPaid(checkout.id);
+
     return checkout;
   }
 
@@ -497,6 +504,8 @@ export async function completeTrackCartCheckout(userId: string, checkoutId: stri
       totalPence: updated.totalPence
     }
   });
+
+  await notifyMusicCheckoutPaid(updated.id);
 
   return updated;
 }

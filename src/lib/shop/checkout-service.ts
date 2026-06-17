@@ -1,4 +1,5 @@
 import { writeAuditLog } from "@/lib/auth/audit";
+import { notifyShopOrderPaid } from "@/lib/checkout/checkout-confirmation-service";
 import {
   capturePayPalCheckoutOrder,
   createPayPalCheckoutOrder,
@@ -276,6 +277,8 @@ export async function completeShopCheckout(userId: string, orderId: string, payp
   }
 
   if (["paid", "processing", "fulfilled"].includes(order.status)) {
+    await notifyShopOrderPaid(order.id);
+
     return order;
   }
 
@@ -376,6 +379,8 @@ export async function completeShopCheckout(userId: string, orderId: string, payp
       totalPence: updated.totalPence
     }
   });
+
+  await notifyShopOrderPaid(updated.id);
 
   return updated;
 }

@@ -1,4 +1,5 @@
 import { writeAuditLog } from "@/lib/auth/audit";
+import { notifyStarsPurchasePaid } from "@/lib/checkout/checkout-confirmation-service";
 import {
   capturePayPalCheckoutOrder,
   createPayPalCheckoutOrder,
@@ -125,6 +126,8 @@ export async function completeStarsCheckout(userId: string, purchaseId: string, 
   }
 
   if (purchase.status === "paid") {
+    await notifyStarsPurchasePaid(purchase.id);
+
     return purchase;
   }
 
@@ -195,6 +198,8 @@ export async function completeStarsCheckout(userId: string, purchaseId: string, 
       totalPence: updated.totalPence
     }
   });
+
+  await notifyStarsPurchasePaid(updated.id);
 
   return updated;
 }
