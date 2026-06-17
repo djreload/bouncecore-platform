@@ -3,8 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { LogIn, ShoppingCart, Trash2, X } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
-
-const storageKey = "bouncecore.musicCart.v1";
+import { musicCartStorageKey } from "@/lib/cart/storage-keys";
 
 export type MusicCartTrack = {
   artworkUrl: string | null;
@@ -35,7 +34,7 @@ function storedCartIds(tracksById: Map<string, MusicCartTrack>) {
   }
 
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]") as unknown;
+    const parsed = JSON.parse(window.localStorage.getItem(musicCartStorageKey) ?? "[]") as unknown;
 
     if (!Array.isArray(parsed)) {
       return [];
@@ -85,7 +84,7 @@ export function MusicCartProvider({
   }, [tracksById]);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(cartIds));
+    window.localStorage.setItem(musicCartStorageKey, JSON.stringify(cartIds));
   }, [cartIds]);
 
   const cartTracks = useMemo(

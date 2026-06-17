@@ -3,8 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { LogIn, Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
-
-const storageKey = "bouncecore.shopCart.v1";
+import { shopCartStorageKey } from "@/lib/cart/storage-keys";
 const maxQuantity = 10;
 
 export type ShopCartVariant = {
@@ -48,7 +47,7 @@ function storedCartItems(variantsById: Map<string, ShopCartVariant>) {
   }
 
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "[]") as unknown;
+    const parsed = JSON.parse(window.localStorage.getItem(shopCartStorageKey) ?? "[]") as unknown;
 
     if (!Array.isArray(parsed)) {
       return [];
@@ -111,7 +110,7 @@ export function ShopCartProvider({
   }, [variantsById]);
 
   useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify(cartItems));
+    window.localStorage.setItem(shopCartStorageKey, JSON.stringify(cartItems));
   }, [cartItems]);
 
   const cartLines = useMemo(

@@ -1,8 +1,10 @@
 import { Download, Music, ShieldCheck } from "lucide-react";
+import { CartStorageClearer } from "@/components/checkout/cart-storage-clearer";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { musicCartStorageKey } from "@/lib/cart/storage-keys";
 import { getAccountDownloadsData } from "@/lib/music/music-service";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +41,7 @@ export default async function AccountDownloadsPage({ searchParams }: AccountDown
 
   return (
     <DashboardShell title="Downloads" description="Owned music downloads, purchase licenses, and delivery history.">
+      {checkoutStatus === "music-success" ? <CartStorageClearer storageKey={musicCartStorageKey} /> : null}
       <div className="grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Owned</Badge>

@@ -1,8 +1,10 @@
 import { Clock3, CreditCard, PackageCheck, ShoppingBag, Truck } from "lucide-react";
+import { CartStorageClearer } from "@/components/checkout/cart-storage-clearer";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { shopCartStorageKey } from "@/lib/cart/storage-keys";
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getAccountOrdersData } from "@/lib/shop/order-service";
 
@@ -50,6 +52,7 @@ export default async function AccountOrdersPage({ searchParams }: AccountOrdersP
 
   return (
     <DashboardShell title="Orders" description="Your Bouncecore order history, PayPal payment status, and fulfilment progress.">
+      {checkoutComplete ? <CartStorageClearer storageKey={shopCartStorageKey} /> : null}
       <div className="grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Orders</Badge>
