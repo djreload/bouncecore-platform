@@ -8,17 +8,23 @@ import {
   startTrackCheckout
 } from "@/lib/music/track-checkout-service";
 import { cancelStarsCheckout, completeStarsCheckout, startStarsCheckout } from "@/lib/rewards/stars-checkout-service";
-import { cancelShopCheckout, completeShopCheckout, startShopCheckout } from "@/lib/shop/checkout-service";
+import { cancelShopCheckout, completeShopCheckout, startShopCartCheckout, startShopCheckout } from "@/lib/shop/checkout-service";
 
 export type MobileCheckoutPayload = {
   checkoutId?: string;
+  items?: {
+    quantity?: string;
+    variantId?: string;
+  }[];
   paypalOrderId?: string;
   purchaseId?: string;
   orderId?: string;
   packageId?: string;
+  quantities?: string[];
   quantity?: string;
   trackIds?: string[];
   trackId?: string;
+  variantIds?: string[];
   variantId?: string;
 };
 
@@ -35,7 +41,48 @@ function payloadTrackIds(payload: MobileCheckoutPayload) {
   return [];
 }
 
+function payloadShopItems(payload: MobileCheckoutPayload) {
+  if (Array.isArray(payload.items)) {
+    return payload.items
+      .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      .map((item) => ({
+        quantity: typeof item.quantity === "string" ? item.quantity : "1",
+        variantId: typeof item.variantId === "string" ? item.variantId : ""
+      }))
+      .filter((item) => item.variantId);
+  }
+
+  if (Array.isArray(payload.variantIds)) {
+    const quantities = Array.isArray(payload.quantities) ? payload.quantities : [];
+
+    return payload.variantIds
+      .filter((variantId): variantId is string => typeof variantId === "string")
+      .map((variantId, index) => ({
+        quantity: typeof quantities[index] === "string" ? quantities[index] : "1",
+        variantId
+      }));
+  }
+
+  return [];
+}
+
 export async function startMobileShopCheckout(user: CurrentUser, origin: string, payload: MobileCheckoutPayload) {
+  const items = payloadShopItems(payload);
+
+  if (items.length) {
+    const checkout = await startShopCartCheckout(user.id, {
+      items,
+      origin
+    });
+
+    return {
+      approvalUrl: checkout.approvalUrl,
+      orderId: checkout.orderId,
+      provider: "paypal",
+      status: "pending"
+    };
+  }
+
   const checkout = await startShopCheckout(user.id, {
     origin,
     quantity: payloadString(payload, "quantity") || "1",

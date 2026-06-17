@@ -9,11 +9,22 @@ import { prisma } from "@/lib/db/prisma";
 
 const checkoutCurrency = "GBP";
 const maxCheckoutQuantity = 10;
+const maxCheckoutItems = 30;
 
 export type StartShopCheckoutInput = {
   origin: string;
   quantity: string;
   variantId: string;
+};
+
+export type ShopCheckoutItemInput = {
+  quantity: string;
+  variantId: string;
+};
+
+export type StartShopCartCheckoutInput = {
+  items: ShopCheckoutItemInput[];
+  origin: string;
 };
 
 export type StartedShopCheckout = {
@@ -43,56 +54,121 @@ function payPalDescription(productName: string, variantName: string) {
   return `${productName} - ${variantName}`.slice(0, 120);
 }
 
-async function loadCheckoutVariant(variantId: string) {
-  if (!variantId) {
-    throw new Error("Choose a product variant.");
+type CheckoutVariant = {
+  id: string;
+  name: string;
+  pricePence: number;
+  product: {
+    name: string;
+    status: string;
+  };
+  sku: string;
+  stock: number;
+};
+
+function normalizeCartItems(items: ShopCheckoutItemInput[]) {
+  const merged = new Map<string, number>();
+
+  items.forEach((item) => {
+    const variantId = item.variantId.trim();
+
+    if (!variantId) {
+      return;
+    }
+
+    const quantity = checkoutQuantity(item.quantity || "1");
+    merged.set(variantId, (merged.get(variantId) ?? 0) + quantity);
+  });
+
+  if (!merged.size) {
+    throw new Error("Choose at least one product.");
   }
 
-  const variant = await prisma.productVariant.findUnique({
+  if (merged.size > maxCheckoutItems) {
+    throw new Error(`Shop basket checkout supports up to ${maxCheckoutItems} variants at a time.`);
+  }
+
+  return [...merged.entries()].map(([variantId, quantity]) => {
+    if (quantity > maxCheckoutQuantity) {
+      throw new Error(`Quantity must be between 1 and ${maxCheckoutQuantity}.`);
+    }
+
+    return {
+      quantity,
+      variantId
+    };
+  });
+}
+
+async function loadCheckoutVariants(items: ReturnType<typeof normalizeCartItems>) {
+  const variants = await prisma.productVariant.findMany({
     where: {
-      id: variantId
+      id: {
+        in: items.map((item) => item.variantId)
+      }
     },
     include: {
       product: true
     }
   });
+  const variantsById = new Map(variants.map((variant) => [variant.id, variant]));
 
-  if (!variant || variant.product.status !== "active") {
-    throw new Error("That product is not available for checkout.");
-  }
+  return items.map((item) => {
+    const variant = variantsById.get(item.variantId);
 
-  return variant;
+    if (!variant || variant.product.status !== "active") {
+      throw new Error("One or more products are not available for checkout.");
+    }
+
+    if (variant.stock < item.quantity) {
+      throw new Error(`There is not enough stock for ${variant.sku}.`);
+    }
+
+    return {
+      quantity: item.quantity,
+      variant
+    };
+  });
 }
 
-export async function startShopCheckout(userId: string, input: StartShopCheckoutInput): Promise<StartedShopCheckout> {
-  const [settings, variant] = await Promise.all([getPayPalSettings(), loadCheckoutVariant(input.variantId)]);
+function orderItemData(item: { quantity: number; variant: CheckoutVariant }) {
+  const totalPence = item.variant.pricePence * item.quantity;
+
+  return {
+    productName: item.variant.product.name,
+    productVariantId: item.variant.id,
+    quantity: item.quantity,
+    sku: item.variant.sku,
+    totalPence,
+    unitPricePence: item.variant.pricePence,
+    variantName: item.variant.name
+  };
+}
+
+function shopCheckoutDescription(items: { quantity: number; variant: CheckoutVariant }[]) {
+  if (items.length === 1) {
+    return payPalDescription(items[0].variant.product.name, items[0].variant.name);
+  }
+
+  return `${items.length} Bouncecore shop items`.slice(0, 120);
+}
+
+export async function startShopCartCheckout(userId: string, input: StartShopCartCheckoutInput): Promise<StartedShopCheckout> {
+  const normalizedItems = normalizeCartItems(input.items);
+  const [settings, checkoutItems] = await Promise.all([getPayPalSettings(), loadCheckoutVariants(normalizedItems)]);
   const readiness = getPayPalCheckoutReadiness(settings);
-  const quantity = checkoutQuantity(input.quantity);
 
   if (!readiness.ready) {
     throw new Error(readiness.reason ?? "PayPal checkout is not ready.");
   }
 
-  if (variant.stock < quantity) {
-    throw new Error("There is not enough stock for that quantity.");
-  }
-
-  const totalPence = variant.pricePence * quantity;
+  const lineItems = checkoutItems.map(orderItemData);
+  const totalPence = lineItems.reduce((total, item) => total + item.totalPence, 0);
   const order = await prisma.order.create({
     data: {
       currency: checkoutCurrency,
       items: {
-        create: [
-          {
-            productName: variant.product.name,
-            productVariantId: variant.id,
-            quantity,
-            sku: variant.sku,
-            totalPence,
-            unitPricePence: variant.pricePence,
-            variantName: variant.name
-          }
-        ]
+        create: lineItems
       },
       status: "pending",
       totalPence,
@@ -107,16 +183,14 @@ export async function startShopCheckout(userId: string, input: StartShopCheckout
           orderId: order.id
         }),
         currencyCode: checkoutCurrency,
-        description: payPalDescription(variant.product.name, variant.name),
-        items: [
-          {
-            name: payPalDescription(variant.product.name, variant.name),
-            category: "PHYSICAL_GOODS",
-            quantity,
-            sku: variant.sku,
-            unitAmountPence: variant.pricePence
-          }
-        ],
+        description: shopCheckoutDescription(checkoutItems),
+        items: checkoutItems.map((item) => ({
+          name: payPalDescription(item.variant.product.name, item.variant.name),
+          category: "PHYSICAL_GOODS",
+          quantity: item.quantity,
+          sku: item.variant.sku,
+          unitAmountPence: item.variant.pricePence
+        })),
         localOrderId: order.id,
         returnUrl: checkoutUrl(input.origin, "/shop/checkout/return", {
           orderId: order.id
@@ -142,8 +216,11 @@ export async function startShopCheckout(userId: string, input: StartShopCheckout
       severity: "info",
       metadata: {
         paypalOrderId: paypal.paypalOrderId,
-        quantity,
-        sku: variant.sku,
+        items: lineItems.map((item) => ({
+          quantity: item.quantity,
+          sku: item.sku,
+          totalPence: item.totalPence
+        })),
         totalPence
       }
     });
@@ -161,6 +238,18 @@ export async function startShopCheckout(userId: string, input: StartShopCheckout
 
     throw error;
   }
+}
+
+export async function startShopCheckout(userId: string, input: StartShopCheckoutInput): Promise<StartedShopCheckout> {
+  return startShopCartCheckout(userId, {
+    origin: input.origin,
+    items: [
+      {
+        quantity: input.quantity,
+        variantId: input.variantId
+      }
+    ]
+  });
 }
 
 export async function completeShopCheckout(userId: string, orderId: string, paypalOrderId: string) {
