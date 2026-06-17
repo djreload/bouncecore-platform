@@ -57,6 +57,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Fixed upload body-size failures caused by app/proxy limits not matching media requirements.
 - Fixed producer track save failures caused by upload validation and request-size limits.
 - Fixed producer artwork, sample MP3, and download MP3 uploads by uploading media through a dedicated producer upload API before saving track metadata.
+- Fixed uploaded artwork and MP3 playback returning 404 in production by adding a runtime `/uploads/...` file-serving route with byte-range support.
 - Fixed local Streamlabs/OBS connection behavior by supporting separate RTMP/RTMPS server URL and stream key values.
 - Fixed live page social/menu placement issues on mobile.
 - Fixed app example configuration and docs so public repo material does not include real deployment hostnames.
