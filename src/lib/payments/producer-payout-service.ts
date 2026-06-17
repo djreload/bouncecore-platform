@@ -9,6 +9,11 @@ import {
   getPayPalSettings,
   PayPalApiError
 } from "@/lib/payments/paypal-service";
+import {
+  notifyProducerPayoutBatchQueued,
+  notifyProducerPayoutItemStatusBySenderItemId,
+  notifyProducerPayoutItemsForBatchStatus
+} from "@/lib/payments/producer-payout-notification-service";
 
 const activePayoutStatuses = ["pending", "processing", "success", "unclaimed", "onhold"] as const;
 const defaultCurrency = "GBP";
@@ -419,6 +424,8 @@ export async function createProducerPayoutBatch(actorId: string) {
       }
     });
 
+    await notifyProducerPayoutBatchQueued(updated.id);
+
     return updated;
   } catch (error) {
     const errorMessage = payoutApiErrorMessage(error);
@@ -531,6 +538,14 @@ export async function syncProducerPayoutBatch(actorId: string, batchId: string) 
       status: nextBatchStatus
     }
   });
+
+  for (const item of details.items) {
+    await notifyProducerPayoutItemStatusBySenderItemId(item.senderItemId, item.transactionStatus);
+  }
+
+  if ((nextBatchStatus === "denied" || nextBatchStatus === "canceled") && !details.items.length) {
+    await notifyProducerPayoutItemsForBatchStatus(batch.id, nextBatchStatus);
+  }
 
   return prisma.producerPayoutBatch.findUniqueOrThrow({
     where: {

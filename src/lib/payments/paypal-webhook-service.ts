@@ -9,6 +9,10 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { getPayPalSettings } from "@/lib/payments/paypal-service";
 import {
+  notifyProducerPayoutItemStatus,
+  notifyProducerPayoutItemsForBatchStatus
+} from "@/lib/payments/producer-payout-notification-service";
+import {
   certUrlIsAllowedPayPalUrl,
   extractPayPalWebhookHeaders,
   verifyPayPalWebhookSignature,
@@ -17,6 +21,7 @@ import {
 
 const certificateCache = new Map<string, string>();
 const maxWebhookBodyBytes = 1_000_000;
+const activePayoutStatuses = ["pending", "processing", "success", "unclaimed", "onhold"] as const;
 
 export type PayPalWebhookEventSummary = {
   createdAt: string;
@@ -773,21 +778,56 @@ async function reconcilePayoutBatchEvent(eventType: string, event: Record<string
     };
   }
 
-  const update = await prisma.producerPayoutBatch.updateMany({
-    data: {
-      paypalBatchStatus: status,
-      paypalResponse: jsonValue(event.resource),
-      status,
-      syncedAt: new Date()
+  const batch = await prisma.producerPayoutBatch.findUnique({
+    select: {
+      id: true
     },
     where: {
       paypalPayoutBatchId: batchId
     }
   });
 
+  if (!batch) {
+    return {
+      action: "payout-batch-unmatched"
+    };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.producerPayoutBatch.update({
+      data: {
+        paypalBatchStatus: status,
+        paypalResponse: jsonValue(event.resource),
+        status,
+        syncedAt: new Date()
+      },
+      where: {
+        id: batch.id
+      }
+    });
+
+    if (status === "denied") {
+      await tx.producerPayoutItem.updateMany({
+        data: {
+          status
+        },
+        where: {
+          batchId: batch.id,
+          status: {
+            in: [...activePayoutStatuses]
+          }
+        }
+      });
+    }
+  });
+
+  if (status === "denied") {
+    await notifyProducerPayoutItemsForBatchStatus(batch.id, status);
+  }
+
   return {
-    action: update.count ? "payout-batch-updated" : "payout-batch-unmatched",
-    target: update.count ? `paypal-payout-batch:${batchId}` : undefined
+    action: "payout-batch-updated",
+    target: `paypal-payout-batch:${batchId}`
   };
 }
 
@@ -823,8 +863,27 @@ async function reconcilePayoutItemEvent(eventType: string, event: Record<string,
         }
       : {
           paypalPayoutItemId: payoutItemId
-        }
+      }
   });
+
+  if (update.count) {
+    const item = await prisma.producerPayoutItem.findFirst({
+      select: {
+        id: true
+      },
+      where: senderItemId
+        ? {
+            senderItemId
+          }
+        : {
+            paypalPayoutItemId: payoutItemId
+          }
+    });
+
+    if (item) {
+      await notifyProducerPayoutItemStatus(item.id, status);
+    }
+  }
 
   return {
     action: update.count ? "payout-item-updated" : "payout-item-unmatched",
