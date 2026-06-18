@@ -2,6 +2,8 @@ import "./chat-effects.test.mjs";
 import "./email-address.test.mjs";
 import "./ingest-url.test.mjs";
 import "./media-service.test.mjs";
+import "./media-gateway-state.test.mjs";
+import "./music-checkout-errors.test.mjs";
 import "./music-ranking.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./paypal-webhook-signature.test.mjs";

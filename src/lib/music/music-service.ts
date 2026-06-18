@@ -340,6 +340,7 @@ function toPublicTrack(track: {
     name: string;
     slug: string;
     bio: string | null;
+    userId: string;
   };
   purchases?: {
     downloadCount: number;
@@ -798,7 +799,8 @@ export async function getPublicMusicTracks(): Promise<PublicMusicTrack[]> {
         select: {
           bio: true,
           name: true,
-          slug: true
+          slug: true,
+          userId: true
         }
       }
     },
@@ -820,6 +822,23 @@ export async function getPurchasedMusicTrackIds(userId: string) {
   });
 
   return new Set(purchases.map((purchase) => purchase.trackId));
+}
+
+export async function getOwnProducerTrackIds(userId: string) {
+  const profile = await prisma.producerProfile.findUnique({
+    where: {
+      userId
+    },
+    select: {
+      tracks: {
+        select: {
+          id: true
+        }
+      }
+    }
+  });
+
+  return new Set((profile?.tracks ?? []).map((track) => track.id));
 }
 
 function toAccountDownloadRow(purchase: {
@@ -1114,7 +1133,8 @@ export async function getPublicProducerProfiles(): Promise<PublicProducerProfile
         producer: {
           bio: profile.bio,
           name: profile.name,
-          slug: profile.slug
+          slug: profile.slug,
+          userId: profile.userId
         }
       })
     )
@@ -1165,7 +1185,8 @@ export async function getPublicProducerProfileBySlug(slug: string): Promise<Publ
         producer: {
           bio: profile.bio,
           name: profile.name,
-          slug: profile.slug
+          slug: profile.slug,
+          userId: profile.userId
         }
       })
     )

@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { resolveTranscoderSourceUrlTemplate } from "../lib/stream/transcoder-source";
+import { mediaGatewayPathOnline } from "../lib/stream/media-gateway-state";
 
 type StreamStatus = "offline" | "starting" | "live" | "degraded";
 type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
@@ -83,6 +84,7 @@ const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envVa
 const transcoderEnabled = envValue("TRANSCODER_ENABLED").toLowerCase() === "true";
 const transcoderPlaybackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") : "";
 const mediaGatewayPlaybackUrl = transcoderPlaybackUrl || envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
+const mediaGatewayApiUrl = envValue("MEDIA_GATEWAY_API_URL").replace(/\/+$/, "");
 const transcoderSourceUrlTemplate =
   envValue("STREAM_CORE_TRANSCODER_SOURCE_URL") || envValue("TRANSCODER_INPUT_URL") || "rtmp://media-gateway:1935/{path}";
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
@@ -419,6 +421,7 @@ function derivedState() {
   const now = new Date();
   const lastIngestAt = state.lastIngestAt ? new Date(state.lastIngestAt) : null;
   const stale =
+    !mediaGatewayApiUrl &&
     state.ingestConnected &&
     lastIngestAt &&
     Number.isFinite(lastIngestAt.getTime()) &&
@@ -461,6 +464,59 @@ function derivedState() {
       status: healthStatus
     }
   };
+}
+
+async function refreshMediaGatewayState() {
+  if (!mediaGatewayApiUrl || !state.ingestPath || !state.ingestConnected) {
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
+
+  try {
+    const response = await fetch(`${mediaGatewayApiUrl}/v3/paths/list?itemsPerPage=100`, {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const online = mediaGatewayPathOnline(await response.json(), state.ingestPath);
+    const now = new Date().toISOString();
+
+    if (online === true) {
+      state.checkedAt = now;
+      state.lastIngestAt = now;
+      state.ingestConnected = true;
+      state.status = state.status === "offline" ? "live" : state.status;
+      await persistState();
+      return;
+    }
+
+    if (online === false) {
+      state.checkedAt = now;
+      state.lastIngestAt = now;
+      state.ingestConnected = false;
+      state.status = "offline";
+      state.bitrateKbps = null;
+      await persistState();
+    }
+  } catch {
+    return;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function refreshedState() {
+  await refreshMediaGatewayState();
+
+  return derivedState();
 }
 
 async function loadState() {
@@ -785,7 +841,7 @@ async function handleIngest(request: IncomingMessage, response: ServerResponse, 
   }
 
   await persistState();
-  json(response, 200, derivedState());
+  json(response, 200, await refreshedState());
 }
 
 async function handleStatusMutation(request: IncomingMessage, response: ServerResponse) {
@@ -814,7 +870,7 @@ async function handleStatusMutation(request: IncomingMessage, response: ServerRe
   state.lastIngestAt = state.ingestConnected ? state.checkedAt : state.lastIngestAt;
 
   await persistState();
-  json(response, 200, derivedState());
+  json(response, 200, await refreshedState());
 }
 
 async function route(request: IncomingMessage, response: ServerResponse) {
@@ -835,7 +891,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
           return;
         }
 
-        json(response, 200, derivedState());
+        json(response, 200, await refreshedState());
         return;
       }
 
@@ -854,7 +910,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       }
 
       json(response, 200, {
-        playbackUrl: derivedState().playbackUrl
+        playbackUrl: (await refreshedState()).playbackUrl
       });
       return;
     }
@@ -869,7 +925,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
         return;
       }
 
-      if (!derivedState().health.ingestConnected) {
+      if (!(await refreshedState()).health.ingestConnected) {
         noContent(response);
         return;
       }

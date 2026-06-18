@@ -65,6 +65,7 @@ services:
       STREAM_CORE_STATE_FILE: /data/state.json
       STREAM_CORE_KEY_VALIDATION_URL: http://app:3000/internal/stream/keys/validate
       STREAM_CORE_KEY_VALIDATION_TOKEN: ${INTERNAL_TASK_TOKEN:?INTERNAL_TASK_TOKEN is required}
+      MEDIA_GATEWAY_API_URL: http://media-gateway:9997
     command: ["npm", "run", "stream-core"]
     ports:
       - "127.0.0.1:${STREAM_CORE_HTTP_BIND_PORT:-18088}:8088"
@@ -88,6 +89,8 @@ services:
     environment:
       MTX_AUTHMETHOD: http
       MTX_AUTHHTTPADDRESS: http://stream-core:8088/api/mediamtx/auth?token=${STREAM_CORE_INTERNAL_TOKEN:?STREAM_CORE_INTERNAL_TOKEN is required}
+      MTX_API: "true"
+      MTX_APIADDRESS: :9997
       MTX_RTSP: "false"
       MTX_RTMP: "true"
       MTX_RTMPENCRYPTION: ${MEDIA_GATEWAY_RTMP_ENCRYPTION:-no}

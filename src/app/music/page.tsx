@@ -2,10 +2,10 @@
 import { CreditCard, Disc3, Download, Music, Play, SlidersHorizontal, Trophy } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getTopDownloadedMusicTracks } from "@/lib/music/music-ranking";
-import { getPublicMusicTracks, getPurchasedMusicTrackIds, type PublicMusicTrack } from "@/lib/music/music-service";
+import { getOwnProducerTrackIds, getPublicMusicTracks, getPurchasedMusicTrackIds, type PublicMusicTrack } from "@/lib/music/music-service";
 import { getPayPalIntegrationData, getPayPalMusicReadiness } from "@/lib/payments/paypal-service";
 import { MusicCartButton, MusicCartProvider, type MusicCartTrack } from "./music-cart-panel";
 
@@ -30,6 +30,22 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
     message: "Music checkout could not start for that track.",
     tone: "pink"
   },
+  "already-owned": {
+    message: "That track is already attached to your account.",
+    tone: "amber"
+  },
+  "empty-cart": {
+    message: "Choose at least one music track before starting checkout.",
+    tone: "amber"
+  },
+  "free-track": {
+    message: "Free tracks do not need PayPal checkout.",
+    tone: "amber"
+  },
+  "own-track": {
+    message: "You cannot buy your own producer track.",
+    tone: "amber"
+  },
   "paypal-not-ready": {
     message: "PayPal music checkout needs client ID and server secret configuration before purchases can start.",
     tone: "pink"
@@ -41,6 +57,10 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
   success: {
     message: "PayPal music checkout complete. The track is now attached to your account.",
     tone: "acid"
+  },
+  "track-unavailable": {
+    message: "That music track is not available for checkout.",
+    tone: "pink"
   }
 };
 
@@ -92,6 +112,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
   const params = searchParams ? await searchParams : {};
   const [tracks, paypal, currentUser] = await Promise.all([getPublicMusicTracks(), getPayPalIntegrationData(), getCurrentUser()]);
   const purchasedTrackIds = currentUser ? await getPurchasedMusicTrackIds(currentUser.id) : new Set<string>();
+  const ownTrackIds = currentUser ? await getOwnProducerTrackIds(currentUser.id) : new Set<string>();
   const checkoutReadiness = getPayPalMusicReadiness(paypal.settings, paypal.secretConfigured);
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
   const topTracks = getTopDownloadedMusicTracks(tracks, 20);
@@ -102,7 +123,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
   const cartTracks: MusicCartTrack[] = tracks.map((track) => ({
     artworkUrl: track.artworkUrl,
     id: track.id,
-    owned: purchasedTrackIds.has(track.id),
+    owned: purchasedTrackIds.has(track.id) || ownTrackIds.has(track.id),
     pricePence: track.pricePence,
     producerName: track.producerName,
     title: track.title
@@ -161,6 +182,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
             <div className="divide-y divide-bc-line">
               {tracks.map((track) => {
                 const owned = purchasedTrackIds.has(track.id);
+                const ownTrack = ownTrackIds.has(track.id);
 
                 return (
                   <article className="grid gap-4 p-4 md:grid-cols-[6rem_minmax(0,1fr)_14rem] md:items-center" key={track.id}>
@@ -170,6 +192,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                       <div className="flex flex-wrap gap-2">
                         <Badge tone="acid">Approved</Badge>
                         {owned ? <Badge tone="cyan">Owned</Badge> : null}
+                        {ownTrack ? <Badge tone="amber">Your track</Badge> : null}
                         <Badge tone="muted">Added {formatDate(track.createdAt)}</Badge>
                       </div>
                       <h2 className="mt-3 text-2xl font-black">{track.title}</h2>
@@ -210,7 +233,11 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                             Preview
                           </ButtonLink>
                         ) : null}
-                        {owned ? (
+                        {ownTrack ? (
+                          <Button disabled size="sm" type="button" variant="ghost">
+                            Your track
+                          </Button>
+                        ) : owned ? (
                           <ButtonLink href="/account/downloads" size="sm" variant="primary">
                             <Download className="h-4 w-4" aria-hidden="true" />
                             Downloads
@@ -247,6 +274,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
               <ol className="divide-y divide-bc-line">
                 {topTracks.map((track, index) => {
                   const owned = purchasedTrackIds.has(track.id);
+                  const ownTrack = ownTrackIds.has(track.id);
                   const rank = index + 1;
 
                   return (
@@ -266,7 +294,11 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                         </div>
                       </div>
                       <div className="mt-3 flex justify-end">
-                        {owned ? (
+                        {ownTrack ? (
+                          <Button disabled size="sm" type="button" variant="ghost">
+                            Your track
+                          </Button>
+                        ) : owned ? (
                           <ButtonLink href="/account/downloads" size="sm" variant="primary">
                             <Download className="h-4 w-4" aria-hidden="true" />
                             Downloads
