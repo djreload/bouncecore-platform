@@ -17,6 +17,10 @@ export type MobileConfigInput = {
   appName: string;
   environmentLabel?: string;
   features: Record<MobileFeatureKey, boolean>;
+  levelPlayAppKey?: string;
+  levelPlayBannerAdUnitId?: string;
+  levelPlayInterstitialAdUnitId?: string;
+  levelPlayTestSuiteEnabled: boolean;
   maintenanceEnabled: boolean;
   maintenanceMessage?: string;
   supportEmail?: string;
@@ -30,6 +34,16 @@ export type MobileConfig = {
   } | null;
   apiVersion: "mobile-v1";
   appName: string;
+  ads: {
+    enabled: boolean;
+    levelPlay: {
+      appKey: string | null;
+      bannerAdUnitId: string | null;
+      interstitialAdUnitId: string | null;
+      testSuiteEnabled: boolean;
+    };
+    provider: "levelplay";
+  };
   environment: string;
   features: Record<MobileFeatureKey, boolean>;
   maintenance: {
@@ -71,10 +85,20 @@ const defaultFeatures: Record<MobileFeatureKey, boolean> = {
 function defaultMobileConfig(): MobileConfig {
   return {
     announcement: null,
+    ads: {
+      enabled: false,
+      levelPlay: {
+        appKey: null,
+        bannerAdUnitId: null,
+        interstitialAdUnitId: null,
+        testSuiteEnabled: false
+      },
+      provider: "levelplay"
+    },
     apiVersion: "mobile-v1",
     appName: "Bouncecore",
     environment: process.env.NODE_ENV ?? "development",
-    features: defaultFeatures,
+    features: { ...defaultFeatures },
     maintenance: {
       enabled: false,
       message: null
@@ -143,6 +167,20 @@ function normalizedAccent(value: string | undefined) {
   return accent;
 }
 
+function normalizedAdIdentifier(value: string | undefined, maxLength: number, label: string) {
+  const text = normalizedText(value, maxLength);
+
+  if (!text) {
+    return null;
+  }
+
+  if (!/^[a-zA-Z0-9._:-]+$/.test(text)) {
+    throw new Error(`${label} can only contain letters, numbers, dot, underscore, colon, or dash.`);
+  }
+
+  return text;
+}
+
 function mergeMobileConfig(value: unknown): MobileConfig {
   const config = defaultMobileConfig();
 
@@ -152,6 +190,34 @@ function mergeMobileConfig(value: unknown): MobileConfig {
 
   if (typeof value.appName === "string" && value.appName.trim()) {
     config.appName = value.appName.trim().slice(0, 80);
+  }
+
+  if (isObject(value.ads)) {
+    if (typeof value.ads.enabled === "boolean") {
+      config.ads.enabled = value.ads.enabled;
+    }
+
+    if (value.ads.provider === "levelplay") {
+      config.ads.provider = "levelplay";
+    }
+
+    if (isObject(value.ads.levelPlay)) {
+      if (typeof value.ads.levelPlay.appKey === "string" && value.ads.levelPlay.appKey.trim()) {
+        config.ads.levelPlay.appKey = value.ads.levelPlay.appKey.trim().slice(0, 80);
+      }
+
+      if (typeof value.ads.levelPlay.bannerAdUnitId === "string" && value.ads.levelPlay.bannerAdUnitId.trim()) {
+        config.ads.levelPlay.bannerAdUnitId = value.ads.levelPlay.bannerAdUnitId.trim().slice(0, 80);
+      }
+
+      if (typeof value.ads.levelPlay.interstitialAdUnitId === "string" && value.ads.levelPlay.interstitialAdUnitId.trim()) {
+        config.ads.levelPlay.interstitialAdUnitId = value.ads.levelPlay.interstitialAdUnitId.trim().slice(0, 80);
+      }
+
+      if (typeof value.ads.levelPlay.testSuiteEnabled === "boolean") {
+        config.ads.levelPlay.testSuiteEnabled = value.ads.levelPlay.testSuiteEnabled;
+      }
+    }
   }
 
   if (typeof value.environment === "string" && value.environment.trim()) {
@@ -213,9 +279,27 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
   const maintenanceMessage = normalizedText(input.maintenanceMessage, 200);
   const announcementTitle = normalizedText(input.announcementTitle, 120);
   const announcementBody = normalizedText(input.announcementBody, 300);
+  const features = mobileFeatureKeys.reduce<Record<MobileFeatureKey, boolean>>(
+    (featureFlags, key) => ({
+      ...featureFlags,
+      [key]: Boolean(input.features[key])
+    }),
+    { ...defaultFeatures }
+  );
+  const levelPlayAppKey = normalizedAdIdentifier(input.levelPlayAppKey, 80, "LevelPlay app key");
+  const levelPlayBannerAdUnitId = normalizedAdIdentifier(input.levelPlayBannerAdUnitId, 80, "LevelPlay banner ad unit ID");
+  const levelPlayInterstitialAdUnitId = normalizedAdIdentifier(
+    input.levelPlayInterstitialAdUnitId,
+    80,
+    "LevelPlay interstitial ad unit ID"
+  );
 
   if (announcementBody && !announcementTitle) {
     throw new Error("Announcement title is required when announcement body is set.");
+  }
+
+  if (features.ads && (!levelPlayAppKey || !levelPlayBannerAdUnitId || !levelPlayInterstitialAdUnitId)) {
+    throw new Error("LevelPlay app key, banner ad unit ID, and interstitial ad unit ID are required when mobile ads are enabled.");
   }
 
   return {
@@ -227,14 +311,18 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
       : null,
     apiVersion: "mobile-v1",
     appName: normalizedRequiredText(input.appName, 80, "App name"),
+    ads: {
+      enabled: features.ads,
+      levelPlay: {
+        appKey: levelPlayAppKey,
+        bannerAdUnitId: levelPlayBannerAdUnitId,
+        interstitialAdUnitId: levelPlayInterstitialAdUnitId,
+        testSuiteEnabled: input.levelPlayTestSuiteEnabled
+      },
+      provider: "levelplay"
+    },
     environment: normalizedText(input.environmentLabel, 40) ?? process.env.NODE_ENV ?? "development",
-    features: mobileFeatureKeys.reduce<Record<MobileFeatureKey, boolean>>(
-      (features, key) => ({
-        ...features,
-        [key]: Boolean(input.features[key])
-      }),
-      { ...defaultFeatures }
-    ),
+    features,
     maintenance: {
       enabled: input.maintenanceEnabled,
       message:
@@ -267,6 +355,7 @@ export async function getPublicMobileConfig() {
   const { config } = await readMobileConfigSetting();
 
   return {
+    ads: config.ads,
     announcement: config.announcement,
     apiVersion: config.apiVersion,
     app: config.appName,
@@ -306,6 +395,14 @@ export async function getAdminMobileConfigData(): Promise<AdminMobileConfigData>
         label: "Announcement",
         status: config.announcement ? "warning" : "ready",
         value: config.announcement ? "active" : "none"
+      },
+      {
+        detail: config.ads.enabled
+          ? "LevelPlay app key and ad units are returned to native app clients."
+          : "Mobile ads are disabled in the public app configuration.",
+        label: "LevelPlay ads",
+        status: config.ads.enabled ? "ready" : "warning",
+        value: config.ads.enabled ? "enabled" : "disabled"
       }
     ],
     config,
@@ -345,7 +442,11 @@ export async function updateMobileConfig(input: MobileConfigInput, actorId: stri
     severity: config.maintenance.enabled ? "warning" : "info",
     metadata: {
       appName: config.appName,
+      adsEnabled: config.ads.enabled,
       enabledFeatures: mobileFeatureKeys.filter((key) => config.features[key]),
+      levelPlayConfigured: Boolean(
+        config.ads.levelPlay.appKey && config.ads.levelPlay.bannerAdUnitId && config.ads.levelPlay.interstitialAdUnitId
+      ),
       maintenanceEnabled: config.maintenance.enabled,
       themeMode: config.theme.mode
     }

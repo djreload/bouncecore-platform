@@ -36,6 +36,10 @@ function mobileConfigInput(formData: FormData): MobileConfigInput {
         shop: false
       }
     ),
+    levelPlayAppKey: formString(formData, "levelPlayAppKey"),
+    levelPlayBannerAdUnitId: formString(formData, "levelPlayBannerAdUnitId"),
+    levelPlayInterstitialAdUnitId: formString(formData, "levelPlayInterstitialAdUnitId"),
+    levelPlayTestSuiteEnabled: formBoolean(formData, "levelPlayTestSuiteEnabled"),
     maintenanceEnabled: formBoolean(formData, "maintenanceEnabled"),
     maintenanceMessage: formString(formData, "maintenanceMessage"),
     supportEmail: formString(formData, "supportEmail"),

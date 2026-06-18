@@ -10,6 +10,8 @@ This is a small native Android wrapper for the Bouncecore site. It renders the c
 - Interstitial ad unit: set with `LEVELPLAY_INTERSTITIAL_AD_UNIT_ID`
 
 The Android wrapper uses Unity LevelPlay SDK. Ads are disabled if the app key is missing.
+At runtime the app fetches `https://your-domain.example/api/mobile/v1/config` and uses the saved admin mobile settings first.
+The Gradle properties are fallback values for local testing or if the backend config cannot be reached.
 
 ## Build
 
@@ -50,6 +52,7 @@ Add `-LevelPlayTestSuite` to launch Unity's LevelPlay integration test suite aft
 - The WebView blocks navigation away from the configured host.
 - Banner ads render in a native bottom container.
 - The Android Activity applies status-bar and navigation-bar insets so the site does not render underneath phone system icons.
+- The app reads app name, maintenance mode, and LevelPlay ad settings from `/api/mobile/v1/config` on launch and periodically on resume.
 - LevelPlay does not document a separate app-open ad format in the Android guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
 - The app-open full-screen ad shows once per app process after it has loaded and uses a three-minute cooldown.
 - The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `AD_ID`.

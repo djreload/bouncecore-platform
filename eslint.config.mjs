@@ -5,5 +5,14 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts"])
+  globalIgnores([
+    ".codex-run/**",
+    ".next/**",
+    "android-webview/.gradle/**",
+    "android-webview/app/build/**",
+    "android-webview/build/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts"
+  ])
 ]);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
+import { Megaphone, Save, Settings2, Smartphone, Wrench, BadgeDollarSign } from "lucide-react";
 import { adminMobileAction } from "@/app/admin/mobile/actions";
 import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
 import { Badge } from "@/components/ui/badge";
@@ -174,6 +174,68 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <BadgeDollarSign className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+                <h4 className="font-black">LevelPlay ads</h4>
+              </div>
+              <Badge tone={data.config.ads.enabled ? "acid" : "muted"}>
+                {data.config.ads.enabled ? "enabled" : "disabled"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-bc-muted">
+              These public native app values are returned by the mobile config endpoint and consumed by the Android wrapper.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-levelplay-app-key">
+                  App key
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.levelPlay.appKey ?? ""}
+                  disabled={pending}
+                  id="mobile-levelplay-app-key"
+                  name="levelPlayAppKey"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-levelplay-banner-id">
+                  Banner ad unit ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.levelPlay.bannerAdUnitId ?? ""}
+                  disabled={pending}
+                  id="mobile-levelplay-banner-id"
+                  name="levelPlayBannerAdUnitId"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-levelplay-interstitial-id">
+                  Interstitial ad unit ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.levelPlay.interstitialAdUnitId ?? ""}
+                  disabled={pending}
+                  id="mobile-levelplay-interstitial-id"
+                  name="levelPlayInterstitialAdUnitId"
+                />
+              </div>
+            </div>
+            <label className="mt-4 flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+              <input
+                defaultChecked={data.config.ads.levelPlay.testSuiteEnabled}
+                disabled={pending}
+                name="levelPlayTestSuiteEnabled"
+                type="checkbox"
+              />
+              Launch LevelPlay test suite on app start
+            </label>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
