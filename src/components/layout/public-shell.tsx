@@ -9,10 +9,11 @@ import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-setti
 
 type PublicShellProps = {
   children: React.ReactNode;
+  hideFooterOnMobile?: boolean;
   siteSettings?: Pick<SiteSettings, "footerSummary" | "siteName" | "stagingTarget">;
 };
 
-export async function PublicShell({ children, siteSettings }: PublicShellProps) {
+export async function PublicShell({ children, hideFooterOnMobile = false, siteSettings }: PublicShellProps) {
   const [navigationItems, themeStyle, resolvedSiteSettings] = await Promise.all([
     getPublicMenuNavigation(),
     getSiteThemeStyle(),
@@ -25,7 +26,10 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
   const stagingTarget = resolvedSiteSettings.stagingTarget ?? null;
 
   return (
-    <div className="min-h-screen bg-bc-void text-white" style={themeStyle}>
+    <div
+      className={`${hideFooterOnMobile ? "h-dvh overflow-hidden lg:h-auto lg:min-h-screen lg:overflow-visible" : "min-h-screen"} bg-bc-void text-white`}
+      style={themeStyle}
+    >
       <header className="sticky top-0 z-40 border-b border-bc-line/80 bg-bc-void/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
           <Link className="bc-focus-ring flex items-center gap-3 rounded-md" href="/">
@@ -52,7 +56,7 @@ export async function PublicShell({ children, siteSettings }: PublicShellProps) 
       </header>
       <StarSupportOverlay />
       {children}
-      <footer className="border-t border-bc-line bg-bc-ink">
+      <footer className={`${hideFooterOnMobile ? "hidden lg:block" : ""} border-t border-bc-line bg-bc-ink`}>
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-bc-muted md:grid-cols-3">
           <p>{footerSummary}</p>
           <p>Owncast-derived code is reserved for future headless stream-core work only.</p>

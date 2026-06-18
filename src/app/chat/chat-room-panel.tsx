@@ -283,6 +283,30 @@ export function ChatRoomPanel({
     scrollToLatestMessage();
   }, [latestMessageId, scrollToLatestMessage]);
 
+  useEffect(() => {
+    if (!mobileLiveMode || typeof window === "undefined" || !window.visualViewport) {
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+
+    function updateKeyboardInset() {
+      const keyboardInset = Math.max(0, window.innerHeight - visualViewport.height - visualViewport.offsetTop);
+
+      document.documentElement.style.setProperty("--bc-mobile-keyboard-inset", `${Math.round(keyboardInset)}px`);
+    }
+
+    updateKeyboardInset();
+    visualViewport.addEventListener("resize", updateKeyboardInset);
+    visualViewport.addEventListener("scroll", updateKeyboardInset);
+
+    return () => {
+      visualViewport.removeEventListener("resize", updateKeyboardInset);
+      visualViewport.removeEventListener("scroll", updateKeyboardInset);
+      document.documentElement.style.removeProperty("--bc-mobile-keyboard-inset");
+    };
+  }, [mobileLiveMode]);
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
       return;
@@ -290,6 +314,19 @@ export function ChatRoomPanel({
 
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  }
+
+  function handleComposerFocus() {
+    if (!mobileLiveMode) {
+      return;
+    }
+
+    const keepComposerVisible = () => {
+      textareaRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    };
+
+    window.setTimeout(keepComposerVisible, 80);
+    window.setTimeout(keepComposerVisible, 320);
   }
 
   async function searchGifs(event: FormEvent<HTMLFormElement>) {
@@ -605,7 +642,13 @@ export function ChatRoomPanel({
         </div>
       </div>
 
-      <div className={cn("shrink-0 border-t border-bc-line p-4", mobileLiveMode && "p-3")}>
+      <div
+        className={cn(
+          "shrink-0 border-t border-bc-line p-4",
+          mobileLiveMode &&
+            "sticky bottom-0 z-30 max-h-[52dvh] overflow-y-auto bg-bc-panel/95 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom)+var(--bc-mobile-keyboard-inset,0px))] backdrop-blur-md lg:static lg:max-h-none lg:overflow-visible lg:bg-transparent lg:p-3 lg:backdrop-blur-none"
+        )}
+      >
         {state.message ? (
           <div
             className={`mb-3 rounded-md border p-3 text-sm ${
@@ -638,6 +681,7 @@ export function ChatRoomPanel({
                 maxLength={500}
                 name="body"
                 onChange={(event) => setComposerBody(event.target.value)}
+                onFocus={handleComposerFocus}
                 onKeyDown={handleComposerKeyDown}
                 placeholder={`Message #${visibleRoom?.slug ?? selectedRoom.slug}`}
                 ref={textareaRef}
@@ -655,7 +699,7 @@ export function ChatRoomPanel({
                 className={cn(
                   "flex flex-wrap items-center justify-between gap-3",
                   mobileLiveMode &&
-                    "sticky bottom-0 z-20 -mx-3 -mb-3 border-t border-bc-line bg-bc-panel/90 px-3 py-2 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+                    "sticky bottom-0 z-20 -mx-2.5 -mb-2.5 border-t border-bc-line bg-bc-panel/90 px-2.5 py-2 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
                 )}
               >
                 <p className={cn("text-xs text-bc-muted", mobileLiveMode && "hidden lg:block")}>
