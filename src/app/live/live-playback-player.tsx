@@ -333,7 +333,7 @@ export function LivePlaybackPlayer({
   }
 
   return (
-    <section className="bc-scanlines relative aspect-video overflow-hidden rounded-md border border-bc-line bg-black shadow-2xl shadow-bc-electric/10">
+    <section className="bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x">
       {canAttemptPlayback ? (
         <video
           autoPlay
@@ -380,16 +380,16 @@ export function LivePlaybackPlayer({
         </div>
       ) : null}
 
-      <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
+      <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
         <Badge tone={statusTone(liveState.status)}>{liveState.status.toUpperCase()}</Badge>
         <Badge tone="muted">{sourceLabel}</Badge>
         <Badge tone={adaptiveEnabled ? "acid" : "muted"}>{adaptiveEnabled ? "AUTO ABR" : "SINGLE SOURCE"}</Badge>
       </div>
 
-      <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-md border border-white/10 bg-black/68 px-4 py-3 backdrop-blur">
+      <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-black/72 px-3 py-2 backdrop-blur">
         <div>
-          <p className="text-xs font-semibold uppercase text-bc-muted">Now playing</p>
-          <h2 className="mt-1 text-lg font-black">{liveState.title}</h2>
+          <p className="text-[11px] font-semibold uppercase text-bc-muted">Now playing</p>
+          <h2 className="text-sm font-black sm:text-base">{liveState.title}</h2>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-bc-muted">
           <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">

@@ -379,11 +379,11 @@ export function ChatRoomPanel({
 
   return (
     <section className={cn("min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
-      <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
+      <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
-            <h2 className={cn("mt-3 font-black", compact ? "text-xl" : "text-2xl", mobileLiveMode && "mt-2 text-lg lg:mt-3 lg:text-xl")}>
+            <h2 className={cn("mt-3 font-black", compact ? "text-xl" : "text-2xl", mobileLiveMode && "mt-2 text-lg")}>
               {visibleRoom?.name ?? "Chat rooms"}
             </h2>
             <p className={cn("mt-1 text-sm text-bc-muted", mobileLiveMode && "text-xs lg:text-sm")}>
@@ -456,7 +456,7 @@ export function ChatRoomPanel({
               <article
                 className={cn(
                   "min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-ink p-3",
-                  mobileLiveMode && "bg-bc-ink/80 backdrop-blur-sm lg:bg-bc-ink lg:backdrop-blur-none"
+                  mobileLiveMode && "border-white/10 bg-black/35 p-2.5 backdrop-blur-sm lg:bg-black/25 lg:backdrop-blur-none"
                 )}
                 key={message.id}
               >
@@ -601,7 +601,7 @@ export function ChatRoomPanel({
         </div>
       </div>
 
-      <div className={cn("shrink-0 border-t border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
+      <div className={cn("shrink-0 border-t border-bc-line p-4", mobileLiveMode && "p-3")}>
         {state.message ? (
           <div
             className={`mb-3 rounded-md border p-3 text-sm ${
@@ -621,7 +621,7 @@ export function ChatRoomPanel({
                 This chat room is locked by moderation.
               </div>
             ) : null}
-            {visibleRoom?.type === "live" ? renderStarsForm(mobileLiveMode ? "hidden lg:grid" : undefined) : null}
+            {visibleRoom?.type === "live" ? renderStarsForm(mobileLiveMode ? "hidden" : undefined) : null}
 
             <form action={formAction} className={cn("grid gap-3", mobileLiveMode && "gap-2 lg:gap-3")}>
               <input name="intent" type="hidden" value="text" />
@@ -629,7 +629,7 @@ export function ChatRoomPanel({
               <textarea
                 className={cn(
                   "min-h-24 min-w-0 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
-                  mobileLiveMode && "min-h-14 max-h-20 resize-none lg:min-h-24 lg:max-h-none lg:resize-y"
+                  mobileLiveMode && "min-h-14 max-h-20 resize-none lg:min-h-16 lg:max-h-24"
                 )}
                 maxLength={500}
                 name="body"
@@ -672,7 +672,7 @@ export function ChatRoomPanel({
                   />
                   {mobileLiveMode && liveStarsEnabled ? (
                     <Button
-                      className="min-h-9 shrink-0 px-3 text-xs lg:hidden"
+                      className="min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm"
                       disabled={roomLockedForUser}
                       onClick={() => {
                         setStarsPanelOpen((open) => !open);
@@ -727,7 +727,7 @@ export function ChatRoomPanel({
               </div>
             </form>
 
-            {mobileLiveMode && starsPanelOpen ? renderStarsForm("lg:hidden", true) : null}
+            {mobileLiveMode && starsPanelOpen ? renderStarsForm(undefined, true) : null}
 
             {assetPanelOpen ? (
               <section className="rounded-md border border-bc-line bg-bc-ink p-3">
