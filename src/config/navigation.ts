@@ -122,6 +122,7 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Prize claims", href: "/admin/prize-claims", icon: "badge", group: "Rewards", requiredRoles: ["owner", "admin"] },
   { label: "App config", href: "/admin/mobile", icon: "settings", group: "Mobile App", requiredRoles: ["owner", "admin"] },
   { label: "Push notifications", href: "/admin/push", icon: "bell", group: "Mobile App", requiredRoles: ["owner", "admin"] },
+  { label: "Notification logs", href: "/admin/notification-logs", icon: "activity", group: "Mobile App", requiredRoles: ["owner", "admin"] },
   { label: "Pages", href: "/admin/pages", icon: "layout", group: "Site & Design", requiredRoles: ["owner", "admin"] },
   { label: "Menus", href: "/admin/menus", icon: "search", group: "Site & Design", requiredRoles: ["owner", "admin"] },
   { label: "Themes", href: "/admin/themes", icon: "palette", group: "Site & Design", requiredRoles: ["owner", "admin"] },

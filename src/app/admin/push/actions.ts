@@ -25,6 +25,7 @@ function pushInput(formData: FormData): AdminPushInput {
 
 function revalidatePushViews() {
   revalidatePath("/admin/push");
+  revalidatePath("/admin/notification-logs");
   revalidatePath("/admin/audit-logs");
   revalidatePath("/account");
   revalidatePath("/account/notifications");
