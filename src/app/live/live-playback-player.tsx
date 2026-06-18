@@ -2,30 +2,15 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Hls from "hls.js";
-import type { ErrorData, Level } from "hls.js";
-import { AlertTriangle, Play, Radio, SignalHigh, SlidersHorizontal, Wifi, WifiOff } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
+import type { ErrorData } from "hls.js";
+import { Radio, WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 type LivePlaybackPlayerProps = {
   title: string;
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
-  viewerCount: number;
-  healthStatus: string;
-  streamProfile: StreamProfileSummary | null;
-};
-
-type PlaybackEngine = "none" | "hls-js" | "native-hls" | "browser";
-
-type PlaybackLevel = {
-  bitrateKbps: number;
-  height: number | null;
-  index: number;
-  label: string;
-  width: number | null;
 };
 
 type LivePlaybackState = {
@@ -33,9 +18,6 @@ type LivePlaybackState = {
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
-  viewerCount: number;
-  healthStatus: string;
-  streamProfile: StreamProfileSummary | null;
 };
 
 type LiveStatusPayload = {
@@ -48,33 +30,9 @@ type LiveStatusPayload = {
   };
   channel?: {
     title?: unknown;
-    streamProfile?: StreamProfileSummary | null;
+    streamProfile?: unknown;
   } | null;
 };
-
-function statusTone(status: string) {
-  if (status === "live") {
-    return "acid" as const;
-  }
-
-  if (status === "starting" || status === "degraded") {
-    return "amber" as const;
-  }
-
-  return "muted" as const;
-}
-
-function hostLabel(playbackUrl: string | null) {
-  if (!playbackUrl) {
-    return "No source";
-  }
-
-  try {
-    return new URL(playbackUrl).host;
-  } catch {
-    return "Configured source";
-  }
-}
 
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
@@ -88,67 +46,21 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
-function levelLabel(level: Level, index: number): PlaybackLevel {
-  const bitrateKbps = Math.round((level.bitrate || 0) / 1000);
-  const height = level.height || null;
-  const width = level.width || null;
-  const label = level.name || (height ? `${height}p` : bitrateKbps ? `${bitrateKbps} Kbps` : `Profile ${index + 1}`);
-
-  return {
-    bitrateKbps,
-    height,
-    index,
-    label: bitrateKbps ? `${label} / ${bitrateKbps} Kbps` : label,
-    width
-  };
-}
-
-function formatBandwidth(value: number | null) {
-  if (!value || !Number.isFinite(value)) {
-    return "Measuring";
-  }
-
-  return `${Math.max(1, Math.round(value / 1000)).toLocaleString("en-GB")} Kbps`;
-}
-
-function configuredProfileLabel(profile: StreamProfileSummary | null) {
-  if (!profile) {
-    return "Profile waiting";
-  }
-
-  return `${profile.label} ${profile.videoHeight}p${profile.fps}`;
-}
-
 export function LivePlaybackPlayer({
   title,
   status,
   playbackUrl,
-  offlineImageUrl,
-  viewerCount,
-  healthStatus,
-  streamProfile
+  offlineImageUrl
 }: LivePlaybackPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [playerState, setPlayerState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [playbackEngine, setPlaybackEngine] = useState<PlaybackEngine>("none");
-  const [levels, setLevels] = useState<PlaybackLevel[]>([]);
-  const [currentLevel, setCurrentLevel] = useState<number>(-1);
-  const [selectedLevel, setSelectedLevel] = useState<number>(-1);
-  const [bandwidthEstimate, setBandwidthEstimate] = useState<number | null>(null);
   const [liveState, setLiveState] = useState<LivePlaybackState>({
     title,
     status,
     playbackUrl,
-    offlineImageUrl,
-    viewerCount,
-    healthStatus,
-    streamProfile
+    offlineImageUrl
   });
   const canAttemptPlayback = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
-  const sourceLabel = useMemo(() => hostLabel(liveState.playbackUrl), [liveState.playbackUrl]);
-  const activeLevel = currentLevel >= 0 ? levels.find((level) => level.index === currentLevel) : null;
-  const adaptiveEnabled = playbackEngine === "hls-js" || playbackEngine === "native-hls";
 
   useEffect(() => {
     let cancelled = false;
@@ -178,10 +90,7 @@ export function LivePlaybackPlayer({
               ? payload.offlineImageUrl
               : payload.offlineImageUrl === null
                 ? null
-                : current.offlineImageUrl,
-          viewerCount: typeof payload.viewerCount === "number" ? payload.viewerCount : current.viewerCount,
-          healthStatus: typeof payload.health?.status === "string" ? payload.health.status : current.healthStatus,
-          streamProfile: payload.channel?.streamProfile ?? current.streamProfile
+                : current.offlineImageUrl
         }));
       } catch {
         // Keep the last known state if the transient status poll fails.
@@ -201,23 +110,6 @@ export function LivePlaybackPlayer({
     const video = videoRef.current;
     let cancelled = false;
     const currentPlaybackUrl = liveState.playbackUrl;
-
-    function applyState(update: () => void) {
-      window.queueMicrotask(() => {
-        if (!cancelled) {
-          update();
-        }
-      });
-    }
-
-    applyState(() => {
-      setPlayerState(canAttemptPlayback ? "loading" : "idle");
-      setPlaybackEngine("none");
-      setLevels([]);
-      setCurrentLevel(-1);
-      setSelectedLevel(-1);
-      setBandwidthEstimate(null);
-    });
 
     if (!video) {
       return () => {
@@ -246,35 +138,19 @@ export function LivePlaybackPlayer({
         startLevel: -1
       });
       hlsRef.current = hls;
-      applyState(() => setPlaybackEngine("hls-js"));
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (cancelled) {
           return;
         }
 
-        const nextLevels = hls.levels.map(levelLabel);
-        setLevels(nextLevels);
-        setBandwidthEstimate(hls.bandwidthEstimate);
-        setPlayerState("ready");
         void video.play().catch(() => undefined);
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
-        if (cancelled) {
-          return;
-        }
-
-        setCurrentLevel(data.level);
-        setBandwidthEstimate(hls.bandwidthEstimate);
       });
 
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (cancelled) {
           return;
         }
-
-        setBandwidthEstimate(hls.bandwidthEstimate);
 
         if (!data.fatal) {
           return;
@@ -290,7 +166,6 @@ export function LivePlaybackPlayer({
           return;
         }
 
-        setPlayerState("error");
         hls.destroy();
       });
 
@@ -304,7 +179,6 @@ export function LivePlaybackPlayer({
     }
 
     if (hlsPlayback && video.canPlayType("application/vnd.apple.mpegurl")) {
-      applyState(() => setPlaybackEngine("native-hls"));
       video.src = currentPlaybackUrl;
       void video.play().catch(() => undefined);
       return () => {
@@ -312,7 +186,6 @@ export function LivePlaybackPlayer({
       };
     }
 
-    applyState(() => setPlaybackEngine("browser"));
     video.src = currentPlaybackUrl;
     void video.play().catch(() => undefined);
 
@@ -320,17 +193,6 @@ export function LivePlaybackPlayer({
       cancelled = true;
     };
   }, [canAttemptPlayback, liveState.playbackUrl]);
-
-  function updateSelectedLevel(value: string) {
-    const nextLevel = Number.parseInt(value, 10);
-
-    setSelectedLevel(nextLevel);
-
-    if (hlsRef.current) {
-      hlsRef.current.currentLevel = nextLevel;
-      setBandwidthEstimate(hlsRef.current.bandwidthEstimate);
-    }
-  }
 
   return (
     <section className="bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x">
@@ -341,10 +203,6 @@ export function LivePlaybackPlayer({
           className="absolute inset-0 h-full w-full bg-black object-contain"
           controls
           muted
-          onCanPlay={() => setPlayerState("ready")}
-          onError={() => setPlayerState("error")}
-          onLoadStart={() => setPlayerState("loading")}
-          onPlaying={() => setPlayerState("ready")}
           playsInline
           preload="metadata"
         />
@@ -379,64 +237,6 @@ export function LivePlaybackPlayer({
           </div>
         </div>
       ) : null}
-
-      <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-        <Badge tone={statusTone(liveState.status)}>{liveState.status.toUpperCase()}</Badge>
-        <Badge tone="muted">{sourceLabel}</Badge>
-        <Badge tone={adaptiveEnabled ? "acid" : "muted"}>{adaptiveEnabled ? "AUTO ABR" : "SINGLE SOURCE"}</Badge>
-      </div>
-
-      <div className="absolute bottom-0 left-0 right-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 bg-black/72 px-3 py-2 backdrop-blur">
-        <div>
-          <p className="text-[11px] font-semibold uppercase text-bc-muted">Now playing</p>
-          <h2 className="text-sm font-black sm:text-base">{liveState.title}</h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-bc-muted">
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <SignalHigh className="h-3.5 w-3.5 text-bc-acid" aria-hidden="true" />
-            {liveState.viewerCount} viewers
-          </span>
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <Radio className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
-            {liveState.healthStatus.toUpperCase()}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <Wifi className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
-            {formatBandwidth(bandwidthEstimate)}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-bc-pink" aria-hidden="true" />
-            {activeLevel?.label ?? configuredProfileLabel(liveState.streamProfile)}
-          </span>
-          {playbackEngine === "hls-js" && levels.length > 1 ? (
-            <select
-              aria-label="Playback quality"
-              className="h-8 rounded border border-bc-line bg-black/70 px-2 text-xs font-semibold text-white"
-              onChange={(event) => updateSelectedLevel(event.target.value)}
-              value={selectedLevel}
-            >
-              <option value={-1}>Auto</option>
-              {levels.map((level) => (
-                <option key={level.index} value={level.index}>
-                  {level.label}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          {playerState === "loading" ? (
-            <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-              <Play className="h-3.5 w-3.5 text-bc-amber" aria-hidden="true" />
-              Loading
-            </span>
-          ) : null}
-          {playerState === "error" ? (
-            <span className="inline-flex items-center gap-1 rounded border border-bc-amber/40 bg-bc-amber/10 px-2 py-1 text-bc-amber">
-              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-              Source unavailable
-            </span>
-          ) : null}
-        </div>
-      </div>
     </section>
   );
 }

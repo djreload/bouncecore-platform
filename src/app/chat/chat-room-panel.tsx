@@ -32,6 +32,7 @@ type ChatRoomPanelProps = {
   roleDisplayLabels: RoleDisplayNameMap;
   className?: string;
   compact?: boolean;
+  hideHeader?: boolean;
   mobileLiveMode?: boolean;
   messagesClassName?: string;
   showRoomLinks?: boolean;
@@ -105,6 +106,7 @@ export function ChatRoomPanel({
   roleDisplayLabels,
   className,
   compact = false,
+  hideHeader = false,
   mobileLiveMode = false,
   messagesClassName,
   showRoomLinks = true
@@ -379,63 +381,65 @@ export function ChatRoomPanel({
 
   return (
     <section className={cn("min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
-      <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3")}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
-            <h2 className={cn("mt-3 font-black", compact ? "text-xl" : "text-2xl", mobileLiveMode && "mt-2 text-lg")}>
-              {visibleRoom?.name ?? "Chat rooms"}
-            </h2>
-            <p className={cn("mt-1 text-sm text-bc-muted", mobileLiveMode && "text-xs lg:text-sm")}>
-              {visibleRoom ? `${visibleMessages.length} visible messages in #${visibleRoom.slug}.` : "Create rooms from admin to start chat."}
-            </p>
-            {visibleRoom?.lockedAt || visibleRoom?.slowModeSeconds ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {visibleRoom.lockedAt ? (
-                  <Badge className="gap-1" tone="pink">
-                    <Lock className="h-3 w-3" aria-hidden="true" />
-                    Locked
+      {!hideHeader ? (
+        <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3")}>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
+              <h2 className={cn("mt-3 font-black", compact ? "text-xl" : "text-2xl", mobileLiveMode && "mt-2 text-lg")}>
+                {visibleRoom?.name ?? "Chat rooms"}
+              </h2>
+              <p className={cn("mt-1 text-sm text-bc-muted", mobileLiveMode && "text-xs lg:text-sm")}>
+                {visibleRoom ? `${visibleMessages.length} visible messages in #${visibleRoom.slug}.` : "Create rooms from admin to start chat."}
+              </p>
+              {visibleRoom?.lockedAt || visibleRoom?.slowModeSeconds ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {visibleRoom.lockedAt ? (
+                    <Badge className="gap-1" tone="pink">
+                      <Lock className="h-3 w-3" aria-hidden="true" />
+                      Locked
+                    </Badge>
+                  ) : null}
+                  {visibleRoom.slowModeSeconds > 0 ? (
+                    <Badge className="gap-1" tone="amber">
+                      <Timer className="h-3 w-3" aria-hidden="true" />
+                      {slowModeLabel(visibleRoom.slowModeSeconds)}
+                    </Badge>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            {currentUser ? (
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+                <Badge tone="acid">{currentUser.displayName}</Badge>
+                {currentUser.roles.map((role) => (
+                  <Badge key={role} tone={roleBadgeTone(role)}>
+                    {roleDisplayName(role, roleDisplayLabels)}
                   </Badge>
-                ) : null}
-                {visibleRoom.slowModeSeconds > 0 ? (
-                  <Badge className="gap-1" tone="amber">
-                    <Timer className="h-3 w-3" aria-hidden="true" />
-                    {slowModeLabel(visibleRoom.slowModeSeconds)}
-                  </Badge>
-                ) : null}
+                ))}
               </div>
             ) : null}
           </div>
-          {currentUser ? (
-            <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-              <Badge tone="acid">{currentUser.displayName}</Badge>
-              {currentUser.roles.map((role) => (
-                <Badge key={role} tone={roleBadgeTone(role)}>
-                  {roleDisplayName(role, roleDisplayLabels)}
-                </Badge>
+
+          {showRoomLinks && rooms.length ? (
+            <nav className="mt-4 flex flex-wrap gap-2">
+              {rooms.map((room) => (
+                <Link
+                  className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
+                    selectedRoom?.id === room.id
+                      ? "border-bc-electric/45 bg-bc-electric/10 text-white"
+                      : "border-bc-line bg-bc-ink text-bc-muted hover:text-white"
+                  }`}
+                  href={`/chat?room=${room.slug}`}
+                  key={room.id}
+                >
+                  #{room.slug}
+                </Link>
               ))}
-            </div>
+            </nav>
           ) : null}
         </div>
-
-        {showRoomLinks && rooms.length ? (
-          <nav className="mt-4 flex flex-wrap gap-2">
-            {rooms.map((room) => (
-              <Link
-                className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
-                  selectedRoom?.id === room.id
-                    ? "border-bc-electric/45 bg-bc-electric/10 text-white"
-                    : "border-bc-line bg-bc-ink text-bc-muted hover:text-white"
-                }`}
-                href={`/chat?room=${room.slug}`}
-                key={room.id}
-              >
-                #{room.slug}
-              </Link>
-            ))}
-          </nav>
-        ) : null}
-      </div>
+      ) : null}
 
       <div
         className={cn(

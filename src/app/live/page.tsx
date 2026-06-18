@@ -1,8 +1,6 @@
 import {
-  Bell,
   CalendarClock,
   ExternalLink,
-  Gift,
   Globe2,
   Link2,
   MessageCircle,
@@ -12,7 +10,6 @@ import {
   UserRound,
   Video
 } from "lucide-react";
-import Link from "next/link";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
 import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
@@ -103,36 +100,6 @@ function LiveSocialLinks({ links }: { links: LiveSocialLink[] }) {
   );
 }
 
-function LivePlayerActionStrip({ status, viewerCount }: { status: string; viewerCount: number }) {
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line bg-[linear-gradient(90deg,rgba(255,43,214,0.18),rgba(0,213,255,0.10),rgba(5,5,10,0.96))] px-3 py-2 text-xs lg:rounded-b-md lg:border-x">
-      <div className="flex min-w-0 flex-wrap items-center gap-2 text-bc-muted">
-        <Badge tone={status === "live" ? "acid" : "muted"}>{status === "live" ? "Live now" : "Offline"}</Badge>
-        <span className="inline-flex items-center gap-1 rounded border border-white/10 bg-black/30 px-2 py-1 font-semibold text-white">
-          <Radio className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
-          {viewerCount.toLocaleString("en-GB")} watching
-        </span>
-      </div>
-      <div className="ml-auto flex flex-wrap justify-end gap-2">
-        <Link
-          className="bc-focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-bc-electric/45 bg-bc-electric px-3 font-black text-bc-void shadow-[0_0_22px_rgba(0,213,255,0.24)] transition hover:bg-cyan-300"
-          href="/rewards"
-        >
-          <Gift className="h-4 w-4" aria-hidden="true" />
-          Rewards Wheel
-        </Link>
-        <Link
-          className="bc-focus-ring inline-flex min-h-9 items-center gap-2 rounded-md border border-bc-pink/45 bg-bc-pink px-3 font-black text-white shadow-[0_0_22px_rgba(255,43,214,0.24)] transition hover:bg-fuchsia-400"
-          href="/account/notifications"
-        >
-          <Bell className="h-4 w-4" aria-hidden="true" />
-          Notify
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 export default async function LivePage() {
   const currentUser = await getCurrentUser();
   const [liveState, chatData, roleDisplayLabels, schedules, siteSettings] = await Promise.all([
@@ -207,15 +174,11 @@ export default async function LivePage() {
           <div className="min-w-0 lg:mr-[356px] lg:pb-4 lg:pt-[81px] xl:mr-[380px] 2xl:mr-[400px]">
             <div className="sticky top-[65px] z-20 lg:static lg:z-auto">
               <LivePlaybackPlayer
-                healthStatus={health.status}
                 offlineImageUrl={offlineImageUrl}
                 playbackUrl={playbackUrl}
                 status={status}
-                streamProfile={channel?.streamProfile ?? null}
                 title={channel?.title ?? "Bouncecore Live"}
-                viewerCount={viewerCount}
               />
-              <LivePlayerActionStrip status={status} viewerCount={viewerCount} />
             </div>
             <div className="hidden lg:block">
               <LiveSocialLinks links={siteSettings.liveSocialLinks} />
@@ -278,6 +241,7 @@ export default async function LivePage() {
             <ChatRoomPanel
               className="overflow-visible border-white/15 bg-bc-panel/70 shadow-2xl shadow-black/35 backdrop-blur-md lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:rounded-none lg:border-y-0 lg:border-r-0 lg:border-bc-line lg:bg-[#050712]/95 lg:shadow-none lg:backdrop-blur-none"
               compact
+              hideHeader
               mobileLiveMode
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
               currentStarBalance={currentStarBalance}
