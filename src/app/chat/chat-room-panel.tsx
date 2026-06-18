@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Flag, ImageIcon, Lock, LogIn, MessageSquare, Search, Send, Smile, Star, Timer } from "lucide-react";
+import { Ban, Flag, ImageIcon, Lock, LogIn, MessageSquare, Plus, Search, Send, Smile, Star, Timer, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
@@ -61,6 +61,12 @@ type ChatRoomStreamPayload = {
 };
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
+const inlineBanDurationOptions = [
+  { label: "1 hour", value: "1h" },
+  { label: "24 hours", value: "24h" },
+  { label: "7 days", value: "7d" },
+  { label: "Permanent", value: "permanent" }
+] as const;
 const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
 function formatTime(value: string) {
@@ -124,6 +130,7 @@ export function ChatRoomPanel({
   const [gifLoading, setGifLoading] = useState(false);
   const [composerBody, setComposerBody] = useState("");
   const [selectedEffectId, setSelectedEffectId] = useState("");
+  const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -263,6 +270,7 @@ export function ChatRoomPanel({
 
     const resetTimer = window.setTimeout(() => {
       setComposerBody("");
+      setOpenMessageActionsId(null);
     }, 0);
     const syncTimer = selectedRoomId
       ? window.setTimeout(() => {
@@ -491,6 +499,10 @@ export function ChatRoomPanel({
           {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
             const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
+            const canUseMessageActions = Boolean(currentUser && selectedRoom && !message.deletedAt);
+            const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
+            const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
+            const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
             return (
@@ -510,7 +522,26 @@ export function ChatRoomPanel({
                       </Badge>
                     ))}
                   </div>
-                  <span className="text-xs text-bc-muted">{formatTime(message.createdAt)}</span>
+                  <div className="ml-auto flex shrink-0 items-center gap-1">
+                    <span className="text-xs text-bc-muted">{formatTime(message.createdAt)}</span>
+                    {canUseMessageActions ? (
+                      <button
+                        aria-expanded={messageActionsOpen}
+                        aria-label={`Open actions for ${message.authorDisplayName}'s message`}
+                        className={cn(
+                          "bc-focus-ring inline-grid h-7 w-7 place-items-center rounded-full border text-white transition",
+                          messageActionsOpen
+                            ? "border-bc-electric/60 bg-bc-electric/15"
+                            : "border-bc-line bg-bc-panel hover:border-bc-electric/60"
+                        )}
+                        onClick={() => setOpenMessageActionsId(messageActionsOpen ? null : message.id)}
+                        title="Message actions"
+                        type="button"
+                      >
+                        <Plus className={cn("h-4 w-4 transition", messageActionsOpen && "rotate-45")} aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 {message.kind === "stars" ? (
@@ -556,10 +587,12 @@ export function ChatRoomPanel({
                   <ChatEffectText body={message.body} effectId={message.effectId} />
                 )}
 
-                {selectedRoom && !message.deletedAt ? (
-                  <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-bc-line pt-3">
-                    {currentUser
-                      ? chatReactionOptions.map((reaction) => {
+                {messageActionsOpen && selectedRoom ? (
+                  <div className="mt-3 space-y-3 rounded-md border border-bc-line bg-bc-panel/85 p-2.5">
+                    <div>
+                      <p className="text-[11px] font-black uppercase text-bc-muted">Reactions</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                        {chatReactionOptions.map((reaction) => {
                           const summary = message.reactions.find((item) => item.key === reaction.key);
                           const count = summary?.count ?? 0;
 
@@ -574,7 +607,7 @@ export function ChatRoomPanel({
                                 className={`bc-focus-ring inline-flex min-h-8 items-center gap-1 rounded-full border px-2 text-sm transition disabled:opacity-50 ${
                                   summary?.reacted
                                     ? "border-bc-electric/60 bg-bc-electric/15 text-white"
-                                    : "border-bc-line bg-bc-panel text-bc-muted hover:border-bc-electric/50 hover:text-white"
+                                    : "border-bc-line bg-bc-ink text-bc-muted hover:border-bc-electric/50 hover:text-white"
                                 }`}
                                 disabled={pending || roomLockedForUser}
                                 title={reaction.label}
@@ -585,46 +618,94 @@ export function ChatRoomPanel({
                               </button>
                             </form>
                           );
-                        })
-                      : message.reactions.map((reaction) => {
-                          const option = chatReactionOptions.find((item) => item.key === reaction.key);
-
-                          return option ? (
-                            <span
-                              className="inline-flex min-h-8 items-center gap-1 rounded-full border border-bc-line bg-bc-panel px-2 text-sm text-bc-muted"
-                              key={reaction.key}
-                              title={option.label}
-                            >
-                              <span aria-hidden="true">{option.icon}</span>
-                              <span className="text-xs font-semibold">{reaction.count}</span>
-                            </span>
-                          ) : null;
                         })}
-                  </div>
-                ) : null}
+                      </div>
+                    </div>
 
-                {canReportMessage && selectedRoom ? (
-                  <form action={formAction} className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-bc-line pt-3">
-                    <input name="intent" type="hidden" value="report" />
-                    <input name="roomId" type="hidden" value={selectedRoom.id} />
-                    <input name="messageId" type="hidden" value={message.id} />
-                    <select
-                      aria-label="Report reason"
-                      className="min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs text-white"
-                      defaultValue="spam"
-                      name="reason"
-                    >
-                      {reportReasonOptions.map((reason) => (
-                        <option key={reason} value={reason}>
-                          {reason}
-                        </option>
-                      ))}
-                    </select>
-                    <Button disabled={pending} size="sm" type="submit" variant="dark">
-                      <Flag className="h-4 w-4" aria-hidden="true" />
-                      Report
-                    </Button>
-                  </form>
+                    {canReportMessage ? (
+                      <form action={formAction} className="flex flex-wrap items-center gap-2 border-t border-bc-line pt-3">
+                        <input name="intent" type="hidden" value="report" />
+                        <input name="roomId" type="hidden" value={selectedRoom.id} />
+                        <input name="messageId" type="hidden" value={message.id} />
+                        <input name="reportNotes" type="hidden" value="Reported from the live chat action menu." />
+                        <select
+                          aria-label="Report reason"
+                          className="min-h-9 min-w-0 flex-1 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                          defaultValue="spam"
+                          name="reason"
+                        >
+                          {reportReasonOptions.map((reason) => (
+                            <option key={reason} value={reason}>
+                              {reason}
+                            </option>
+                          ))}
+                        </select>
+                        <Button disabled={pending} size="sm" type="submit" variant="dark">
+                          <Flag className="h-4 w-4" aria-hidden="true" />
+                          Report user
+                        </Button>
+                      </form>
+                    ) : null}
+
+                    {canModerateMessage ? (
+                      <div className="space-y-2 border-t border-bc-line pt-3">
+                        <p className="text-[11px] font-black uppercase text-bc-muted">Moderation</p>
+                        <form action={formAction} className="flex flex-wrap items-center gap-2">
+                          <input name="intent" type="hidden" value="delete-message" />
+                          <input name="roomId" type="hidden" value={selectedRoom.id} />
+                          <input name="messageId" type="hidden" value={message.id} />
+                          <Button disabled={pending} size="sm" type="submit" variant="pink">
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                            Remove message
+                          </Button>
+                        </form>
+
+                        {canBanMessageAuthor ? (
+                          <form action={formAction} className="grid gap-2">
+                            <input name="intent" type="hidden" value="ban-user" />
+                            <input name="roomId" type="hidden" value={selectedRoom.id} />
+                            <input name="targetUserId" type="hidden" value={message.authorUserId ?? ""} />
+                            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                              <select
+                                aria-label="Ban duration"
+                                className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                defaultValue="24h"
+                                name="duration"
+                              >
+                                {inlineBanDurationOptions.map((duration) => (
+                                  <option key={duration.value} value={duration.value}>
+                                    {duration.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <select
+                                aria-label="Ban reason"
+                                className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                defaultValue="spam"
+                                name="banReason"
+                              >
+                                {reportReasonOptions.map((reason) => (
+                                  <option key={reason} value={reason}>
+                                    {reason}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <input
+                              className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                              maxLength={160}
+                              name="banNotes"
+                              placeholder="Optional moderation note"
+                            />
+                            <Button disabled={pending} size="sm" type="submit" variant="dark">
+                              <Ban className="h-4 w-4" aria-hidden="true" />
+                              Ban user from chat
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
                 ) : null}
               </article>
             );

@@ -1,8 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createChatGifMessage, createChatMessage, createChatStickerMessage, toggleChatMessageReaction } from "@/lib/chat/chat-service";
-import { createChatReport } from "@/lib/chat/moderation-service";
+import {
+  createChatGifMessage,
+  createChatMessage,
+  createChatStickerMessage,
+  moderateChatMessage,
+  toggleChatMessageReaction
+} from "@/lib/chat/chat-service";
+import { hasPermission } from "@/lib/auth/rbac";
+import { createChatBan, createChatReport } from "@/lib/chat/moderation-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
 import type { PublicChatActionState } from "@/app/chat/state";
@@ -45,6 +52,27 @@ export async function publicChatAction(
         },
         user.id
       );
+    } else if (intent === "delete-message") {
+      if (!hasPermission(user, "moderation.use")) {
+        throw new Error("You do not have permission to remove chat messages.");
+      }
+
+      await moderateChatMessage(formString(formData, "messageId"), user.id);
+    } else if (intent === "ban-user") {
+      if (!hasPermission(user, "moderation.use")) {
+        throw new Error("You do not have permission to ban chat users.");
+      }
+
+      await createChatBan(
+        {
+          duration: formString(formData, "duration") || "24h",
+          notes: formString(formData, "banNotes"),
+          reason: formString(formData, "banReason") || "Live chat rule violation",
+          roomId,
+          userId: formString(formData, "targetUserId")
+        },
+        user.id
+      );
     } else if (intent === "gif") {
       await createChatGifMessage(roomId, user.id, {
         id: formString(formData, "gifId"),
@@ -73,6 +101,8 @@ export async function publicChatAction(
     revalidatePath("/account/rewards");
     revalidatePath("/admin/stars");
     revalidatePath("/admin/reports");
+    revalidatePath("/admin/bans");
+    revalidatePath("/admin/chatrooms");
     revalidatePath("/admin/audit-logs");
 
     return {
@@ -80,6 +110,10 @@ export async function publicChatAction(
       message:
         intent === "report"
           ? "Report sent to moderators."
+          : intent === "delete-message"
+            ? "Message removed from chat."
+            : intent === "ban-user"
+              ? "Chat ban created."
           : intent === "gif"
             ? "GIF sent."
             : intent === "asset"
@@ -91,10 +125,17 @@ export async function publicChatAction(
               : "Message sent."
     };
   } catch (error) {
-    if (intent === "report") {
+    if (intent === "report" || intent === "delete-message" || intent === "ban-user") {
       return {
         status: "error",
-        message: error instanceof Error ? error.message : "Report was not sent."
+        message:
+          error instanceof Error
+            ? error.message
+            : intent === "delete-message"
+              ? "Message was not removed."
+              : intent === "ban-user"
+                ? "Chat ban was not created."
+                : "Report was not sent."
       };
     }
 
