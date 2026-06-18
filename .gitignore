@@ -39,6 +39,8 @@ public/uploads/*
 .turbo/
 .vercel/
 .codex-run/
+android-webview/.gradle/
+android-webview/app/build/
 
 # Prisma/local data
 *.db

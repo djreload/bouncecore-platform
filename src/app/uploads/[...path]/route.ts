@@ -19,6 +19,7 @@ const allowedUploadRoots = new Set([
   "chat-stickers",
   "music-downloads",
   "music-previews",
+  "profile-avatars",
   "product-images",
   "stream-offline-images",
   "track-artwork"

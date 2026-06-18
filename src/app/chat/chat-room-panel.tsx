@@ -128,6 +128,7 @@ export function ChatRoomPanel({
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
   const [assetPanelOpen, setAssetPanelOpen] = useState(false);
   const [starsPanelOpen, setStarsPanelOpen] = useState(false);
+  const [composerToolsOpen, setComposerToolsOpen] = useState(false);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
@@ -149,9 +150,6 @@ export function ChatRoomPanel({
   const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
   const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
   const liveStarsEnabled = Boolean(selectedRoom && visibleRoom?.type === "live");
-  const mobileComposerControlColumns = liveStarsEnabled
-    ? "grid-cols-[minmax(0,1fr)_2rem_2rem_2rem_3.75rem]"
-    : "grid-cols-[minmax(0,1fr)_2rem_2rem_3.75rem]";
 
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -279,6 +277,7 @@ export function ChatRoomPanel({
     const resetTimer = window.setTimeout(() => {
       setComposerBody("");
       setOpenMessageActionsId(null);
+      setComposerToolsOpen(false);
     }, 0);
     const syncTimer = selectedRoomId
       ? window.setTimeout(() => {
@@ -789,24 +788,6 @@ export function ChatRoomPanel({
                 This chat room is locked by moderation.
               </div>
             ) : null}
-            {currentUserCanClearChat ? (
-              <form action={formAction} className="flex justify-end">
-                <input name="intent" type="hidden" value="clear-room" />
-                <input name="roomId" type="hidden" value={selectedRoom.id} />
-                <Button
-                  className={cn("min-h-8 px-2 text-xs", mobileLiveMode && "min-h-7 px-2 text-[10px] lg:min-h-9 lg:text-xs")}
-                  disabled={pending}
-                  size="sm"
-                  type="submit"
-                  variant="dark"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  Clear chat
-                </Button>
-              </form>
-            ) : null}
-            {visibleRoom?.type === "live" ? renderStarsForm(mobileLiveMode ? "hidden" : undefined) : null}
-
             <form action={formAction} className={cn("grid gap-3", mobileLiveMode && "gap-2 lg:gap-3")}>
               <input name="intent" type="hidden" value="text" />
               <input name="roomId" type="hidden" value={selectedRoom.id} />
@@ -845,77 +826,112 @@ export function ChatRoomPanel({
                 <div
                   className={cn(
                     "flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end",
-                    mobileLiveMode && cn("grid w-full gap-1 overflow-visible pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2", mobileComposerControlColumns)
+                    mobileLiveMode &&
+                      "grid w-full grid-cols-[minmax(0,1fr)_2rem_3.5rem] gap-1 overflow-visible pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2"
                   )}
                 >
                   <ChatEffectSelector
-                    className={mobileLiveMode ? "min-h-8 w-full shrink gap-1 px-1.5 py-1 text-[10px] lg:min-h-10 lg:w-auto lg:gap-2 lg:px-3 lg:py-2 lg:text-sm" : undefined}
+                    className={cn(
+                      "min-h-8 w-full shrink gap-1 px-1.5 py-1 text-[10px] sm:w-auto sm:text-xs",
+                      mobileLiveMode && "lg:min-h-9 lg:w-auto lg:px-2 lg:py-1 lg:text-xs"
+                    )}
                     disabled={roomLockedForUser}
                     onChange={setSelectedEffectId}
                     selectedEffectId={selectedEffectId}
                     userRoles={currentUser.roles}
                   />
-                  {mobileLiveMode && liveStarsEnabled ? (
-                    <Button
-                      aria-label="Open stars panel"
-                      className="h-8 min-h-8 w-8 shrink-0 px-0 text-[0px] lg:h-auto lg:w-auto lg:min-h-10 lg:px-4 lg:text-sm"
-                      disabled={roomLockedForUser}
-                      onClick={() => {
-                        setStarsPanelOpen((open) => !open);
-                        setGifPanelOpen(false);
-                        setAssetPanelOpen(false);
-                      }}
-                      type="button"
-                      variant={starsPanelOpen ? "dark" : "ghost"}
-                    >
-                      <Star className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
-                      <span className="sr-only lg:not-sr-only">Stars</span>
-                    </Button>
-                  ) : null}
                   <Button
-                    aria-label="Open GIF picker"
-                    className={mobileLiveMode ? "h-8 min-h-8 w-8 shrink-0 px-0 text-[0px] lg:h-auto lg:w-auto lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
-                    disabled={roomLockedForUser}
+                    aria-expanded={composerToolsOpen}
+                    aria-label="Open chat tools"
+                    className={cn("h-8 min-h-8 w-8 shrink-0 px-0 text-[0px]", mobileLiveMode && "lg:h-8 lg:w-8 lg:px-0")}
+                    disabled={roomLockedForUser && !currentUserCanClearChat}
                     onClick={() => {
-                      setGifPanelOpen((open) => !open);
-                      setAssetPanelOpen(false);
-                      setStarsPanelOpen(false);
+                      setComposerToolsOpen((open) => !open);
                     }}
                     type="button"
-                    variant={gifPanelOpen ? "dark" : "ghost"}
+                    variant={composerToolsOpen ? "dark" : "ghost"}
                   >
-                    <ImageIcon className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
-                    <span className={mobileLiveMode ? "sr-only lg:not-sr-only" : undefined}>GIF</span>
+                    <Plus className={cn("h-3.5 w-3.5 shrink-0 transition", composerToolsOpen && "rotate-45")} aria-hidden="true" />
+                    <span className="sr-only">Chat tools</span>
                   </Button>
                   <Button
-                    aria-label="Open stickers picker"
-                    className={mobileLiveMode ? "h-8 min-h-8 w-8 shrink-0 px-0 text-[0px] lg:h-auto lg:w-auto lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
-                    disabled={roomLockedForUser}
-                    onClick={() => {
-                      setAssetPanelOpen((open) => !open);
-                      setGifPanelOpen(false);
-                      setStarsPanelOpen(false);
-                    }}
-                    type="button"
-                    variant={assetPanelOpen ? "dark" : "ghost"}
-                  >
-                    <Smile className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
-                    <span className={mobileLiveMode ? "sr-only lg:not-sr-only" : undefined}>Stickers</span>
-                  </Button>
-                  <Button
-                    className={mobileLiveMode ? "h-8 min-h-8 shrink-0 px-2 text-[11px] lg:h-auto lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    className={cn("h-8 min-h-8 shrink-0 px-2 text-[11px]", mobileLiveMode && "lg:h-8 lg:min-h-8 lg:px-3 lg:text-xs")}
                     disabled={pending || roomLockedForUser}
                     type="submit"
                     variant="primary"
                   >
-                    <Send className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
+                    <Send className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     Send
                   </Button>
                 </div>
               </div>
             </form>
 
-            {mobileLiveMode && starsPanelOpen ? renderStarsForm(undefined, true) : null}
+            {composerToolsOpen ? (
+              <section className={cn("rounded-md border border-bc-line bg-bc-ink p-2", mobileLiveMode && "p-1.5")}>
+                <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+                  {liveStarsEnabled ? (
+                    <Button
+                      className="min-h-8 px-2 text-xs"
+                      disabled={roomLockedForUser}
+                      onClick={() => {
+                        setStarsPanelOpen((open) => !open);
+                        setGifPanelOpen(false);
+                        setAssetPanelOpen(false);
+                        setComposerToolsOpen(false);
+                      }}
+                      type="button"
+                      variant={starsPanelOpen ? "dark" : "ghost"}
+                    >
+                      <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                      Stars
+                    </Button>
+                  ) : null}
+                  <Button
+                    className="min-h-8 px-2 text-xs"
+                    disabled={roomLockedForUser}
+                    onClick={() => {
+                      setGifPanelOpen((open) => !open);
+                      setAssetPanelOpen(false);
+                      setStarsPanelOpen(false);
+                      setComposerToolsOpen(false);
+                    }}
+                    type="button"
+                    variant={gifPanelOpen ? "dark" : "ghost"}
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                    GIF
+                  </Button>
+                  <Button
+                    className="min-h-8 px-2 text-xs"
+                    disabled={roomLockedForUser}
+                    onClick={() => {
+                      setAssetPanelOpen((open) => !open);
+                      setGifPanelOpen(false);
+                      setStarsPanelOpen(false);
+                      setComposerToolsOpen(false);
+                    }}
+                    type="button"
+                    variant={assetPanelOpen ? "dark" : "ghost"}
+                  >
+                    <Smile className="h-3.5 w-3.5" aria-hidden="true" />
+                    Stickers
+                  </Button>
+                  {currentUserCanClearChat ? (
+                    <form action={formAction}>
+                      <input name="intent" type="hidden" value="clear-room" />
+                      <input name="roomId" type="hidden" value={selectedRoom.id} />
+                      <Button className="w-full min-h-8 px-2 text-xs" disabled={pending} size="sm" type="submit" variant="pink">
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Clear
+                      </Button>
+                    </form>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {starsPanelOpen ? renderStarsForm(undefined, true) : null}
 
             {assetPanelOpen ? (
               <section className="rounded-md border border-bc-line bg-bc-ink p-3">

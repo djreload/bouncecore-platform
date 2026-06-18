@@ -1,0 +1,40 @@
+plugins {
+    id "com.android.application"
+}
+
+def quoted(String value) {
+    return "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+}
+
+android {
+    namespace "uk.co.bouncecore.app"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "uk.co.bouncecore.app"
+        minSdk 23
+        targetSdk 36
+        versionCode 1
+        versionName "1.0.0"
+
+        buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(providers.gradleProperty("BOUNCECORE_WEB_URL").orElse("https://example.com").get())
+        buildConfigField "String", "UNITY_PROJECT_ID", quoted("61d46651-d0a2-4175-ade1-fc300e58559f")
+        buildConfigField "String", "UNITY_ANDROID_GAME_ID", quoted("6123220")
+        buildConfigField "String", "UNITY_BANNER_AD_UNIT_ID", quoted("Banner_Android")
+        buildConfigField "String", "UNITY_INTERSTITIAL_AD_UNIT_ID", quoted("Interstitial_Android")
+        buildConfigField "boolean", "UNITY_TEST_MODE", providers.gradleProperty("UNITY_TEST_MODE").orElse("true").get().toBoolean().toString()
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation "com.unity3d.ads:unity-ads:4.7.0"
+}
