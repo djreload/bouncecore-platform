@@ -162,7 +162,7 @@ public class MainActivity extends Activity {
                 createAndLoadInterstitial();
 
                 if (BuildConfig.LEVELPLAY_TEST_SUITE_ENABLED) {
-                    LevelPlay.launchTestSuite(getApplicationContext());
+                    mainHandler.postDelayed(() -> LevelPlay.launchTestSuite(MainActivity.this), 500L);
                 }
             }
 
@@ -308,7 +308,8 @@ public class MainActivity extends Activity {
             && interstitialAd.isAdReady()
             && cooldownElapsed
             && !interstitialShowing
-            && !appOpenShownThisSession) {
+            && !appOpenShownThisSession
+            && !BuildConfig.LEVELPLAY_TEST_SUITE_ENABLED) {
             Log.d(TAG, "Showing LevelPlay app-open interstitial after " + reason);
             interstitialAd.showAd(this);
         }
