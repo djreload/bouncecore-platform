@@ -1,14 +1,25 @@
 param(
     [string]$WebUrl = "https://develop.k-nrg.co.uk",
     [string]$Serial = "",
-    [switch]$LiveAds,
-    [switch]$UnitySampleAds,
-    [string]$UnityGameId = "",
+    [switch]$LevelPlayTestSuite,
+    [string]$LevelPlayAppKey = "",
     [string]$BannerAdUnitId = "",
     [string]$InterstitialAdUnitId = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+function Invoke-Native {
+    param(
+        [string]$FilePath,
+        [string[]]$Arguments
+    )
+
+    & $FilePath @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    }
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $androidDir = Join-Path $repoRoot "android-webview"
@@ -46,31 +57,25 @@ $env:ANDROID_USER_HOME = Join-Path $repoRoot ".codex-run\android-home"
 $env:GRADLE_USER_HOME = Join-Path $repoRoot ".codex-run\gradle-home"
 New-Item -ItemType Directory -Force $env:ANDROID_USER_HOME, $env:GRADLE_USER_HOME | Out-Null
 
-$testMode = if ($LiveAds) { "false" } else { "true" }
 $gradleArgs = @(
     "-p", $androidDir,
     "--no-daemon",
     "assembleDebug",
     "-PBOUNCECORE_WEB_URL=$WebUrl",
-    "-PUNITY_TEST_MODE=$testMode"
+    "-PLEVELPLAY_TEST_SUITE_ENABLED=$($LevelPlayTestSuite.IsPresent.ToString().ToLowerInvariant())"
 )
 
-if ($UnitySampleAds) {
-    $UnityGameId = "1486550"
-    $BannerAdUnitId = "banner"
-    $InterstitialAdUnitId = "video"
-}
-if ($UnityGameId) {
-    $gradleArgs += "-PUNITY_ANDROID_GAME_ID=$UnityGameId"
+if ($LevelPlayAppKey) {
+    $gradleArgs += "-PLEVELPLAY_APP_KEY=$LevelPlayAppKey"
 }
 if ($BannerAdUnitId) {
-    $gradleArgs += "-PUNITY_BANNER_AD_UNIT_ID=$BannerAdUnitId"
+    $gradleArgs += "-PLEVELPLAY_BANNER_AD_UNIT_ID=$BannerAdUnitId"
 }
 if ($InterstitialAdUnitId) {
-    $gradleArgs += "-PUNITY_INTERSTITIAL_AD_UNIT_ID=$InterstitialAdUnitId"
+    $gradleArgs += "-PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=$InterstitialAdUnitId"
 }
 
-& (Join-Path $androidDir "gradlew.bat") @gradleArgs
+Invoke-Native -FilePath (Join-Path $androidDir "gradlew.bat") -Arguments $gradleArgs
 
 if (-not (Test-Path $apkPath)) {
     throw "Debug APK was not created at $apkPath"
@@ -87,8 +92,8 @@ if ($Serial) {
     throw "No authorized Android device found. Connect the phone and accept the USB debugging prompt."
 }
 
-& $adb -s $targetSerial install -r -d $apkPath
-& $adb -s $targetSerial shell am force-stop uk.co.bouncecore.app
-& $adb -s $targetSerial shell monkey -p uk.co.bouncecore.app -c android.intent.category.LAUNCHER 1
+Invoke-Native -FilePath $adb -Arguments @("-s", $targetSerial, "install", "-r", "-d", $apkPath)
+Invoke-Native -FilePath $adb -Arguments @("-s", $targetSerial, "shell", "am", "force-stop", "uk.co.bouncecore.app")
+Invoke-Native -FilePath $adb -Arguments @("-s", $targetSerial, "shell", "monkey", "-p", "uk.co.bouncecore.app", "-c", "android.intent.category.LAUNCHER", "1")
 
-Write-Host "Installed and launched Bouncecore on $targetSerial using $WebUrl. Unity test mode: $testMode"
+Write-Host "Installed and launched Bouncecore on $targetSerial using $WebUrl. LevelPlay test suite: $($LevelPlayTestSuite.IsPresent)"

@@ -1,19 +1,19 @@
 package uk.co.bouncecore.app;
 
 import android.app.Activity;
-import android.os.Build;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -23,138 +23,38 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 
-import com.unity3d.ads.IUnityAdsInitializationListener;
-import com.unity3d.ads.IUnityAdsLoadListener;
-import com.unity3d.ads.IUnityAdsShowListener;
-import com.unity3d.ads.UnityAds;
-import com.unity3d.ads.UnityAdsShowOptions;
-import com.unity3d.services.banners.BannerErrorInfo;
-import com.unity3d.services.banners.BannerView;
-import com.unity3d.services.banners.UnityBannerSize;
+import com.unity3d.mediation.LevelPlay;
+import com.unity3d.mediation.LevelPlayAdError;
+import com.unity3d.mediation.LevelPlayAdInfo;
+import com.unity3d.mediation.LevelPlayAdSize;
+import com.unity3d.mediation.LevelPlayConfiguration;
+import com.unity3d.mediation.LevelPlayInitError;
+import com.unity3d.mediation.LevelPlayInitListener;
+import com.unity3d.mediation.LevelPlayInitRequest;
+import com.unity3d.mediation.banner.LevelPlayBannerAdView;
+import com.unity3d.mediation.banner.LevelPlayBannerAdViewListener;
+import com.unity3d.mediation.interstitial.LevelPlayInterstitialAd;
+import com.unity3d.mediation.interstitial.LevelPlayInterstitialAdListener;
 
-public class MainActivity extends Activity implements IUnityAdsInitializationListener {
+public class MainActivity extends Activity {
     private static final String TAG = "BouncecoreAndroid";
     private static final long INTERSTITIAL_COOLDOWN_MS = 180_000L;
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final int MAX_BANNER_RETRIES = 6;
 
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+
     private WebView webView;
     private FrameLayout bannerContainer;
-    private BannerView bannerView;
-    private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private boolean unityAdsReady = false;
+    private LevelPlayBannerAdView bannerAdView;
+    private LevelPlayInterstitialAd interstitialAd;
+
     private boolean activityResumed = false;
-    private boolean interstitialLoaded = false;
-    private boolean interstitialLoading = false;
+    private boolean levelPlayReady = false;
     private boolean interstitialShowing = false;
     private boolean appOpenShownThisSession = false;
     private int bannerRetryCount = 0;
-    private int bannerAdUnitAttempt = 0;
-    private int interstitialAdUnitAttempt = 0;
-    private String loadedInterstitialAdUnitId = BuildConfig.UNITY_INTERSTITIAL_AD_UNIT_ID;
     private long lastInterstitialShownAt = 0L;
-
-    private final IUnityAdsLoadListener interstitialLoadListener = new IUnityAdsLoadListener() {
-        @Override
-        public void onUnityAdsAdLoaded(String placementId) {
-            if (!isKnownInterstitialAdUnit(placementId)) {
-                return;
-            }
-
-            Log.d(TAG, "Full-screen ad loaded: " + placementId);
-            loadedInterstitialAdUnitId = placementId;
-            interstitialLoading = false;
-            interstitialLoaded = true;
-            mainHandler.post(() -> maybeShowAppOpenAd("loaded"));
-        }
-
-        @Override
-        public void onUnityAdsFailedToLoad(String placementId, UnityAds.UnityAdsLoadError error, String message) {
-            if (!isKnownInterstitialAdUnit(placementId)) {
-                return;
-            }
-
-            interstitialLoading = false;
-            interstitialLoaded = false;
-            Log.w(TAG, "Full-screen ad failed to load: " + error + " " + message);
-            if (tryNextInterstitialAdUnit()) {
-                return;
-            }
-        }
-    };
-
-    private final IUnityAdsShowListener interstitialShowListener = new IUnityAdsShowListener() {
-        @Override
-        public void onUnityAdsShowFailure(String placementId, UnityAds.UnityAdsShowError error, String message) {
-            interstitialLoaded = false;
-            interstitialShowing = false;
-            Log.w(TAG, "Full-screen ad failed to show: " + error + " " + message);
-            loadInterstitial();
-        }
-
-        @Override
-        public void onUnityAdsShowStart(String placementId) {
-            Log.d(TAG, "Full-screen ad started: " + placementId);
-            interstitialShowing = true;
-            appOpenShownThisSession = true;
-            lastInterstitialShownAt = SystemClock.elapsedRealtime();
-        }
-
-        @Override
-        public void onUnityAdsShowClick(String placementId) {
-            Log.d(TAG, "Interstitial clicked: " + placementId);
-        }
-
-        @Override
-        public void onUnityAdsShowComplete(String placementId, UnityAds.UnityAdsShowCompletionState state) {
-            interstitialLoaded = false;
-            interstitialShowing = false;
-            loadInterstitial();
-        }
-    };
-
-    private final BannerView.IListener bannerListener = new BannerView.IListener() {
-        @Override
-        public void onBannerLoaded(BannerView bannerAdView) {
-            bannerRetryCount = 0;
-            bannerContainer.setVisibility(View.VISIBLE);
-            Log.d(TAG, "Banner loaded: " + bannerAdView.getPlacementId());
-        }
-
-        @Override
-        public void onBannerFailedToLoad(BannerView bannerAdView, BannerErrorInfo errorInfo) {
-            Log.w(TAG, "Banner failed to load: " + errorInfo.errorCode + " " + errorInfo.errorMessage);
-            bannerContainer.removeAllViews();
-            bannerContainer.setVisibility(View.GONE);
-            if (bannerView == bannerAdView) {
-                bannerView.destroy();
-                bannerView = null;
-            }
-
-            if (tryNextBannerAdUnit()) {
-                return;
-            }
-
-            if (bannerRetryCount < MAX_BANNER_RETRIES) {
-                bannerRetryCount += 1;
-                mainHandler.postDelayed(() -> {
-                    if (unityAdsReady && activityResumed) {
-                        loadBanner();
-                    }
-                }, BANNER_RETRY_DELAY_MS);
-            }
-        }
-
-        @Override
-        public void onBannerClick(BannerView bannerAdView) {
-            Log.d(TAG, "Banner clicked: " + bannerAdView.getPlacementId());
-        }
-
-        @Override
-        public void onBannerLeftApplication(BannerView bannerAdView) {
-            Log.d(TAG, "Banner left app: " + bannerAdView.getPlacementId());
-        }
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -162,7 +62,7 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
         configureWindow();
         setContentView(createLayout());
         configureWebView();
-        initializeUnityAds();
+        initializeLevelPlay();
         webView.loadUrl(BuildConfig.BOUNCECORE_WEB_URL);
     }
 
@@ -237,139 +137,223 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                maybeShowAppOpenAd("page-finished");
+                maybeShowAppOpenInterstitial("page-finished");
             }
         });
     }
 
-    private void initializeUnityAds() {
-        UnityAds.setDebugMode(BuildConfig.UNITY_TEST_MODE);
-        UnityAds.initialize(getApplicationContext(), BuildConfig.UNITY_ANDROID_GAME_ID, BuildConfig.UNITY_TEST_MODE, this);
+    private void initializeLevelPlay() {
+        if (TextUtils.isEmpty(BuildConfig.LEVELPLAY_APP_KEY)) {
+            Log.w(TAG, "LevelPlay app key is not configured; ads are disabled for this build.");
+            return;
+        }
+
+        if (BuildConfig.LEVELPLAY_TEST_SUITE_ENABLED) {
+            LevelPlay.setMetaData("is_test_suite", "enable");
+        }
+
+        LevelPlayInitRequest initRequest = new LevelPlayInitRequest.Builder(BuildConfig.LEVELPLAY_APP_KEY).build();
+        LevelPlay.init(this, initRequest, new LevelPlayInitListener() {
+            @Override
+            public void onInitSuccess(LevelPlayConfiguration configuration) {
+                levelPlayReady = true;
+                Log.d(TAG, "LevelPlay initialized");
+                createAndLoadBanner();
+                createAndLoadInterstitial();
+
+                if (BuildConfig.LEVELPLAY_TEST_SUITE_ENABLED) {
+                    LevelPlay.launchTestSuite(getApplicationContext());
+                }
+            }
+
+            @Override
+            public void onInitFailed(LevelPlayInitError error) {
+                levelPlayReady = false;
+                Log.w(TAG, "LevelPlay init failed: " + error);
+            }
+        });
     }
 
-    @Override
-    public void onInitializationComplete() {
-        unityAdsReady = true;
-        Log.d(TAG, "Unity Ads initialized");
-        loadBanner();
+    private void createAndLoadBanner() {
+        if (!levelPlayReady || TextUtils.isEmpty(BuildConfig.LEVELPLAY_BANNER_AD_UNIT_ID)) {
+            Log.w(TAG, "LevelPlay banner ad unit is not configured; banner is disabled.");
+            return;
+        }
+
+        destroyBanner();
+
+        LevelPlayAdSize adSize = LevelPlayAdSize.BANNER;
+        LevelPlayBannerAdView.Config adConfig = new LevelPlayBannerAdView.Config.Builder()
+            .setAdSize(adSize)
+            .build();
+
+        bannerAdView = new LevelPlayBannerAdView(this, BuildConfig.LEVELPLAY_BANNER_AD_UNIT_ID, adConfig);
+        bannerAdView.setBannerListener(new LevelPlayBannerAdViewListener() {
+            @Override
+            public void onAdLoaded(LevelPlayAdInfo adInfo) {
+                bannerRetryCount = 0;
+                bannerContainer.setVisibility(View.VISIBLE);
+                Log.d(TAG, "LevelPlay banner loaded: " + adInfo);
+            }
+
+            @Override
+            public void onAdLoadFailed(LevelPlayAdError error) {
+                Log.w(TAG, "LevelPlay banner failed to load: " + error);
+                destroyBanner();
+                retryBannerLoad();
+            }
+
+            @Override
+            public void onAdDisplayed(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay banner displayed: " + adInfo);
+            }
+
+            @Override
+            public void onAdDisplayFailed(LevelPlayAdInfo adInfo, LevelPlayAdError error) {
+                Log.w(TAG, "LevelPlay banner failed to display: " + error + " " + adInfo);
+            }
+
+            @Override
+            public void onAdClicked(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay banner clicked: " + adInfo);
+            }
+
+            @Override
+            public void onAdExpanded(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay banner expanded: " + adInfo);
+            }
+
+            @Override
+            public void onAdCollapsed(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay banner collapsed: " + adInfo);
+            }
+
+            @Override
+            public void onAdLeftApplication(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay banner left app: " + adInfo);
+            }
+        });
+
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(dp(320), dp(50), Gravity.CENTER);
+        bannerContainer.addView(bannerAdView, params);
+        bannerAdView.loadAd();
+    }
+
+    private void createAndLoadInterstitial() {
+        if (!levelPlayReady || TextUtils.isEmpty(BuildConfig.LEVELPLAY_INTERSTITIAL_AD_UNIT_ID)) {
+            Log.w(TAG, "LevelPlay interstitial ad unit is not configured; full-screen ads are disabled.");
+            return;
+        }
+
+        interstitialAd = new LevelPlayInterstitialAd(BuildConfig.LEVELPLAY_INTERSTITIAL_AD_UNIT_ID);
+        interstitialAd.setListener(new LevelPlayInterstitialAdListener() {
+            @Override
+            public void onAdLoaded(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay interstitial loaded: " + adInfo);
+                mainHandler.post(() -> maybeShowAppOpenInterstitial("loaded"));
+            }
+
+            @Override
+            public void onAdLoadFailed(LevelPlayAdError error) {
+                Log.w(TAG, "LevelPlay interstitial failed to load: " + error);
+            }
+
+            @Override
+            public void onAdDisplayed(LevelPlayAdInfo adInfo) {
+                interstitialShowing = true;
+                appOpenShownThisSession = true;
+                lastInterstitialShownAt = SystemClock.elapsedRealtime();
+                Log.d(TAG, "LevelPlay interstitial displayed: " + adInfo);
+            }
+
+            @Override
+            public void onAdDisplayFailed(LevelPlayAdError error, LevelPlayAdInfo adInfo) {
+                interstitialShowing = false;
+                Log.w(TAG, "LevelPlay interstitial failed to display: " + error + " " + adInfo);
+                loadInterstitial();
+            }
+
+            @Override
+            public void onAdClicked(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay interstitial clicked: " + adInfo);
+            }
+
+            @Override
+            public void onAdClosed(LevelPlayAdInfo adInfo) {
+                interstitialShowing = false;
+                loadInterstitial();
+            }
+
+            @Override
+            public void onAdInfoChanged(LevelPlayAdInfo adInfo) {
+                Log.d(TAG, "LevelPlay interstitial info changed: " + adInfo);
+            }
+        });
+
         loadInterstitial();
     }
 
-    @Override
-    public void onInitializationFailed(UnityAds.UnityAdsInitializationError error, String message) {
-        Log.w(TAG, "Unity Ads initialization failed: " + error + " " + message);
-    }
-
-    private void loadBanner() {
-        if (!unityAdsReady) {
-            return;
-        }
-
-        bannerContainer.removeAllViews();
-        if (bannerView != null) {
-            bannerView.destroy();
-            bannerView = null;
-        }
-
-        String bannerAdUnitId = bannerAdUnitCandidates()[bannerAdUnitAttempt];
-        Log.d(TAG, "Loading banner ad unit: " + bannerAdUnitId);
-        bannerView = new BannerView(this, bannerAdUnitId, new UnityBannerSize(320, 50));
-        bannerView.setListener(bannerListener);
-        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(dp(320), dp(50), Gravity.CENTER);
-        bannerContainer.addView(bannerView, params);
-        bannerView.load();
-    }
-
     private void loadInterstitial() {
-        if (!unityAdsReady || interstitialLoading || interstitialLoaded) {
-            return;
+        if (interstitialAd != null) {
+            interstitialAd.loadAd();
         }
-
-        interstitialLoading = true;
-        String interstitialAdUnitId = interstitialAdUnitCandidates()[interstitialAdUnitAttempt];
-        Log.d(TAG, "Loading full-screen ad unit: " + interstitialAdUnitId);
-        UnityAds.load(interstitialAdUnitId, interstitialLoadListener);
     }
 
-    private void maybeShowAppOpenAd(String reason) {
+    private void maybeShowAppOpenInterstitial(String reason) {
         long now = SystemClock.elapsedRealtime();
         boolean cooldownElapsed = now - lastInterstitialShownAt >= INTERSTITIAL_COOLDOWN_MS;
 
-        if (activityResumed && interstitialLoaded && cooldownElapsed && !interstitialShowing && !appOpenShownThisSession) {
-            Log.d(TAG, "Showing app-open full-screen ad after " + reason);
-            UnityAds.show(this, loadedInterstitialAdUnitId, new UnityAdsShowOptions(), interstitialShowListener);
+        if (activityResumed
+            && interstitialAd != null
+            && interstitialAd.isAdReady()
+            && cooldownElapsed
+            && !interstitialShowing
+            && !appOpenShownThisSession) {
+            Log.d(TAG, "Showing LevelPlay app-open interstitial after " + reason);
+            interstitialAd.showAd(this);
         }
     }
 
-    private boolean tryNextBannerAdUnit() {
-        String[] candidates = bannerAdUnitCandidates();
-        if (bannerAdUnitAttempt >= candidates.length - 1) {
-            return false;
+    private void retryBannerLoad() {
+        if (bannerRetryCount >= MAX_BANNER_RETRIES) {
+            return;
         }
 
-        bannerAdUnitAttempt += 1;
-        Log.d(TAG, "Retrying banner with test ad unit: " + candidates[bannerAdUnitAttempt]);
+        bannerRetryCount += 1;
         mainHandler.postDelayed(() -> {
-            if (unityAdsReady && activityResumed) {
-                loadBanner();
+            if (levelPlayReady && activityResumed) {
+                createAndLoadBanner();
             }
-        }, 1_000L);
-        return true;
+        }, BANNER_RETRY_DELAY_MS);
     }
 
-    private boolean tryNextInterstitialAdUnit() {
-        String[] candidates = interstitialAdUnitCandidates();
-        if (interstitialAdUnitAttempt >= candidates.length - 1) {
-            return false;
+    private void destroyBanner() {
+        bannerContainer.removeAllViews();
+        bannerContainer.setVisibility(View.GONE);
+
+        if (bannerAdView != null) {
+            bannerAdView.destroy();
+            bannerAdView = null;
         }
-
-        interstitialAdUnitAttempt += 1;
-        Log.d(TAG, "Retrying full-screen ad with test ad unit: " + candidates[interstitialAdUnitAttempt]);
-        mainHandler.postDelayed(this::loadInterstitial, 1_000L);
-        return true;
-    }
-
-    private String[] bannerAdUnitCandidates() {
-        if (!BuildConfig.UNITY_TEST_MODE) {
-            return new String[] { BuildConfig.UNITY_BANNER_AD_UNIT_ID };
-        }
-
-        return new String[] { BuildConfig.UNITY_BANNER_AD_UNIT_ID, "banner", "topBanner", "bottomBanner" };
-    }
-
-    private String[] interstitialAdUnitCandidates() {
-        if (!BuildConfig.UNITY_TEST_MODE) {
-            return new String[] { BuildConfig.UNITY_INTERSTITIAL_AD_UNIT_ID };
-        }
-
-        return new String[] { BuildConfig.UNITY_INTERSTITIAL_AD_UNIT_ID, "video" };
-    }
-
-    private boolean isKnownInterstitialAdUnit(String placementId) {
-        for (String candidate : interstitialAdUnitCandidates()) {
-            if (candidate.equals(placementId)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         activityResumed = true;
-        if (unityAdsReady) {
-            if (bannerView == null) {
-                loadBanner();
-            }
-            loadInterstitial();
-            maybeShowAppOpenAd("resume");
+        maybeShowAppOpenInterstitial("resume");
+
+        if (bannerAdView != null) {
+            bannerAdView.resumeAutoRefresh();
         }
     }
 
     @Override
     protected void onPause() {
+        if (bannerAdView != null) {
+            bannerAdView.pauseAutoRefresh();
+        }
+
         activityResumed = false;
         super.onPause();
     }
@@ -386,12 +370,7 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
 
     @Override
     protected void onDestroy() {
-        if (bannerView != null) {
-            bannerContainer.removeAllViews();
-            bannerView.destroy();
-            bannerView = null;
-        }
-
+        destroyBanner();
         mainHandler.removeCallbacksAndMessages(null);
 
         if (webView != null) {
