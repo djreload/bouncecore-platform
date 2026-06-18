@@ -31,6 +31,10 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
     message: "PayPal stars checkout needs client ID and server secret configuration before purchases can start.",
     tone: "pink"
   },
+  "paypal-api-error": {
+    message: "PayPal rejected the stars checkout request. Check sandbox/live mode and API credentials, then try again.",
+    tone: "pink"
+  },
   success: {
     message: "PayPal stars checkout complete. Your wallet has been credited.",
     tone: "acid"

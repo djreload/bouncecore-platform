@@ -2,6 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { appOrigin, appUrl } from "@/lib/http/app-url";
+import { paypalCheckoutErrorParam } from "@/lib/payments/paypal-checkout-errors";
 import { startStarsCheckout } from "@/lib/rewards/stars-checkout-service";
 
 function rewardsRedirect(request: NextRequest, checkout: string) {
@@ -28,9 +29,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.redirect(checkout.approvalUrl, 303);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    const checkout = message.includes("PayPal") ? "paypal-not-ready" : "error";
-
-    return rewardsRedirect(request, checkout);
+    return rewardsRedirect(request, paypalCheckoutErrorParam(error));
   }
 }

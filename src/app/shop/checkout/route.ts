@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { appOrigin, appUrl } from "@/lib/http/app-url";
+import { paypalCheckoutErrorParam } from "@/lib/payments/paypal-checkout-errors";
 import { startShopCartCheckout } from "@/lib/shop/checkout-service";
 
 function shopRedirect(request: NextRequest, checkout: string) {
@@ -28,9 +29,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.redirect(checkout.approvalUrl, 303);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    const checkout = message.includes("PayPal") ? "paypal-not-ready" : "error";
-
-    return shopRedirect(request, checkout);
+    return shopRedirect(request, paypalCheckoutErrorParam(error));
   }
 }
