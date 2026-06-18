@@ -21,11 +21,13 @@ To point the WebView at your live site, set this Gradle property:
 BOUNCECORE_WEB_URL=https://your-domain.example
 ```
 
-For command-line builds when Gradle is installed:
+For command-line debug builds on Windows:
 
 ```powershell
-gradle -p android-webview assembleDebug -PBOUNCECORE_WEB_URL=https://your-domain.example
+.\android-webview\gradlew.bat -p android-webview --no-daemon assembleDebug -PBOUNCECORE_WEB_URL=https://your-domain.example -PUNITY_TEST_MODE=true
 ```
+
+The debug APK is written to `android-webview/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Notes
 
