@@ -378,8 +378,8 @@ export function ChatRoomPanel({
   }
 
   return (
-    <section className={cn("min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
-      <div className={cn("border-b border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
+    <section className={cn("min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
+      <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <Badge tone={visibleRoom ? roomTone(visibleRoom.type) : "muted"}>{visibleRoom?.type ?? "Chat"}</Badge>
@@ -440,7 +440,7 @@ export function ChatRoomPanel({
       <div
         className={cn(
           compact ? "max-h-[380px]" : "max-h-[560px]",
-          "overflow-y-auto overflow-x-hidden p-4",
+          "min-h-0 overflow-y-auto overflow-x-hidden p-4",
           messagesClassName
         )}
         data-testid="chat-message-list"
@@ -601,7 +601,7 @@ export function ChatRoomPanel({
         </div>
       </div>
 
-      <div className={cn("border-t border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
+      <div className={cn("shrink-0 border-t border-bc-line p-4", mobileLiveMode && "p-3 lg:p-4")}>
         {state.message ? (
           <div
             className={`mb-3 rounded-md border p-3 text-sm ${
