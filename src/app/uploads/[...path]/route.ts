@@ -54,7 +54,7 @@ function resolveUploadPath(segments: string[]) {
     return null;
   }
 
-  const filePath = path.normalize(path.join(/*turbopackIgnore: true*/ uploadsRoot, ...segments));
+  const filePath = path.normalize(path.join(uploadsRoot, ...segments));
   const uploadRootWithSeparator = `${uploadsRoot}${path.sep}`;
 
   if (!filePath.startsWith(uploadRootWithSeparator)) {
@@ -113,7 +113,7 @@ async function uploadResponse(request: Request, context: RouteContext, includeBo
   let fileStat;
 
   try {
-    fileStat = await stat(filePath);
+    fileStat = await stat(/* turbopackIgnore: true */ filePath);
   } catch {
     return NextResponse.json({ error: "Upload not found." }, { status: 404 });
   }
@@ -144,7 +144,7 @@ async function uploadResponse(request: Request, context: RouteContext, includeBo
     const length = range.end - range.start + 1;
 
     return new Response(
-      includeBody ? (Readable.toWeb(createReadStream(filePath, range)) as ReadableStream<Uint8Array>) : null,
+      includeBody ? (Readable.toWeb(createReadStream(/* turbopackIgnore: true */ filePath, range)) as ReadableStream<Uint8Array>) : null,
       {
         headers: {
           ...baseHeaders,
@@ -156,7 +156,7 @@ async function uploadResponse(request: Request, context: RouteContext, includeBo
     );
   }
 
-  return new Response(includeBody ? (Readable.toWeb(createReadStream(filePath)) as ReadableStream<Uint8Array>) : null, {
+  return new Response(includeBody ? (Readable.toWeb(createReadStream(/* turbopackIgnore: true */ filePath)) as ReadableStream<Uint8Array>) : null, {
     headers: {
       ...baseHeaders,
       "Content-Length": String(fileStat.size)
