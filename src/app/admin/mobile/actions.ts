@@ -20,6 +20,11 @@ function mobileConfigInput(formData: FormData): MobileConfigInput {
     accent: formString(formData, "accent"),
     announcementBody: formString(formData, "announcementBody"),
     announcementTitle: formString(formData, "announcementTitle"),
+    androidLatestVersionCode: formString(formData, "androidLatestVersionCode"),
+    androidLatestVersionName: formString(formData, "androidLatestVersionName"),
+    androidMinimumVersionCode: formString(formData, "androidMinimumVersionCode"),
+    androidUpdateMessage: formString(formData, "androidUpdateMessage"),
+    androidUpdateUrl: formString(formData, "androidUpdateUrl"),
     appName: formString(formData, "appName"),
     environmentLabel: formString(formData, "environmentLabel"),
     features: mobileFeatureKeys.reduce<Record<(typeof mobileFeatureKeys)[number], boolean>>(

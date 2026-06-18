@@ -1,6 +1,7 @@
 package uk.co.bouncecore.app;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -55,6 +56,17 @@ public class MainActivity extends Activity {
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService networkExecutor = Executors.newSingleThreadExecutor();
+    private final Runnable configRefreshRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!activityResumed) {
+                return;
+            }
+
+            fetchMobileConfig(false);
+            mainHandler.postDelayed(this, CONFIG_REFRESH_INTERVAL_MS);
+        }
+    };
 
     private WebView webView;
     private FrameLayout bannerContainer;
@@ -146,7 +158,18 @@ public class MainActivity extends Activity {
                 Uri currentHost = Uri.parse(BuildConfig.BOUNCECORE_WEB_URL);
                 Uri target = request.getUrl();
                 boolean sameHost = currentHost.getHost() != null && currentHost.getHost().equalsIgnoreCase(target.getHost());
-                return !sameHost;
+
+                if (!TextUtils.isEmpty(runtimeConfig.updateUrl) && runtimeConfig.updateUrl.equals(target.toString())) {
+                    openExternalUrl(target);
+                    return true;
+                }
+
+                if (sameHost) {
+                    return false;
+                }
+
+                openExternalUrl(target);
+                return true;
             }
 
             @Override
@@ -217,7 +240,19 @@ public class MainActivity extends Activity {
     private void applyRuntimeConfig(MobileRuntimeConfig config, String source) {
         runtimeConfig = config;
         setTitle(config.appName);
-        Log.d(TAG, "Mobile config applied from " + source + ": ads=" + config.adsEnabled + ", maintenance=" + config.maintenanceEnabled);
+        Log.d(
+            TAG,
+            "Mobile config applied from " + source
+                + ": ads=" + config.adsEnabled
+                + ", maintenance=" + config.maintenanceEnabled
+                + ", minAndroid=" + config.minimumSupportedVersionCode
+        );
+
+        if (isUpdateRequired(config)) {
+            showRequiredUpdatePage(config);
+            destroyBanner();
+            return;
+        }
 
         if (config.maintenanceEnabled) {
             showMaintenancePage(config);
@@ -234,6 +269,34 @@ public class MainActivity extends Activity {
         } else {
             destroyBanner();
         }
+    }
+
+    private boolean isUpdateRequired(MobileRuntimeConfig config) {
+        return BuildConfig.VERSION_CODE < config.minimumSupportedVersionCode;
+    }
+
+    private void showRequiredUpdatePage(MobileRuntimeConfig config) {
+        String safeAppName = escapeHtml(config.appName);
+        String safeMessage = escapeHtml(config.updateMessage);
+        String safeLatestVersion = escapeHtml(config.latestVersionName);
+        String safeUpdateUrl = escapeHtml(config.updateUrl);
+        String versionLine = "Current build " + BuildConfig.VERSION_CODE + " / required build " + config.minimumSupportedVersionCode;
+        if (config.latestVersionCode > 0) {
+            versionLine += " / latest build " + config.latestVersionCode;
+        }
+        String latestLine = !TextUtils.isEmpty(safeLatestVersion)
+            ? "<p class=\"meta\">Latest version: " + safeLatestVersion + "</p>"
+            : "";
+        String updateAction = !TextUtils.isEmpty(config.updateUrl)
+            ? "<p><a href=\"" + safeUpdateUrl + "\">Update app</a></p>"
+            : "<p class=\"meta\">No update link is currently configured. Contact support for the latest APK.</p>";
+        String html = "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            + "<style>body{margin:0;background:#050712;color:#fff;font-family:sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}"
+            + "main{max-width:540px}h1{font-size:28px;margin:0 0 12px}p{color:#b7bdd2;line-height:1.5}.meta{font-size:14px;color:#8d96b4}"
+            + "a{display:inline-flex;min-height:44px;align-items:center;border-radius:6px;background:#00d4ff;color:#041018;font-weight:800;padding:0 18px;text-decoration:none}</style></head>"
+            + "<body><main><h1>Update " + safeAppName + "</h1><p>" + safeMessage + "</p><p class=\"meta\">" + escapeHtml(versionLine) + "</p>"
+            + latestLine + updateAction + "</main></body></html>";
+        webView.loadDataWithBaseURL(BuildConfig.BOUNCECORE_WEB_URL, html, "text/html", "UTF-8", null);
     }
 
     private void showMaintenancePage(MobileRuntimeConfig config) {
@@ -253,6 +316,14 @@ public class MainActivity extends Activity {
             .replace(">", "&gt;")
             .replace("\"", "&quot;")
             .replace("'", "&#39;");
+    }
+
+    private void openExternalUrl(Uri target) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, target));
+        } catch (Exception error) {
+            Log.w(TAG, "Could not open external URL: " + target + " " + error.getMessage());
+        }
     }
 
     private void initializeLevelPlay(MobileRuntimeConfig config) {
@@ -460,6 +531,8 @@ public class MainActivity extends Activity {
         super.onResume();
         activityResumed = true;
         fetchMobileConfig(false);
+        mainHandler.removeCallbacks(configRefreshRunnable);
+        mainHandler.postDelayed(configRefreshRunnable, CONFIG_REFRESH_INTERVAL_MS);
         maybeShowAppOpenInterstitial("resume");
 
         if (bannerAdView != null) {
@@ -473,6 +546,7 @@ public class MainActivity extends Activity {
             bannerAdView.pauseAutoRefresh();
         }
 
+        mainHandler.removeCallbacks(configRefreshRunnable);
         activityResumed = false;
         super.onPause();
     }
@@ -512,8 +586,13 @@ public class MainActivity extends Activity {
         final String levelPlayBannerAdUnitId;
         final String levelPlayInterstitialAdUnitId;
         final boolean levelPlayTestSuiteEnabled;
+        final int latestVersionCode;
+        final String latestVersionName;
         final boolean maintenanceEnabled;
         final String maintenanceMessage;
+        final int minimumSupportedVersionCode;
+        final String updateMessage;
+        final String updateUrl;
 
         private MobileRuntimeConfig(
             boolean adsEnabled,
@@ -522,8 +601,13 @@ public class MainActivity extends Activity {
             String levelPlayBannerAdUnitId,
             String levelPlayInterstitialAdUnitId,
             boolean levelPlayTestSuiteEnabled,
+            int latestVersionCode,
+            String latestVersionName,
             boolean maintenanceEnabled,
-            String maintenanceMessage
+            String maintenanceMessage,
+            int minimumSupportedVersionCode,
+            String updateMessage,
+            String updateUrl
         ) {
             this.adsEnabled = adsEnabled;
             this.appName = appName;
@@ -531,8 +615,13 @@ public class MainActivity extends Activity {
             this.levelPlayBannerAdUnitId = levelPlayBannerAdUnitId;
             this.levelPlayInterstitialAdUnitId = levelPlayInterstitialAdUnitId;
             this.levelPlayTestSuiteEnabled = levelPlayTestSuiteEnabled;
+            this.latestVersionCode = latestVersionCode;
+            this.latestVersionName = latestVersionName;
             this.maintenanceEnabled = maintenanceEnabled;
             this.maintenanceMessage = maintenanceMessage;
+            this.minimumSupportedVersionCode = minimumSupportedVersionCode;
+            this.updateMessage = updateMessage;
+            this.updateUrl = updateUrl;
         }
 
         static MobileRuntimeConfig fromBuildConfig() {
@@ -547,8 +636,13 @@ public class MainActivity extends Activity {
                 BuildConfig.LEVELPLAY_BANNER_AD_UNIT_ID,
                 BuildConfig.LEVELPLAY_INTERSTITIAL_AD_UNIT_ID,
                 BuildConfig.LEVELPLAY_TEST_SUITE_ENABLED,
+                BuildConfig.VERSION_CODE,
+                BuildConfig.VERSION_NAME,
                 false,
-                "The mobile app is temporarily under maintenance."
+                "The mobile app is temporarily under maintenance.",
+                1,
+                "A newer Bouncecore app is required. Please update to continue.",
+                ""
             );
         }
 
@@ -556,10 +650,11 @@ public class MainActivity extends Activity {
             JSONObject ads = json.optJSONObject("ads");
             JSONObject levelPlay = ads != null ? ads.optJSONObject("levelPlay") : null;
             JSONObject maintenance = json.optJSONObject("maintenance");
+            JSONObject version = json.optJSONObject("version");
             boolean adsEnabled = ads != null && ads.optBoolean("enabled", false);
-            String appKey = levelPlay != null ? levelPlay.optString("appKey", "") : "";
-            String bannerId = levelPlay != null ? levelPlay.optString("bannerAdUnitId", "") : "";
-            String interstitialId = levelPlay != null ? levelPlay.optString("interstitialAdUnitId", "") : "";
+            String appKey = jsonString(levelPlay, "appKey", "");
+            String bannerId = jsonString(levelPlay, "bannerAdUnitId", "");
+            String interstitialId = jsonString(levelPlay, "interstitialAdUnitId", "");
 
             return new MobileRuntimeConfig(
                 adsEnabled && !TextUtils.isEmpty(appKey) && !TextUtils.isEmpty(bannerId) && !TextUtils.isEmpty(interstitialId),
@@ -568,9 +663,22 @@ public class MainActivity extends Activity {
                 bannerId,
                 interstitialId,
                 levelPlay != null && levelPlay.optBoolean("testSuiteEnabled", false),
+                version != null ? Math.max(0, version.optInt("latestVersionCode", 0)) : 0,
+                jsonString(version, "latestVersionName", ""),
                 maintenance != null && maintenance.optBoolean("enabled", false),
-                maintenance != null ? maintenance.optString("message", "The mobile app is temporarily under maintenance.") : ""
+                jsonString(maintenance, "message", "The mobile app is temporarily under maintenance."),
+                version != null ? Math.max(1, version.optInt("minimumSupportedVersionCode", 1)) : 1,
+                jsonString(version, "updateMessage", "A newer Bouncecore app is required. Please update to continue."),
+                jsonString(version, "updateUrl", "")
             );
+        }
+
+        private static String jsonString(JSONObject object, String key, String fallback) {
+            if (object == null || object.isNull(key)) {
+                return fallback;
+            }
+
+            return object.optString(key, fallback);
         }
     }
 }

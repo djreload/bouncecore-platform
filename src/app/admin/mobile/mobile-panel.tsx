@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Megaphone, Save, Settings2, Smartphone, Wrench, BadgeDollarSign } from "lucide-react";
+import { BadgeDollarSign, Download, Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
 import { adminMobileAction } from "@/app/admin/mobile/actions";
 import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
 import { Badge } from "@/components/ui/badge";
@@ -236,6 +236,88 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
               />
               Launch LevelPlay test suite on app start
             </label>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-bc-electric" aria-hidden="true" />
+                <h4 className="font-black">Android app updates</h4>
+              </div>
+              <Badge tone={data.config.version.minimumSupportedVersionCode > 1 ? "amber" : "acid"}>
+                min build {data.config.version.minimumSupportedVersionCode}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-bc-muted">
+              The native Android wrapper blocks outdated APKs when their build number is below the minimum supported build.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-min-version">
+                  Minimum build
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.minimumSupportedVersionCode}
+                  disabled={pending}
+                  id="mobile-android-min-version"
+                  min={1}
+                  name="androidMinimumVersionCode"
+                  type="number"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-latest-version">
+                  Latest build
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.latestVersionCode ?? ""}
+                  disabled={pending}
+                  id="mobile-android-latest-version"
+                  min={1}
+                  name="androidLatestVersionCode"
+                  type="number"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-latest-name">
+                  Latest version name
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.latestVersionName ?? ""}
+                  disabled={pending}
+                  id="mobile-android-latest-name"
+                  name="androidLatestVersionName"
+                  placeholder="1.0.0"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-update-url">
+                  Update URL
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.updateUrl ?? ""}
+                  disabled={pending}
+                  id="mobile-android-update-url"
+                  name="androidUpdateUrl"
+                  placeholder="https://example.com/app.apk"
+                  type="url"
+                />
+              </div>
+            </div>
+            <label className="mt-4 block text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-update-message">
+              Required update message
+            </label>
+            <textarea
+              className="mt-2 min-h-20 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+              defaultValue={data.config.version.updateMessage}
+              disabled={pending}
+              id="mobile-android-update-message"
+              name="androidUpdateMessage"
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

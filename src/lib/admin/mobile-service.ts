@@ -1,6 +1,12 @@
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import {
+  defaultMobileVersionPolicy,
+  mergeMobileVersionPolicy,
+  normalizeMobileVersionPolicyInput,
+  type MobileVersionPolicy
+} from "@/lib/mobile/version-policy";
 
 const mobileConfigSettingKey = "mobile.config";
 
@@ -15,6 +21,11 @@ export type MobileConfigInput = {
   announcementBody?: string;
   announcementTitle?: string;
   appName: string;
+  androidLatestVersionCode?: string;
+  androidLatestVersionName?: string;
+  androidMinimumVersionCode?: string;
+  androidUpdateMessage?: string;
+  androidUpdateUrl?: string;
   environmentLabel?: string;
   features: Record<MobileFeatureKey, boolean>;
   levelPlayAppKey?: string;
@@ -55,6 +66,7 @@ export type MobileConfig = {
     accent: string;
     mode: MobileThemeMode;
   };
+  version: MobileVersionPolicy;
 };
 
 export type AdminMobileConfigData = {
@@ -107,7 +119,8 @@ function defaultMobileConfig(): MobileConfig {
     theme: {
       accent: "electric-cyan",
       mode: "dark"
-    }
+    },
+    version: defaultMobileVersionPolicy()
   };
 }
 
@@ -256,6 +269,8 @@ function mergeMobileConfig(value: unknown): MobileConfig {
     }
   }
 
+  config.version = mergeMobileVersionPolicy(value.version);
+
   if (isObject(value.announcement) && typeof value.announcement.title === "string" && value.announcement.title.trim()) {
     config.announcement = {
       body:
@@ -279,6 +294,7 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
   const maintenanceMessage = normalizedText(input.maintenanceMessage, 200);
   const announcementTitle = normalizedText(input.announcementTitle, 120);
   const announcementBody = normalizedText(input.announcementBody, 300);
+  const version = normalizeMobileVersionPolicyInput(input);
   const features = mobileFeatureKeys.reduce<Record<MobileFeatureKey, boolean>>(
     (featureFlags, key) => ({
       ...featureFlags,
@@ -333,7 +349,8 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
     theme: {
       accent: normalizedAccent(input.accent),
       mode
-    }
+    },
+    version
   };
 }
 
@@ -363,7 +380,8 @@ export async function getPublicMobileConfig() {
     features: config.features,
     maintenance: config.maintenance,
     supportEmail: config.supportEmail,
-    theme: config.theme
+    theme: config.theme,
+    version: config.version
   };
 }
 
@@ -403,6 +421,18 @@ export async function getAdminMobileConfigData(): Promise<AdminMobileConfigData>
         label: "LevelPlay ads",
         status: config.ads.enabled ? "ready" : "warning",
         value: config.ads.enabled ? "enabled" : "disabled"
+      },
+      {
+        detail:
+          config.version.minimumSupportedVersionCode > 1
+            ? `Android clients below build ${config.version.minimumSupportedVersionCode} are blocked until updated.`
+            : "No forced Android update is currently configured.",
+        label: "Android updates",
+        status: config.version.minimumSupportedVersionCode > 1 ? "warning" : "ready",
+        value:
+          config.version.latestVersionCode !== null
+            ? `latest ${config.version.latestVersionCode}`
+            : `minimum ${config.version.minimumSupportedVersionCode}`
       }
     ],
     config,
@@ -448,6 +478,7 @@ export async function updateMobileConfig(input: MobileConfigInput, actorId: stri
         config.ads.levelPlay.appKey && config.ads.levelPlay.bannerAdUnitId && config.ads.levelPlay.interstitialAdUnitId
       ),
       maintenanceEnabled: config.maintenance.enabled,
+      minimumAndroidVersionCode: config.version.minimumSupportedVersionCode,
       themeMode: config.theme.mode
     }
   });

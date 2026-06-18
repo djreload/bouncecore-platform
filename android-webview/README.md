@@ -52,7 +52,8 @@ Add `-LevelPlayTestSuite` to launch Unity's LevelPlay integration test suite aft
 - The WebView blocks navigation away from the configured host.
 - Banner ads render in a native bottom container.
 - The Android Activity applies status-bar and navigation-bar insets so the site does not render underneath phone system icons.
-- The app reads app name, maintenance mode, and LevelPlay ad settings from `/api/mobile/v1/config` on launch and periodically on resume.
+- The app reads app name, maintenance mode, Android update policy, and LevelPlay ad settings from `/api/mobile/v1/config` on launch and while the app is resumed.
+- If the backend minimum supported Android build is higher than the installed `versionCode`, the app shows a required update screen before loading the site.
 - LevelPlay does not document a separate app-open ad format in the Android guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
 - The app-open full-screen ad shows once per app process after it has loaded and uses a three-minute cooldown.
 - The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `AD_ID`.
