@@ -509,7 +509,7 @@ export function ChatRoomPanel({
               <article
                 className={cn(
                   "min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-ink p-3",
-                  mobileLiveMode && "border-white/10 bg-black/35 p-2.5 backdrop-blur-sm lg:bg-black/25 lg:backdrop-blur-none"
+                  mobileLiveMode && "border-white/10 bg-black/35 p-2 backdrop-blur-sm lg:bg-black/25 lg:p-2.5 lg:backdrop-blur-none"
                 )}
                 key={message.id}
               >
@@ -529,7 +529,7 @@ export function ChatRoomPanel({
                         aria-expanded={messageActionsOpen}
                         aria-label={`Open actions for ${message.authorDisplayName}'s message`}
                         className={cn(
-                          "bc-focus-ring inline-grid h-7 w-7 place-items-center rounded-full border text-white transition",
+                          "bc-focus-ring inline-grid h-6 w-6 place-items-center rounded-full border text-white transition",
                           messageActionsOpen
                             ? "border-bc-electric/60 bg-bc-electric/15"
                             : "border-bc-line bg-bc-panel hover:border-bc-electric/60"
@@ -538,7 +538,7 @@ export function ChatRoomPanel({
                         title="Message actions"
                         type="button"
                       >
-                        <Plus className={cn("h-4 w-4 transition", messageActionsOpen && "rotate-45")} aria-hidden="true" />
+                        <Plus className={cn("h-3.5 w-3.5 transition", messageActionsOpen && "rotate-45")} aria-hidden="true" />
                       </button>
                     ) : null}
                   </div>
@@ -588,10 +588,10 @@ export function ChatRoomPanel({
                 )}
 
                 {messageActionsOpen && selectedRoom ? (
-                  <div className="mt-3 space-y-3 rounded-md border border-bc-line bg-bc-panel/85 p-2.5">
+                  <div className="mt-2 space-y-2 rounded-md border border-bc-line bg-bc-panel/85 p-2">
                     <div>
                       <p className="text-[11px] font-black uppercase text-bc-muted">Reactions</p>
-                      <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
                         {chatReactionOptions.map((reaction) => {
                           const summary = message.reactions.find((item) => item.key === reaction.key);
                           const count = summary?.count ?? 0;
@@ -604,7 +604,7 @@ export function ChatRoomPanel({
                               <input name="reactionKey" type="hidden" value={reaction.key} />
                               <button
                                 aria-label={reaction.label}
-                                className={`bc-focus-ring inline-flex min-h-8 items-center gap-1 rounded-full border px-2 text-sm transition disabled:opacity-50 ${
+                                className={`bc-focus-ring inline-flex min-h-7 items-center gap-1 rounded-full border px-1.5 text-xs transition disabled:opacity-50 ${
                                   summary?.reacted
                                     ? "border-bc-electric/60 bg-bc-electric/15 text-white"
                                     : "border-bc-line bg-bc-ink text-bc-muted hover:border-bc-electric/50 hover:text-white"
@@ -623,14 +623,14 @@ export function ChatRoomPanel({
                     </div>
 
                     {canReportMessage ? (
-                      <form action={formAction} className="flex flex-wrap items-center gap-2 border-t border-bc-line pt-3">
+                      <form action={formAction} className="flex flex-wrap items-center gap-1.5 border-t border-bc-line pt-2">
                         <input name="intent" type="hidden" value="report" />
                         <input name="roomId" type="hidden" value={selectedRoom.id} />
                         <input name="messageId" type="hidden" value={message.id} />
                         <input name="reportNotes" type="hidden" value="Reported from the live chat action menu." />
                         <select
                           aria-label="Report reason"
-                          className="min-h-9 min-w-0 flex-1 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                          className="min-h-8 min-w-0 flex-1 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
                           defaultValue="spam"
                           name="reason"
                         >
@@ -640,35 +640,35 @@ export function ChatRoomPanel({
                             </option>
                           ))}
                         </select>
-                        <Button disabled={pending} size="sm" type="submit" variant="dark">
-                          <Flag className="h-4 w-4" aria-hidden="true" />
+                        <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="dark">
+                          <Flag className="h-3.5 w-3.5" aria-hidden="true" />
                           Report user
                         </Button>
                       </form>
                     ) : null}
 
                     {canModerateMessage ? (
-                      <div className="space-y-2 border-t border-bc-line pt-3">
+                      <div className="space-y-2 border-t border-bc-line pt-2">
                         <p className="text-[11px] font-black uppercase text-bc-muted">Moderation</p>
-                        <form action={formAction} className="flex flex-wrap items-center gap-2">
+                        <form action={formAction} className="flex flex-wrap items-center gap-1.5">
                           <input name="intent" type="hidden" value="delete-message" />
                           <input name="roomId" type="hidden" value={selectedRoom.id} />
                           <input name="messageId" type="hidden" value={message.id} />
-                          <Button disabled={pending} size="sm" type="submit" variant="pink">
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="pink">
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                             Remove message
                           </Button>
                         </form>
 
                         {canBanMessageAuthor ? (
-                          <form action={formAction} className="grid gap-2">
+                          <form action={formAction} className="grid gap-1.5">
                             <input name="intent" type="hidden" value="ban-user" />
                             <input name="roomId" type="hidden" value={selectedRoom.id} />
                             <input name="targetUserId" type="hidden" value={message.authorUserId ?? ""} />
-                            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                            <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                               <select
                                 aria-label="Ban duration"
-                                className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
                                 defaultValue="24h"
                                 name="duration"
                               >
@@ -680,7 +680,7 @@ export function ChatRoomPanel({
                               </select>
                               <select
                                 aria-label="Ban reason"
-                                className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
                                 defaultValue="spam"
                                 name="banReason"
                               >
@@ -692,13 +692,13 @@ export function ChatRoomPanel({
                               </select>
                             </div>
                             <input
-                              className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                              className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
                               maxLength={160}
                               name="banNotes"
                               placeholder="Optional moderation note"
                             />
-                            <Button disabled={pending} size="sm" type="submit" variant="dark">
-                              <Ban className="h-4 w-4" aria-hidden="true" />
+                            <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="dark">
+                              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
                               Ban user from chat
                             </Button>
                           </form>
@@ -727,12 +727,12 @@ export function ChatRoomPanel({
         className={cn(
           "shrink-0 border-t border-bc-line p-4",
           mobileLiveMode &&
-            "sticky bottom-0 z-30 max-h-[52dvh] overflow-y-auto bg-bc-panel/95 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom)+var(--bc-mobile-keyboard-inset,0px))] backdrop-blur-md lg:static lg:max-h-none lg:overflow-visible lg:bg-transparent lg:p-3 lg:backdrop-blur-none"
+            "sticky bottom-0 z-30 max-h-[44dvh] overflow-y-auto bg-bc-panel/95 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom)+var(--bc-mobile-keyboard-inset,0px))] backdrop-blur-md lg:static lg:max-h-none lg:overflow-visible lg:bg-transparent lg:p-3 lg:backdrop-blur-none"
         )}
       >
         {state.message ? (
           <div
-            className={`mb-3 rounded-md border p-3 text-sm ${
+            className={`mb-2 rounded-md border p-2 text-xs ${
               state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
                 : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
@@ -743,9 +743,9 @@ export function ChatRoomPanel({
         ) : null}
 
         {currentUser && selectedRoom ? (
-          <div className="grid gap-3">
+          <div className={cn("grid gap-3", mobileLiveMode && "gap-2")}>
             {roomLockedForUser ? (
-              <div className="rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
+              <div className="rounded-md border border-bc-pink/30 bg-bc-pink/10 p-2 text-xs text-bc-pink">
                 This chat room is locked by moderation.
               </div>
             ) : null}
@@ -757,7 +757,7 @@ export function ChatRoomPanel({
               <textarea
                 className={cn(
                   "min-h-24 min-w-0 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
-                  mobileLiveMode && "min-h-14 max-h-20 resize-none lg:min-h-16 lg:max-h-24"
+                  mobileLiveMode && "min-h-10 max-h-16 resize-none px-2 py-1.5 text-xs lg:min-h-16 lg:max-h-24 lg:px-3 lg:py-2 lg:text-sm"
                 )}
                 maxLength={500}
                 name="body"
@@ -771,7 +771,7 @@ export function ChatRoomPanel({
                 value={composerBody}
               />
               {composerBody.trim() && selectedEffectId ? (
-                <div className={cn("rounded-md border border-bc-line bg-bc-ink px-3 py-2", mobileLiveMode && "max-h-20 overflow-hidden lg:max-h-none")}>
+                <div className={cn("rounded-md border border-bc-line bg-bc-ink px-3 py-2", mobileLiveMode && "max-h-16 overflow-hidden px-2 py-1.5 lg:max-h-none lg:px-3 lg:py-2")}>
                   <div className="text-xs font-semibold uppercase text-bc-muted">Preview</div>
                   <ChatEffectText body={composerBody} className="mt-2" effectId={selectedEffectId} />
                 </div>
@@ -780,7 +780,7 @@ export function ChatRoomPanel({
                 className={cn(
                   "flex flex-wrap items-center justify-between gap-3",
                   mobileLiveMode &&
-                    "sticky bottom-0 z-20 -mx-2.5 -mb-2.5 border-t border-bc-line bg-bc-panel/90 px-2.5 py-2 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+                    "sticky bottom-0 z-20 -mx-2 -mb-2 border-t border-bc-line bg-bc-panel/90 px-2 py-1.5 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
                 )}
               >
                 <p className={cn("text-xs text-bc-muted", mobileLiveMode && "hidden lg:block")}>
@@ -789,11 +789,11 @@ export function ChatRoomPanel({
                 <div
                   className={cn(
                     "flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end",
-                    mobileLiveMode && "flex-nowrap overflow-x-auto pb-1 lg:w-auto lg:flex-wrap lg:overflow-visible lg:pb-0"
+                    mobileLiveMode && "flex-nowrap gap-1.5 overflow-x-auto pb-0.5 lg:w-auto lg:flex-wrap lg:gap-2 lg:overflow-visible lg:pb-0"
                   )}
                 >
                   <ChatEffectSelector
-                    className={mobileLiveMode ? "min-h-9 shrink-0 px-2 py-1 text-xs lg:min-h-10 lg:px-3 lg:py-2 lg:text-sm" : undefined}
+                    className={mobileLiveMode ? "min-h-8 shrink-0 gap-1 px-2 py-1 text-[11px] lg:min-h-10 lg:gap-2 lg:px-3 lg:py-2 lg:text-sm" : undefined}
                     disabled={roomLockedForUser}
                     onChange={setSelectedEffectId}
                     selectedEffectId={selectedEffectId}
@@ -801,7 +801,7 @@ export function ChatRoomPanel({
                   />
                   {mobileLiveMode && liveStarsEnabled ? (
                     <Button
-                      className="min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm"
+                      className="min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm"
                       disabled={roomLockedForUser}
                       onClick={() => {
                         setStarsPanelOpen((open) => !open);
@@ -811,12 +811,12 @@ export function ChatRoomPanel({
                       type="button"
                       variant={starsPanelOpen ? "dark" : "ghost"}
                     >
-                      <Star className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <Star className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
                       Stars
                     </Button>
                   ) : null}
                   <Button
-                    className={mobileLiveMode ? "min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    className={mobileLiveMode ? "min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
                     disabled={roomLockedForUser}
                     onClick={() => {
                       setGifPanelOpen((open) => !open);
@@ -826,11 +826,11 @@ export function ChatRoomPanel({
                     type="button"
                     variant={gifPanelOpen ? "dark" : "ghost"}
                   >
-                    <ImageIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <ImageIcon className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
                     GIF
                   </Button>
                   <Button
-                    className={mobileLiveMode ? "min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    className={mobileLiveMode ? "min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
                     disabled={roomLockedForUser}
                     onClick={() => {
                       setAssetPanelOpen((open) => !open);
@@ -840,16 +840,16 @@ export function ChatRoomPanel({
                     type="button"
                     variant={assetPanelOpen ? "dark" : "ghost"}
                   >
-                    <Smile className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <Smile className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
                     Stickers
                   </Button>
                   <Button
-                    className={mobileLiveMode ? "min-h-9 shrink-0 px-3 text-xs lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    className={mobileLiveMode ? "min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
                     disabled={pending || roomLockedForUser}
                     type="submit"
                     variant="primary"
                   >
-                    <Send className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <Send className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
                     Send
                   </Button>
                 </div>

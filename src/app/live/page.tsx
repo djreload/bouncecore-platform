@@ -246,7 +246,7 @@ export default async function LivePage() {
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
               currentStarBalance={currentStarBalance}
               assets={assetRows}
-              messagesClassName="min-h-0 flex-1 max-h-none p-2.5 lg:p-3"
+              messagesClassName="min-h-0 flex-1 max-h-none p-2 lg:p-3"
               messages={messageRows}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
