@@ -28,6 +28,7 @@ export type PublicChatMessageRow = {
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
+  authorAvatarUrl: string | null;
   authorUserId: string | null;
   authorRoles: Role[];
   reactions: PublicChatReactionRow[];

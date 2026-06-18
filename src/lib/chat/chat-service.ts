@@ -50,6 +50,7 @@ export type ChatMessageSummary = {
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
+  authorAvatarUrl: string | null;
   authorUserId: string | null;
   authorRoles: Role[];
   reactions: ChatReactionSummary[];
@@ -79,6 +80,7 @@ export type PublicChatData = {
 };
 
 type AuthorSummary = {
+  avatarUrl: string | null;
   displayName: string;
   roles: Role[];
 };
@@ -190,6 +192,11 @@ async function getAuthorSummaries(userIds: string[]) {
       }
     },
     include: {
+      profile: {
+        select: {
+          avatarUrl: true
+        }
+      },
       roles: {
         include: {
           role: true
@@ -202,6 +209,7 @@ async function getAuthorSummaries(userIds: string[]) {
     users.map((user) => [
       user.id,
       {
+        avatarUrl: user.profile?.avatarUrl ?? null,
         displayName: user.displayName,
         roles: normalizeRoles(user.roles.map((userRole) => userRole.role.name))
       }
@@ -284,6 +292,7 @@ function toMessageSummary(
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
+    authorAvatarUrl: author?.avatarUrl ?? null,
     authorUserId: message.userId,
     authorRoles: author?.roles ?? [],
     reactions: message.deletedAt ? [] : summarizeReactions(message.reactions, currentUserId)
@@ -878,4 +887,40 @@ export async function moderateChatMessage(messageId: string, actorId: string) {
   await publishChatRoomChanged(message.roomId, message.id);
 
   return updated;
+}
+
+export async function clearChatRoomMessages(roomId: string, actorId: string) {
+  const room = await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: roomId
+    },
+    select: {
+      id: true,
+      slug: true
+    }
+  });
+  const clearedAt = new Date();
+  const result = await prisma.chatMessage.updateMany({
+    where: {
+      deletedAt: null,
+      roomId: room.id
+    },
+    data: {
+      deletedAt: clearedAt
+    }
+  });
+
+  await writeAuditLog({
+    actorId,
+    action: "chat.room.clear_messages",
+    target: `chat-room:${room.id}`,
+    severity: "warning",
+    metadata: {
+      clearedMessages: result.count,
+      roomSlug: room.slug
+    }
+  });
+  await publishChatRoomChanged(room.id);
+
+  return result.count;
 }

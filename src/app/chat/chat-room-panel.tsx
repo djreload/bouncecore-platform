@@ -10,7 +10,7 @@ import { publicChatAction } from "@/app/chat/actions";
 import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
 import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
-import { hasPermission } from "@/lib/auth/rbac";
+import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
 import { cn } from "@/lib/utils";
 import {
@@ -102,6 +102,10 @@ function slowModeLabel(seconds: number) {
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
 }
 
+function authorInitial(value: string) {
+  return value.trim().charAt(0).toUpperCase() || "?";
+}
+
 export function ChatRoomPanel({
   assets,
   rooms,
@@ -140,10 +144,14 @@ export function ChatRoomPanel({
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
+  const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
   const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
   const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
   const liveStarsEnabled = Boolean(selectedRoom && visibleRoom?.type === "live");
+  const mobileComposerControlColumns = liveStarsEnabled
+    ? "grid-cols-[minmax(0,1fr)_2rem_2rem_2rem_3.75rem]"
+    : "grid-cols-[minmax(0,1fr)_2rem_2rem_3.75rem]";
 
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -376,7 +384,14 @@ export function ChatRoomPanel({
     }
 
     return (
-      <form action={formAction} className={cn("grid gap-3 rounded-md border border-bc-acid/25 bg-bc-acid/10 p-3", className)}>
+      <form
+        action={formAction}
+        className={cn(
+          "grid gap-3 rounded-md border border-bc-acid/25 bg-bc-acid/10 p-3",
+          compactStarForm && "gap-2 p-2",
+          className
+        )}
+      >
         <input name="intent" type="hidden" value="stars" />
         <input name="roomId" type="hidden" value={selectedRoom.id} />
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -392,7 +407,10 @@ export function ChatRoomPanel({
         <div className={cn("grid gap-2 sm:grid-cols-[140px_1fr_auto]", compactStarForm && "grid-cols-[minmax(0,1fr)_auto]")}>
           <select
             aria-label="Star amount"
-            className="min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+            className={cn(
+              "min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
+              compactStarForm && "min-h-8 px-2 py-1 text-xs"
+            )}
             name="amount"
           >
             {liveStarSendAmounts.map((amount) => (
@@ -404,6 +422,7 @@ export function ChatRoomPanel({
           <input
             className={cn(
               "min-h-10 min-w-0 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
+              compactStarForm && "min-h-8 px-2 py-1 text-xs",
               compactStarForm && "col-span-full sm:col-auto"
             )}
             maxLength={160}
@@ -411,12 +430,12 @@ export function ChatRoomPanel({
             placeholder="Optional stream alert message"
           />
           <Button
-            className="min-w-0 px-3"
+            className={cn("min-w-0 px-3", compactStarForm && "min-h-8 px-2 text-xs")}
             disabled={pending || roomLockedForUser || currentStarBalance < liveStarSendAmounts[0]}
             type="submit"
             variant="primary"
           >
-            <Star className="h-4 w-4" aria-hidden="true" />
+            <Star className={cn("h-4 w-4", compactStarForm && "h-3.5 w-3.5")} aria-hidden="true" />
             Send
           </Button>
         </div>
@@ -514,13 +533,34 @@ export function ChatRoomPanel({
                 key={message.id}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
-                    {message.authorRoles.map((role) => (
-                      <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
-                        {roleDisplayName(role, roleDisplayLabels)}
-                      </Badge>
-                    ))}
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      className={cn(
+                        "grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-panel text-xs font-black text-bc-electric",
+                        mobileLiveMode && "h-6 w-6 text-[10px] lg:h-7 lg:w-7 lg:text-xs"
+                      )}
+                    >
+                      {message.authorAvatarUrl ? (
+                        <Image
+                          alt=""
+                          className="h-full w-full object-cover"
+                          height={28}
+                          src={message.authorAvatarUrl}
+                          unoptimized
+                          width={28}
+                        />
+                      ) : (
+                        authorInitial(message.authorDisplayName)
+                      )}
+                    </span>
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
+                      {message.authorRoles.map((role) => (
+                        <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
+                          {roleDisplayName(role, roleDisplayLabels)}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
                   <div className="ml-auto flex shrink-0 items-center gap-1">
                     <span className="text-xs text-bc-muted">{formatTime(message.createdAt)}</span>
@@ -727,7 +767,7 @@ export function ChatRoomPanel({
         className={cn(
           "shrink-0 border-t border-bc-line p-4",
           mobileLiveMode &&
-            "sticky bottom-0 z-30 max-h-[44dvh] overflow-y-auto bg-bc-panel/95 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom)+var(--bc-mobile-keyboard-inset,0px))] backdrop-blur-md lg:static lg:max-h-none lg:overflow-visible lg:bg-transparent lg:p-3 lg:backdrop-blur-none"
+            "sticky bottom-0 z-30 max-h-[38dvh] overflow-y-auto bg-bc-panel/95 p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom)+var(--bc-mobile-keyboard-inset,0px))] backdrop-blur-md lg:static lg:max-h-none lg:overflow-visible lg:bg-transparent lg:p-3 lg:backdrop-blur-none"
         )}
       >
         {state.message ? (
@@ -749,6 +789,22 @@ export function ChatRoomPanel({
                 This chat room is locked by moderation.
               </div>
             ) : null}
+            {currentUserCanClearChat ? (
+              <form action={formAction} className="flex justify-end">
+                <input name="intent" type="hidden" value="clear-room" />
+                <input name="roomId" type="hidden" value={selectedRoom.id} />
+                <Button
+                  className={cn("min-h-8 px-2 text-xs", mobileLiveMode && "min-h-7 px-2 text-[10px] lg:min-h-9 lg:text-xs")}
+                  disabled={pending}
+                  size="sm"
+                  type="submit"
+                  variant="dark"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  Clear chat
+                </Button>
+              </form>
+            ) : null}
             {visibleRoom?.type === "live" ? renderStarsForm(mobileLiveMode ? "hidden" : undefined) : null}
 
             <form action={formAction} className={cn("grid gap-3", mobileLiveMode && "gap-2 lg:gap-3")}>
@@ -757,7 +813,7 @@ export function ChatRoomPanel({
               <textarea
                 className={cn(
                   "min-h-24 min-w-0 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
-                  mobileLiveMode && "min-h-10 max-h-16 resize-none px-2 py-1.5 text-xs lg:min-h-16 lg:max-h-24 lg:px-3 lg:py-2 lg:text-sm"
+                  mobileLiveMode && "min-h-9 max-h-14 resize-none px-2 py-1 text-xs lg:min-h-16 lg:max-h-24 lg:px-3 lg:py-2 lg:text-sm"
                 )}
                 maxLength={500}
                 name="body"
@@ -780,7 +836,7 @@ export function ChatRoomPanel({
                 className={cn(
                   "flex flex-wrap items-center justify-between gap-3",
                   mobileLiveMode &&
-                    "sticky bottom-0 z-20 -mx-2 -mb-2 border-t border-bc-line bg-bc-panel/90 px-2 py-1.5 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
+                    "sticky bottom-0 z-20 -mx-1.5 -mb-1.5 border-t border-bc-line bg-bc-panel/90 px-1.5 py-1 backdrop-blur-md lg:static lg:m-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none"
                 )}
               >
                 <p className={cn("text-xs text-bc-muted", mobileLiveMode && "hidden lg:block")}>
@@ -789,11 +845,11 @@ export function ChatRoomPanel({
                 <div
                   className={cn(
                     "flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end",
-                    mobileLiveMode && "flex-nowrap gap-1.5 overflow-x-auto pb-0.5 lg:w-auto lg:flex-wrap lg:gap-2 lg:overflow-visible lg:pb-0"
+                    mobileLiveMode && cn("grid w-full gap-1 overflow-visible pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2", mobileComposerControlColumns)
                   )}
                 >
                   <ChatEffectSelector
-                    className={mobileLiveMode ? "min-h-8 shrink-0 gap-1 px-2 py-1 text-[11px] lg:min-h-10 lg:gap-2 lg:px-3 lg:py-2 lg:text-sm" : undefined}
+                    className={mobileLiveMode ? "min-h-8 w-full shrink gap-1 px-1.5 py-1 text-[10px] lg:min-h-10 lg:w-auto lg:gap-2 lg:px-3 lg:py-2 lg:text-sm" : undefined}
                     disabled={roomLockedForUser}
                     onChange={setSelectedEffectId}
                     selectedEffectId={selectedEffectId}
@@ -801,7 +857,8 @@ export function ChatRoomPanel({
                   />
                   {mobileLiveMode && liveStarsEnabled ? (
                     <Button
-                      className="min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm"
+                      aria-label="Open stars panel"
+                      className="h-8 min-h-8 w-8 shrink-0 px-0 text-[0px] lg:h-auto lg:w-auto lg:min-h-10 lg:px-4 lg:text-sm"
                       disabled={roomLockedForUser}
                       onClick={() => {
                         setStarsPanelOpen((open) => !open);
@@ -812,11 +869,12 @@ export function ChatRoomPanel({
                       variant={starsPanelOpen ? "dark" : "ghost"}
                     >
                       <Star className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
-                      Stars
+                      <span className="sr-only lg:not-sr-only">Stars</span>
                     </Button>
                   ) : null}
                   <Button
-                    className={mobileLiveMode ? "min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    aria-label="Open GIF picker"
+                    className={mobileLiveMode ? "h-8 min-h-8 w-8 shrink-0 px-0 text-[0px] lg:h-auto lg:w-auto lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
                     disabled={roomLockedForUser}
                     onClick={() => {
                       setGifPanelOpen((open) => !open);
@@ -827,10 +885,11 @@ export function ChatRoomPanel({
                     variant={gifPanelOpen ? "dark" : "ghost"}
                   >
                     <ImageIcon className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
-                    GIF
+                    <span className={mobileLiveMode ? "sr-only lg:not-sr-only" : undefined}>GIF</span>
                   </Button>
                   <Button
-                    className={mobileLiveMode ? "min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    aria-label="Open stickers picker"
+                    className={mobileLiveMode ? "h-8 min-h-8 w-8 shrink-0 px-0 text-[0px] lg:h-auto lg:w-auto lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
                     disabled={roomLockedForUser}
                     onClick={() => {
                       setAssetPanelOpen((open) => !open);
@@ -841,10 +900,10 @@ export function ChatRoomPanel({
                     variant={assetPanelOpen ? "dark" : "ghost"}
                   >
                     <Smile className="h-3.5 w-3.5 shrink-0 lg:h-4 lg:w-4" aria-hidden="true" />
-                    Stickers
+                    <span className={mobileLiveMode ? "sr-only lg:not-sr-only" : undefined}>Stickers</span>
                   </Button>
                   <Button
-                    className={mobileLiveMode ? "min-h-8 shrink-0 px-2 text-[11px] lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
+                    className={mobileLiveMode ? "h-8 min-h-8 shrink-0 px-2 text-[11px] lg:h-auto lg:min-h-10 lg:px-4 lg:text-sm" : undefined}
                     disabled={pending || roomLockedForUser}
                     type="submit"
                     variant="primary"

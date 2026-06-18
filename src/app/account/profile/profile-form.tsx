@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
-import { Eye, EyeOff, Save, UserRound } from "lucide-react";
+import { Eye, EyeOff, Save, Upload, UserRound } from "lucide-react";
 import { updateAccountProfileAction } from "@/app/account/profile/actions";
 import { initialAccountProfileActionState, type AccountProfileActionState } from "@/app/account/profile/state";
 import { Badge } from "@/components/ui/badge";
@@ -51,7 +52,7 @@ export function AccountProfileForm({ data, roleDisplayLabels }: AccountProfileFo
           </div>
         ) : null}
 
-        <form action={formAction} className="mt-5 grid gap-4">
+        <form action={formAction} className="mt-5 grid gap-4" encType="multipart/form-data">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="displayName">
@@ -115,19 +116,54 @@ export function AccountProfileForm({ data, roleDisplayLabels }: AccountProfileFo
             </div>
           </div>
 
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="avatarUrl">
-              Avatar URL
-            </label>
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={data.profile.avatarUrl ?? ""}
-              disabled={pending}
-              id="avatarUrl"
-              name="avatarUrl"
-              placeholder="https://..."
-              type="url"
-            />
+          <div className="grid gap-4 rounded-md border border-bc-line bg-bc-ink p-4 md:grid-cols-[88px_1fr]">
+            <div className="h-20 w-20 overflow-hidden rounded-md border border-bc-line bg-bc-panel">
+              {data.profile.avatarUrl ? (
+                <Image
+                  alt=""
+                  className="h-full w-full object-cover"
+                  height={80}
+                  src={data.profile.avatarUrl}
+                  unoptimized
+                  width={80}
+                />
+              ) : (
+                <span className="grid h-full w-full place-items-center text-bc-muted">
+                  <UserRound className="h-8 w-8" aria-hidden="true" />
+                </span>
+              )}
+            </div>
+            <div className="grid gap-3">
+              <div>
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase text-bc-muted" htmlFor="avatarFile">
+                  <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                  Upload avatar
+                </label>
+                <input
+                  accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white file:mr-3 file:rounded-md file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-xs file:font-semibold file:text-bc-void"
+                  disabled={pending}
+                  id="avatarFile"
+                  name="avatarFile"
+                  type="file"
+                />
+                <p className="mt-2 text-xs text-bc-muted">PNG, JPG, or JPEG. Uploading a file replaces the URL below.</p>
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="avatarUrl">
+                  Avatar URL fallback
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.profile.avatarUrl ?? ""}
+                  disabled={pending}
+                  id="avatarUrl"
+                  name="avatarUrl"
+                  placeholder="https://..."
+                  type="text"
+                />
+              </div>
+            </div>
           </div>
 
           <div>

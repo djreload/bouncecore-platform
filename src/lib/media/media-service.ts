@@ -6,10 +6,12 @@ const publicUploadsRoot = path.join(process.cwd(), "public", "uploads");
 const maxPreviewMp3Bytes = 100 * 1024 * 1024;
 const maxImageBytes = 100 * 1024 * 1024;
 const maxChatImageBytes = 150 * 1024 * 1024;
+const maxProfileAvatarBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 200 * 1024 * 1024;
 const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
 const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
 const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
+const profileAvatarExtensions = [".jpg", ".jpeg", ".png"];
 const mp3UploadTypes = [
   "audio/mpeg",
   "audio/mp3",
@@ -26,6 +28,7 @@ const mp3UploadTypes = [
 type UploadKind =
   | "product-images"
   | "track-artwork"
+  | "profile-avatars"
   | "stream-offline-images"
   | "chat-stickers"
   | "chat-emojis"
@@ -150,6 +153,21 @@ function validateImageUpload(file: File, buffer: Buffer, label: string) {
     contentType: resolvedContentType,
     extension: canonicalImageExtension(extension, resolvedContentType)
   };
+}
+
+function validateProfileAvatarUpload(file: File, buffer: Buffer) {
+  const extension = fileExtension(file.name);
+  const image = validateImageUpload(file, buffer, "Profile avatar upload");
+
+  if (!profileAvatarExtensions.includes(extension)) {
+    throw new Error("Profile avatar upload must be a PNG, JPG, or JPEG image.");
+  }
+
+  if (image.contentType !== "image/jpeg" && image.contentType !== "image/png") {
+    throw new Error("Profile avatar upload must be a PNG, JPG, or JPEG image.");
+  }
+
+  return image;
 }
 
 function validateMp3Upload(file: File, label: string) {
@@ -369,6 +387,28 @@ export function normalizeOptionalChatAssetUrl(value: string | undefined, kind: "
   return text;
 }
 
+export function normalizeOptionalProfileAvatarUrl(value: string | undefined) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error("Avatar URL must be 500 characters or fewer.");
+  }
+
+  if (text.startsWith("/uploads/")) {
+    if (/^\/uploads\/profile-avatars\/[^/]+\.(jpg|jpeg|png)$/i.test(text)) {
+      return text;
+    }
+
+    throw new Error("Avatar upload path must point to an uploaded PNG, JPG, or JPEG profile image.");
+  }
+
+  return assertHttpUrl(text, "Avatar URL").toString();
+}
+
 export function normalizeOptionalPreviewUrl(value: string | undefined) {
   const text = value?.trim() ?? "";
 
@@ -518,6 +558,21 @@ export async function saveOptionalChatAssetUpload(file: File | null | undefined,
   const image = validateImageUpload(file, buffer, "Chat image upload");
 
   return savePublicUpload(kind, file, maxChatImageBytes, "Chat image upload", image.extension, buffer);
+}
+
+export async function saveOptionalProfileAvatarUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxProfileAvatarBytes) {
+    throw new Error(`Profile avatar upload is too large. Maximum ${formatBytes(maxProfileAvatarBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateProfileAvatarUpload(file, buffer);
+
+  return savePublicUpload("profile-avatars", file, maxProfileAvatarBytes, "Profile avatar upload", image.extension, buffer);
 }
 
 export async function saveOptionalPreviewMp3(file: File | null | undefined) {

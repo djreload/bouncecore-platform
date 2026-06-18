@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import { useActionState } from "react";
-import { Eye, EyeOff, Save, UserRound } from "lucide-react";
+import { Eye, EyeOff, Save, Upload, UserRound } from "lucide-react";
 import { updateStreamerProfileAction } from "@/app/streamer/profile/actions";
 import {
   initialStreamerProfileActionState,
@@ -50,7 +51,7 @@ export function ProfileForm({ profileData, roleDisplayLabels }: ProfileFormProps
           </div>
         ) : null}
 
-        <form action={formAction} className="mt-5 grid gap-4">
+        <form action={formAction} className="mt-5 grid gap-4" encType="multipart/form-data">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="slug">
@@ -99,19 +100,54 @@ export function ProfileForm({ profileData, roleDisplayLabels }: ProfileFormProps
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="avatarUrl">
-                Avatar URL
-              </label>
+            <div className="grid gap-4 rounded-md border border-bc-line bg-bc-ink p-4">
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 overflow-hidden rounded-md border border-bc-line bg-bc-panel">
+                  {profileData.profile.avatarUrl ? (
+                    <Image
+                      alt=""
+                      className="h-full w-full object-cover"
+                      height={64}
+                      src={profileData.profile.avatarUrl}
+                      unoptimized
+                      width={64}
+                    />
+                  ) : (
+                    <span className="grid h-full w-full place-items-center text-bc-muted">
+                      <UserRound className="h-7 w-7" aria-hidden="true" />
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <label className="flex items-center gap-2 text-xs font-semibold uppercase text-bc-muted" htmlFor="avatarFile">
+                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                    Upload avatar
+                  </label>
+                  <p className="mt-1 text-xs text-bc-muted">PNG, JPG, or JPEG.</p>
+                </div>
+              </div>
               <input
-                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                defaultValue={profileData.profile.avatarUrl ?? ""}
+                accept="image/png,image/jpeg,.png,.jpg,.jpeg"
+                className="min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white file:mr-3 file:rounded-md file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-xs file:font-semibold file:text-bc-void"
                 disabled={pending}
-                id="avatarUrl"
-                name="avatarUrl"
-                placeholder="https://..."
-                type="url"
+                id="avatarFile"
+                name="avatarFile"
+                type="file"
               />
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="avatarUrl">
+                  Avatar URL fallback
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={profileData.profile.avatarUrl ?? ""}
+                  disabled={pending}
+                  id="avatarUrl"
+                  name="avatarUrl"
+                  placeholder="https://..."
+                  type="text"
+                />
+              </div>
             </div>
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="websiteUrl">

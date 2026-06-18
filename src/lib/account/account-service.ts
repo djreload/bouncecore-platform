@@ -3,6 +3,7 @@ import { normalizeRoles } from "@/lib/auth/role-normalize";
 import type { Role } from "@/lib/auth/rbac";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeOptionalProfileAvatarUrl } from "@/lib/media/media-service";
 
 export type AccountProfileInput = {
   avatarUrl?: string;
@@ -219,7 +220,7 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
         userId
       },
       update: {
-        avatarUrl: normalizedUrl(input.avatarUrl, 300),
+        avatarUrl: normalizeOptionalProfileAvatarUrl(input.avatarUrl),
         bio: normalizedText(input.bio, 600),
         isPublic: input.isPublic,
         location: normalizedText(input.location, 80),
@@ -227,7 +228,7 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
         websiteUrl: normalizedUrl(input.websiteUrl, 300)
       },
       create: {
-        avatarUrl: normalizedUrl(input.avatarUrl, 300),
+        avatarUrl: normalizeOptionalProfileAvatarUrl(input.avatarUrl),
         bio: normalizedText(input.bio, 600),
         isPublic: input.isPublic,
         location: normalizedText(input.location, 80),

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import {
+  clearChatRoomMessages,
   createChatGifMessage,
   createChatMessage,
   createChatStickerMessage,
   moderateChatMessage,
   toggleChatMessageReaction
 } from "@/lib/chat/chat-service";
-import { hasPermission } from "@/lib/auth/rbac";
+import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { createChatBan, createChatReport } from "@/lib/chat/moderation-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
@@ -52,6 +53,12 @@ export async function publicChatAction(
         },
         user.id
       );
+    } else if (intent === "clear-room") {
+      if (!hasRole(user, "admin") && !hasRole(user, "owner")) {
+        throw new Error("Only admins and owners can clear chat.");
+      }
+
+      await clearChatRoomMessages(roomId, user.id);
     } else if (intent === "delete-message") {
       if (!hasPermission(user, "moderation.use")) {
         throw new Error("You do not have permission to remove chat messages.");
@@ -110,6 +117,8 @@ export async function publicChatAction(
       message:
         intent === "report"
           ? "Report sent to moderators."
+          : intent === "clear-room"
+            ? "Chat cleared."
           : intent === "delete-message"
             ? "Message removed from chat."
             : intent === "ban-user"
@@ -125,12 +134,14 @@ export async function publicChatAction(
               : "Message sent."
     };
   } catch (error) {
-    if (intent === "report" || intent === "delete-message" || intent === "ban-user") {
+    if (intent === "report" || intent === "clear-room" || intent === "delete-message" || intent === "ban-user") {
       return {
         status: "error",
         message:
           error instanceof Error
             ? error.message
+            : intent === "clear-room"
+              ? "Chat was not cleared."
             : intent === "delete-message"
               ? "Message was not removed."
               : intent === "ban-user"

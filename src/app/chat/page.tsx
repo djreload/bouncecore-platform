@@ -64,6 +64,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     createdAt: message.createdAt,
     deletedAt: message.deletedAt,
     authorDisplayName: message.authorDisplayName,
+    authorAvatarUrl: message.authorAvatarUrl,
     authorUserId: message.authorUserId,
     authorRoles: message.authorRoles,
     reactions: message.reactions

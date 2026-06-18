@@ -80,6 +80,7 @@ function publicMessage(message: ChatMessageSummary) {
     starNote: message.starNote,
     createdAt: message.createdAt,
     author: {
+      avatarUrl: message.authorAvatarUrl,
       displayName: message.authorDisplayName,
       roles: message.authorRoles
     },

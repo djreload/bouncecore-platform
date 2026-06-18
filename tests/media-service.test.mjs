@@ -102,6 +102,58 @@ test("track artwork uploads accept non-square images for object-cover display", 
   }
 });
 
+test("profile avatar uploads store PNG and JPEG files only", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const avatar = new File([png1x1], "profile.png", {
+      type: "image/png"
+    });
+    const uploadPath = await mediaService.saveOptionalProfileAvatarUpload(avatar);
+
+    assert.match(uploadPath, /^\/uploads\/profile-avatars\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    await assert.rejects(
+      () =>
+        mediaService.saveOptionalProfileAvatarUpload(
+          new File([png1x1], "profile.webp", {
+            type: "image/webp"
+          })
+        ),
+      /PNG, JPG, or JPEG/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("profile avatar URLs allow uploaded avatar paths", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    assert.equal(
+      mediaService.normalizeOptionalProfileAvatarUrl("/uploads/profile-avatars/avatar.jpg"),
+      "/uploads/profile-avatars/avatar.jpg"
+    );
+    assert.throws(
+      () => mediaService.normalizeOptionalProfileAvatarUrl("/uploads/profile-avatars/avatar.gif"),
+      /PNG, JPG, or JPEG/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("download MP3 uploads still require 320kbps frames", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
   const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
