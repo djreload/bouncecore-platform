@@ -19,9 +19,9 @@ android {
 
         buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(providers.gradleProperty("BOUNCECORE_WEB_URL").orElse("https://example.com").get())
         buildConfigField "String", "UNITY_PROJECT_ID", quoted("61d46651-d0a2-4175-ade1-fc300e58559f")
-        buildConfigField "String", "UNITY_ANDROID_GAME_ID", quoted("6123220")
-        buildConfigField "String", "UNITY_BANNER_AD_UNIT_ID", quoted("Banner_Android")
-        buildConfigField "String", "UNITY_INTERSTITIAL_AD_UNIT_ID", quoted("Interstitial_Android")
+        buildConfigField "String", "UNITY_ANDROID_GAME_ID", quoted(providers.gradleProperty("UNITY_ANDROID_GAME_ID").orElse("6123220").get())
+        buildConfigField "String", "UNITY_BANNER_AD_UNIT_ID", quoted(providers.gradleProperty("UNITY_BANNER_AD_UNIT_ID").orElse("Banner_Android").get())
+        buildConfigField "String", "UNITY_INTERSTITIAL_AD_UNIT_ID", quoted(providers.gradleProperty("UNITY_INTERSTITIAL_AD_UNIT_ID").orElse("Interstitial_Android").get())
         buildConfigField "boolean", "UNITY_TEST_MODE", providers.gradleProperty("UNITY_TEST_MODE").orElse("true").get().toBoolean().toString()
     }
 

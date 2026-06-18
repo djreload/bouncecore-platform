@@ -1,7 +1,11 @@
 param(
     [string]$WebUrl = "https://develop.k-nrg.co.uk",
     [string]$Serial = "",
-    [switch]$LiveAds
+    [switch]$LiveAds,
+    [switch]$UnitySampleAds,
+    [string]$UnityGameId = "",
+    [string]$BannerAdUnitId = "",
+    [string]$InterstitialAdUnitId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -43,7 +47,30 @@ $env:GRADLE_USER_HOME = Join-Path $repoRoot ".codex-run\gradle-home"
 New-Item -ItemType Directory -Force $env:ANDROID_USER_HOME, $env:GRADLE_USER_HOME | Out-Null
 
 $testMode = if ($LiveAds) { "false" } else { "true" }
-& (Join-Path $androidDir "gradlew.bat") -p $androidDir --no-daemon assembleDebug "-PBOUNCECORE_WEB_URL=$WebUrl" "-PUNITY_TEST_MODE=$testMode"
+$gradleArgs = @(
+    "-p", $androidDir,
+    "--no-daemon",
+    "assembleDebug",
+    "-PBOUNCECORE_WEB_URL=$WebUrl",
+    "-PUNITY_TEST_MODE=$testMode"
+)
+
+if ($UnitySampleAds) {
+    $UnityGameId = "1486550"
+    $BannerAdUnitId = "banner"
+    $InterstitialAdUnitId = "video"
+}
+if ($UnityGameId) {
+    $gradleArgs += "-PUNITY_ANDROID_GAME_ID=$UnityGameId"
+}
+if ($BannerAdUnitId) {
+    $gradleArgs += "-PUNITY_BANNER_AD_UNIT_ID=$BannerAdUnitId"
+}
+if ($InterstitialAdUnitId) {
+    $gradleArgs += "-PUNITY_INTERSTITIAL_AD_UNIT_ID=$InterstitialAdUnitId"
+}
+
+& (Join-Path $androidDir "gradlew.bat") @gradleArgs
 
 if (-not (Test-Path $apkPath)) {
     throw "Debug APK was not created at $apkPath"

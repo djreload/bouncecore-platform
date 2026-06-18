@@ -1,6 +1,7 @@
 package uk.co.bouncecore.app;
 
 import android.app.Activity;
+import android.os.Build;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -11,6 +12,9 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -155,6 +159,7 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        configureWindow();
         setContentView(createLayout());
         configureWebView();
         initializeUnityAds();
@@ -165,6 +170,16 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
         LinearLayout root = new LinearLayout(this);
         root.setBackgroundColor(Color.BLACK);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setFitsSystemWindows(false);
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(
+                0,
+                insets.getSystemWindowInsetTop(),
+                0,
+                insets.getSystemWindowInsetBottom()
+            );
+            return insets;
+        });
         root.setLayoutParams(new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
             LinearLayout.LayoutParams.MATCH_PARENT
@@ -188,6 +203,20 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
         root.addView(webView);
         root.addView(bannerContainer);
         return root;
+    }
+
+    private void configureWindow() {
+        Window window = getWindow();
+        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        window.setStatusBarColor(Color.parseColor("#050712"));
+        window.setNavigationBarColor(Color.parseColor("#050712"));
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            WindowManager.LayoutParams attributes = window.getAttributes();
+            attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER;
+            window.setAttributes(attributes);
+        }
     }
 
     private void configureWebView() {
@@ -214,6 +243,7 @@ public class MainActivity extends Activity implements IUnityAdsInitializationLis
     }
 
     private void initializeUnityAds() {
+        UnityAds.setDebugMode(BuildConfig.UNITY_TEST_MODE);
         UnityAds.initialize(getApplicationContext(), BuildConfig.UNITY_ANDROID_GAME_ID, BuildConfig.UNITY_TEST_MODE, this);
     }
 

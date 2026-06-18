@@ -37,10 +37,17 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-androi
 
 Use `-Serial <device-serial>` if more than one phone/emulator is connected. Add `-LiveAds` only when you are ready to disable Unity test mode.
 
+The install script also accepts ad-unit overrides for diagnostics:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-android-debug.ps1 -WebUrl https://your-domain.example -UnityGameId 6123220 -BannerAdUnitId Banner_Android -InterstitialAdUnitId Interstitial_Android
+```
+
 ## Notes
 
 - The WebView blocks navigation away from the configured host.
 - Banner ads render in a native bottom container.
+- The Android Activity applies status-bar and navigation-bar insets so the site does not render underneath phone system icons.
 - Unity does not provide a separate app-open ad unit in the current Android SDK guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
 - The app-open full-screen ad shows once per app process after it has loaded and uses a three-minute cooldown.
 - Test builds try the configured Unity ad units first, then test fallback unit names. If device logs show `Placement receives no fill`, `No placement configured`, or `adMarkup is missing; objectId is missing`, the Unity dashboard ad-unit setup needs correcting.
