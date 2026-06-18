@@ -1,4 +1,5 @@
 import "./chat-effects.test.mjs";
+import "./email-address.test.mjs";
 import "./ingest-url.test.mjs";
 import "./media-service.test.mjs";
 import "./music-ranking.test.mjs";
