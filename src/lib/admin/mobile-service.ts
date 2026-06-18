@@ -10,7 +10,7 @@ import {
 
 const mobileConfigSettingKey = "mobile.config";
 
-export const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads"] as const;
+export const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads", "push"] as const;
 export const mobileThemeModes = ["dark", "light"] as const;
 
 export type MobileFeatureKey = (typeof mobileFeatureKeys)[number];
@@ -27,6 +27,10 @@ export type MobileConfigInput = {
   androidUpdateMessage?: string;
   androidUpdateUrl?: string;
   environmentLabel?: string;
+  firebaseAndroidApiKey?: string;
+  firebaseAndroidAppId?: string;
+  firebaseMessagingSenderId?: string;
+  firebaseProjectId?: string;
   features: Record<MobileFeatureKey, boolean>;
   levelPlayAppKey?: string;
   levelPlayBannerAdUnitId?: string;
@@ -61,6 +65,16 @@ export type MobileConfig = {
     enabled: boolean;
     message: string | null;
   };
+  push: {
+    enabled: boolean;
+    firebaseAndroid: {
+      apiKey: string | null;
+      appId: string | null;
+      messagingSenderId: string | null;
+      projectId: string | null;
+    };
+    provider: "fcm";
+  };
   supportEmail: string | null;
   theme: {
     accent: string;
@@ -90,6 +104,7 @@ const defaultFeatures: Record<MobileFeatureKey, boolean> = {
   chat: true,
   live: true,
   music: true,
+  push: false,
   rewards: true,
   shop: true
 };
@@ -114,6 +129,16 @@ function defaultMobileConfig(): MobileConfig {
     maintenance: {
       enabled: false,
       message: null
+    },
+    push: {
+      enabled: false,
+      firebaseAndroid: {
+        apiKey: null,
+        appId: null,
+        messagingSenderId: null,
+        projectId: null
+      },
+      provider: "fcm"
     },
     supportEmail: null,
     theme: {
@@ -194,6 +219,20 @@ function normalizedAdIdentifier(value: string | undefined, maxLength: number, la
   return text;
 }
 
+function normalizedFirebaseIdentifier(value: string | undefined, maxLength: number, label: string) {
+  const text = normalizedText(value, maxLength);
+
+  if (!text) {
+    return null;
+  }
+
+  if (!/^[a-zA-Z0-9._:-]+$/.test(text)) {
+    throw new Error(`${label} can only contain letters, numbers, dot, underscore, colon, or dash.`);
+  }
+
+  return text;
+}
+
 function mergeMobileConfig(value: unknown): MobileConfig {
   const config = defaultMobileConfig();
 
@@ -229,6 +268,37 @@ function mergeMobileConfig(value: unknown): MobileConfig {
 
       if (typeof value.ads.levelPlay.testSuiteEnabled === "boolean") {
         config.ads.levelPlay.testSuiteEnabled = value.ads.levelPlay.testSuiteEnabled;
+      }
+    }
+  }
+
+  if (isObject(value.push)) {
+    if (typeof value.push.enabled === "boolean") {
+      config.push.enabled = value.push.enabled;
+    }
+
+    if (value.push.provider === "fcm") {
+      config.push.provider = "fcm";
+    }
+
+    if (isObject(value.push.firebaseAndroid)) {
+      if (typeof value.push.firebaseAndroid.apiKey === "string" && value.push.firebaseAndroid.apiKey.trim()) {
+        config.push.firebaseAndroid.apiKey = value.push.firebaseAndroid.apiKey.trim().slice(0, 120);
+      }
+
+      if (typeof value.push.firebaseAndroid.appId === "string" && value.push.firebaseAndroid.appId.trim()) {
+        config.push.firebaseAndroid.appId = value.push.firebaseAndroid.appId.trim().slice(0, 120);
+      }
+
+      if (
+        typeof value.push.firebaseAndroid.messagingSenderId === "string" &&
+        value.push.firebaseAndroid.messagingSenderId.trim()
+      ) {
+        config.push.firebaseAndroid.messagingSenderId = value.push.firebaseAndroid.messagingSenderId.trim().slice(0, 80);
+      }
+
+      if (typeof value.push.firebaseAndroid.projectId === "string" && value.push.firebaseAndroid.projectId.trim()) {
+        config.push.firebaseAndroid.projectId = value.push.firebaseAndroid.projectId.trim().slice(0, 80);
       }
     }
   }
@@ -309,6 +379,14 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
     80,
     "LevelPlay interstitial ad unit ID"
   );
+  const firebaseAndroidApiKey = normalizedFirebaseIdentifier(input.firebaseAndroidApiKey, 120, "Firebase Android API key");
+  const firebaseAndroidAppId = normalizedFirebaseIdentifier(input.firebaseAndroidAppId, 120, "Firebase Android app ID");
+  const firebaseMessagingSenderId = normalizedFirebaseIdentifier(
+    input.firebaseMessagingSenderId,
+    80,
+    "Firebase messaging sender ID"
+  );
+  const firebaseProjectId = normalizedFirebaseIdentifier(input.firebaseProjectId, 80, "Firebase project ID");
 
   if (announcementBody && !announcementTitle) {
     throw new Error("Announcement title is required when announcement body is set.");
@@ -316,6 +394,10 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
 
   if (features.ads && (!levelPlayAppKey || !levelPlayBannerAdUnitId || !levelPlayInterstitialAdUnitId)) {
     throw new Error("LevelPlay app key, banner ad unit ID, and interstitial ad unit ID are required when mobile ads are enabled.");
+  }
+
+  if (features.push && (!firebaseAndroidApiKey || !firebaseAndroidAppId || !firebaseMessagingSenderId || !firebaseProjectId)) {
+    throw new Error("Firebase Android API key, app ID, sender ID, and project ID are required when mobile push is enabled.");
   }
 
   return {
@@ -344,6 +426,16 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
       message:
         maintenanceMessage ??
         (input.maintenanceEnabled ? "The mobile app is temporarily under maintenance." : null)
+    },
+    push: {
+      enabled: features.push,
+      firebaseAndroid: {
+        apiKey: firebaseAndroidApiKey,
+        appId: firebaseAndroidAppId,
+        messagingSenderId: firebaseMessagingSenderId,
+        projectId: firebaseProjectId
+      },
+      provider: "fcm"
     },
     supportEmail: normalizedEmail(input.supportEmail),
     theme: {
@@ -379,6 +471,7 @@ export async function getPublicMobileConfig() {
     environment: config.environment,
     features: config.features,
     maintenance: config.maintenance,
+    push: config.push,
     supportEmail: config.supportEmail,
     theme: config.theme,
     version: config.version
@@ -421,6 +514,14 @@ export async function getAdminMobileConfigData(): Promise<AdminMobileConfigData>
         label: "LevelPlay ads",
         status: config.ads.enabled ? "ready" : "warning",
         value: config.ads.enabled ? "enabled" : "disabled"
+      },
+      {
+        detail: config.push.enabled
+          ? "Firebase Android settings are returned to native app clients for device token registration."
+          : "Native Android push token registration is disabled in the public app configuration.",
+        label: "Android push",
+        status: config.push.enabled ? "ready" : "warning",
+        value: config.push.enabled ? "enabled" : "disabled"
       },
       {
         detail:
@@ -479,6 +580,7 @@ export async function updateMobileConfig(input: MobileConfigInput, actorId: stri
       ),
       maintenanceEnabled: config.maintenance.enabled,
       minimumAndroidVersionCode: config.version.minimumSupportedVersionCode,
+      pushEnabled: config.push.enabled,
       themeMode: config.theme.mode
     }
   });

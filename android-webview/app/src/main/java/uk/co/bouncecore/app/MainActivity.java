@@ -1,7 +1,9 @@
 package uk.co.bouncecore.app;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -46,12 +48,16 @@ import com.unity3d.mediation.banner.LevelPlayBannerAdView;
 import com.unity3d.mediation.banner.LevelPlayBannerAdViewListener;
 import com.unity3d.mediation.interstitial.LevelPlayInterstitialAd;
 import com.unity3d.mediation.interstitial.LevelPlayInterstitialAdListener;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
     private static final String TAG = "BouncecoreAndroid";
     private static final long INTERSTITIAL_COOLDOWN_MS = 180_000L;
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
+    private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
     private static final int MAX_BANNER_RETRIES = 6;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -77,7 +83,10 @@ public class MainActivity extends Activity {
     private boolean levelPlayReady = false;
     private boolean interstitialShowing = false;
     private boolean appOpenShownThisSession = false;
+    private boolean firebaseInitialized = false;
+    private boolean fcmTokenRequestInFlight = false;
     private int bannerRetryCount = 0;
+    private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
     private long lastInterstitialShownAt = 0L;
     private MobileRuntimeConfig runtimeConfig = MobileRuntimeConfig.fromBuildConfig();
@@ -174,6 +183,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                registerFcmTokenWithCurrentSession();
                 maybeShowAppOpenInterstitial("page-finished");
             }
         });
@@ -246,6 +256,7 @@ public class MainActivity extends Activity {
                 + ": ads=" + config.adsEnabled
                 + ", maintenance=" + config.maintenanceEnabled
                 + ", minAndroid=" + config.minimumSupportedVersionCode
+                + ", push=" + config.pushEnabled
         );
 
         if (isUpdateRequired(config)) {
@@ -268,6 +279,10 @@ public class MainActivity extends Activity {
             initializeLevelPlay(config);
         } else {
             destroyBanner();
+        }
+
+        if (config.pushEnabled) {
+            initializeFirebaseMessaging(config);
         }
     }
 
@@ -323,6 +338,92 @@ public class MainActivity extends Activity {
             startActivity(new Intent(Intent.ACTION_VIEW, target));
         } catch (Exception error) {
             Log.w(TAG, "Could not open external URL: " + target + " " + error.getMessage());
+        }
+    }
+
+    private void initializeFirebaseMessaging(MobileRuntimeConfig config) {
+        if (!config.hasFirebaseAndroidConfig()) {
+            Log.w(TAG, "Firebase Android config is missing; push token registration is disabled.");
+            return;
+        }
+
+        requestNotificationPermissionIfNeeded();
+
+        if (!firebaseInitialized) {
+            try {
+                if (FirebaseApp.getApps(this).isEmpty()) {
+                    FirebaseOptions options = new FirebaseOptions.Builder()
+                        .setApiKey(config.firebaseAndroidApiKey)
+                        .setApplicationId(config.firebaseAndroidAppId)
+                        .setGcmSenderId(config.firebaseMessagingSenderId)
+                        .setProjectId(config.firebaseProjectId)
+                        .build();
+                    FirebaseApp.initializeApp(this, options);
+                }
+
+                firebaseInitialized = true;
+            } catch (Exception error) {
+                Log.w(TAG, "Firebase initialization failed: " + error.getMessage());
+                return;
+            }
+        }
+
+        requestFcmToken();
+    }
+
+    private void requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, NOTIFICATION_PERMISSION_REQUEST_CODE);
+    }
+
+    private void requestFcmToken() {
+        if (fcmTokenRequestInFlight || !TextUtils.isEmpty(fcmToken)) {
+            registerFcmTokenWithCurrentSession();
+            return;
+        }
+
+        fcmTokenRequestInFlight = true;
+        FirebaseMessaging.getInstance().getToken().addOnCompleteListener((task) -> {
+            fcmTokenRequestInFlight = false;
+
+            if (!task.isSuccessful() || TextUtils.isEmpty(task.getResult())) {
+                Exception error = task.getException();
+                Log.w(TAG, "FCM token request failed: " + (error != null ? error.getMessage() : "unknown error"));
+                return;
+            }
+
+            fcmToken = task.getResult();
+            Log.d(TAG, "FCM token received; registering after authenticated page load.");
+            registerFcmTokenWithCurrentSession();
+        });
+    }
+
+    private void registerFcmTokenWithCurrentSession() {
+        if (TextUtils.isEmpty(fcmToken) || webView == null || webView.getUrl() == null || webView.getUrl().startsWith("data:")) {
+            return;
+        }
+
+        try {
+            JSONObject payload = new JSONObject()
+                .put("appVersion", BuildConfig.VERSION_NAME)
+                .put("deviceName", Build.MANUFACTURER + " " + Build.MODEL)
+                .put("osVersion", "Android " + Build.VERSION.RELEASE)
+                .put("platform", "android")
+                .put("provider", "fcm")
+                .put("pushToken", fcmToken);
+            String script = "(function(){fetch('/api/mobile/v1/account/devices',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:"
+                + JSONObject.quote(payload.toString())
+                + "}).catch(function(){});})();";
+            webView.evaluateJavascript(script, null);
+        } catch (Exception error) {
+            Log.w(TAG, "FCM token registration script failed: " + error.getMessage());
         }
     }
 
@@ -582,6 +683,10 @@ public class MainActivity extends Activity {
     private static final class MobileRuntimeConfig {
         final boolean adsEnabled;
         final String appName;
+        final String firebaseAndroidApiKey;
+        final String firebaseAndroidAppId;
+        final String firebaseMessagingSenderId;
+        final String firebaseProjectId;
         final String levelPlayAppKey;
         final String levelPlayBannerAdUnitId;
         final String levelPlayInterstitialAdUnitId;
@@ -591,12 +696,17 @@ public class MainActivity extends Activity {
         final boolean maintenanceEnabled;
         final String maintenanceMessage;
         final int minimumSupportedVersionCode;
+        final boolean pushEnabled;
         final String updateMessage;
         final String updateUrl;
 
         private MobileRuntimeConfig(
             boolean adsEnabled,
             String appName,
+            String firebaseAndroidApiKey,
+            String firebaseAndroidAppId,
+            String firebaseMessagingSenderId,
+            String firebaseProjectId,
             String levelPlayAppKey,
             String levelPlayBannerAdUnitId,
             String levelPlayInterstitialAdUnitId,
@@ -606,11 +716,16 @@ public class MainActivity extends Activity {
             boolean maintenanceEnabled,
             String maintenanceMessage,
             int minimumSupportedVersionCode,
+            boolean pushEnabled,
             String updateMessage,
             String updateUrl
         ) {
             this.adsEnabled = adsEnabled;
             this.appName = appName;
+            this.firebaseAndroidApiKey = firebaseAndroidApiKey;
+            this.firebaseAndroidAppId = firebaseAndroidAppId;
+            this.firebaseMessagingSenderId = firebaseMessagingSenderId;
+            this.firebaseProjectId = firebaseProjectId;
             this.levelPlayAppKey = levelPlayAppKey;
             this.levelPlayBannerAdUnitId = levelPlayBannerAdUnitId;
             this.levelPlayInterstitialAdUnitId = levelPlayInterstitialAdUnitId;
@@ -620,6 +735,7 @@ public class MainActivity extends Activity {
             this.maintenanceEnabled = maintenanceEnabled;
             this.maintenanceMessage = maintenanceMessage;
             this.minimumSupportedVersionCode = minimumSupportedVersionCode;
+            this.pushEnabled = pushEnabled;
             this.updateMessage = updateMessage;
             this.updateUrl = updateUrl;
         }
@@ -632,6 +748,10 @@ public class MainActivity extends Activity {
             return new MobileRuntimeConfig(
                 hasAdsConfig,
                 "Bouncecore",
+                BuildConfig.FIREBASE_ANDROID_API_KEY,
+                BuildConfig.FIREBASE_ANDROID_APP_ID,
+                BuildConfig.FIREBASE_MESSAGING_SENDER_ID,
+                BuildConfig.FIREBASE_PROJECT_ID,
                 BuildConfig.LEVELPLAY_APP_KEY,
                 BuildConfig.LEVELPLAY_BANNER_AD_UNIT_ID,
                 BuildConfig.LEVELPLAY_INTERSTITIAL_AD_UNIT_ID,
@@ -641,6 +761,7 @@ public class MainActivity extends Activity {
                 false,
                 "The mobile app is temporarily under maintenance.",
                 1,
+                hasBuildFirebaseConfig(),
                 "A newer Bouncecore app is required. Please update to continue.",
                 ""
             );
@@ -650,15 +771,31 @@ public class MainActivity extends Activity {
             JSONObject ads = json.optJSONObject("ads");
             JSONObject levelPlay = ads != null ? ads.optJSONObject("levelPlay") : null;
             JSONObject maintenance = json.optJSONObject("maintenance");
+            JSONObject push = json.optJSONObject("push");
+            JSONObject firebaseAndroid = push != null ? push.optJSONObject("firebaseAndroid") : null;
             JSONObject version = json.optJSONObject("version");
             boolean adsEnabled = ads != null && ads.optBoolean("enabled", false);
             String appKey = jsonString(levelPlay, "appKey", "");
             String bannerId = jsonString(levelPlay, "bannerAdUnitId", "");
             String interstitialId = jsonString(levelPlay, "interstitialAdUnitId", "");
+            String firebaseApiKey = jsonString(firebaseAndroid, "apiKey", "");
+            String firebaseAppId = jsonString(firebaseAndroid, "appId", "");
+            String firebaseSenderId = jsonString(firebaseAndroid, "messagingSenderId", "");
+            String firebaseProjectId = jsonString(firebaseAndroid, "projectId", "");
+            boolean pushEnabled = push != null
+                && push.optBoolean("enabled", false)
+                && !TextUtils.isEmpty(firebaseApiKey)
+                && !TextUtils.isEmpty(firebaseAppId)
+                && !TextUtils.isEmpty(firebaseSenderId)
+                && !TextUtils.isEmpty(firebaseProjectId);
 
             return new MobileRuntimeConfig(
                 adsEnabled && !TextUtils.isEmpty(appKey) && !TextUtils.isEmpty(bannerId) && !TextUtils.isEmpty(interstitialId),
                 json.optString("app", "Bouncecore"),
+                firebaseApiKey,
+                firebaseAppId,
+                firebaseSenderId,
+                firebaseProjectId,
                 appKey,
                 bannerId,
                 interstitialId,
@@ -668,9 +805,24 @@ public class MainActivity extends Activity {
                 maintenance != null && maintenance.optBoolean("enabled", false),
                 jsonString(maintenance, "message", "The mobile app is temporarily under maintenance."),
                 version != null ? Math.max(1, version.optInt("minimumSupportedVersionCode", 1)) : 1,
+                pushEnabled,
                 jsonString(version, "updateMessage", "A newer Bouncecore app is required. Please update to continue."),
                 jsonString(version, "updateUrl", "")
             );
+        }
+
+        boolean hasFirebaseAndroidConfig() {
+            return !TextUtils.isEmpty(firebaseAndroidApiKey)
+                && !TextUtils.isEmpty(firebaseAndroidAppId)
+                && !TextUtils.isEmpty(firebaseMessagingSenderId)
+                && !TextUtils.isEmpty(firebaseProjectId);
+        }
+
+        private static boolean hasBuildFirebaseConfig() {
+            return !TextUtils.isEmpty(BuildConfig.FIREBASE_ANDROID_API_KEY)
+                && !TextUtils.isEmpty(BuildConfig.FIREBASE_ANDROID_APP_ID)
+                && !TextUtils.isEmpty(BuildConfig.FIREBASE_MESSAGING_SENDER_ID)
+                && !TextUtils.isEmpty(BuildConfig.FIREBASE_PROJECT_ID);
         }
 
         private static String jsonString(JSONObject object, String key, String fallback) {

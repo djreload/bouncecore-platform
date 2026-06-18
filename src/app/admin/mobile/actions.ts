@@ -27,6 +27,10 @@ function mobileConfigInput(formData: FormData): MobileConfigInput {
     androidUpdateUrl: formString(formData, "androidUpdateUrl"),
     appName: formString(formData, "appName"),
     environmentLabel: formString(formData, "environmentLabel"),
+    firebaseAndroidApiKey: formString(formData, "firebaseAndroidApiKey"),
+    firebaseAndroidAppId: formString(formData, "firebaseAndroidAppId"),
+    firebaseMessagingSenderId: formString(formData, "firebaseMessagingSenderId"),
+    firebaseProjectId: formString(formData, "firebaseProjectId"),
     features: mobileFeatureKeys.reduce<Record<(typeof mobileFeatureKeys)[number], boolean>>(
       (features, key) => ({
         ...features,
@@ -37,6 +41,7 @@ function mobileConfigInput(formData: FormData): MobileConfigInput {
         chat: false,
         live: false,
         music: false,
+        push: false,
         rewards: false,
         shop: false
       }

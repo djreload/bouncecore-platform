@@ -23,6 +23,10 @@ android {
         buildConfigField "String", "LEVELPLAY_BANNER_AD_UNIT_ID", quoted(providers.gradleProperty("LEVELPLAY_BANNER_AD_UNIT_ID").orElse("").get())
         buildConfigField "String", "LEVELPLAY_INTERSTITIAL_AD_UNIT_ID", quoted(providers.gradleProperty("LEVELPLAY_INTERSTITIAL_AD_UNIT_ID").orElse("").get())
         buildConfigField "boolean", "LEVELPLAY_TEST_SUITE_ENABLED", providers.gradleProperty("LEVELPLAY_TEST_SUITE_ENABLED").orElse("false").get().toBoolean().toString()
+        buildConfigField "String", "FIREBASE_ANDROID_API_KEY", quoted(providers.gradleProperty("FIREBASE_ANDROID_API_KEY").orElse("").get())
+        buildConfigField "String", "FIREBASE_ANDROID_APP_ID", quoted(providers.gradleProperty("FIREBASE_ANDROID_APP_ID").orElse("").get())
+        buildConfigField "String", "FIREBASE_MESSAGING_SENDER_ID", quoted(providers.gradleProperty("FIREBASE_MESSAGING_SENDER_ID").orElse("").get())
+        buildConfigField "String", "FIREBASE_PROJECT_ID", quoted(providers.gradleProperty("FIREBASE_PROJECT_ID").orElse("").get())
     }
 
     buildFeatures {
@@ -37,6 +41,8 @@ android {
 
 dependencies {
     implementation "com.unity3d.ads-mediation:mediation-sdk:9.4.0"
+    implementation platform("com.google.firebase:firebase-bom:33.7.0")
+    implementation "com.google.firebase:firebase-messaging"
     implementation "com.google.android.gms:play-services-appset:16.0.0"
     implementation "com.google.android.gms:play-services-ads-identifier:18.1.0"
     implementation "com.google.android.gms:play-services-basement:18.1.0"

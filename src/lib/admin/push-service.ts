@@ -5,6 +5,7 @@ import { roleDefinitions, type Role } from "@/lib/auth/rbac";
 import { roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { prisma } from "@/lib/db/prisma";
+import { fcmDispatchConfigured } from "@/lib/mobile/fcm-push-service";
 import { secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 export const adminPushTargets = ["all", "role", "user"] as const;
@@ -46,11 +47,13 @@ export type AdminPushData = {
   stats: {
     activeUsers: number;
     activeMobileDevices: number;
+    activeFcmDevices: number;
     blockedPushDeliveries: number;
     deliverableMobileDevices: number;
     deliveredPushDeliveries: number;
     failedPushDeliveries: number;
     pushEncryptionConfigured: boolean;
+    fcmDispatchConfigured: boolean;
     receiptPendingPushDeliveries: number;
     queuedPushDeliveries: number;
     sentPushDeliveries: number;
@@ -131,6 +134,7 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     unreadNotifications,
     sentToday,
     activeMobileDevices,
+    activeFcmDevices,
     deliverableMobileDevices,
     queuedPushDeliveries,
     blockedPushDeliveries,
@@ -185,6 +189,12 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     }),
     prisma.mobileDevice.count({
       where: {
+        revokedAt: null
+      }
+    }),
+    prisma.mobileDevice.count({
+      where: {
+        provider: "fcm",
         revokedAt: null
       }
     }),
@@ -281,12 +291,14 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     })),
     stats: {
       activeUsers: activeUsers.length,
+      activeFcmDevices,
       activeMobileDevices,
       blockedPushDeliveries,
       deliverableMobileDevices,
       deliveredPushDeliveries,
       failedPushDeliveries,
       pushEncryptionConfigured: secretEncryptionConfigured(),
+      fcmDispatchConfigured: fcmDispatchConfigured(),
       receiptPendingPushDeliveries,
       queuedPushDeliveries,
       sentPushDeliveries,

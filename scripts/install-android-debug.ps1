@@ -4,7 +4,11 @@ param(
     [switch]$LevelPlayTestSuite,
     [string]$LevelPlayAppKey = "",
     [string]$BannerAdUnitId = "",
-    [string]$InterstitialAdUnitId = ""
+    [string]$InterstitialAdUnitId = "",
+    [string]$FirebaseAndroidApiKey = "",
+    [string]$FirebaseAndroidAppId = "",
+    [string]$FirebaseMessagingSenderId = "",
+    [string]$FirebaseProjectId = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,6 +77,18 @@ if ($BannerAdUnitId) {
 }
 if ($InterstitialAdUnitId) {
     $gradleArgs += "-PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=$InterstitialAdUnitId"
+}
+if ($FirebaseAndroidApiKey) {
+    $gradleArgs += "-PFIREBASE_ANDROID_API_KEY=$FirebaseAndroidApiKey"
+}
+if ($FirebaseAndroidAppId) {
+    $gradleArgs += "-PFIREBASE_ANDROID_APP_ID=$FirebaseAndroidAppId"
+}
+if ($FirebaseMessagingSenderId) {
+    $gradleArgs += "-PFIREBASE_MESSAGING_SENDER_ID=$FirebaseMessagingSenderId"
+}
+if ($FirebaseProjectId) {
+    $gradleArgs += "-PFIREBASE_PROJECT_ID=$FirebaseProjectId"
 }
 
 Invoke-Native -FilePath (Join-Path $androidDir "gradlew.bat") -Arguments $gradleArgs

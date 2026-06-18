@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { BadgeDollarSign, Download, Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
+import { BadgeDollarSign, BellRing, Download, Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
 import { adminMobileAction } from "@/app/admin/mobile/actions";
 import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ type AdminMobilePanelProps = {
   data: AdminMobileConfigData;
 };
 
-const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads"] as const satisfies readonly MobileFeatureKey[];
+const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads", "push"] as const satisfies readonly MobileFeatureKey[];
 const mobileThemeModes = ["dark", "light"] as const;
 
 function formatDate(value: string | null) {
@@ -173,6 +173,72 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
                   {featureLabel(feature)}
                 </label>
               ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <BellRing className="h-5 w-5 text-bc-pink" aria-hidden="true" />
+                <h4 className="font-black">Android push</h4>
+              </div>
+              <Badge tone={data.config.push.enabled ? "acid" : "muted"}>
+                {data.config.push.enabled ? "enabled" : "disabled"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-bc-muted">
+              These public Firebase Android values let the native app request an FCM token and register it after the user logs in.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-project-id">
+                  Firebase project ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.projectId ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-project-id"
+                  name="firebaseProjectId"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-sender-id">
+                  Sender ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.messagingSenderId ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-sender-id"
+                  name="firebaseMessagingSenderId"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-app-id">
+                  Android app ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.appId ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-app-id"
+                  name="firebaseAndroidAppId"
+                  placeholder="1:000000000000:android:abc123"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-api-key">
+                  Android API key
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.apiKey ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-api-key"
+                  name="firebaseAndroidApiKey"
+                />
+              </div>
             </div>
           </div>
 

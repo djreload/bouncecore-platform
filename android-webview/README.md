@@ -31,6 +31,30 @@ For command-line debug builds on Windows:
 
 The debug APK is written to `android-webview/app/build/outputs/apk/debug/app-debug.apk`.
 
+## Push Notifications
+
+Native Android push uses Firebase Cloud Messaging.
+
+Set these public Android Firebase values in `Admin -> Mobile`:
+
+- Firebase project ID
+- Firebase messaging sender ID
+- Android app ID
+- Android API key
+
+The app fetches them from `/api/mobile/v1/config`, requests Android notification permission when needed, obtains an FCM token, and registers that token through `/api/mobile/v1/account/devices` after the user logs in.
+
+For server-side delivery, set these private environment variables on the web/worker host:
+
+```env
+FCM_PROJECT_ID=
+FCM_CLIENT_EMAIL=
+FCM_CLIENT_PRIVATE_KEY=
+PUSH_TOKEN_ENCRYPTION_KEY=
+```
+
+`PUSH_TOKEN_ENCRYPTION_KEY` is required because device tokens are encrypted at rest before the worker can deliver queued notifications.
+
 To build, install, and launch on a connected ADB device:
 
 ```powershell
@@ -46,13 +70,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-androi
 ```
 
 Add `-LevelPlayTestSuite` to launch Unity's LevelPlay integration test suite after SDK initialization.
+It also accepts Firebase fallback values for offline/local config testing: `-FirebaseProjectId`, `-FirebaseMessagingSenderId`, `-FirebaseAndroidAppId`, and `-FirebaseAndroidApiKey`.
 
 ## Notes
 
 - The WebView blocks navigation away from the configured host.
 - Banner ads render in a native bottom container.
 - The Android Activity applies status-bar and navigation-bar insets so the site does not render underneath phone system icons.
-- The app reads app name, maintenance mode, Android update policy, and LevelPlay ad settings from `/api/mobile/v1/config` on launch and while the app is resumed.
+- The app reads app name, maintenance mode, Android update policy, Firebase push settings, and LevelPlay ad settings from `/api/mobile/v1/config` on launch and while the app is resumed.
 - If the backend minimum supported Android build is higher than the installed `versionCode`, the app shows a required update screen before loading the site.
 - LevelPlay does not document a separate app-open ad format in the Android guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
 - The app-open full-screen ad shows once per app process after it has loaded and uses a three-minute cooldown.

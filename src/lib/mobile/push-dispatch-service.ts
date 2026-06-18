@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { fcmDispatchConfigured, fcmErrorMeansDeviceRevoked, sendFcmPush } from "@/lib/mobile/fcm-push-service";
 import { decryptSecret, secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 const expoPushEndpoint = "https://exp.host/--/api/v2/push/send";
@@ -240,24 +241,43 @@ export async function processQueuedMobilePushDeliveries(actorId: string | null, 
     }
 
     if (delivery.mobileDevice.provider !== "expo") {
-      blockedCount += 1;
-      await prisma.mobilePushDelivery.update({
-        data: {
-          attemptedAt: now,
-          errorCode: "provider_not_supported",
-          errorMessage: "Only Expo push delivery is currently wired. FCM, APNs, and web push are registered but not dispatched yet.",
-          status: "blocked"
-        },
-        where: {
-          id: delivery.id
-        }
-      });
-      continue;
+      if (delivery.mobileDevice.provider !== "fcm") {
+        blockedCount += 1;
+        await prisma.mobilePushDelivery.update({
+          data: {
+            attemptedAt: now,
+            errorCode: "provider_not_supported",
+            errorMessage: "Only Expo and Firebase Cloud Messaging push delivery are currently wired.",
+            status: "blocked"
+          },
+          where: {
+            id: delivery.id
+          }
+        });
+        continue;
+      }
+
+      if (!fcmDispatchConfigured()) {
+        blockedCount += 1;
+        await prisma.mobilePushDelivery.update({
+          data: {
+            attemptedAt: now,
+            errorCode: "missing_fcm_config",
+            errorMessage: "FCM_PROJECT_ID, FCM_CLIENT_EMAIL, and FCM_CLIENT_PRIVATE_KEY are required before FCM pushes can be delivered.",
+            status: "blocked"
+          },
+          where: {
+            id: delivery.id
+          }
+        });
+        continue;
+      }
     }
 
     try {
       const token = decryptSecret(delivery.mobileDevice.tokenCiphertext);
-      const result = await sendExpoPush({
+      const sendPush = delivery.mobileDevice.provider === "fcm" ? sendFcmPush : sendExpoPush;
+      const result = await sendPush({
         body: delivery.notification.body,
         deliveryId: delivery.id,
         notificationId: delivery.notification.id,
@@ -274,6 +294,7 @@ export async function processQueuedMobilePushDeliveries(actorId: string | null, 
             errorCode: null,
             errorMessage: null,
             providerMessageId: result.providerMessageId,
+            receiptStatus: delivery.mobileDevice.provider === "fcm" ? "not_supported" : null,
             sentAt: now,
             status: "sent"
           },
@@ -295,7 +316,7 @@ export async function processQueuedMobilePushDeliveries(actorId: string | null, 
               id: delivery.id
             }
           }),
-          ...(result.errorCode === "DeviceNotRegistered"
+          ...(result.errorCode === "DeviceNotRegistered" || fcmErrorMeansDeviceRevoked(result.errorCode)
             ? [
                 prisma.mobileDevice.update({
                   data: {
