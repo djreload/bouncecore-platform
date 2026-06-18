@@ -29,9 +29,19 @@ For command-line debug builds on Windows:
 
 The debug APK is written to `android-webview/app/build/outputs/apk/debug/app-debug.apk`.
 
+To build, install, and launch on a connected ADB device:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-android-debug.ps1 -WebUrl https://your-domain.example
+```
+
+Use `-Serial <device-serial>` if more than one phone/emulator is connected. Add `-LiveAds` only when you are ready to disable Unity test mode.
+
 ## Notes
 
 - The WebView blocks navigation away from the configured host.
 - Banner ads render in a native bottom container.
-- Interstitial ads load after Unity Ads initialization and use a three-minute cooldown.
-- The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, and `AD_ID`.
+- Unity does not provide a separate app-open ad unit in the current Android SDK guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
+- The app-open full-screen ad shows once per app process after it has loaded and uses a three-minute cooldown.
+- Test builds try the configured Unity ad units first, then test fallback unit names. If device logs show `Placement receives no fill`, `No placement configured`, or `adMarkup is missing; objectId is missing`, the Unity dashboard ad-unit setup needs correcting.
+- The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `AD_ID`.
