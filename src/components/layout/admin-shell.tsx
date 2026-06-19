@@ -1,6 +1,8 @@
-import { Search } from "lucide-react";
+import { Home, Search } from "lucide-react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { adminNavigation } from "@/config/navigation";
 import { GroupedNav } from "@/components/navigation/grouped-nav";
+import { ButtonLink } from "@/components/ui/button";
 import { filterNavigationByRoles } from "@/lib/auth/rbac";
 import type { Permission } from "@/lib/auth/rbac";
 import { requireUserPermission } from "@/lib/auth/guards";
@@ -24,6 +26,13 @@ export async function AdminShell({ children, title, description, requiredPermiss
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase text-bc-pink">Bouncecore admin</p>
             <h1 className="mt-1 text-xl font-black">Control room</h1>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <ButtonLink className="w-full" href="/" size="sm" variant="ghost">
+              <Home className="h-4 w-4" aria-hidden="true" />
+              Home
+            </ButtonLink>
+            <LogoutButton />
           </div>
           <div className="mb-5 flex items-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-bc-muted">
             <Search className="h-4 w-4" aria-hidden="true" />

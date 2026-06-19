@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { Radio } from "lucide-react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { NavList } from "@/components/navigation/nav-list";
 import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
+import type { NavigationItem } from "@/config/navigation";
 import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
 import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-settings-service";
+import { getCurrentUser } from "@/lib/auth/session";
 
 type PublicShellProps = {
   children: React.ReactNode;
@@ -13,12 +16,29 @@ type PublicShellProps = {
   siteSettings?: Pick<SiteSettings, "footerSummary" | "siteName" | "stagingTarget">;
 };
 
+function publicNavigationForAuth(items: NavigationItem[], signedIn: boolean) {
+  return items.filter((item) => {
+    if (!signedIn && item.href.startsWith("/account")) {
+      return false;
+    }
+
+    if (signedIn && (item.href.startsWith("/auth/login") || item.href.startsWith("/auth/register"))) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 export async function PublicShell({ children, hideFooterOnMobile = false, siteSettings }: PublicShellProps) {
-  const [navigationItems, themeStyle, resolvedSiteSettings] = await Promise.all([
+  const [navigationItems, themeStyle, resolvedSiteSettings, user] = await Promise.all([
     getPublicMenuNavigation(),
     getSiteThemeStyle(),
-    siteSettings ? Promise.resolve(siteSettings) : getPublicSiteSettings()
+    siteSettings ? Promise.resolve(siteSettings) : getPublicSiteSettings(),
+    getCurrentUser()
   ]);
+  const signedIn = Boolean(user);
+  const visibleNavigationItems = publicNavigationForAuth(navigationItems, signedIn);
   const siteName = resolvedSiteSettings.siteName ?? "Bouncecore";
   const footerSummary =
     resolvedSiteSettings.footerSummary ??
@@ -39,18 +59,24 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             <span className="text-lg font-black uppercase">{siteName}</span>
           </Link>
           <div className="hidden flex-1 justify-center lg:flex">
-            <NavList items={navigationItems} orientation="horizontal" />
+            <NavList items={visibleNavigationItems} orientation="horizontal" />
           </div>
           <div className="ml-auto hidden items-center gap-2 lg:flex">
-            <ButtonLink href="/auth/login" variant="ghost" size="sm">
-              Login
-            </ButtonLink>
-            <ButtonLink href="/auth/register" variant="pink" size="sm">
-              Register
-            </ButtonLink>
+            {signedIn ? (
+              <LogoutButton />
+            ) : (
+              <>
+                <ButtonLink href="/auth/login" variant="ghost" size="sm">
+                  Login
+                </ButtonLink>
+                <ButtonLink href="/auth/register" variant="pink" size="sm">
+                  Register
+                </ButtonLink>
+              </>
+            )}
           </div>
           <div className="ml-auto lg:hidden">
-            <PublicMobileMenu items={navigationItems} siteName={siteName} />
+            <PublicMobileMenu isSignedIn={signedIn} items={visibleNavigationItems} siteName={siteName} />
           </div>
         </div>
       </header>

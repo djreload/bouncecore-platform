@@ -4,19 +4,35 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { useState } from "react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { icons } from "@/components/navigation/icons";
 import { publicNavigation, type NavigationItem } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 
 type PublicMobileMenuProps = {
+  isSignedIn: boolean;
   items: NavigationItem[];
   siteName: string;
 };
 
-export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
+function navigationForAuth(items: NavigationItem[], signedIn: boolean) {
+  return items.filter((item) => {
+    if (!signedIn && item.href.startsWith("/account")) {
+      return false;
+    }
+
+    if (signedIn && (item.href.startsWith("/auth/login") || item.href.startsWith("/auth/register"))) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+export function PublicMobileMenu({ isSignedIn, items, siteName }: PublicMobileMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const visibleItems = items.length ? items : publicNavigation;
+  const visibleItems = navigationForAuth(items.length ? items : publicNavigation, isSignedIn);
 
   function closeMenu() {
     setOpen(false);
@@ -90,22 +106,28 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
             </nav>
 
             <div className="grid shrink-0 gap-2 border-t border-bc-line bg-bc-ink p-4">
-              <Link
-                className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 text-sm font-semibold text-white"
-                href="/auth/login"
-                onClick={closeMenu}
-              >
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-                Login
-              </Link>
-              <Link
-                className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-bc-pink px-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,43,214,0.28)]"
-                href="/auth/register"
-                onClick={closeMenu}
-              >
-                <UserPlus className="h-4 w-4" aria-hidden="true" />
-                Register
-              </Link>
+              {isSignedIn ? (
+                <LogoutButton label="Logout" size="md" />
+              ) : (
+                <>
+                  <Link
+                    className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 text-sm font-semibold text-white"
+                    href="/auth/login"
+                    onClick={closeMenu}
+                  >
+                    <LogIn className="h-4 w-4" aria-hidden="true" />
+                    Login
+                  </Link>
+                  <Link
+                    className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-bc-pink px-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,43,214,0.28)]"
+                    href="/auth/register"
+                    onClick={closeMenu}
+                  >
+                    <UserPlus className="h-4 w-4" aria-hidden="true" />
+                    Register
+                  </Link>
+                </>
+              )}
             </div>
           </aside>
         </div>
