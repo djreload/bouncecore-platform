@@ -80,5 +80,5 @@ It also accepts Firebase fallback values for offline/local config testing: `-Fir
 - The app reads app name, maintenance mode, Android update policy, Firebase push settings, and LevelPlay ad settings from `/api/mobile/v1/config` on launch and while the app is resumed.
 - If the backend minimum supported Android build is higher than the installed `versionCode`, the app shows a required update screen before loading the site.
 - LevelPlay does not document a separate app-open ad format in the Android guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
-- The app-open full-screen ad shows once per app process after it has loaded and uses a three-minute cooldown.
+- The app-open full-screen ad shows once per foreground app open when the interstitial ad unit has a ready ad.
 - The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, and `AD_ID`.

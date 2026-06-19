@@ -102,6 +102,7 @@ export function getMobileEndpoints(): MobileEndpoint[] {
     { key: "account.profile", href: "/api/mobile/v1/account/profile" },
     { key: "account.devices", href: "/api/mobile/v1/account/devices" },
     { key: "account.notifications", href: "/api/mobile/v1/account/notifications" },
+    { key: "account.notificationPreferences", href: "/api/mobile/v1/account/notification-preferences" },
     { key: "account.orders", href: "/api/mobile/v1/account/orders" },
     { key: "account.downloads", href: "/api/mobile/v1/account/downloads" },
     { key: "account.rewards", href: "/api/mobile/v1/account/rewards" },

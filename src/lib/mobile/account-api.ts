@@ -5,6 +5,11 @@ import {
   updateAccountProfile,
   type AccountProfileInput
 } from "@/lib/account/account-service";
+import { notificationPreferenceCategories } from "@/lib/account/notification-preferences-core";
+import {
+  getUserNotificationPreferences,
+  updateUserNotificationPreferences
+} from "@/lib/account/notification-preferences-service";
 import type { CurrentUser } from "@/lib/auth/rbac";
 import { getCurrentUserFromRequest } from "@/lib/auth/session";
 import { getAccountDownloadsData, getOwnedTrackDownload } from "@/lib/music/music-service";
@@ -37,12 +42,17 @@ function userPayload(user: CurrentUser) {
 }
 
 export async function getMobileAccountPayload(user: CurrentUser) {
-  const [overview, profile] = await Promise.all([getAccountOverviewData(user.id), getAccountProfileData(user.id)]);
+  const [overview, profile, notificationPreferences] = await Promise.all([
+    getAccountOverviewData(user.id),
+    getAccountProfileData(user.id),
+    getUserNotificationPreferences(user.id)
+  ]);
 
   return {
     user: userPayload(user),
     overview,
-    profile
+    profile,
+    notificationPreferences
   };
 }
 
@@ -70,6 +80,22 @@ export async function updateMobileProfilePayload(user: CurrentUser, input: Parti
 
 export async function getMobileNotificationsPayload(user: CurrentUser) {
   return getAccountNotificationsData(user.id);
+}
+
+export async function getMobileNotificationPreferencesPayload(user: CurrentUser) {
+  return {
+    categories: notificationPreferenceCategories,
+    preferences: await getUserNotificationPreferences(user.id)
+  };
+}
+
+export async function updateMobileNotificationPreferencesPayload(user: CurrentUser, input: unknown) {
+  const preferences = await updateUserNotificationPreferences(user.id, input);
+
+  return {
+    categories: notificationPreferenceCategories,
+    preferences
+  };
 }
 
 export async function getMobileOrdersPayload(user: CurrentUser) {

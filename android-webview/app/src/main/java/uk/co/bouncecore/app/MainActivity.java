@@ -54,7 +54,6 @@ import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
     private static final String TAG = "BouncecoreAndroid";
-    private static final long INTERSTITIAL_COOLDOWN_MS = 180_000L;
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
@@ -82,13 +81,13 @@ public class MainActivity extends Activity {
     private boolean activityResumed = false;
     private boolean levelPlayReady = false;
     private boolean interstitialShowing = false;
-    private boolean appOpenShownThisSession = false;
+    private boolean appOpenShownThisForeground = false;
+    private boolean pausedForInterstitial = false;
     private boolean firebaseInitialized = false;
     private boolean fcmTokenRequestInFlight = false;
     private int bannerRetryCount = 0;
     private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
-    private long lastInterstitialShownAt = 0L;
     private MobileRuntimeConfig runtimeConfig = MobileRuntimeConfig.fromBuildConfig();
 
     @Override
@@ -551,8 +550,7 @@ public class MainActivity extends Activity {
             @Override
             public void onAdDisplayed(LevelPlayAdInfo adInfo) {
                 interstitialShowing = true;
-                appOpenShownThisSession = true;
-                lastInterstitialShownAt = SystemClock.elapsedRealtime();
+                appOpenShownThisForeground = true;
                 Log.d(TAG, "LevelPlay interstitial displayed: " + adInfo);
             }
 
@@ -590,16 +588,11 @@ public class MainActivity extends Activity {
     }
 
     private void maybeShowAppOpenInterstitial(String reason) {
-        long now = SystemClock.elapsedRealtime();
-        boolean cooldownElapsed = now - lastInterstitialShownAt >= INTERSTITIAL_COOLDOWN_MS;
-
         if (activityResumed
             && interstitialAd != null
             && interstitialAd.isAdReady()
-            && cooldownElapsed
             && !interstitialShowing
-            && !appOpenShownThisSession
-            && !runtimeConfig.levelPlayTestSuiteEnabled) {
+            && !appOpenShownThisForeground) {
             Log.d(TAG, "Showing LevelPlay app-open interstitial after " + reason);
             interstitialAd.showAd(this);
         }
@@ -632,6 +625,10 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         activityResumed = true;
+        if (!pausedForInterstitial) {
+            appOpenShownThisForeground = false;
+        }
+        pausedForInterstitial = false;
         fetchMobileConfig(false);
         mainHandler.removeCallbacks(configRefreshRunnable);
         mainHandler.postDelayed(configRefreshRunnable, CONFIG_REFRESH_INTERVAL_MS);
@@ -644,6 +641,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        pausedForInterstitial = interstitialShowing;
+
         if (bannerAdView != null) {
             bannerAdView.pauseAutoRefresh();
         }
