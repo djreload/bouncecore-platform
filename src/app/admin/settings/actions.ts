@@ -12,6 +12,7 @@ function revalidateSiteSettingsViews() {
   revalidatePath("/cookies");
   revalidatePath("/live");
   revalidatePath("/privacy");
+  revalidatePath("/support");
   revalidatePath("/terms");
   revalidatePath("/admin/settings");
   revalidatePath("/admin/audit-logs");

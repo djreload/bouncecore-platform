@@ -98,8 +98,11 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             ) : null}
           </div>
           <nav aria-label="Legal pages">
-            <p className="font-semibold uppercase tracking-[0.08em] text-white">Legal</p>
+            <p className="font-semibold uppercase tracking-[0.08em] text-white">Help</p>
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+              <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href="/support">
+                Support
+              </Link>
               {legalPages.map((page) => (
                 <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={page.href} key={page.key}>
                   {page.title}

@@ -13,5 +13,6 @@ import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
 import "./star-packages.test.mjs";
+import "./support-request.test.mjs";
 import "./transcoder-source.test.mjs";
 import "./worker-heartbeat.test.mjs";

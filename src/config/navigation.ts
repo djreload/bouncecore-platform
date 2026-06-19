@@ -134,6 +134,7 @@ export const adminNavigation: NavigationItem[] = [
     requiredRoles: ["owner", "admin"],
     requiredPermission: "settings.manage"
   },
+  { label: "Support inbox", href: "/admin/support", icon: "message", group: "Settings", requiredRoles: ["owner", "admin"] },
   { label: "Integrations", href: "/admin/integrations", icon: "activity", group: "Settings", requiredRoles: ["owner", "admin"] }
 ];
 
