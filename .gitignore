@@ -4,6 +4,8 @@
 !.env.example
 *.pem
 *.key
+*.jks
+*.keystore
 *.p12
 *.pfx
 secrets/
@@ -41,6 +43,7 @@ public/uploads/*
 .codex-run/
 android-webview/.gradle/
 android-webview/app/build/
+android-webview/release/
 
 # Prisma/local data
 *.db

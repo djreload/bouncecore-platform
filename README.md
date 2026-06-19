@@ -47,6 +47,7 @@ src/stream-core/         Embedded stream-core HTTP service
 src/workers/             Background worker entrypoint
 prisma/                  Prisma schema, migrations, and seed data
 public/                  Public assets and upload mount point
+android-webview/         Native Android WebView wrapper and Gradle project
 deploy/                  Reverse-proxy and service support files
 docs/                    Architecture, install, backup, and operations docs
 scripts/                 Install, backup, restore, stream smoke, and utility scripts
@@ -226,6 +227,7 @@ npm.cmd run stream:smoke -- -UseTranscoder
 
 - [CHANGELOG.md](CHANGELOG.md)
 - [docs/INSTALL_UBUNTU_DEBIAN.md](docs/INSTALL_UBUNTU_DEBIAN.md)
+- [docs/ANDROID_RELEASE.md](docs/ANDROID_RELEASE.md)
 - [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 - [docs/EMBEDDED_STREAM_CORE.md](docs/EMBEDDED_STREAM_CORE.md)
 - [docs/STREAM_CORE_BOUNDARY.md](docs/STREAM_CORE_BOUNDARY.md)

@@ -31,6 +31,19 @@ For command-line debug builds on Windows:
 
 The debug APK is written to `android-webview/app/build/outputs/apk/debug/app-debug.apk`.
 
+## Release Builds
+
+Production APK/AAB builds must be signed with a persistent release keystore.
+Use the release scripts from the repository root:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://your-domain.example -VersionCode 2 -VersionName 1.0.1
+```
+
+For Google Play, add `-Bundle` to create `app-release.aab`.
+Full release instructions are in `docs/ANDROID_RELEASE.md`.
+
 ## Push Notifications
 
 Native Android push uses Firebase Cloud Messaging.

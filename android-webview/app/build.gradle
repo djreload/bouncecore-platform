@@ -6,6 +6,19 @@ def quoted(String value) {
     return "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 }
 
+def configValue(String name, String fallback = "") {
+    return providers.gradleProperty(name)
+        .orElse(providers.environmentVariable(name))
+        .orElse(fallback)
+        .get()
+}
+
+def releaseStoreFilePath = configValue("BOUNCECORE_RELEASE_STORE_FILE")
+def releaseStorePassword = configValue("BOUNCECORE_RELEASE_STORE_PASSWORD")
+def releaseKeyAlias = configValue("BOUNCECORE_RELEASE_KEY_ALIAS")
+def releaseKeyPassword = configValue("BOUNCECORE_RELEASE_KEY_PASSWORD")
+def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace "uk.co.bouncecore.app"
     compileSdk 36
@@ -14,23 +27,42 @@ android {
         applicationId "uk.co.bouncecore.app"
         minSdk 23
         targetSdk 36
-        versionCode 1
-        versionName "1.0.0"
+        versionCode configValue("BOUNCECORE_VERSION_CODE", "1").toInteger()
+        versionName configValue("BOUNCECORE_VERSION_NAME", "1.0.0")
 
-        buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(providers.gradleProperty("BOUNCECORE_WEB_URL").orElse("https://example.com").get())
+        buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(configValue("BOUNCECORE_WEB_URL", "https://example.com"))
         buildConfigField "String", "UNITY_PROJECT_ID", quoted("61d46651-d0a2-4175-ade1-fc300e58559f")
-        buildConfigField "String", "LEVELPLAY_APP_KEY", quoted(providers.gradleProperty("LEVELPLAY_APP_KEY").orElse("").get())
-        buildConfigField "String", "LEVELPLAY_BANNER_AD_UNIT_ID", quoted(providers.gradleProperty("LEVELPLAY_BANNER_AD_UNIT_ID").orElse("").get())
-        buildConfigField "String", "LEVELPLAY_INTERSTITIAL_AD_UNIT_ID", quoted(providers.gradleProperty("LEVELPLAY_INTERSTITIAL_AD_UNIT_ID").orElse("").get())
-        buildConfigField "boolean", "LEVELPLAY_TEST_SUITE_ENABLED", providers.gradleProperty("LEVELPLAY_TEST_SUITE_ENABLED").orElse("false").get().toBoolean().toString()
-        buildConfigField "String", "FIREBASE_ANDROID_API_KEY", quoted(providers.gradleProperty("FIREBASE_ANDROID_API_KEY").orElse("").get())
-        buildConfigField "String", "FIREBASE_ANDROID_APP_ID", quoted(providers.gradleProperty("FIREBASE_ANDROID_APP_ID").orElse("").get())
-        buildConfigField "String", "FIREBASE_MESSAGING_SENDER_ID", quoted(providers.gradleProperty("FIREBASE_MESSAGING_SENDER_ID").orElse("").get())
-        buildConfigField "String", "FIREBASE_PROJECT_ID", quoted(providers.gradleProperty("FIREBASE_PROJECT_ID").orElse("").get())
+        buildConfigField "String", "LEVELPLAY_APP_KEY", quoted(configValue("LEVELPLAY_APP_KEY"))
+        buildConfigField "String", "LEVELPLAY_BANNER_AD_UNIT_ID", quoted(configValue("LEVELPLAY_BANNER_AD_UNIT_ID"))
+        buildConfigField "String", "LEVELPLAY_INTERSTITIAL_AD_UNIT_ID", quoted(configValue("LEVELPLAY_INTERSTITIAL_AD_UNIT_ID"))
+        buildConfigField "boolean", "LEVELPLAY_TEST_SUITE_ENABLED", configValue("LEVELPLAY_TEST_SUITE_ENABLED", "false").toBoolean().toString()
+        buildConfigField "String", "FIREBASE_ANDROID_API_KEY", quoted(configValue("FIREBASE_ANDROID_API_KEY"))
+        buildConfigField "String", "FIREBASE_ANDROID_APP_ID", quoted(configValue("FIREBASE_ANDROID_APP_ID"))
+        buildConfigField "String", "FIREBASE_MESSAGING_SENDER_ID", quoted(configValue("FIREBASE_MESSAGING_SENDER_ID"))
+        buildConfigField "String", "FIREBASE_PROJECT_ID", quoted(configValue("FIREBASE_PROJECT_ID"))
     }
 
     buildFeatures {
         buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
     }
 
     compileOptions {
