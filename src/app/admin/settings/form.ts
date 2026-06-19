@@ -1,4 +1,5 @@
 import type { SiteSettingsInput } from "@/lib/admin/site-settings-service";
+import { legalPageKeys } from "@/lib/admin/legal-pages-core";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -17,6 +18,12 @@ export function adminSettingsInput(formData: FormData): SiteSettingsInput {
     platform: formString(formData, `liveSocialLinks.${index}.platform`),
     url: formString(formData, `liveSocialLinks.${index}.url`)
   }));
+  const legalPages = legalPageKeys.map((key) => ({
+    body: formString(formData, `legalPages.${key}.body`),
+    enabled: formBoolean(formData, `legalPages.${key}.enabled`),
+    key,
+    title: formString(formData, `legalPages.${key}.title`)
+  }));
 
   return {
     announcementBody: formString(formData, "announcementBody"),
@@ -27,6 +34,7 @@ export function adminSettingsInput(formData: FormData): SiteSettingsInput {
     footerSummary: formString(formData, "footerSummary"),
     homepageBadge: formString(formData, "homepageBadge"),
     homepageIntro: formString(formData, "homepageIntro"),
+    legalPages,
     liveSocialLinks,
     siteName: formString(formData, "siteName"),
     stagingTarget: formString(formData, "stagingTarget"),

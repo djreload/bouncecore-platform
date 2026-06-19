@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Globe2, Megaphone, Save, Settings, Share2 } from "lucide-react";
+import { FileText, Globe2, Megaphone, Save, Settings, Share2 } from "lucide-react";
 import { adminSettingsAction } from "@/app/admin/settings/actions";
 import { initialAdminSettingsActionState, type AdminSettingsActionState } from "@/app/admin/settings/state";
 import { Badge } from "@/components/ui/badge";
@@ -228,6 +228,68 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                     />
                   </div>
                 </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+                  <h4 className="font-black">Public legal pages</h4>
+                </div>
+                <p className="mt-2 text-sm text-bc-muted">
+                  Plain-text policy pages rendered safely on the public site and linked in the footer.
+                </p>
+              </div>
+              <Badge tone="acid">{data.settings.legalPages.filter((page) => page.enabled).length} enabled</Badge>
+            </div>
+            <div className="mt-4 grid gap-4">
+              {data.settings.legalPages.map((page) => (
+                <article className="rounded-md border border-bc-line bg-bc-panel p-4" key={page.key}>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <Badge tone="cyan">{page.href}</Badge>
+                      <h5 className="mt-3 font-black">{page.title}</h5>
+                    </div>
+                    <label className="flex items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-bc-muted">
+                      <input
+                        defaultChecked={page.enabled}
+                        disabled={pending}
+                        name={`legalPages.${page.key}.enabled`}
+                        type="checkbox"
+                      />
+                      Enabled
+                    </label>
+                  </div>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[280px_1fr]">
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`legal-title-${page.key}`}>
+                        Title
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        defaultValue={page.title}
+                        disabled={pending}
+                        id={`legal-title-${page.key}`}
+                        name={`legalPages.${page.key}.title`}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`legal-body-${page.key}`}>
+                        Body
+                      </label>
+                      <textarea
+                        className="mt-2 min-h-52 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        defaultValue={page.body}
+                        disabled={pending}
+                        id={`legal-body-${page.key}`}
+                        name={`legalPages.${page.key}.body`}
+                      />
+                    </div>
+                  </div>
+                </article>
               ))}
             </div>
           </div>

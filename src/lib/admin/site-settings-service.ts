@@ -1,4 +1,12 @@
 import { Prisma } from "@prisma/client";
+import {
+  legalPageForKey,
+  mergeLegalPages,
+  normalizeLegalPagesInput,
+  type LegalPageInput,
+  type LegalPageKey,
+  type LegalPageSettings
+} from "@/lib/admin/legal-pages-core";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 
@@ -13,6 +21,7 @@ export type SiteSettingsInput = {
   footerSummary?: string;
   homepageBadge?: string;
   homepageIntro?: string;
+  legalPages: LegalPageInput[];
   liveSocialLinks: Array<{
     enabled: boolean;
     label?: string;
@@ -43,6 +52,7 @@ export type SiteSettings = {
   homepageBadge: string;
   homepageIntro: string;
   liveSocialLinks: LiveSocialLink[];
+  legalPages: LegalPageSettings[];
   siteName: string;
   stagingTarget: string | null;
   supportEmail: string | null;
@@ -73,6 +83,7 @@ function defaultSiteSettings(): SiteSettings {
     homepageBadge: "Bouncecore platform",
     homepageIntro:
       "A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
+    legalPages: mergeLegalPages(null),
     liveSocialLinks: [],
     siteName: "Bouncecore",
     stagingTarget: null,
@@ -282,6 +293,10 @@ function mergeSiteSettings(value: unknown): SiteSettings {
       .slice(0, 8);
   }
 
+  if (Array.isArray(value.legalPages)) {
+    settings.legalPages = mergeLegalPages(value.legalPages);
+  }
+
   return settings;
 }
 
@@ -310,6 +325,7 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),
     homepageBadge: normalizedRequiredText(input.homepageBadge, 80, "Homepage badge"),
     homepageIntro: normalizedRequiredText(input.homepageIntro, 320, "Homepage intro"),
+    legalPages: normalizeLegalPagesInput(input.legalPages),
     liveSocialLinks: normalizeLiveSocialLinks(input.liveSocialLinks),
     siteName: normalizedRequiredText(input.siteName, 80, "Site name"),
     stagingTarget: normalizedText(input.stagingTarget, 160),
@@ -335,6 +351,16 @@ export async function getPublicSiteSettings() {
   const { settings } = await readSiteSettings();
 
   return settings;
+}
+
+export async function getPublicLegalPageData(key: LegalPageKey) {
+  const { settings, updatedAt } = await readSiteSettings();
+
+  return {
+    page: legalPageForKey(settings.legalPages, key),
+    siteSettings: settings,
+    updatedAt: updatedAt?.toISOString() ?? null
+  };
 }
 
 export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData> {
@@ -374,6 +400,14 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
         label: "Live social links",
         status: settings.liveSocialLinks.some((link) => link.enabled) ? "ready" : "warning",
         value: settings.liveSocialLinks.filter((link) => link.enabled).length.toString()
+      },
+      {
+        detail: settings.legalPages.some((page) => page.enabled)
+          ? `${settings.legalPages.filter((page) => page.enabled).length} public legal pages are enabled.`
+          : "No public legal pages are enabled.",
+        label: "Legal pages",
+        status: settings.legalPages.some((page) => page.enabled) ? "ready" : "warning",
+        value: settings.legalPages.filter((page) => page.enabled).length.toString()
       }
     ],
     settings,
@@ -409,6 +443,7 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
     severity: settings.announcement.enabled ? "warning" : "info",
     metadata: {
       announcementEnabled: settings.announcement.enabled,
+      legalPages: settings.legalPages.filter((page) => page.enabled).map((page) => page.key),
       liveSocialLinks: settings.liveSocialLinks.filter((link) => link.enabled).length,
       siteName: settings.siteName,
       supportEmailSet: Boolean(settings.supportEmail)

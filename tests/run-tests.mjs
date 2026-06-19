@@ -2,6 +2,7 @@ import "./chat-effects.test.mjs";
 import "./email-address.test.mjs";
 import "./fcm-push-service.test.mjs";
 import "./ingest-url.test.mjs";
+import "./legal-pages.test.mjs";
 import "./media-service.test.mjs";
 import "./media-gateway-state.test.mjs";
 import "./music-checkout-errors.test.mjs";

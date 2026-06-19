@@ -9,7 +9,10 @@ import { updateSiteSettings } from "@/lib/admin/site-settings-service";
 
 function revalidateSiteSettingsViews() {
   revalidatePath("/");
+  revalidatePath("/cookies");
   revalidatePath("/live");
+  revalidatePath("/privacy");
+  revalidatePath("/terms");
   revalidatePath("/admin/settings");
   revalidatePath("/admin/audit-logs");
 }
