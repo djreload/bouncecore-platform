@@ -14,6 +14,7 @@ type AdminMobilePanelProps = {
 
 const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads", "push"] as const satisfies readonly MobileFeatureKey[];
 const mobileThemeModes = ["dark", "light"] as const;
+const appOpenInterstitialFrequencies = ["every_open", "once_per_session", "disabled"] as const;
 
 function formatDate(value: string | null) {
   return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Not saved";
@@ -25,6 +26,10 @@ function checkTone(status: string) {
 
 function featureLabel(value: string) {
   return value.replaceAll("-", " ").replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function frequencyLabel(value: string) {
+  return featureLabel(value.replaceAll("_", " "));
 }
 
 export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
@@ -291,6 +296,47 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
                   id="mobile-levelplay-interstitial-id"
                   name="levelPlayInterstitialAdUnitId"
                 />
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input
+                  defaultChecked={data.config.ads.behavior.bannerEnabled}
+                  disabled={pending}
+                  name="levelPlayBannerEnabled"
+                  type="checkbox"
+                />
+                Show banner ads
+              </label>
+              <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input
+                  defaultChecked={data.config.ads.behavior.appOpenInterstitialEnabled}
+                  disabled={pending}
+                  name="levelPlayAppOpenInterstitialEnabled"
+                  type="checkbox"
+                />
+                Show app-open interstitials
+              </label>
+              <div>
+                <label
+                  className="text-xs font-semibold uppercase text-bc-muted"
+                  htmlFor="mobile-levelplay-app-open-frequency"
+                >
+                  App-open frequency
+                </label>
+                <select
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.behavior.appOpenInterstitialFrequency}
+                  disabled={pending}
+                  id="mobile-levelplay-app-open-frequency"
+                  name="levelPlayAppOpenInterstitialFrequency"
+                >
+                  {appOpenInterstitialFrequencies.map((frequency) => (
+                    <option key={frequency} value={frequency}>
+                      {frequencyLabel(frequency)}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
             <label className="mt-4 flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">

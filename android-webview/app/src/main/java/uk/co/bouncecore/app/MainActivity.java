@@ -54,6 +54,9 @@ import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
     private static final String TAG = "BouncecoreAndroid";
+    private static final String APP_OPEN_INTERSTITIAL_DISABLED = "disabled";
+    private static final String APP_OPEN_INTERSTITIAL_EVERY_OPEN = "every_open";
+    private static final String APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION = "once_per_session";
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
@@ -82,6 +85,7 @@ public class MainActivity extends Activity {
     private boolean levelPlayReady = false;
     private boolean interstitialShowing = false;
     private boolean appOpenShownThisForeground = false;
+    private boolean appOpenShownThisProcess = false;
     private boolean pausedForInterstitial = false;
     private boolean firebaseInitialized = false;
     private boolean fcmTokenRequestInFlight = false;
@@ -254,6 +258,9 @@ public class MainActivity extends Activity {
             TAG,
             "Mobile config applied from " + source
                 + ": ads=" + config.adsEnabled
+                + ", banner=" + config.bannerAdsEnabled
+                + ", appOpen=" + config.appOpenInterstitialEnabled
+                + ", appOpenFrequency=" + config.appOpenInterstitialFrequency
                 + ", maintenance=" + config.maintenanceEnabled
                 + ", minAndroid=" + config.minimumSupportedVersionCode
                 + ", push=" + config.pushEnabled
@@ -262,12 +269,14 @@ public class MainActivity extends Activity {
         if (isUpdateRequired(config)) {
             showRequiredUpdatePage(config);
             destroyBanner();
+            disableInterstitialAds();
             return;
         }
 
         if (config.maintenanceEnabled) {
             showMaintenancePage(config);
             destroyBanner();
+            disableInterstitialAds();
             return;
         }
 
@@ -279,6 +288,7 @@ public class MainActivity extends Activity {
             initializeLevelPlay(config);
         } else {
             destroyBanner();
+            disableInterstitialAds();
         }
 
         if (config.pushEnabled) {
@@ -429,6 +439,7 @@ public class MainActivity extends Activity {
 
     private void initializeLevelPlay(MobileRuntimeConfig config) {
         if (levelPlayReady) {
+            syncLevelPlayAds();
             return;
         }
 
@@ -447,8 +458,7 @@ public class MainActivity extends Activity {
             public void onInitSuccess(LevelPlayConfiguration configuration) {
                 levelPlayReady = true;
                 Log.d(TAG, "LevelPlay initialized");
-                createAndLoadBanner();
-                createAndLoadInterstitial();
+                syncLevelPlayAds();
 
                 if (runtimeConfig.levelPlayTestSuiteEnabled) {
                     mainHandler.postDelayed(() -> LevelPlay.launchTestSuite(MainActivity.this), 500L);
@@ -463,8 +473,28 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void syncLevelPlayAds() {
+        if (runtimeConfig.bannerAdsEnabled) {
+            if (bannerAdView == null) {
+                createAndLoadBanner();
+            }
+        } else {
+            destroyBanner();
+        }
+
+        if (runtimeConfig.appOpenInterstitialEnabled && !APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
+            if (interstitialAd == null) {
+                createAndLoadInterstitial();
+            } else {
+                maybeShowAppOpenInterstitial("config-sync");
+            }
+        } else {
+            disableInterstitialAds();
+        }
+    }
+
     private void createAndLoadBanner() {
-        if (!levelPlayReady || TextUtils.isEmpty(runtimeConfig.levelPlayBannerAdUnitId)) {
+        if (!levelPlayReady || !runtimeConfig.bannerAdsEnabled || TextUtils.isEmpty(runtimeConfig.levelPlayBannerAdUnitId)) {
             Log.w(TAG, "LevelPlay banner ad unit is not configured; banner is disabled.");
             return;
         }
@@ -529,7 +559,10 @@ public class MainActivity extends Activity {
     }
 
     private void createAndLoadInterstitial() {
-        if (!levelPlayReady || TextUtils.isEmpty(runtimeConfig.levelPlayInterstitialAdUnitId)) {
+        if (!levelPlayReady
+            || !runtimeConfig.appOpenInterstitialEnabled
+            || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)
+            || TextUtils.isEmpty(runtimeConfig.levelPlayInterstitialAdUnitId)) {
             Log.w(TAG, "LevelPlay interstitial ad unit is not configured; full-screen ads are disabled.");
             return;
         }
@@ -551,6 +584,7 @@ public class MainActivity extends Activity {
             public void onAdDisplayed(LevelPlayAdInfo adInfo) {
                 interstitialShowing = true;
                 appOpenShownThisForeground = true;
+                appOpenShownThisProcess = true;
                 Log.d(TAG, "LevelPlay interstitial displayed: " + adInfo);
             }
 
@@ -582,12 +616,32 @@ public class MainActivity extends Activity {
     }
 
     private void loadInterstitial() {
-        if (interstitialAd != null) {
+        if (interstitialAd != null
+            && runtimeConfig.appOpenInterstitialEnabled
+            && !APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
             interstitialAd.loadAd();
         }
     }
 
+    private void disableInterstitialAds() {
+        interstitialAd = null;
+        interstitialShowing = false;
+    }
+
     private void maybeShowAppOpenInterstitial(String reason) {
+        if (!runtimeConfig.appOpenInterstitialEnabled
+            || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
+            return;
+        }
+
+        if (APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION.equals(runtimeConfig.appOpenInterstitialFrequency) && appOpenShownThisProcess) {
+            return;
+        }
+
+        if (APP_OPEN_INTERSTITIAL_EVERY_OPEN.equals(runtimeConfig.appOpenInterstitialFrequency) && appOpenShownThisForeground) {
+            return;
+        }
+
         if (activityResumed
             && interstitialAd != null
             && interstitialAd.isAdReady()
@@ -682,7 +736,10 @@ public class MainActivity extends Activity {
 
     private static final class MobileRuntimeConfig {
         final boolean adsEnabled;
+        final boolean appOpenInterstitialEnabled;
+        final String appOpenInterstitialFrequency;
         final String appName;
+        final boolean bannerAdsEnabled;
         final String firebaseAndroidApiKey;
         final String firebaseAndroidAppId;
         final String firebaseMessagingSenderId;
@@ -702,7 +759,10 @@ public class MainActivity extends Activity {
 
         private MobileRuntimeConfig(
             boolean adsEnabled,
+            boolean appOpenInterstitialEnabled,
+            String appOpenInterstitialFrequency,
             String appName,
+            boolean bannerAdsEnabled,
             String firebaseAndroidApiKey,
             String firebaseAndroidAppId,
             String firebaseMessagingSenderId,
@@ -721,7 +781,10 @@ public class MainActivity extends Activity {
             String updateUrl
         ) {
             this.adsEnabled = adsEnabled;
+            this.appOpenInterstitialEnabled = appOpenInterstitialEnabled;
+            this.appOpenInterstitialFrequency = appOpenInterstitialFrequency;
             this.appName = appName;
+            this.bannerAdsEnabled = bannerAdsEnabled;
             this.firebaseAndroidApiKey = firebaseAndroidApiKey;
             this.firebaseAndroidAppId = firebaseAndroidAppId;
             this.firebaseMessagingSenderId = firebaseMessagingSenderId;
@@ -747,7 +810,10 @@ public class MainActivity extends Activity {
 
             return new MobileRuntimeConfig(
                 hasAdsConfig,
+                true,
+                APP_OPEN_INTERSTITIAL_EVERY_OPEN,
                 "Bouncecore",
+                true,
                 BuildConfig.FIREBASE_ANDROID_API_KEY,
                 BuildConfig.FIREBASE_ANDROID_APP_ID,
                 BuildConfig.FIREBASE_MESSAGING_SENDER_ID,
@@ -769,6 +835,7 @@ public class MainActivity extends Activity {
 
         static MobileRuntimeConfig fromJson(JSONObject json) {
             JSONObject ads = json.optJSONObject("ads");
+            JSONObject behavior = ads != null ? ads.optJSONObject("behavior") : null;
             JSONObject levelPlay = ads != null ? ads.optJSONObject("levelPlay") : null;
             JSONObject maintenance = json.optJSONObject("maintenance");
             JSONObject push = json.optJSONObject("push");
@@ -778,6 +845,12 @@ public class MainActivity extends Activity {
             String appKey = jsonString(levelPlay, "appKey", "");
             String bannerId = jsonString(levelPlay, "bannerAdUnitId", "");
             String interstitialId = jsonString(levelPlay, "interstitialAdUnitId", "");
+            boolean bannerEnabled = behavior == null || behavior.optBoolean("bannerEnabled", true);
+            String appOpenFrequency = normalizedAppOpenInterstitialFrequency(
+                jsonString(behavior, "appOpenInterstitialFrequency", APP_OPEN_INTERSTITIAL_EVERY_OPEN)
+            );
+            boolean appOpenEnabled = (behavior == null || behavior.optBoolean("appOpenInterstitialEnabled", true))
+                && !APP_OPEN_INTERSTITIAL_DISABLED.equals(appOpenFrequency);
             String firebaseApiKey = jsonString(firebaseAndroid, "apiKey", "");
             String firebaseAppId = jsonString(firebaseAndroid, "appId", "");
             String firebaseSenderId = jsonString(firebaseAndroid, "messagingSenderId", "");
@@ -790,8 +863,13 @@ public class MainActivity extends Activity {
                 && !TextUtils.isEmpty(firebaseProjectId);
 
             return new MobileRuntimeConfig(
-                adsEnabled && !TextUtils.isEmpty(appKey) && !TextUtils.isEmpty(bannerId) && !TextUtils.isEmpty(interstitialId),
+                adsEnabled
+                    && !TextUtils.isEmpty(appKey)
+                    && ((bannerEnabled && !TextUtils.isEmpty(bannerId)) || (appOpenEnabled && !TextUtils.isEmpty(interstitialId))),
+                appOpenEnabled,
+                appOpenFrequency,
                 json.optString("app", "Bouncecore"),
+                bannerEnabled,
                 firebaseApiKey,
                 firebaseAppId,
                 firebaseSenderId,
@@ -831,6 +909,14 @@ public class MainActivity extends Activity {
             }
 
             return object.optString(key, fallback);
+        }
+
+        private static String normalizedAppOpenInterstitialFrequency(String value) {
+            if (APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION.equals(value) || APP_OPEN_INTERSTITIAL_DISABLED.equals(value)) {
+                return value;
+            }
+
+            return APP_OPEN_INTERSTITIAL_EVERY_OPEN;
         }
     }
 }
