@@ -1,7 +1,6 @@
 package uk.co.bouncecore.app;
 
 import android.app.Notification;
-import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
@@ -13,7 +12,6 @@ import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
 
 public class BouncecoreFirebaseMessagingService extends FirebaseMessagingService {
-    private static final String CHANNEL_ID = "bouncecore_notifications";
     private static final String TAG = "BouncecorePush";
 
     @Override
@@ -36,7 +34,7 @@ public class BouncecoreFirebaseMessagingService extends FirebaseMessagingService
             return;
         }
 
-        ensureNotificationChannel(manager);
+        NotificationChannels.ensureDefaultChannel(this);
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -48,7 +46,7 @@ public class BouncecoreFirebaseMessagingService extends FirebaseMessagingService
         );
 
         Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-            ? new Notification.Builder(this, CHANNEL_ID)
+            ? new Notification.Builder(this, NotificationChannels.DEFAULT_CHANNEL_ID)
             : new Notification.Builder(this);
 
         builder
@@ -60,19 +58,5 @@ public class BouncecoreFirebaseMessagingService extends FirebaseMessagingService
             .setSmallIcon(R.drawable.ic_launcher);
 
         manager.notify((int) System.currentTimeMillis(), builder.build());
-    }
-
-    private void ensureNotificationChannel(NotificationManager manager) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-
-        NotificationChannel channel = new NotificationChannel(
-            CHANNEL_ID,
-            "Bouncecore notifications",
-            NotificationManager.IMPORTANCE_DEFAULT
-        );
-        channel.setDescription("Account, stream, shop, music, and admin notifications.");
-        manager.createNotificationChannel(channel);
     }
 }

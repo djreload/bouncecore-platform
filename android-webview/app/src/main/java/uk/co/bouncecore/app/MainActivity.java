@@ -95,6 +95,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         configureWindow();
+        NotificationChannels.ensureDefaultChannel(this);
         setContentView(createLayout());
         configureWebView();
         webView.loadUrl(BuildConfig.BOUNCECORE_WEB_URL);
