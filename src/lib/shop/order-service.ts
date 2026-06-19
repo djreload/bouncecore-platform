@@ -1,4 +1,5 @@
 import { writeAuditLog } from "@/lib/auth/audit";
+import { notifyShopOrderPaid, notifyShopOrderStatusUpdated } from "@/lib/checkout/checkout-confirmation-service";
 import { prisma } from "@/lib/db/prisma";
 
 export const orderStatusOptions = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
@@ -240,6 +241,14 @@ export async function updateOrderStatus(actorId: string, orderId: string, status
       userId: order.userId
     }
   });
+
+  if (existing.status !== order.status) {
+    if (order.status === "paid") {
+      await notifyShopOrderPaid(order.id);
+    } else {
+      await notifyShopOrderStatusUpdated(order.id, existing.status);
+    }
+  }
 
   return order;
 }

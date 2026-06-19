@@ -74,6 +74,72 @@ export async function notifyShopOrderPaid(orderId: string) {
   });
 }
 
+function shopOrderStatusLabel(status: string) {
+  switch (status) {
+    case "processing":
+      return "being processed";
+    case "fulfilled":
+      return "fulfilled";
+    case "cancelled":
+      return "cancelled";
+    case "refunded":
+      return "refunded";
+    default:
+      return status;
+  }
+}
+
+export async function notifyShopOrderStatusUpdated(orderId: string, previousStatus: string) {
+  const order = await prisma.order.findUnique({
+    include: {
+      items: true,
+      user: {
+        select: {
+          displayName: true,
+          email: true,
+          id: true
+        }
+      }
+    },
+    where: {
+      id: orderId
+    }
+  });
+
+  if (!order || order.status === previousStatus || !["processing", "fulfilled", "cancelled", "refunded"].includes(order.status)) {
+    return;
+  }
+
+  const itemSummary = order.items
+    .map((item) => `${item.quantity} x ${item.productName} (${item.variantName})`)
+    .join(", ");
+  const label = shopOrderStatusLabel(order.status);
+
+  await notifyAndEmailOnce({
+    body: `Your shop order is now ${label}.`,
+    dedupeKey: `shop-order-status:${order.id}:${order.status}`,
+    htmlLines: [
+      `Hi ${order.user.displayName},`,
+      `Your Bouncecore shop order is now ${label}.`,
+      `Order: ${order.id}`,
+      `Previous status: ${previousStatus}`,
+      `Items: ${itemSummary || "Shop items"}`
+    ],
+    subject: "Bouncecore shop order updated",
+    textLines: [
+      `Hi ${order.user.displayName},`,
+      "",
+      `Your Bouncecore shop order is now ${label}.`,
+      `Order: ${order.id}`,
+      `Previous status: ${previousStatus}`,
+      `Items: ${itemSummary || "Shop items"}`
+    ],
+    title: "Shop order updated",
+    type: `shop.order.${order.status}`,
+    user: order.user
+  });
+}
+
 export async function notifyMusicPurchasePaid(purchaseId: string) {
   const purchase = await prisma.digitalTrackPurchase.findUnique({
     include: {
@@ -82,6 +148,17 @@ export async function notifyMusicPurchasePaid(purchaseId: string) {
           displayName: true,
           email: true,
           id: true
+        }
+      },
+      producer: {
+        include: {
+          user: {
+            select: {
+              displayName: true,
+              email: true,
+              id: true
+            }
+          }
         }
       }
     },
@@ -119,6 +196,30 @@ export async function notifyMusicPurchasePaid(purchaseId: string) {
     type: "music.purchase.paid",
     user: purchase.buyer
   });
+
+  await notifyAndEmailOnce({
+    body: `${purchase.trackTitle} sold for ${amount}. Estimated producer earnings: ${formatMoney(purchase.producerEarningsPence, purchase.currency)}.`,
+    dedupeKey: `producer-sale-paid:${purchase.id}`,
+    htmlLines: [
+      `Hi ${purchase.producer.user.displayName},`,
+      `Your Bouncecore track sold.`,
+      `Track: ${purchase.trackTitle}`,
+      `Sale total: ${amount}`,
+      `Estimated producer earnings: ${formatMoney(purchase.producerEarningsPence, purchase.currency)}`
+    ],
+    subject: "Bouncecore track sold",
+    textLines: [
+      `Hi ${purchase.producer.user.displayName},`,
+      "",
+      "Your Bouncecore track sold.",
+      `Track: ${purchase.trackTitle}`,
+      `Sale total: ${amount}`,
+      `Estimated producer earnings: ${formatMoney(purchase.producerEarningsPence, purchase.currency)}`
+    ],
+    title: "Track sold",
+    type: "producer.sale.paid",
+    user: purchase.producer.user
+  });
 }
 
 export async function notifyMusicCheckoutPaid(checkoutId: string) {
@@ -131,7 +232,21 @@ export async function notifyMusicCheckoutPaid(checkoutId: string) {
           id: true
         }
       },
-      purchases: true
+      purchases: {
+        include: {
+          producer: {
+            include: {
+              user: {
+                select: {
+                  displayName: true,
+                  email: true,
+                  id: true
+                }
+              }
+            }
+          }
+        }
+      }
     },
     where: {
       id: checkoutId
@@ -166,6 +281,35 @@ export async function notifyMusicCheckoutPaid(checkoutId: string) {
     type: "music.checkout.paid",
     user: checkout.buyer
   });
+
+  for (const purchase of checkout.purchases) {
+    const trackAmount = formatMoney(purchase.pricePence, purchase.currency);
+    const earnings = formatMoney(purchase.producerEarningsPence, purchase.currency);
+
+    await notifyAndEmailOnce({
+      body: `${purchase.trackTitle} sold for ${trackAmount}. Estimated producer earnings: ${earnings}.`,
+      dedupeKey: `producer-sale-paid:${purchase.id}`,
+      htmlLines: [
+        `Hi ${purchase.producer.user.displayName},`,
+        `Your Bouncecore track sold.`,
+        `Track: ${purchase.trackTitle}`,
+        `Sale total: ${trackAmount}`,
+        `Estimated producer earnings: ${earnings}`
+      ],
+      subject: "Bouncecore track sold",
+      textLines: [
+        `Hi ${purchase.producer.user.displayName},`,
+        "",
+        "Your Bouncecore track sold.",
+        `Track: ${purchase.trackTitle}`,
+        `Sale total: ${trackAmount}`,
+        `Estimated producer earnings: ${earnings}`
+      ],
+      title: "Track sold",
+      type: "producer.sale.paid",
+      user: purchase.producer.user
+    });
+  }
 }
 
 export async function notifyStarsPurchasePaid(purchaseId: string) {

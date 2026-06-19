@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { mailIsConfigured, sendMail } from "@/lib/mail/smtp-service";
+import { queueMobilePushForNotification } from "@/lib/mobile/account-notification-push-service";
 
 export type AccountNotificationEmailInput = {
   auditActionPrefix?: string;
@@ -56,7 +57,10 @@ async function createNotificationOnce(input: AccountNotificationEmailInput) {
   }
 
   try {
-    await prisma.notification.create({
+    const notification = await prisma.notification.create({
+      select: {
+        id: true
+      },
       data: {
         body: input.body,
         dedupeKey: input.dedupeKey,
@@ -66,10 +70,10 @@ async function createNotificationOnce(input: AccountNotificationEmailInput) {
       }
     });
 
-    return true;
+    return notification.id;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return false;
+      return null;
     }
 
     throw error;
@@ -77,10 +81,27 @@ async function createNotificationOnce(input: AccountNotificationEmailInput) {
 }
 
 export async function notifyAccountUserOnce(input: AccountNotificationEmailInput) {
-  const created = await createNotificationOnce(input);
+  const notificationId = await createNotificationOnce(input);
 
-  if (!created) {
+  if (!notificationId) {
     return;
+  }
+
+  let pushResult:
+    | Awaited<ReturnType<typeof queueMobilePushForNotification>>
+    | {
+        error: string;
+      };
+
+  try {
+    pushResult = await queueMobilePushForNotification({
+      notificationId,
+      userId: input.user.id
+    });
+  } catch (error) {
+    pushResult = {
+      error: error instanceof Error ? error.message : "Mobile push queueing failed."
+    };
   }
 
   let mailResult:
@@ -106,14 +127,19 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
     };
   }
 
-  const metadata: Record<string, boolean | string> = {
+  const metadata: Record<string, Prisma.InputJsonValue> = {
     configured: mailResult.configured,
+    push: pushResult as Prisma.InputJsonValue,
     type: input.type
   };
 
-  if ("reason" in mailResult) {
-    metadata.reason = mailResult.reason;
-  }
+  const metadataWithReason =
+    "reason" in mailResult
+      ? {
+          ...metadata,
+          reason: mailResult.reason
+        }
+      : metadata;
 
   const auditActionPrefix = input.auditActionPrefix ?? "account.notification";
 
@@ -121,7 +147,7 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
     actorId: input.user.id,
     action: `${auditActionPrefix}.${mailResult.sent ? "email_sent" : "email_not_sent"}`,
     target: input.dedupeKey,
-    severity: mailResult.sent ? "info" : "warning",
-    metadata: metadata as Prisma.InputJsonObject
+    severity: mailResult.sent && !("error" in pushResult) ? "info" : "warning",
+    metadata: metadataWithReason
   });
 }
