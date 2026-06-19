@@ -21,13 +21,14 @@ Do not commit keystores or signing passwords. The repository ignores:
 From Windows PowerShell:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1 -GeneratePasswords
 ```
 
-Default output:
+Default outputs:
 
 ```text
 android-webview/release/bouncecore-release.jks
+android-webview/release/signing.properties
 ```
 
 The default alias is:
@@ -41,10 +42,13 @@ To choose a custom location or alias:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1 `
   -KeystorePath C:\secure\bouncecore-release.jks `
-  -Alias bouncecore
+  -CredentialsPath C:\secure\bouncecore-signing.properties `
+  -Alias bouncecore `
+  -GeneratePasswords
 ```
 
-Back up the keystore outside the repo.
+Back up both the keystore and `signing.properties` outside the repo.
+The credentials file contains the signing passwords and is required for non-interactive release builds.
 
 ## Build a Signed Release APK
 
@@ -81,7 +85,18 @@ android-webview/app/build/outputs/bundle/release/app-release.aab
 
 ## Non-Interactive CI/Server Builds
 
-Set these environment variables before running the build script:
+Use the generated credentials file:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
+  -CredentialsPath C:\secure\bouncecore-signing.properties `
+  -WebUrl https://your-domain.example `
+  -VersionCode 2 `
+  -VersionName 1.0.1 `
+  -Bundle
+```
+
+Or set these environment variables before running the build script:
 
 ```powershell
 $env:BOUNCECORE_RELEASE_STORE_FILE="C:\secure\bouncecore-release.jks"

@@ -1,6 +1,7 @@
 param(
     [string]$WebUrl = "https://your-domain.example",
     [string]$KeystorePath = "",
+    [string]$CredentialsPath = "",
     [string]$KeyAlias = "",
     [string]$StorePassword = "",
     [string]$KeyPassword = "",
@@ -34,11 +35,53 @@ function Invoke-Native {
     }
 }
 
+function Import-SigningProperties {
+    param([string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        throw "Signing credentials file not found at $Path"
+    }
+
+    foreach ($line in Get-Content $Path) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith("#")) {
+            continue
+        }
+
+        $separatorIndex = $trimmed.IndexOf("=")
+        if ($separatorIndex -lt 1) {
+            continue
+        }
+
+        $key = $trimmed.Substring(0, $separatorIndex).Trim()
+        $value = $trimmed.Substring($separatorIndex + 1).Trim()
+        if ($key) {
+            [Environment]::SetEnvironmentVariable($key, $value, "Process")
+        }
+    }
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $androidDir = Join-Path $repoRoot "android-webview"
 
+if (-not $CredentialsPath) {
+    $defaultCredentialsPath = Join-Path $androidDir "release\signing.properties"
+    if (Test-Path $defaultCredentialsPath) {
+        $CredentialsPath = $defaultCredentialsPath
+    }
+}
+
+if ($CredentialsPath) {
+    $CredentialsPath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($CredentialsPath)
+    Import-SigningProperties -Path $CredentialsPath
+}
+
 if (-not $KeystorePath) {
-    $KeystorePath = Join-Path $androidDir "release\bouncecore-release.jks"
+    if ($env:BOUNCECORE_RELEASE_STORE_FILE) {
+        $KeystorePath = $env:BOUNCECORE_RELEASE_STORE_FILE
+    } else {
+        $KeystorePath = Join-Path $androidDir "release\bouncecore-release.jks"
+    }
 }
 
 $KeystorePath = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($KeystorePath)

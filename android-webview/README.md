@@ -37,12 +37,12 @@ Production APK/AAB builds must be signed with a persistent release keystore.
 Use the release scripts from the repository root:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1 -GeneratePasswords
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://your-domain.example -VersionCode 2 -VersionName 1.0.1
 ```
 
 For Google Play, add `-Bundle` to create `app-release.aab`.
-Full release instructions are in `docs/ANDROID_RELEASE.md`.
+Full release instructions are in `docs/ANDROID_RELEASE.md`. Back up `android-webview/release/bouncecore-release.jks` and `android-webview/release/signing.properties`; both are ignored by git.
 
 ## Push Notifications
 
