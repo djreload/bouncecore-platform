@@ -3,6 +3,7 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { mailIsConfigured, sendMail } from "@/lib/mail/smtp-service";
 import { queueMobilePushForNotification } from "@/lib/mobile/account-notification-push-service";
+import { getNotificationDeliveryPreferencesForUser } from "@/lib/account/notification-preferences-service";
 
 export type AccountNotificationEmailInput = {
   auditActionPrefix?: string;
@@ -87,17 +88,27 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
     return;
   }
 
+  const deliveryPreferences = await getNotificationDeliveryPreferencesForUser(input.user.id, input.type);
   let pushResult:
     | Awaited<ReturnType<typeof queueMobilePushForNotification>>
     | {
         error: string;
+      }
+    | {
+        reason: string;
+        skipped: true;
       };
 
   try {
-    pushResult = await queueMobilePushForNotification({
-      notificationId,
-      userId: input.user.id
-    });
+    pushResult = deliveryPreferences.push
+      ? await queueMobilePushForNotification({
+          notificationId,
+          userId: input.user.id
+        })
+      : {
+          reason: "Push disabled by notification preferences.",
+          skipped: true
+        };
   } catch (error) {
     pushResult = {
       error: error instanceof Error ? error.message : "Mobile push queueing failed."
@@ -107,18 +118,26 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
   let mailResult:
     | Awaited<ReturnType<typeof sendMail>>
     | {
-        configured: true;
+        configured: boolean;
         reason: string;
         sent: false;
+        skipped?: true;
       };
 
   try {
-    mailResult = await sendMail({
-      html: emailHtml(input.subject, input.htmlLines),
-      subject: input.subject,
-      text: input.textLines.join("\n"),
-      to: input.user.email
-    });
+    mailResult = deliveryPreferences.email
+      ? await sendMail({
+          html: emailHtml(input.subject, input.htmlLines),
+          subject: input.subject,
+          text: input.textLines.join("\n"),
+          to: input.user.email
+        })
+      : {
+          configured: mailIsConfigured(),
+          reason: "Email disabled by notification preferences.",
+          sent: false,
+          skipped: true
+        };
   } catch (error) {
     mailResult = {
       configured: mailIsConfigured(),
@@ -129,6 +148,7 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
 
   const metadata: Record<string, Prisma.InputJsonValue> = {
     configured: mailResult.configured,
+    deliveryPreferences,
     push: pushResult as Prisma.InputJsonValue,
     type: input.type
   };
@@ -142,12 +162,15 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
       : metadata;
 
   const auditActionPrefix = input.auditActionPrefix ?? "account.notification";
+  const emailSkipped = "skipped" in mailResult && mailResult.skipped;
+  const emailAction = mailResult.sent ? "email_sent" : emailSkipped ? "email_skipped" : "email_not_sent";
+  const pushFailed = "error" in pushResult;
 
   await writeAuditLog({
     actorId: input.user.id,
-    action: `${auditActionPrefix}.${mailResult.sent ? "email_sent" : "email_not_sent"}`,
+    action: `${auditActionPrefix}.${emailAction}`,
     target: input.dedupeKey,
-    severity: mailResult.sent && !("error" in pushResult) ? "info" : "warning",
+    severity: (mailResult.sent || emailSkipped) && !pushFailed ? "info" : "warning",
     metadata: metadataWithReason
   });
 }

@@ -37,6 +37,7 @@ model User {
   streamSchedules StreamSchedule[]
   auditLogs       AuditLog[]
   notifications   Notification[]
+  notificationPreference UserNotificationPreference?
   chatReportsMade ChatReport[] @relation("ChatReportReporter")
   chatReportsTargeted ChatReport[] @relation("ChatReportTarget")
   chatReportsResolved ChatReport[] @relation("ChatReportResolver")
@@ -254,6 +255,17 @@ model Notification {
 
   @@index([userId])
   @@index([createdAt])
+}
+
+model UserNotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
 }
 
 model MobilePushDelivery {

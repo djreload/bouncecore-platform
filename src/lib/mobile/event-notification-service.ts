@@ -7,12 +7,17 @@ import {
   streamLiveNotificationContent,
   streamLiveNotificationDedupePrefix
 } from "@/lib/mobile/event-notification-core";
+import {
+  mergeNotificationPreferences,
+  notificationDeliveryPreferences
+} from "@/lib/account/notification-preferences-core";
 import { secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 export type MobileEventNotificationQueueResult = {
   blockedPushDeliveryCount: number;
   duplicateNotificationCount: number;
   notificationCount: number;
+  preferenceSkippedPushDeliveryCount: number;
   pushDeliveryCount: number;
   queuedPushDeliveryCount: number;
   recipientCount: number;
@@ -50,6 +55,11 @@ async function queueEventNotificationForActiveMobileDevices({
         where: {
           revokedAt: null
         }
+      },
+      notificationPreference: {
+        select: {
+          value: true
+        }
       }
     },
     where: {
@@ -67,6 +77,7 @@ async function queueEventNotificationForActiveMobileDevices({
   let pushDeliveryCount = 0;
   let queuedPushDeliveryCount = 0;
   let blockedPushDeliveryCount = 0;
+  let preferenceSkippedPushDeliveryCount = 0;
 
   await prisma.$transaction(async (tx) => {
     for (const recipient of recipients) {
@@ -94,24 +105,31 @@ async function queueEventNotificationForActiveMobileDevices({
           userId: recipient.id
         }
       });
-      const pushDeliveries = recipient.mobileDevices.map((device) => {
-        const delivery = mobileEventDeliveryStatus({
-          encryptionReady,
-          tokenCiphertext: device.tokenCiphertext
-        });
+      const deliveryPreferences = notificationDeliveryPreferences(
+        mergeNotificationPreferences(recipient.notificationPreference?.value),
+        type
+      );
+      const pushDeliveries = deliveryPreferences.push
+        ? recipient.mobileDevices.map((device) => {
+            const delivery = mobileEventDeliveryStatus({
+              encryptionReady,
+              tokenCiphertext: device.tokenCiphertext
+            });
 
-        return {
-          errorCode: delivery.errorCode,
-          errorMessage: delivery.errorMessage,
-          mobileDeviceId: device.id,
-          notificationId: notification.id,
-          platform: device.platform,
-          provider: device.provider,
-          status: delivery.status
-        };
-      });
+            return {
+              errorCode: delivery.errorCode,
+              errorMessage: delivery.errorMessage,
+              mobileDeviceId: device.id,
+              notificationId: notification.id,
+              platform: device.platform,
+              provider: device.provider,
+              status: delivery.status
+            };
+          })
+        : [];
 
       notificationCount += 1;
+      preferenceSkippedPushDeliveryCount += deliveryPreferences.push ? 0 : recipient.mobileDevices.length;
       pushDeliveryCount += pushDeliveries.length;
       queuedPushDeliveryCount += pushDeliveries.filter((delivery) => delivery.status === "queued").length;
       blockedPushDeliveryCount += pushDeliveries.filter((delivery) => delivery.status === "blocked").length;
@@ -130,6 +148,7 @@ async function queueEventNotificationForActiveMobileDevices({
           blockedPushDeliveryCount,
           duplicateNotificationCount,
           notificationCount,
+          preferenceSkippedPushDeliveryCount,
           pushDeliveryCount,
           queuedPushDeliveryCount,
           recipientCount: recipients.length
@@ -139,6 +158,7 @@ async function queueEventNotificationForActiveMobileDevices({
           duplicateNotificationCount,
           event: auditMetadata,
           notificationCount,
+          preferenceSkippedPushDeliveryCount,
           pushDeliveryCount,
           queuedPushDeliveryCount,
           recipientCount: recipients.length
@@ -156,6 +176,7 @@ async function queueEventNotificationForActiveMobileDevices({
     blockedPushDeliveryCount,
     duplicateNotificationCount,
     notificationCount,
+    preferenceSkippedPushDeliveryCount,
     pushDeliveryCount,
     queuedPushDeliveryCount,
     recipientCount: recipients.length

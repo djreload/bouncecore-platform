@@ -8,6 +8,7 @@ import "./music-checkout-errors.test.mjs";
 import "./music-ranking.test.mjs";
 import "./mobile-event-notifications.test.mjs";
 import "./mobile-version-policy.test.mjs";
+import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
 import "./star-packages.test.mjs";

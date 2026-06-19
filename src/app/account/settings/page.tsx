@@ -6,6 +6,8 @@ import { requireSignedInUser } from "@/lib/auth/guards";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAccountSettingsData } from "@/lib/account/account-service";
+import { getUserNotificationPreferences } from "@/lib/account/notification-preferences-service";
+import { NotificationPreferencesForm } from "@/app/account/settings/notification-preferences-form";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +21,11 @@ function formatDate(value: string | null) {
 
 export default async function AccountSettingsPage() {
   const user = await requireSignedInUser();
-  const [data, roleDisplayLabels] = await Promise.all([getAccountSettingsData(user.id), getRoleDisplayNameOverrides()]);
+  const [data, roleDisplayLabels, notificationPreferences] = await Promise.all([
+    getAccountSettingsData(user.id),
+    getRoleDisplayNameOverrides(),
+    getUserNotificationPreferences(user.id)
+  ]);
 
   return (
     <DashboardShell title="Settings" description="Account state, profile visibility, roles, notifications, and security links.">
@@ -89,6 +95,10 @@ export default async function AccountSettingsPage() {
             Role changes are managed by server owners and stream owners from the admin user directory.
           </p>
         </article>
+      </section>
+
+      <section className="mt-5">
+        <NotificationPreferencesForm preferences={notificationPreferences} />
       </section>
 
       <section className="mt-5 grid gap-4 md:grid-cols-2">
