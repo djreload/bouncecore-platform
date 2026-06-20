@@ -143,3 +143,20 @@ https://your-domain.example/api/mobile/v1/config
 ```
 
 That means mobile ads, maintenance mode, update policy, Firebase push config, and feature flags can be changed in `Admin -> Mobile` without rebuilding the app. The release build only needs the correct WebView base URL and package signing.
+
+For Play Store release candidates, you can also embed fallback values used before the backend config is fetched:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
+  -WebUrl https://your-domain.example `
+  -VersionCode 1 `
+  -VersionName 1.0.0 `
+  -Bundle `
+  -LevelPlayAppKey <levelplay-app-key> `
+  -BannerAdUnitId <banner-ad-unit-id> `
+  -InterstitialAdUnitId <interstitial-ad-unit-id> `
+  -FirebaseAndroidApiKey <firebase-android-api-key> `
+  -FirebaseAndroidAppId <firebase-android-app-id> `
+  -FirebaseMessagingSenderId <firebase-sender-id> `
+  -FirebaseProjectId <firebase-project-id>
+```

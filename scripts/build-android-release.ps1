@@ -7,6 +7,13 @@ param(
     [string]$KeyPassword = "",
     [int]$VersionCode = 1,
     [string]$VersionName = "1.0.0",
+    [string]$LevelPlayAppKey = "",
+    [string]$BannerAdUnitId = "",
+    [string]$InterstitialAdUnitId = "",
+    [string]$FirebaseAndroidApiKey = "",
+    [string]$FirebaseAndroidAppId = "",
+    [string]$FirebaseMessagingSenderId = "",
+    [string]$FirebaseProjectId = "",
     [switch]$Bundle
 )
 
@@ -146,6 +153,28 @@ $gradleArgs = @(
     "-PBOUNCECORE_VERSION_CODE=$VersionCode",
     "-PBOUNCECORE_VERSION_NAME=$VersionName"
 )
+
+if ($LevelPlayAppKey) {
+    $gradleArgs += "-PLEVELPLAY_APP_KEY=$LevelPlayAppKey"
+}
+if ($BannerAdUnitId) {
+    $gradleArgs += "-PLEVELPLAY_BANNER_AD_UNIT_ID=$BannerAdUnitId"
+}
+if ($InterstitialAdUnitId) {
+    $gradleArgs += "-PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=$InterstitialAdUnitId"
+}
+if ($FirebaseAndroidApiKey) {
+    $gradleArgs += "-PFIREBASE_ANDROID_API_KEY=$FirebaseAndroidApiKey"
+}
+if ($FirebaseAndroidAppId) {
+    $gradleArgs += "-PFIREBASE_ANDROID_APP_ID=$FirebaseAndroidAppId"
+}
+if ($FirebaseMessagingSenderId) {
+    $gradleArgs += "-PFIREBASE_MESSAGING_SENDER_ID=$FirebaseMessagingSenderId"
+}
+if ($FirebaseProjectId) {
+    $gradleArgs += "-PFIREBASE_PROJECT_ID=$FirebaseProjectId"
+}
 
 Invoke-Native -FilePath (Join-Path $androidDir "gradlew.bat") -Arguments $gradleArgs
 

@@ -44,6 +44,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-
 For Google Play, add `-Bundle` to create `app-release.aab`.
 Full release instructions are in `docs/ANDROID_RELEASE.md`. Back up `android-webview/release/bouncecore-release.jks` and `android-webview/release/signing.properties`; both are ignored by git.
 
+Release builds can also embed fallback mobile integration values used before the backend config response is available:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://your-domain.example -VersionCode 1 -VersionName 1.0.0 -Bundle -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-unit-id> -InterstitialAdUnitId <interstitial-unit-id>
+```
+
 ## Push Notifications
 
 Native Android push uses Firebase Cloud Messaging.
