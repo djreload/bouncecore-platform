@@ -202,5 +202,5 @@ export async function sendFcmPush(input: {
 }
 
 export function fcmErrorMeansDeviceRevoked(errorCode: string | null | undefined) {
-  return errorCode === "UNREGISTERED" || errorCode === "SENDER_ID_MISMATCH";
+  return errorCode === "UNREGISTERED" || errorCode === "SENDER_ID_MISMATCH" || errorCode === "NOT_FOUND";
 }

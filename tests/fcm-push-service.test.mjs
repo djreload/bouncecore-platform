@@ -29,6 +29,7 @@ test("buildFcmMessage creates an Android FCM notification payload", () => {
 test("fcmErrorMeansDeviceRevoked detects expired or mismatched Android tokens", () => {
   assert.equal(fcmErrorMeansDeviceRevoked("UNREGISTERED"), true);
   assert.equal(fcmErrorMeansDeviceRevoked("SENDER_ID_MISMATCH"), true);
+  assert.equal(fcmErrorMeansDeviceRevoked("NOT_FOUND"), true);
   assert.equal(fcmErrorMeansDeviceRevoked("INVALID_ARGUMENT"), false);
   assert.equal(fcmErrorMeansDeviceRevoked(null), false);
 });
