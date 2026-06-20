@@ -1091,257 +1091,6 @@ select {
   animation-delay: 0.72s;
 }
 
-.bc-reward-casino {
-  position: relative;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(255, 43, 214, 0.16), transparent 34%),
-    radial-gradient(circle at 84% 12%, rgba(0, 213, 255, 0.18), transparent 38%),
-    linear-gradient(180deg, rgba(23, 26, 42, 0.96), rgba(5, 5, 10, 0.98));
-}
-
-.bc-reward-casino::before {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  content: "";
-  background:
-    linear-gradient(90deg, transparent 0 48%, rgba(255, 255, 255, 0.04) 49% 51%, transparent 52%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 28px);
-  opacity: 0.45;
-}
-
-.bc-reward-casino-marquee {
-  position: relative;
-  min-height: 154px;
-  background:
-    linear-gradient(90deg, rgba(255, 43, 214, 0.16), rgba(0, 213, 255, 0.1), rgba(182, 255, 46, 0.12)),
-    #0b0d14;
-}
-
-.bc-reward-marquee-lights {
-  position: absolute;
-  inset: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  pointer-events: none;
-}
-
-.bc-reward-marquee-lights span {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #ffb020;
-  box-shadow: 0 0 14px rgba(255, 176, 32, 0.8), 0 0 24px rgba(255, 43, 214, 0.22);
-  animation: bc-reward-marquee-light 1.7s ease-in-out infinite;
-}
-
-.bc-reward-marquee-lights span:nth-child(3n) {
-  background: #00d5ff;
-  box-shadow: 0 0 14px rgba(0, 213, 255, 0.82), 0 0 24px rgba(0, 213, 255, 0.2);
-  animation-delay: 0.28s;
-}
-
-.bc-reward-marquee-lights span:nth-child(4n) {
-  background: #b6ff2e;
-  box-shadow: 0 0 14px rgba(182, 255, 46, 0.76), 0 0 24px rgba(182, 255, 46, 0.2);
-  animation-delay: 0.52s;
-}
-
-.bc-reward-game-floor {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(182, 255, 46, 0.1), transparent 42%),
-    linear-gradient(180deg, rgba(17, 20, 33, 0.94), rgba(5, 5, 10, 0.92));
-}
-
-.bc-reward-game-floor::after {
-  position: absolute;
-  inset: auto 8% 0;
-  height: 22%;
-  pointer-events: none;
-  content: "";
-  background: radial-gradient(ellipse at center, rgba(0, 213, 255, 0.18), transparent 68%);
-}
-
-.bc-reward-machine {
-  position: relative;
-  z-index: 1;
-  max-width: 440px;
-  margin-inline: auto;
-  padding: 18px;
-  border: 1px solid rgba(247, 251, 255, 0.16);
-  border-radius: 0.5rem;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 14%),
-    linear-gradient(135deg, rgba(255, 43, 214, 0.13), rgba(0, 213, 255, 0.08)),
-    #05050a;
-  box-shadow: 0 22px 80px rgba(0, 0, 0, 0.42), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-}
-
-.bc-reward-machine-top {
-  display: flex;
-  justify-content: center;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.bc-reward-machine-top span {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #ff2bd6;
-  box-shadow: 0 0 18px rgba(255, 43, 214, 0.74);
-  animation: bc-reward-marquee-light 1.25s ease-in-out infinite;
-}
-
-.bc-reward-machine-top span:nth-child(2) {
-  background: #b6ff2e;
-  box-shadow: 0 0 18px rgba(182, 255, 46, 0.74);
-  animation-delay: 0.24s;
-}
-
-.bc-reward-machine-top span:nth-child(3) {
-  background: #00d5ff;
-  box-shadow: 0 0 18px rgba(0, 213, 255, 0.74);
-  animation-delay: 0.48s;
-}
-
-.bc-reward-wheel-frame {
-  position: relative;
-  display: grid;
-  width: min(100%, 390px);
-  aspect-ratio: 1;
-  margin-inline: auto;
-  place-items: center;
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 62%),
-    conic-gradient(from 0deg, #ff2bd6, #00d5ff, #b6ff2e, #ffb020, #ff2bd6);
-  box-shadow: 0 0 38px rgba(0, 213, 255, 0.2), 0 0 80px rgba(255, 43, 214, 0.14);
-}
-
-.bc-reward-wheel-frame::before {
-  position: absolute;
-  inset: 13px;
-  border: 2px solid rgba(5, 5, 10, 0.8);
-  border-radius: inherit;
-  content: "";
-}
-
-.bc-reward-wheel {
-  --bc-reward-wheel-bg: conic-gradient(#00d5ff, #ff2bd6, #b6ff2e, #ffb020, #00d5ff);
-  position: relative;
-  display: grid;
-  width: calc(100% - 34px);
-  aspect-ratio: 1;
-  place-items: center;
-  border: 1px solid rgba(247, 251, 255, 0.26);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 50% 50%, #05050a 0 18%, transparent 19%),
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.24) 0 1px, transparent 2px 100%),
-    var(--bc-reward-wheel-bg);
-  box-shadow: inset 0 0 0 12px rgba(5, 5, 10, 0.78), inset 0 0 38px rgba(255, 255, 255, 0.12);
-  overflow: visible;
-  transform: translateZ(0);
-}
-
-.bc-reward-wheel::after {
-  position: absolute;
-  inset: -18px;
-  z-index: -1;
-  border-radius: inherit;
-  pointer-events: none;
-  content: "";
-  background: radial-gradient(circle, rgba(182, 255, 46, 0.34), transparent 68%);
-  opacity: 0;
-  transition: opacity 180ms ease;
-}
-
-.bc-reward-wheel-pointer {
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  z-index: 4;
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border: 2px solid rgba(247, 251, 255, 0.44);
-  border-radius: 999px;
-  background: #05050a;
-  color: #b6ff2e;
-  box-shadow: 0 0 20px rgba(182, 255, 46, 0.42), 0 8px 28px rgba(0, 0, 0, 0.45);
-  transform: translateX(-50%);
-}
-
-.bc-reward-wheel-pointer::after {
-  position: absolute;
-  bottom: -18px;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-right: 12px solid transparent;
-  border-left: 12px solid transparent;
-  border-top: 20px solid #b6ff2e;
-  content: "";
-  filter: drop-shadow(0 0 10px rgba(182, 255, 46, 0.76));
-  transform: translateX(-50%);
-}
-
-.bc-reward-wheel-segment-label {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  max-width: 86px;
-  padding: 3px 6px;
-  border: 1px solid rgba(5, 5, 10, 0.5);
-  border-radius: 0.25rem;
-  background: rgba(5, 5, 10, 0.62);
-  color: #ffffff;
-  font-size: 0.62rem;
-  font-weight: 900;
-  line-height: 1.1;
-  text-align: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-  transform:
-    translate(-50%, -50%)
-    rotate(var(--bc-reward-segment-angle))
-    translateY(-122px)
-    rotate(var(--bc-reward-segment-angle-negative));
-}
-
-.bc-reward-wheel-hub {
-  position: relative;
-  z-index: 2;
-  display: grid;
-  width: 96px;
-  height: 96px;
-  place-items: center;
-  border: 2px solid rgba(247, 251, 255, 0.18);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle at 40% 30%, rgba(255, 255, 255, 0.18), transparent 36%),
-    #05050a;
-  color: #b6ff2e;
-  font-size: 0.82rem;
-  font-weight: 1000;
-  box-shadow: 0 0 24px rgba(182, 255, 46, 0.28), inset 0 0 18px rgba(255, 255, 255, 0.06);
-}
-
-.bc-reward-wheel-hub span {
-  margin-top: -0.35rem;
-}
-
-.bc-reward-spin-button {
-  border: 1px solid rgba(247, 251, 255, 0.22);
-  font-weight: 1000;
-  text-transform: uppercase;
-  box-shadow: 0 0 24px rgba(0, 213, 255, 0.36), 0 0 44px rgba(255, 43, 214, 0.18);
-}
-
 .bc-reward-payline {
   position: relative;
   overflow: hidden;
@@ -1356,83 +1105,378 @@ select {
   box-shadow: 0 0 14px var(--bc-reward-segment-color);
 }
 
-.bc-reward-wheel-spinning {
-  animation: bc-reward-wheel-spin 1.85s cubic-bezier(0.12, 0.68, 0.18, 1) infinite;
+.bc-reward-casino {
+  position: relative;
+  background:
+    radial-gradient(circle at center, rgba(255, 189, 46, 0.12), transparent 38%),
+    linear-gradient(135deg, #030303, #171717);
 }
 
-.bc-reward-wheel-winner::after {
+.bc-giveaway-wheel-card,
+.bc-giveaway-result-card {
+  border: 1px solid rgba(255, 202, 74, 0.25);
+  border-radius: 1.75rem;
+  background: rgba(15, 15, 15, 0.9);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.55);
+}
+
+.bc-giveaway-wheel-card {
+  padding: clamp(12px, 2vw, 24px);
+}
+
+.bc-giveaway-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  container-type: inline-size;
+  place-items: center;
+}
+
+.bc-giveaway-pointer {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  z-index: 10;
+  width: clamp(54px, 10vw, 80px);
+  height: clamp(74px, 14vw, 110px);
+  pointer-events: none;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.65));
+  transform: translateX(-50%);
+}
+
+.bc-giveaway-pointer::before {
+  position: absolute;
+  inset: 0;
+  border: 4px solid #fff3ac;
+  border-radius: 999px 999px 40px 40px;
+  content: "";
+  background: linear-gradient(160deg, #fff0a4, #ffc338 45%, #9b5b08);
+  clip-path: polygon(50% 100%, 10% 24%, 18% 10%, 34% 1%, 50% 0, 66% 1%, 82% 10%, 90% 24%);
+}
+
+.bc-giveaway-pointer::after {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  content: "";
+  background: #fff7c2;
+  box-shadow: 0 0 22px #fff0a4;
+  transform: translateX(-50%);
+}
+
+.bc-giveaway-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 40%, transparent 61%, rgba(0, 0, 0, 0.42) 62%, transparent 66%),
+    radial-gradient(circle at 50% 40%, #fff0a4, #ffc338 45%, #9b5b08);
+  box-shadow:
+    inset 0 0 0 8px #ffd15a,
+    inset 0 0 0 34px rgba(0, 0, 0, 0.22),
+    0 18px 55px rgba(0, 0, 0, 0.75);
+}
+
+.bc-giveaway-bulbs {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.bc-giveaway-bulbs span {
+  --bc-bulb-angle: 0deg;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(10px, 2vw, 18px);
+  height: clamp(10px, 2vw, 18px);
+  margin: clamp(-9px, -1vw, -5px);
+  border-radius: 999px;
+  background: #fff7bd;
+  box-shadow: 0 0 16px #fff2a1, inset 0 -2px 5px rgba(155, 91, 8, 0.6);
+  animation: bc-giveaway-bulb 1.2s ease-in-out infinite;
+  transform: rotate(var(--bc-bulb-angle)) translateY(-47.5cqw);
+}
+
+.bc-giveaway-bulbs span:nth-child(2n) {
+  animation-delay: 0.18s;
+}
+
+.bc-giveaway-bulbs span:nth-child(3n) {
+  background: #fff0a4;
+  animation-delay: 0.36s;
+}
+
+.bc-giveaway-wheel {
+  --bc-reward-wheel-bg: conic-gradient(#ffc928, #64b71f, #e22d70, #0569c9, #ffc928);
+  position: relative;
+  z-index: 3;
+  width: 88%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.16), transparent 34%),
+    var(--bc-reward-wheel-bg);
+  box-shadow:
+    inset 0 0 0 4px #6a3c05,
+    inset 0 0 34px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  transition: transform 7s cubic-bezier(0.08, 0.72, 0.12, 1);
+}
+
+.bc-giveaway-wheel::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 52%, transparent 0 26%, rgba(0, 0, 0, 0.22) 27% 30%, transparent 31%),
+    repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.22) 0 0.75deg, transparent 0.75deg 45deg),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14), transparent 36%, rgba(0, 0, 0, 0.16));
+  mix-blend-mode: soft-light;
+}
+
+.bc-giveaway-wheel-landing {
+  filter: saturate(1.08) drop-shadow(0 0 26px rgba(255, 202, 74, 0.22));
+}
+
+.bc-giveaway-slice-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: min(30%, 150px);
+  justify-items: center;
+  align-content: center;
+  gap: 0.35rem;
+  pointer-events: none;
+  text-align: center;
+  transform:
+    translate(-50%, -50%)
+    rotate(var(--bc-reward-segment-angle))
+    translateY(-29cqw)
+    rotate(var(--bc-reward-segment-angle-negative));
+}
+
+.bc-giveaway-slice-icon {
+  width: clamp(28px, 6vw, 62px);
+  height: clamp(28px, 6vw, 62px);
+  color: #ffffff;
+  filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.45));
+}
+
+.bc-giveaway-slice-label {
+  white-space: pre-line;
+  color: #ffffff;
+  font-family: Impact, "Arial Black", Arial, sans-serif;
+  font-size: clamp(11px, 1.65vw, 22px);
+  line-height: 0.95;
+  text-transform: uppercase;
+  text-shadow:
+    -1px -1px 0 #111,
+    1px -1px 0 #111,
+    -1px 1px 0 #111,
+    1px 1px 0 #111,
+    0 4px 8px rgba(0, 0, 0, 0.42);
+}
+
+.bc-giveaway-center-button {
+  position: absolute;
+  inset: 50%;
+  z-index: 8;
+  display: grid;
+  width: 27%;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 8px solid #e5a82a;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 25%, #3e3e3e, #050505 72%);
+  box-shadow:
+    0 0 0 8px #7d4a07,
+    0 0 0 15px #ffce54,
+    0 8px 22px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  user-select: none;
+  transform: translate(-50%, -50%);
+}
+
+.bc-giveaway-center-button:disabled {
+  cursor: wait;
+  opacity: 0.86;
+}
+
+.bc-giveaway-center-text {
+  display: grid;
+  color: #ffcf55;
+  font-family: Impact, "Arial Black", Arial, sans-serif;
+  font-size: clamp(22px, 4.8vw, 56px);
+  line-height: 0.85;
+  text-align: center;
+  text-shadow: 0 3px 0 #6c3b04;
+}
+
+.bc-giveaway-center-text small {
+  margin-top: 9px;
+  color: #ffffff;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: 0.34em;
+  text-shadow: none;
+}
+
+.bc-giveaway-result-card {
+  padding: 24px;
+}
+
+.bc-giveaway-result-box {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  border: 1px solid rgba(255, 202, 74, 0.22);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at center, rgba(255, 206, 83, 0.12), transparent 70%),
+    #0a0a0a;
+  padding: 20px;
+  text-align: center;
+}
+
+.bc-giveaway-result-title,
+.bc-giveaway-toast-title {
+  color: #ffcf55;
+  font-family: Impact, "Arial Black", Arial, sans-serif;
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 0.95;
+  text-transform: uppercase;
+  text-shadow: 0 4px 0 #6c3b04;
+}
+
+.bc-giveaway-result-sub,
+.bc-giveaway-toast-subtitle {
+  margin-top: 12px;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.bc-giveaway-spin-again,
+.bc-giveaway-toast-close {
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #fff0a4, #ffc338, #9b5b08);
+  color: #151515;
+  cursor: pointer;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: 1rem;
+  padding: 15px 18px;
+}
+
+.bc-giveaway-spin-again:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.bc-giveaway-toast-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.bc-giveaway-toast-overlay.show {
+  pointer-events: auto;
   opacity: 1;
-  animation: bc-reward-wheel-win 1.65s ease-out 3;
 }
 
-@keyframes bc-reward-marquee-light {
+.bc-giveaway-winner-toast {
+  width: min(430px, 92vw);
+  border: 2px solid rgba(255, 207, 85, 0.65);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 220, 116, 0.22), transparent 45%),
+    #111111;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.8);
+  padding: 28px;
+  text-align: center;
+  transform: scale(0.84) translateY(18px);
+  transition: transform 0.25s ease;
+}
+
+.bc-giveaway-toast-overlay.show .bc-giveaway-winner-toast {
+  transform: scale(1) translateY(0);
+}
+
+.bc-giveaway-toast-close {
+  width: auto;
+  min-width: 150px;
+}
+
+@keyframes bc-giveaway-bulb {
   0%,
   100% {
-    opacity: 0.45;
-    transform: scale(0.8);
+    opacity: 0.58;
+    transform: rotate(var(--bc-bulb-angle)) translateY(-47.5cqw) scale(0.82);
   }
 
   50% {
     opacity: 1;
-    transform: scale(1);
+    transform: rotate(var(--bc-bulb-angle)) translateY(-47.5cqw) scale(1);
   }
 }
 
-@keyframes bc-reward-wheel-spin {
-  0% {
-    transform: rotate(0deg) translateZ(0);
-  }
-
-  82% {
-    transform: rotate(1300deg) translateZ(0);
-  }
-
-  100% {
-    transform: rotate(1440deg) translateZ(0);
-  }
-}
-
-@keyframes bc-reward-wheel-win {
-  0%,
-  100% {
-    opacity: 0.14;
-    transform: scale(0.96);
-  }
-
-  50% {
-    opacity: 0.7;
-    transform: scale(1.08);
+@media (max-width: 900px) {
+  .bc-giveaway-result-card {
+    order: -1;
   }
 }
 
 @media (max-width: 640px) {
-  .bc-reward-casino-marquee {
-    min-height: 132px;
+  .bc-giveaway-wheel-card,
+  .bc-giveaway-result-card {
+    border-radius: 1rem;
   }
 
-  .bc-reward-machine {
-    padding: 12px;
+  .bc-giveaway-stage {
+    max-width: 360px;
+    margin-inline: auto;
   }
 
-  .bc-reward-wheel-frame {
-    width: min(100%, 310px);
+  .bc-giveaway-rim {
+    box-shadow:
+      inset 0 0 0 5px #ffd15a,
+      inset 0 0 0 22px rgba(0, 0, 0, 0.22),
+      0 12px 34px rgba(0, 0, 0, 0.65);
   }
 
-  .bc-reward-wheel-segment-label {
-    max-width: 66px;
-    padding: 2px 4px;
-    font-size: 0.52rem;
+  .bc-giveaway-center-button {
+    border-width: 5px;
+    box-shadow:
+      0 0 0 5px #7d4a07,
+      0 0 0 10px #ffce54,
+      0 8px 22px rgba(0, 0, 0, 0.7);
+  }
+
+  .bc-giveaway-slice-content {
+    width: 34%;
+    gap: 0.2rem;
     transform:
       translate(-50%, -50%)
       rotate(var(--bc-reward-segment-angle))
-      translateY(-96px)
+      translateY(-27cqw)
       rotate(var(--bc-reward-segment-angle-negative));
-  }
-
-  .bc-reward-wheel-hub {
-    width: 76px;
-    height: 76px;
-    font-size: 0.72rem;
   }
 }
 
@@ -1442,10 +1486,9 @@ select {
   .bc-chat-effect::after,
   .bc-chat-effect-particle,
   .bc-chat-effect .bc-chat-effect-letter,
-  .bc-reward-marquee-lights span,
-  .bc-reward-machine-top span,
-  .bc-reward-wheel,
-  .bc-reward-wheel::after,
+  .bc-giveaway-bulbs span,
+  .bc-giveaway-wheel,
+  .bc-giveaway-winner-toast,
   .bc-music-top-five {
     animation: none !important;
     transform: none !important;
