@@ -137,6 +137,7 @@ export default async function LivePage() {
   const messageRows: PublicChatMessageRow[] = chatData.messages.map((message) => ({
     id: message.id,
     roomId: message.roomId,
+    replyTo: message.replyTo,
     body: message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,

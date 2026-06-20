@@ -35,6 +35,7 @@ export type ChatRoomSummary = {
 export type ChatMessageSummary = {
   id: string;
   roomId: string;
+  replyTo: ChatMessageReplySummary | null;
   body: string;
   kind: string;
   mediaUrl: string | null;
@@ -54,6 +55,15 @@ export type ChatMessageSummary = {
   authorUserId: string | null;
   authorRoles: Role[];
   reactions: ChatReactionSummary[];
+};
+
+export type ChatMessageReplySummary = {
+  id: string;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: string | null;
+  authorDisplayName: string;
 };
 
 export type ChatGifMessageInput = {
@@ -88,6 +98,15 @@ type AuthorSummary = {
 type ReactionSource = {
   reactionKey: string;
   userId: string;
+};
+
+type ReplySource = {
+  id: string;
+  userId: string | null;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: Date | null;
 };
 
 function chatHistoryCutoff() {
@@ -251,6 +270,7 @@ function toMessageSummary(
     id: string;
     roomId: string;
     userId: string | null;
+    replyToMessage?: ReplySource | null;
     body: string;
     kind: string;
     mediaUrl: string | null;
@@ -273,10 +293,22 @@ function toMessageSummary(
   currentUserId?: string | null
 ): ChatMessageSummary {
   const author = message.userId ? authors.get(message.userId) : null;
+  const replyAuthor = message.replyToMessage?.userId ? authors.get(message.replyToMessage.userId) : null;
+  const replyTo = message.replyToMessage
+    ? {
+        id: message.replyToMessage.id,
+        body: message.replyToMessage.deletedAt ? "Message removed by moderation." : message.replyToMessage.body,
+        kind: message.replyToMessage.kind,
+        mediaAlt: message.replyToMessage.deletedAt ? null : message.replyToMessage.mediaAlt,
+        deletedAt: message.replyToMessage.deletedAt?.toISOString() ?? null,
+        authorDisplayName: replyAuthor?.displayName ?? "Guest"
+      }
+    : null;
 
   return {
     id: message.id,
     roomId: message.roomId,
+    replyTo,
     body: message.deletedAt ? "Message removed by moderation." : message.body,
     kind: message.kind,
     mediaUrl: message.deletedAt ? null : message.mediaUrl,
@@ -297,6 +329,35 @@ function toMessageSummary(
     authorRoles: author?.roles ?? [],
     reactions: message.deletedAt ? [] : summarizeReactions(message.reactions, currentUserId)
   };
+}
+
+function getMessageAuthorIds(messages: { userId: string | null; replyToMessage?: { userId: string | null } | null }[]) {
+  return messages.flatMap((message) => [message.userId, message.replyToMessage?.userId]).filter(Boolean) as string[];
+}
+
+async function validateReplyToMessage(roomId: string, replyToMessageId?: string | null) {
+  const normalizedReplyToMessageId = replyToMessageId?.trim();
+
+  if (!normalizedReplyToMessageId) {
+    return null;
+  }
+
+  const replyToMessage = await prisma.chatMessage.findFirst({
+    where: {
+      id: normalizedReplyToMessageId,
+      roomId,
+      deletedAt: null
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (!replyToMessage) {
+    throw new Error("The message you are replying to is no longer available.");
+  }
+
+  return replyToMessage.id;
 }
 
 async function getChatEffectUserRoles(userId: string) {
@@ -374,6 +435,16 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
           reactionKey: true,
           userId: true
         }
+      },
+      replyToMessage: {
+        select: {
+          id: true,
+          userId: true,
+          body: true,
+          kind: true,
+          mediaAlt: true,
+          deletedAt: true
+        }
       }
     },
     orderBy: {
@@ -381,7 +452,7 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
     },
     take: 40
   });
-  const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+  const authors = await getAuthorSummaries(getMessageAuthorIds(messages));
 
   return {
     rooms: roomSummaries,
@@ -424,6 +495,16 @@ export async function getPublicChatMessages(roomId: string, currentUserId?: stri
           reactionKey: true,
           userId: true
         }
+      },
+      replyToMessage: {
+        select: {
+          id: true,
+          userId: true,
+          body: true,
+          kind: true,
+          mediaAlt: true,
+          deletedAt: true
+        }
       }
     },
     orderBy: {
@@ -431,7 +512,7 @@ export async function getPublicChatMessages(roomId: string, currentUserId?: stri
     },
     take: 40
   });
-  const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+  const authors = await getAuthorSummaries(getMessageAuthorIds(messages));
 
   return messages.reverse().map((message) => toMessageSummary(message, authors, currentUserId));
 }
@@ -595,7 +676,13 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
   return room;
 }
 
-export async function createChatMessage(roomId: string, body: string, userId: string, effectId?: string | null) {
+export async function createChatMessage(
+  roomId: string,
+  body: string,
+  userId: string,
+  effectId?: string | null,
+  replyToMessageId?: string | null
+) {
   await pruneExpiredChatHistory();
 
   const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
@@ -615,11 +702,13 @@ export async function createChatMessage(roomId: string, body: string, userId: st
   await assertUserCanPostInChat(userId, roomId);
   const userRoles = await getChatEffectUserRoles(userId);
   const validatedEffectId = validateChatEffectSelection(userRoles, effectId);
+  const validatedReplyToMessageId = await validateReplyToMessage(roomId, replyToMessageId);
 
   const message = await prisma.chatMessage.create({
     data: {
       roomId,
       userId,
+      replyToMessageId: validatedReplyToMessageId,
       body: normalizedBody,
       kind: "text",
       effectId: validatedEffectId

@@ -13,6 +13,7 @@ export type PublicChatRoomRow = {
 export type PublicChatMessageRow = {
   id: string;
   roomId: string;
+  replyTo: PublicChatReplyRow | null;
   body: string;
   kind: string;
   mediaUrl: string | null;
@@ -32,6 +33,15 @@ export type PublicChatMessageRow = {
   authorUserId: string | null;
   authorRoles: Role[];
   reactions: PublicChatReactionRow[];
+};
+
+export type PublicChatReplyRow = {
+  id: string;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: string | null;
+  authorDisplayName: string;
 };
 
 export type PublicChatReactionRow = {

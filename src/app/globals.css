@@ -240,6 +240,16 @@ select {
   will-change: transform, opacity, text-shadow, background-position, filter;
 }
 
+.bc-chat-mention {
+  display: inline;
+  border-radius: 0.25rem;
+  background: rgba(0, 213, 255, 0.14);
+  color: #87ecff;
+  font-weight: 900;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 .bc-chat-effect-letter {
   display: inline-block;
   min-width: 0.08em;

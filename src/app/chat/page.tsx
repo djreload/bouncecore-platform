@@ -49,6 +49,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
   const messageRows: PublicChatMessageRow[] = messages.map((message) => ({
     id: message.id,
     roomId: message.roomId,
+    replyTo: message.replyTo,
     body: message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,

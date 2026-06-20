@@ -100,7 +100,7 @@ export async function publicChatAction(
         note: formString(formData, "note")
       });
     } else {
-      await createChatMessage(roomId, body, user.id, formString(formData, "effectId"));
+      await createChatMessage(roomId, body, user.id, formString(formData, "effectId"), formString(formData, "replyToMessageId"));
     }
 
     revalidatePath("/chat");

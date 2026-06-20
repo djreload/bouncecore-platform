@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Ban, Flag, ImageIcon, Lock, LogIn, MessageSquare, Plus, Search, Send, Smile, Star, Timer, Trash2 } from "lucide-react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import { AtSign, Ban, Flag, ImageIcon, Lock, LogIn, MessageSquare, Plus, Reply, Search, Send, Smile, Star, Timer, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
@@ -12,6 +12,7 @@ import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
+import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
 import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
@@ -60,6 +61,23 @@ type ChatRoomStreamPayload = {
   room?: PublicChatRoomRow | null;
 };
 
+type ChatReplyTarget = {
+  id: string;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: string | null;
+  authorDisplayName: string;
+  starAmount?: number | null;
+  starNote?: string | null;
+};
+
+type MentionSuggestion = {
+  displayName: string;
+  token: string;
+  userId: string | null;
+};
+
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
 const inlineBanDurationOptions = [
   { label: "1 hour", value: "1h" },
@@ -106,6 +124,26 @@ function authorInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || "?";
 }
 
+function chatMessagePreviewText(message: ChatReplyTarget) {
+  if (message.deletedAt) {
+    return "Message removed by moderation.";
+  }
+
+  if (message.kind === "gif") {
+    return message.mediaAlt ? `GIF: ${message.mediaAlt}` : "GIF";
+  }
+
+  if (message.kind === "sticker" || message.kind === "emoji") {
+    return message.mediaAlt ?? message.body;
+  }
+
+  if (message.kind === "stars") {
+    return `${(message.starAmount ?? 0).toLocaleString("en-GB")} stars${message.starNote ? `: ${message.starNote}` : ""}`;
+  }
+
+  return message.body.replace(/\s+/g, " ").trim();
+}
+
 export function ChatRoomPanel({
   assets,
   rooms,
@@ -135,6 +173,8 @@ export function ChatRoomPanel({
   const [gifLoading, setGifLoading] = useState(false);
   const [composerBody, setComposerBody] = useState("");
   const [selectedEffectId, setSelectedEffectId] = useState("");
+  const [replyTarget, setReplyTarget] = useState<ChatReplyTarget | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
@@ -150,6 +190,47 @@ export function ChatRoomPanel({
   const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
   const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
   const liveStarsEnabled = Boolean(selectedRoom && visibleRoom?.type === "live");
+  const mentionSuggestions = useMemo<MentionSuggestion[]>(() => {
+    const seen = new Set<string>();
+    const suggestions: MentionSuggestion[] = [];
+    const addSuggestion = (displayName: string, userId: string | null) => {
+      const token = mentionTokenFromDisplayName(displayName);
+      const key = token.toLowerCase();
+
+      if (!key || seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      suggestions.push({
+        displayName,
+        token,
+        userId
+      });
+    };
+
+    if (currentUser) {
+      addSuggestion(currentUser.displayName, currentUser.id);
+    }
+
+    for (const message of visibleMessages) {
+      addSuggestion(message.authorDisplayName, message.authorUserId);
+    }
+
+    return suggestions.slice(0, 12);
+  }, [currentUser, visibleMessages]);
+  const filteredMentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) {
+      return [];
+    }
+
+    const normalizedQuery = mentionQuery.toLowerCase();
+
+    return mentionSuggestions
+      .filter((suggestion) => suggestion.token.toLowerCase().startsWith(normalizedQuery))
+      .slice(0, 6);
+  }, [mentionQuery, mentionSuggestions]);
+  const activeReplyTarget = replyTarget && visibleMessages.some((message) => message.id === replyTarget.id) ? replyTarget : null;
 
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
@@ -278,6 +359,8 @@ export function ChatRoomPanel({
       setComposerBody("");
       setOpenMessageActionsId(null);
       setComposerToolsOpen(false);
+      setReplyTarget(null);
+      setMentionQuery(null);
     }, 0);
     const syncTimer = selectedRoomId
       ? window.setTimeout(() => {
@@ -322,6 +405,15 @@ export function ChatRoomPanel({
     };
   }, [mobileLiveMode]);
 
+  function updateMentionQuery(body: string, caretIndex: number) {
+    setMentionQuery(getActiveMentionQuery(body, caretIndex));
+  }
+
+  function handleComposerChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    setComposerBody(event.target.value);
+    updateMentionQuery(event.target.value, event.target.selectionStart ?? event.target.value.length);
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
       return;
@@ -329,6 +421,46 @@ export function ChatRoomPanel({
 
     event.preventDefault();
     event.currentTarget.form?.requestSubmit();
+  }
+
+  function handleComposerCursorMove() {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      setMentionQuery(null);
+      return;
+    }
+
+    updateMentionQuery(textarea.value, textarea.selectionStart ?? textarea.value.length);
+  }
+
+  function insertMention(displayName: string) {
+    const textarea = textareaRef.current;
+    const caretIndex = textarea?.selectionStart ?? composerBody.length;
+    const result = replaceActiveMention(composerBody, caretIndex, displayName);
+
+    setComposerBody(result.text);
+    setMentionQuery(null);
+
+    window.requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(result.caretIndex, result.caretIndex);
+    });
+  }
+
+  function startReplyToMessage(message: PublicChatMessageRow) {
+    setReplyTarget({
+      id: message.id,
+      body: message.body,
+      kind: message.kind,
+      mediaAlt: message.mediaAlt,
+      deletedAt: message.deletedAt,
+      authorDisplayName: message.authorDisplayName,
+      starAmount: message.starAmount,
+      starNote: message.starNote
+    });
+    setOpenMessageActionsId(null);
+    textareaRef.current?.focus();
   }
 
   function handleComposerFocus() {
@@ -583,6 +715,18 @@ export function ChatRoomPanel({
                   </div>
                 </div>
 
+                {message.replyTo ? (
+                  <div className="mt-2 rounded-md border-l-2 border-bc-electric/70 bg-bc-panel/70 px-2 py-1.5 text-xs">
+                    <div className="flex min-w-0 items-center gap-1 font-black text-bc-electric">
+                      <Reply className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="truncate">Replying to {message.replyTo.authorDisplayName}</span>
+                    </div>
+                    <p className="mt-1 max-h-10 overflow-hidden break-words text-bc-muted">
+                      {chatMessagePreviewText(message.replyTo)}
+                    </p>
+                  </div>
+                ) : null}
+
                 {message.kind === "stars" ? (
                   <div className="mt-3 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -628,6 +772,14 @@ export function ChatRoomPanel({
 
                 {messageActionsOpen && selectedRoom ? (
                   <div className="mt-2 space-y-2 rounded-md border border-bc-line bg-bc-panel/85 p-2">
+                    <button
+                      className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
+                      onClick={() => startReplyToMessage(message)}
+                      type="button"
+                    >
+                      <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+                      Reply
+                    </button>
                     <div>
                       <p className="text-[11px] font-black uppercase text-bc-muted">Reactions</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -791,6 +943,26 @@ export function ChatRoomPanel({
             <form action={formAction} className={cn("grid gap-3", mobileLiveMode && "gap-2 lg:gap-3")}>
               <input name="intent" type="hidden" value="text" />
               <input name="roomId" type="hidden" value={selectedRoom.id} />
+              {activeReplyTarget ? <input name="replyToMessageId" type="hidden" value={activeReplyTarget.id} /> : null}
+              {activeReplyTarget ? (
+                <div className="rounded-md border border-bc-electric/35 bg-bc-electric/10 px-2 py-1.5 text-xs">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5 font-black text-bc-electric">
+                      <Reply className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      <span className="truncate">Replying to {activeReplyTarget.authorDisplayName}</span>
+                    </div>
+                    <button
+                      aria-label="Cancel reply"
+                      className="bc-focus-ring inline-grid h-6 w-6 shrink-0 place-items-center rounded-full border border-bc-line bg-bc-panel text-bc-muted transition hover:text-white"
+                      onClick={() => setReplyTarget(null)}
+                      type="button"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <p className="mt-1 max-h-10 overflow-hidden break-words text-bc-muted">{chatMessagePreviewText(activeReplyTarget)}</p>
+                </div>
+              ) : null}
               <textarea
                 className={cn(
                   "min-h-24 min-w-0 resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white",
@@ -798,15 +970,41 @@ export function ChatRoomPanel({
                 )}
                 maxLength={500}
                 name="body"
-                onChange={(event) => setComposerBody(event.target.value)}
+                onChange={handleComposerChange}
+                onClick={handleComposerCursorMove}
                 onFocus={handleComposerFocus}
                 onKeyDown={handleComposerKeyDown}
+                onKeyUp={handleComposerCursorMove}
+                onSelect={handleComposerCursorMove}
                 placeholder={`Message #${visibleRoom?.slug ?? selectedRoom.slug}`}
                 ref={textareaRef}
                 disabled={roomLockedForUser}
                 required
                 value={composerBody}
               />
+              {filteredMentionSuggestions.length ? (
+                <div className="grid gap-1 rounded-md border border-bc-line bg-bc-ink p-1.5">
+                  <div className="flex items-center gap-1 px-1 text-[11px] font-black uppercase text-bc-muted">
+                    <AtSign className="h-3.5 w-3.5" aria-hidden="true" />
+                    Mentions
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {filteredMentionSuggestions.map((suggestion) => (
+                      <button
+                        className="bc-focus-ring inline-flex min-h-7 min-w-0 items-center gap-1 rounded-full border border-bc-line bg-bc-panel px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
+                        key={`${suggestion.userId ?? "guest"}-${suggestion.token}`}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => insertMention(suggestion.displayName)}
+                        title={`Mention ${suggestion.displayName}`}
+                        type="button"
+                      >
+                        <AtSign className="h-3 w-3 shrink-0 text-bc-electric" aria-hidden="true" />
+                        <span className="truncate">{suggestion.displayName}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {composerBody.trim() && selectedEffectId ? (
                 <div className={cn("rounded-md border border-bc-line bg-bc-ink px-3 py-2", mobileLiveMode && "max-h-16 overflow-hidden px-2 py-1.5 lg:max-h-none lg:px-3 lg:py-2")}>
                   <div className="text-xs font-semibold uppercase text-bc-muted">Preview</div>

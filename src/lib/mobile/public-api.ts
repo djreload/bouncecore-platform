@@ -68,6 +68,7 @@ function publicMessage(message: ChatMessageSummary) {
   return {
     id: message.id,
     roomId: message.roomId,
+    replyTo: message.replyTo,
     body: mediaOnlyMessage ? "" : message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,
