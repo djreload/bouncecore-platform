@@ -1,9 +1,11 @@
 import { CreditCard, Gift, ShoppingBag, Sparkles, Star, Trophy } from "lucide-react";
+import { RewardWheelPanel } from "@/app/account/rewards/reward-wheel-panel";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { getPayPalIntegrationData, getPayPalStarsReadiness } from "@/lib/payments/paypal-service";
+import { getAccountRewardWheelsData } from "@/lib/rewards/prize-service";
 import { getAccountRewardsData, starPackages } from "@/lib/rewards/stars-service";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +86,11 @@ function statusTone(status: string) {
 export default async function AccountRewardsPage({ searchParams }: AccountRewardsPageProps) {
   const params = searchParams ? await searchParams : {};
   const user = await requireSignedInUser();
-  const [data, paypal] = await Promise.all([getAccountRewardsData(user.id), getPayPalIntegrationData()]);
+  const [data, paypal, wheelData] = await Promise.all([
+    getAccountRewardsData(user.id),
+    getPayPalIntegrationData(),
+    getAccountRewardWheelsData(user.id)
+  ]);
   const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
 
@@ -118,6 +124,10 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
           {checkoutMessage.message}
         </div>
       ) : null}
+
+      <div className="mt-5">
+        <RewardWheelPanel data={wheelData} />
+      </div>
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">

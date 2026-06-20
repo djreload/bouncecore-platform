@@ -1091,12 +1091,109 @@ select {
   animation-delay: 0.72s;
 }
 
+.bc-reward-wheel {
+  --bc-reward-wheel-bg: conic-gradient(#00d5ff, #ff2bd6, #b6ff2e, #ffb020, #00d5ff);
+  position: relative;
+  display: grid;
+  width: min(150px, 100%);
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(247, 251, 255, 0.18);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 50%, #05050a 0 22%, transparent 23%),
+    var(--bc-reward-wheel-bg);
+  box-shadow: inset 0 0 0 10px rgba(5, 5, 10, 0.78), 0 0 28px rgba(0, 213, 255, 0.18);
+  overflow: visible;
+  transform: translateZ(0);
+}
+
+.bc-reward-wheel::before {
+  position: absolute;
+  inset: 8px;
+  border: 2px solid rgba(5, 5, 10, 0.8);
+  border-radius: inherit;
+  content: "";
+}
+
+.bc-reward-wheel::after {
+  position: absolute;
+  inset: -8px;
+  z-index: -1;
+  border-radius: inherit;
+  content: "";
+  background: radial-gradient(circle, rgba(182, 255, 46, 0.28), transparent 68%);
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.bc-reward-wheel-marker {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-right: 10px solid transparent;
+  border-left: 10px solid transparent;
+  border-top: 18px solid #f7fbff;
+  filter: drop-shadow(0 0 9px rgba(247, 251, 255, 0.5));
+  transform: translateX(-50%);
+}
+
+.bc-reward-wheel-hub {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 1px solid rgba(247, 251, 255, 0.18);
+  border-radius: 999px;
+  background: #05050a;
+  color: #b6ff2e;
+  box-shadow: 0 0 18px rgba(182, 255, 46, 0.24);
+}
+
+.bc-reward-wheel-spinning {
+  animation: bc-reward-wheel-spin 1.25s cubic-bezier(0.18, 0.72, 0.18, 1) infinite;
+}
+
+.bc-reward-wheel-winner::after {
+  opacity: 1;
+  animation: bc-reward-wheel-win 1.65s ease-out 2;
+}
+
+@keyframes bc-reward-wheel-spin {
+  0% {
+    transform: rotate(0deg) translateZ(0);
+  }
+
+  100% {
+    transform: rotate(1080deg) translateZ(0);
+  }
+}
+
+@keyframes bc-reward-wheel-win {
+  0%,
+  100% {
+    opacity: 0.12;
+    transform: scale(0.96);
+  }
+
+  50% {
+    opacity: 0.64;
+    transform: scale(1.08);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bc-chat-effect,
   .bc-chat-effect::before,
   .bc-chat-effect::after,
   .bc-chat-effect-particle,
   .bc-chat-effect .bc-chat-effect-letter,
+  .bc-reward-wheel,
+  .bc-reward-wheel::after,
   .bc-music-top-five {
     animation: none !important;
     transform: none !important;

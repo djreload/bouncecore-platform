@@ -14,6 +14,7 @@ import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
+import "./reward-wheel-core.test.mjs";
 import "./star-packages.test.mjs";
 import "./support-request.test.mjs";
 import "./transcoder-source.test.mjs";

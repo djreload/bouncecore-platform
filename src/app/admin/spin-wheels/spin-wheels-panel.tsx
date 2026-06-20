@@ -68,9 +68,9 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
           <p className="mt-2 text-sm text-bc-muted">Pending or approved prize claims.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
-          <Badge tone="amber">Public spin</Badge>
-          <p className="mt-4 text-3xl font-black">Off</p>
-          <p className="mt-2 text-sm text-bc-muted">Admin configuration only.</p>
+          <Badge tone={data.stats.activeWheels > 0 && data.stats.activeSegments > 0 ? "acid" : "amber"}>Public spin</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.activeWheels > 0 && data.stats.activeSegments > 0 ? "Ready" : "Setup"}</p>
+          <p className="mt-2 text-sm text-bc-muted">Active wheels with active weighted segments appear in account rewards.</p>
         </article>
       </div>
 
@@ -80,7 +80,7 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
             <Badge tone="pink">Wheel setup</Badge>
             <h3 className="mt-4 text-2xl font-black">Reward wheel control</h3>
             <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-              Configure wheels and prize segments here. Public spins remain disabled until prize rules are explicitly approved.
+              Configure active wheels and weighted prize segments here. User spins create prize claims for admin fulfilment when needed.
             </p>
           </div>
           <form action={formAction}>
