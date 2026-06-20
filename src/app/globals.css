@@ -1237,10 +1237,9 @@ select {
   pointer-events: none;
   content: "";
   background:
-    radial-gradient(circle at 50% 52%, transparent 0 26%, rgba(0, 0, 0, 0.22) 27% 30%, transparent 31%),
+    radial-gradient(circle at 50% 52%, transparent 0 25.8%, rgba(0, 0, 0, 0.72) 26% 27%, transparent 27.4%),
     var(--bc-reward-wheel-dividers),
     linear-gradient(90deg, rgba(255, 255, 255, 0.14), transparent 36%, rgba(0, 0, 0, 0.16));
-  mix-blend-mode: soft-light;
 }
 
 .bc-giveaway-wheel-landing {
@@ -1249,9 +1248,7 @@ select {
 
 .bc-giveaway-slice-content {
   --bc-reward-segment-font-size: 16px;
-  --bc-reward-segment-icon-size: 42px;
   --bc-reward-segment-label-radius: -29cqw;
-  --bc-reward-segment-label-scale: 1;
   --bc-reward-segment-label-width: 150px;
   position: absolute;
   top: 50%;
@@ -1268,13 +1265,12 @@ select {
     translate(-50%, -50%)
     rotate(var(--bc-reward-segment-angle))
     translateY(var(--bc-reward-segment-label-radius))
-    rotate(var(--bc-reward-segment-angle-negative))
-    scale(var(--bc-reward-segment-label-scale));
+    rotate(var(--bc-reward-segment-angle-negative));
 }
 
 .bc-giveaway-slice-icon {
-  width: var(--bc-reward-segment-icon-size);
-  height: var(--bc-reward-segment-icon-size);
+  width: clamp(28px, 6vw, 62px);
+  height: clamp(28px, 6vw, 62px);
   color: #ffffff;
   filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.45));
 }
@@ -1483,8 +1479,7 @@ select {
       translate(-50%, -50%)
       rotate(var(--bc-reward-segment-angle))
       translateY(var(--bc-reward-segment-label-radius))
-      rotate(var(--bc-reward-segment-angle-negative))
-      scale(var(--bc-reward-segment-label-scale));
+      rotate(var(--bc-reward-segment-angle-negative));
   }
 }
 

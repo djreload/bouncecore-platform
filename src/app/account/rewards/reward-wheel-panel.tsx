@@ -20,9 +20,7 @@ type SegmentSlice = AccountRewardWheelRow["segments"][number] & {
   color: string;
   endAngle: number;
   labelFontSize: string;
-  labelIconSize: string;
   labelRadius: string;
-  labelScale: number;
   labelWidth: string;
   midpointAngle: number;
   startAngle: number;
@@ -62,6 +60,7 @@ function wheelSlices(wheel: AccountRewardWheelRow): SegmentSlice[] {
     const labelScale = Math.max(0.54, Math.min(1.12, Math.sqrt(angle / 72)));
     const labelWidth = `${Math.round(Math.max(42, Math.min(150, 40 + angle * 1.18)))}px`;
     const normalizedScale = (labelScale - 0.54) / (1.12 - 0.54);
+    const labelRadius = angle < 24 ? "-37cqw" : angle < 50 ? "-34cqw" : angle < 90 ? "-31cqw" : "-28.5cqw";
 
     return {
       ...segment,
@@ -69,9 +68,7 @@ function wheelSlices(wheel: AccountRewardWheelRow): SegmentSlice[] {
       color: wheelPalette[index % wheelPalette.length],
       endAngle,
       labelFontSize: `${Math.round(8 + normalizedScale * 14)}px`,
-      labelIconSize: `${Math.round(18 + normalizedScale * 44)}px`,
-      labelRadius: angle < 24 ? "-31.5cqw" : angle < 50 ? "-30.5cqw" : "-29cqw",
-      labelScale,
+      labelRadius,
       labelWidth,
       midpointAngle: startAngle + (endAngle - startAngle) / 2,
       startAngle
@@ -94,15 +91,22 @@ function segmentDividerGradient(slices: SegmentSlice[]) {
     return "none";
   }
 
-  const halfLineWidth = 0.56;
+  const halfLineWidth = 0.82;
   const boundaries = slices
     .map((slice) => slice.startAngle)
-    .filter((angle) => angle > 0.01 && angle < 359.99)
+    .filter((angle) => angle >= 0 && angle < 359.99)
     .sort((a, b) => a - b);
   const stops: string[] = [];
   let cursor = 0;
 
   for (const boundary of boundaries) {
+    if (boundary < 0.01) {
+      const end = Math.min(360, halfLineWidth);
+      stops.push(`rgba(0, 0, 0, 0.78) 0deg ${end.toFixed(2)}deg`);
+      cursor = end;
+      continue;
+    }
+
     const start = Math.max(cursor, boundary - halfLineWidth);
     const end = Math.min(360, boundary + halfLineWidth);
 
@@ -110,13 +114,17 @@ function segmentDividerGradient(slices: SegmentSlice[]) {
       stops.push(`transparent ${cursor.toFixed(2)}deg ${start.toFixed(2)}deg`);
     }
 
-    stops.push(`rgba(255, 255, 255, 0.34) ${start.toFixed(2)}deg ${end.toFixed(2)}deg`);
+    stops.push(`rgba(0, 0, 0, 0.78) ${start.toFixed(2)}deg ${end.toFixed(2)}deg`);
     cursor = end;
   }
 
-  if (cursor < 360) {
-    stops.push(`transparent ${cursor.toFixed(2)}deg 360deg`);
+  const topLineStart = Math.max(cursor, 360 - halfLineWidth);
+
+  if (topLineStart > cursor) {
+    stops.push(`transparent ${cursor.toFixed(2)}deg ${topLineStart.toFixed(2)}deg`);
   }
+
+  stops.push(`rgba(0, 0, 0, 0.78) ${topLineStart.toFixed(2)}deg 360deg`);
 
   return `conic-gradient(${stops.join(", ")})`;
 }
@@ -135,9 +143,7 @@ function labelStyle(slice: SegmentSlice): CSSProperties {
     "--bc-reward-segment-angle-negative": `${(-slice.midpointAngle).toFixed(2)}deg`,
     "--bc-reward-segment-color": slice.color,
     "--bc-reward-segment-font-size": slice.labelFontSize,
-    "--bc-reward-segment-icon-size": slice.labelIconSize,
     "--bc-reward-segment-label-radius": slice.labelRadius,
-    "--bc-reward-segment-label-scale": slice.labelScale.toFixed(2),
     "--bc-reward-segment-label-width": slice.labelWidth
   } as CSSProperties;
 }
