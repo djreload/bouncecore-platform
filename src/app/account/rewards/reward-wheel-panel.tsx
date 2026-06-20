@@ -16,8 +16,14 @@ type RewardWheelPanelProps = {
 };
 
 type SegmentSlice = AccountRewardWheelRow["segments"][number] & {
+  angle: number;
   color: string;
   endAngle: number;
+  labelFontSize: string;
+  labelIconSize: string;
+  labelRadius: string;
+  labelScale: number;
+  labelWidth: string;
   midpointAngle: number;
   startAngle: number;
 };
@@ -52,11 +58,21 @@ function wheelSlices(wheel: AccountRewardWheelRow): SegmentSlice[] {
     const startAngle = wheel.totalWeight > 0 ? (cursor / wheel.totalWeight) * 360 : 0;
     cursor += segment.weight;
     const endAngle = wheel.totalWeight > 0 ? (cursor / wheel.totalWeight) * 360 : 0;
+    const angle = Math.max(0, endAngle - startAngle);
+    const labelScale = Math.max(0.54, Math.min(1.12, Math.sqrt(angle / 72)));
+    const labelWidth = `${Math.round(Math.max(42, Math.min(150, 40 + angle * 1.18)))}px`;
+    const normalizedScale = (labelScale - 0.54) / (1.12 - 0.54);
 
     return {
       ...segment,
+      angle,
       color: wheelPalette[index % wheelPalette.length],
       endAngle,
+      labelFontSize: `${Math.round(8 + normalizedScale * 14)}px`,
+      labelIconSize: `${Math.round(18 + normalizedScale * 44)}px`,
+      labelRadius: angle < 24 ? "-31.5cqw" : angle < 50 ? "-30.5cqw" : "-29cqw",
+      labelScale,
+      labelWidth,
       midpointAngle: startAngle + (endAngle - startAngle) / 2,
       startAngle
     };
@@ -73,8 +89,41 @@ function segmentGradient(slices: SegmentSlice[]) {
     .join(", ")})`;
 }
 
+function segmentDividerGradient(slices: SegmentSlice[]) {
+  if (slices.length <= 1) {
+    return "none";
+  }
+
+  const halfLineWidth = 0.56;
+  const boundaries = slices
+    .map((slice) => slice.startAngle)
+    .filter((angle) => angle > 0.01 && angle < 359.99)
+    .sort((a, b) => a - b);
+  const stops: string[] = [];
+  let cursor = 0;
+
+  for (const boundary of boundaries) {
+    const start = Math.max(cursor, boundary - halfLineWidth);
+    const end = Math.min(360, boundary + halfLineWidth);
+
+    if (start > cursor) {
+      stops.push(`transparent ${cursor.toFixed(2)}deg ${start.toFixed(2)}deg`);
+    }
+
+    stops.push(`rgba(255, 255, 255, 0.34) ${start.toFixed(2)}deg ${end.toFixed(2)}deg`);
+    cursor = end;
+  }
+
+  if (cursor < 360) {
+    stops.push(`transparent ${cursor.toFixed(2)}deg 360deg`);
+  }
+
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
 function wheelStyle(slices: SegmentSlice[], rotation: number): CSSProperties {
   return {
+    "--bc-reward-wheel-dividers": segmentDividerGradient(slices),
     "--bc-reward-wheel-bg": segmentGradient(slices),
     transform: `rotate(${rotation}deg)`
   } as CSSProperties;
@@ -84,7 +133,12 @@ function labelStyle(slice: SegmentSlice): CSSProperties {
   return {
     "--bc-reward-segment-angle": `${slice.midpointAngle.toFixed(2)}deg`,
     "--bc-reward-segment-angle-negative": `${(-slice.midpointAngle).toFixed(2)}deg`,
-    "--bc-reward-segment-color": slice.color
+    "--bc-reward-segment-color": slice.color,
+    "--bc-reward-segment-font-size": slice.labelFontSize,
+    "--bc-reward-segment-icon-size": slice.labelIconSize,
+    "--bc-reward-segment-label-radius": slice.labelRadius,
+    "--bc-reward-segment-label-scale": slice.labelScale.toFixed(2),
+    "--bc-reward-segment-label-width": slice.labelWidth
   } as CSSProperties;
 }
 

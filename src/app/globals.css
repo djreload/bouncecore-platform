@@ -1215,6 +1215,7 @@ select {
 
 .bc-giveaway-wheel {
   --bc-reward-wheel-bg: conic-gradient(#ffc928, #64b71f, #e22d70, #0569c9, #ffc928);
+  --bc-reward-wheel-dividers: none;
   position: relative;
   z-index: 3;
   width: 88%;
@@ -1237,7 +1238,7 @@ select {
   content: "";
   background:
     radial-gradient(circle at 50% 52%, transparent 0 26%, rgba(0, 0, 0, 0.22) 27% 30%, transparent 31%),
-    repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.22) 0 0.75deg, transparent 0.75deg 45deg),
+    var(--bc-reward-wheel-dividers),
     linear-gradient(90deg, rgba(255, 255, 255, 0.14), transparent 36%, rgba(0, 0, 0, 0.16));
   mix-blend-mode: soft-light;
 }
@@ -1247,12 +1248,17 @@ select {
 }
 
 .bc-giveaway-slice-content {
+  --bc-reward-segment-font-size: 16px;
+  --bc-reward-segment-icon-size: 42px;
+  --bc-reward-segment-label-radius: -29cqw;
+  --bc-reward-segment-label-scale: 1;
+  --bc-reward-segment-label-width: 150px;
   position: absolute;
   top: 50%;
   left: 50%;
   z-index: 4;
   display: grid;
-  width: min(30%, 150px);
+  width: min(var(--bc-reward-segment-label-width), 30cqw);
   justify-items: center;
   align-content: center;
   gap: 0.35rem;
@@ -1261,13 +1267,14 @@ select {
   transform:
     translate(-50%, -50%)
     rotate(var(--bc-reward-segment-angle))
-    translateY(-29cqw)
-    rotate(var(--bc-reward-segment-angle-negative));
+    translateY(var(--bc-reward-segment-label-radius))
+    rotate(var(--bc-reward-segment-angle-negative))
+    scale(var(--bc-reward-segment-label-scale));
 }
 
 .bc-giveaway-slice-icon {
-  width: clamp(28px, 6vw, 62px);
-  height: clamp(28px, 6vw, 62px);
+  width: var(--bc-reward-segment-icon-size);
+  height: var(--bc-reward-segment-icon-size);
   color: #ffffff;
   filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.45));
 }
@@ -1276,7 +1283,7 @@ select {
   white-space: pre-line;
   color: #ffffff;
   font-family: Impact, "Arial Black", Arial, sans-serif;
-  font-size: clamp(11px, 1.65vw, 22px);
+  font-size: var(--bc-reward-segment-font-size);
   line-height: 0.95;
   text-transform: uppercase;
   text-shadow:
@@ -1470,13 +1477,14 @@ select {
   }
 
   .bc-giveaway-slice-content {
-    width: 34%;
+    width: min(var(--bc-reward-segment-label-width), 34cqw);
     gap: 0.2rem;
     transform:
       translate(-50%, -50%)
       rotate(var(--bc-reward-segment-angle))
-      translateY(-27cqw)
-      rotate(var(--bc-reward-segment-angle-negative));
+      translateY(var(--bc-reward-segment-label-radius))
+      rotate(var(--bc-reward-segment-angle-negative))
+      scale(var(--bc-reward-segment-label-scale));
   }
 }
 
