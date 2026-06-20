@@ -136,7 +136,7 @@ const tasks: WorkerTask[] = [
   },
   {
     enabled: envBoolean("WORKER_MOBILE_PUSH_DISPATCH_ENABLED", true),
-    intervalMs: envNumber("WORKER_MOBILE_PUSH_DISPATCH_INTERVAL_SECONDS", 60) * 1000,
+    intervalMs: envNumber("WORKER_MOBILE_PUSH_DISPATCH_INTERVAL_SECONDS", 5) * 1000,
     name: "mobile-push-dispatch",
     run: () => processQueuedMobilePushDeliveries(null, mobilePushLimit)
   },
