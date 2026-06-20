@@ -16,6 +16,18 @@ export type RewardWheelCooldownState = {
   retryAt: Date | null;
 };
 
+export type RewardWheelSpinCostInput = {
+  costStars: number;
+  walletBalance: number;
+};
+
+export type RewardWheelSpinCostState = {
+  balanceAfterSpin: number;
+  canAfford: boolean;
+  costStars: number;
+  missingStars: number;
+};
+
 const maxRandom = 0.999999999999999;
 
 export function activeRewardWheelSegments<T extends RewardWheelSegmentOption>(segments: readonly T[]) {
@@ -72,6 +84,22 @@ export function getRewardWheelCooldownState({
     available: remainingSeconds <= 0,
     remainingSeconds,
     retryAt: remainingSeconds > 0 ? retryAt : null
+  };
+}
+
+export function getRewardWheelSpinCostState({
+  costStars,
+  walletBalance
+}: RewardWheelSpinCostInput): RewardWheelSpinCostState {
+  const normalizedCost = Math.max(0, Math.trunc(costStars));
+  const normalizedBalance = Math.max(0, Math.trunc(walletBalance));
+  const canAfford = normalizedBalance >= normalizedCost;
+
+  return {
+    balanceAfterSpin: canAfford ? normalizedBalance - normalizedCost : normalizedBalance,
+    canAfford,
+    costStars: normalizedCost,
+    missingStars: canAfford ? 0 : normalizedCost - normalizedBalance
   };
 }
 

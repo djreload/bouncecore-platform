@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getRewardWheelCooldownState,
+  getRewardWheelSpinCostState,
   getRewardWheelTotalWeight,
   pickWeightedRewardSegment,
   rewardWheelResultStatus
@@ -57,4 +58,22 @@ test("reward wheel cooldown reports availability and retry time", () => {
 test("reward wheel none result is fulfilled while real prizes stay pending", () => {
   assert.equal(rewardWheelResultStatus("none"), "fulfilled");
   assert.equal(rewardWheelResultStatus("merch"), "pending");
+});
+
+test("reward wheel paid spin cost reports debited balance", () => {
+  assert.deepEqual(getRewardWheelSpinCostState({ costStars: 25, walletBalance: 100 }), {
+    balanceAfterSpin: 75,
+    canAfford: true,
+    costStars: 25,
+    missingStars: 0
+  });
+});
+
+test("reward wheel paid spin cost blocks insufficient star balance", () => {
+  assert.deepEqual(getRewardWheelSpinCostState({ costStars: 50, walletBalance: 20 }), {
+    balanceAfterSpin: 20,
+    canAfford: false,
+    costStars: 50,
+    missingStars: 30
+  });
 });

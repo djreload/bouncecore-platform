@@ -109,7 +109,6 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
         <Badge tone="cyan">New wheel</Badge>
         <form action={formAction} className="mt-4 grid gap-4">
           <input name="intent" type="hidden" value="wheel" />
-          <input name="costStars" type="hidden" value="0" />
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_160px]">
             <input
               className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
@@ -131,12 +130,25 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
               ))}
             </select>
           </div>
-          <div className="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)_auto]">
+          <div className="grid gap-4 md:grid-cols-[160px_160px_minmax(0,1fr)_auto]">
             <input
+              aria-label="Cooldown minutes"
               className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
               defaultValue="1440"
               min="0"
               name="cooldownMinutes"
+              placeholder="Cooldown"
+              title="Cooldown minutes"
+              type="number"
+            />
+            <input
+              aria-label="Spin cost in stars"
+              className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue="0"
+              min="0"
+              name="costStars"
+              placeholder="Spin cost"
+              title="Spin cost in stars"
               type="number"
             />
             <input
@@ -161,13 +173,15 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
             <form action={formAction} className="grid gap-4">
               <input name="intent" type="hidden" value="wheel" />
               <input name="wheelId" type="hidden" value={wheel.id} />
-              <input name="costStars" type="hidden" value="0" />
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap gap-2">
                     <Badge tone={statusTone(wheel.status)}>{wheel.status}</Badge>
                     <Badge tone="muted">/{wheel.slug}</Badge>
                     <Badge tone="cyan">{wheel.totalWeight} active weight</Badge>
+                    <Badge tone={wheel.costStars > 0 ? "acid" : "muted"}>
+                      {wheel.costStars > 0 ? `${wheel.costStars} stars/spin` : "free spins"}
+                    </Badge>
                   </div>
                   <h3 className="mt-3 text-xl font-black">{wheel.name}</h3>
                   <p className="mt-1 text-sm text-bc-muted">
@@ -205,12 +219,23 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                   Save
                 </Button>
               </div>
-              <div className="grid gap-4 md:grid-cols-[160px_minmax(0,1fr)]">
+              <div className="grid gap-4 md:grid-cols-[160px_160px_minmax(0,1fr)]">
                 <input
+                  aria-label="Cooldown minutes"
                   className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                   defaultValue={wheel.cooldownMinutes}
                   min="0"
                   name="cooldownMinutes"
+                  title="Cooldown minutes"
+                  type="number"
+                />
+                <input
+                  aria-label="Spin cost in stars"
+                  className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  defaultValue={wheel.costStars}
+                  min="0"
+                  name="costStars"
+                  title="Spin cost in stars"
                   type="number"
                 />
                 <input

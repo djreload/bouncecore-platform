@@ -4,6 +4,7 @@ import type { Role } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 import {
   getRewardWheelCooldownState,
+  getRewardWheelSpinCostState,
   getRewardWheelTotalWeight,
   pickWeightedRewardSegment,
   rewardWheelResultStatus
@@ -909,18 +910,21 @@ export async function getAccountRewardWheelsData(userId: string): Promise<Accoun
         cooldownMinutes: wheel.cooldownMinutes,
         lastSpinAt: latestClaimByWheelId.get(wheel.id) ?? null
       });
+      const costState = getRewardWheelSpinCostState({
+        costStars: wheel.costStars,
+        walletBalance: wallet.balance
+      });
       const hasSegments = totalWeight > 0;
-      const hasStars = wallet.balance >= wheel.costStars;
       const unavailableReason = !hasSegments
         ? "This wheel needs active prize segments."
-        : !hasStars
-          ? `You need ${wheel.costStars.toLocaleString("en-GB")} stars to spin this wheel.`
+        : !costState.canAfford
+          ? `You need ${costState.missingStars.toLocaleString("en-GB")} more stars to spin this wheel.`
           : !cooldown.available
             ? `Available again ${cooldown.retryAt ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(cooldown.retryAt) : "soon"}.`
             : null;
 
       return {
-        canSpin: hasSegments && hasStars && cooldown.available,
+        canSpin: hasSegments && costState.canAfford && cooldown.available,
         cooldownMinutes: wheel.cooldownMinutes,
         cooldownRemainingSeconds: cooldown.remainingSeconds,
         cooldownRetryAt: cooldown.retryAt?.toISOString() ?? null,
@@ -1013,7 +1017,12 @@ export async function spinRewardWheel(userId: string, wheelId: string): Promise<
       }
     });
 
-    if (wallet.balance < wheel.costStars) {
+    const costState = getRewardWheelSpinCostState({
+      costStars: wheel.costStars,
+      walletBalance: wallet.balance
+    });
+
+    if (!costState.canAfford) {
       throw new RewardWheelSpinError("You do not have enough stars to spin this wheel.", "insufficient-stars");
     }
 

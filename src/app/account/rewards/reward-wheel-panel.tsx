@@ -232,6 +232,14 @@ export function RewardWheelPanel({ data }: RewardWheelPanelProps) {
   const hasWheels = data.wheels.length > 0;
   const isBusy = pending || isLanding;
   const currentResult = landedResult && landedResult.wheelId === selectedWheel?.id ? landedResult : null;
+  const displayedWalletBalance = state.result?.walletBalance ?? landedResult?.walletBalance ?? data.walletBalance;
+  const hasEnoughStarsForSelectedWheel = selectedWheel ? displayedWalletBalance >= selectedWheel.costStars : false;
+  const missingStarsForSelectedWheel = selectedWheel ? Math.max(0, selectedWheel.costStars - displayedWalletBalance) : 0;
+  const canSubmitSelectedWheel = Boolean(selectedWheel?.canSpin && hasEnoughStarsForSelectedWheel);
+  const selectedWheelUnavailableReason =
+    selectedWheel && !hasEnoughStarsForSelectedWheel
+      ? `You need ${missingStarsForSelectedWheel.toLocaleString("en-GB")} more stars to spin this wheel.`
+      : selectedWheel?.unavailableReason;
   const resultTitle = pending
     ? "Drawing..."
     : isLanding
@@ -245,9 +253,9 @@ export function RewardWheelPanel({ data }: RewardWheelPanelProps) {
         ? currentResult.status === "pending"
           ? "Prize claim created and waiting for admin fulfilment."
           : "Result saved to your spin history."
-        : state.status === "error"
-          ? state.message
-          : selectedWheel?.unavailableReason ?? "Press the middle button to spin.";
+          : state.status === "error"
+            ? state.message
+            : selectedWheelUnavailableReason ?? "Press the middle button to spin.";
   const recentClaimsLabel = useMemo(
     () => `${data.recentClaims.length} recent ${data.recentClaims.length === 1 ? "spin" : "spins"}`,
     [data.recentClaims.length]
@@ -352,7 +360,7 @@ export function RewardWheelPanel({ data }: RewardWheelPanelProps) {
             <button
               aria-label="Spin the reward wheel"
               className="bc-giveaway-center-button"
-              disabled={isBusy || !selectedWheel.canSpin}
+              disabled={isBusy || !canSubmitSelectedWheel}
               type="submit"
             >
               <span className="bc-giveaway-center-text">
@@ -371,7 +379,7 @@ export function RewardWheelPanel({ data }: RewardWheelPanelProps) {
             </div>
             <div className="rounded-md border border-bc-acid/30 bg-bc-acid/10 px-3 py-2 text-right">
               <p className="text-xs font-semibold uppercase text-bc-muted">Wallet</p>
-              <p className="text-xl font-black text-bc-acid">{data.walletBalance.toLocaleString("en-GB")}</p>
+              <p className="text-xl font-black text-bc-acid">{displayedWalletBalance.toLocaleString("en-GB")}</p>
             </div>
           </div>
 
@@ -413,7 +421,7 @@ export function RewardWheelPanel({ data }: RewardWheelPanelProps) {
             }}
           >
             <input name="wheelId" type="hidden" value={selectedWheel.id} />
-            <button className="bc-giveaway-spin-again" disabled={isBusy || !selectedWheel.canSpin} type="submit">
+            <button className="bc-giveaway-spin-again" disabled={isBusy || !canSubmitSelectedWheel} type="submit">
               {isBusy ? "Spinning..." : currentResult ? "Spin again" : "Spin wheel"}
             </button>
           </form>
@@ -429,8 +437,8 @@ export function RewardWheelPanel({ data }: RewardWheelPanelProps) {
             </div>
             <div className="rounded-md border border-bc-line bg-white/5 p-2">
               <p className="text-bc-muted">State</p>
-              <p className={selectedWheel.canSpin ? "mt-1 font-black text-bc-acid" : "mt-1 font-black text-bc-amber"}>
-                {selectedWheel.canSpin ? "Ready" : "Locked"}
+              <p className={canSubmitSelectedWheel ? "mt-1 font-black text-bc-acid" : "mt-1 font-black text-bc-amber"}>
+                {canSubmitSelectedWheel ? "Ready" : "Locked"}
               </p>
             </div>
           </div>
