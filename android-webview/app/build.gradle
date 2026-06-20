@@ -13,6 +13,15 @@ def configValue(String name, String fallback = "") {
         .get()
 }
 
+def requiredConfigValue(String name) {
+    def value = configValue(name).trim()
+    if (!value) {
+        throw new GradleException("${name} is required. Pass -P${name}=https://your-domain.example or set it in a local Gradle property.")
+    }
+
+    return value
+}
+
 def releaseStoreFilePath = configValue("BOUNCECORE_RELEASE_STORE_FILE")
 def releaseStorePassword = configValue("BOUNCECORE_RELEASE_STORE_PASSWORD")
 def releaseKeyAlias = configValue("BOUNCECORE_RELEASE_KEY_ALIAS")
@@ -30,7 +39,7 @@ android {
         versionCode configValue("BOUNCECORE_VERSION_CODE", "1").toInteger()
         versionName configValue("BOUNCECORE_VERSION_NAME", "1.0.0")
 
-        buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(configValue("BOUNCECORE_WEB_URL", "https://example.com"))
+        buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(requiredConfigValue("BOUNCECORE_WEB_URL"))
         buildConfigField "String", "UNITY_PROJECT_ID", quoted("61d46651-d0a2-4175-ade1-fc300e58559f")
         buildConfigField "String", "LEVELPLAY_APP_KEY", quoted(configValue("LEVELPLAY_APP_KEY"))
         buildConfigField "String", "LEVELPLAY_BANNER_AD_UNIT_ID", quoted(configValue("LEVELPLAY_BANNER_AD_UNIT_ID"))
