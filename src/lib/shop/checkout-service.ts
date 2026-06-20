@@ -7,6 +7,7 @@ import {
   getPayPalSettings
 } from "@/lib/payments/paypal-service";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeEmailAddress } from "@/lib/mail/email-address";
 
 const checkoutCurrency = "GBP";
 const maxCheckoutQuantity = 10;
@@ -15,6 +16,7 @@ const maxCheckoutItems = 30;
 export type StartShopCheckoutInput = {
   origin: string;
   quantity: string;
+  shippingAddress: ShippingAddressInput;
   variantId: string;
 };
 
@@ -26,11 +28,24 @@ export type ShopCheckoutItemInput = {
 export type StartShopCartCheckoutInput = {
   items: ShopCheckoutItemInput[];
   origin: string;
+  shippingAddress: ShippingAddressInput;
 };
 
 export type StartedShopCheckout = {
   approvalUrl: string;
   orderId: string;
+};
+
+export type ShippingAddressInput = {
+  city?: string;
+  country?: string;
+  county?: string;
+  email?: string;
+  line1?: string;
+  line2?: string;
+  name?: string;
+  phone?: string;
+  postcode?: string;
 };
 
 function checkoutQuantity(value: string) {
@@ -49,6 +64,44 @@ function checkoutUrl(origin: string, path: string, params: Record<string, string
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
 
   return url.toString();
+}
+
+function normalizedText(value: string | undefined, maxLength: number) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > maxLength) {
+    throw new Error(`Text must be ${maxLength} characters or fewer.`);
+  }
+
+  return text;
+}
+
+function normalizedRequiredText(value: string | undefined, maxLength: number, label: string) {
+  const text = normalizedText(value, maxLength);
+
+  if (!text) {
+    throw new Error(`${label} is required.`);
+  }
+
+  return text;
+}
+
+function normalizeShippingAddress(input: ShippingAddressInput) {
+  return {
+    shippingCity: normalizedRequiredText(input.city, 120, "Shipping city"),
+    shippingCountry: normalizedRequiredText(input.country, 120, "Shipping country"),
+    shippingCounty: normalizedText(input.county, 120),
+    shippingEmail: normalizeEmailAddress(input.email ?? "", "Shipping email"),
+    shippingLine1: normalizedRequiredText(input.line1, 180, "Shipping address line 1"),
+    shippingLine2: normalizedText(input.line2, 180),
+    shippingName: normalizedRequiredText(input.name, 120, "Shipping name"),
+    shippingPhone: normalizedText(input.phone, 80),
+    shippingPostcode: normalizedRequiredText(input.postcode, 40, "Shipping postcode")
+  };
 }
 
 function payPalDescription(productName: string, variantName: string) {
@@ -156,6 +209,7 @@ function shopCheckoutDescription(items: { quantity: number; variant: CheckoutVar
 
 export async function startShopCartCheckout(userId: string, input: StartShopCartCheckoutInput): Promise<StartedShopCheckout> {
   const normalizedItems = normalizeCartItems(input.items);
+  const shippingAddress = normalizeShippingAddress(input.shippingAddress);
   const [settings, checkoutItems] = await Promise.all([getPayPalSettings(), loadCheckoutVariants(normalizedItems)]);
   const readiness = getPayPalCheckoutReadiness(settings);
 
@@ -171,6 +225,7 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
       items: {
         create: lineItems
       },
+      ...shippingAddress,
       status: "pending",
       totalPence,
       userId
@@ -222,6 +277,8 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
           sku: item.sku,
           totalPence: item.totalPence
         })),
+        shippingCountry: order.shippingCountry,
+        shippingPostcode: order.shippingPostcode,
         totalPence
       }
     });
@@ -244,6 +301,7 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
 export async function startShopCheckout(userId: string, input: StartShopCheckoutInput): Promise<StartedShopCheckout> {
   return startShopCartCheckout(userId, {
     origin: input.origin,
+    shippingAddress: input.shippingAddress,
     items: [
       {
         quantity: input.quantity,

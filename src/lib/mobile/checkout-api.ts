@@ -22,6 +22,17 @@ export type MobileCheckoutPayload = {
   packageId?: string;
   quantities?: string[];
   quantity?: string;
+  shippingAddress?: {
+    city?: string;
+    country?: string;
+    county?: string;
+    email?: string;
+    line1?: string;
+    line2?: string;
+    name?: string;
+    phone?: string;
+    postcode?: string;
+  };
   trackIds?: string[];
   trackId?: string;
   variantIds?: string[];
@@ -66,13 +77,24 @@ function payloadShopItems(payload: MobileCheckoutPayload) {
   return [];
 }
 
+function payloadShippingAddress(payload: MobileCheckoutPayload) {
+  const shipping = payload.shippingAddress;
+
+  if (!shipping || typeof shipping !== "object" || Array.isArray(shipping)) {
+    return {};
+  }
+
+  return shipping;
+}
+
 export async function startMobileShopCheckout(user: CurrentUser, origin: string, payload: MobileCheckoutPayload) {
   const items = payloadShopItems(payload);
 
   if (items.length) {
     const checkout = await startShopCartCheckout(user.id, {
       items,
-      origin
+      origin,
+      shippingAddress: payloadShippingAddress(payload)
     });
 
     return {
@@ -86,6 +108,7 @@ export async function startMobileShopCheckout(user: CurrentUser, origin: string,
   const checkout = await startShopCheckout(user.id, {
     origin,
     quantity: payloadString(payload, "quantity") || "1",
+    shippingAddress: payloadShippingAddress(payload),
     variantId: payloadString(payload, "variantId")
   });
 

@@ -8,6 +8,11 @@ function shopRedirect(request: NextRequest, checkout: string) {
   return NextResponse.redirect(appUrl(request, "/shop", { checkout }), 303);
 }
 
+function formString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
+}
+
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
 
@@ -25,6 +30,17 @@ export async function POST(request: NextRequest) {
         variantId
       })),
       origin: appOrigin(request),
+      shippingAddress: {
+        city: formString(formData, "shippingCity"),
+        country: formString(formData, "shippingCountry"),
+        county: formString(formData, "shippingCounty"),
+        email: formString(formData, "shippingEmail"),
+        line1: formString(formData, "shippingLine1"),
+        line2: formString(formData, "shippingLine2"),
+        name: formString(formData, "shippingName"),
+        phone: formString(formData, "shippingPhone"),
+        postcode: formString(formData, "shippingPostcode")
+      }
     });
 
     return NextResponse.redirect(checkout.approvalUrl, 303);

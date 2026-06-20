@@ -6,6 +6,8 @@ import { requireSignedInUser } from "@/lib/auth/guards";
 import {
   createOrUpdateRewardSegment,
   createOrUpdateRewardWheel,
+  deleteRewardSegment,
+  deleteRewardWheel,
   ensureDefaultRewardWheel,
   moveRewardSegment,
   spreadRewardWheelSegments,
@@ -80,6 +82,18 @@ export async function adminSpinWheelsAction(
     }
 
     if (intent === "wheel") {
+      const wheelAction = formString(formData, "wheelAction") || "save";
+
+      if (wheelAction === "delete") {
+        await deleteRewardWheel({ wheelId: formString(formData, "wheelId") }, actor.id);
+        revalidateRewardsViews();
+
+        return {
+          message: "Reward wheel deleted.",
+          status: "success"
+        };
+      }
+
       await createOrUpdateRewardWheel(wheelInput(formData), actor.id);
       revalidateRewardsViews();
 
@@ -111,6 +125,14 @@ export async function adminSpinWheelsAction(
           },
           actor.id
         );
+      } else if (segmentAction === "delete") {
+        await deleteRewardSegment(
+          {
+            segmentId: formString(formData, "segmentId"),
+            wheelId: formString(formData, "wheelId")
+          },
+          actor.id
+        );
       } else {
         await createOrUpdateRewardSegment(segmentInput(formData), actor.id);
       }
@@ -118,7 +140,12 @@ export async function adminSpinWheelsAction(
       revalidateRewardsViews();
 
       return {
-        message: segmentAction === "save" ? "Reward wheel segment saved." : "Reward wheel segment order updated.",
+        message:
+          segmentAction === "save"
+            ? "Reward wheel segment saved."
+            : segmentAction === "delete"
+              ? "Reward wheel segment deleted."
+              : "Reward wheel segment order updated.",
         status: "success"
       };
     }

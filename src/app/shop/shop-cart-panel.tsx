@@ -32,6 +32,7 @@ type ShopCartContextValue = {
 };
 
 const ShopCartContext = createContext<ShopCartContextValue | null>(null);
+const shippingInputClasses = "min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white";
 
 function formatMoney(pence: number) {
   return new Intl.NumberFormat("en-GB", { currency: "GBP", style: "currency" }).format(pence / 100);
@@ -84,6 +85,15 @@ function useShopCart() {
   }
 
   return context;
+}
+
+function ShippingField({ children, help }: { children: ReactNode; help: ReactNode }) {
+  return (
+    <label className="block min-w-0">
+      {children}
+      <span className="mt-1 block text-[11px] leading-snug text-bc-muted">{help}</span>
+    </label>
+  );
 }
 
 export function ShopCartProvider({
@@ -186,7 +196,7 @@ export function ShopCartProvider({
               <span>{totalQuantity} / {formatMoney(totalPence)}</span>
             </Button>
           ) : (
-            <section className="rounded-md border border-bc-line bg-bc-panel shadow-[0_22px_80px_rgba(0,0,0,0.55)]">
+            <section className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-md border border-bc-line bg-bc-panel shadow-[0_22px_80px_rgba(0,0,0,0.55)]">
               <div className="flex items-center justify-between gap-3 border-b border-bc-line p-4">
                 <div>
                   <h2 className="font-black">Shop basket</h2>
@@ -265,6 +275,93 @@ export function ShopCartProvider({
                         <input name="quantity" type="hidden" value={line.quantity} />
                       </div>
                     ))}
+                    <div className="mb-4 grid gap-3 rounded-md border border-bc-line bg-bc-panel p-3">
+                      <div>
+                        <h3 className="text-sm font-black">Shipping address</h3>
+                        <p className="mt-1 text-xs text-bc-muted">Used by fulfilment for physical shop products.</p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ShippingField help="Full name for the delivery label.">
+                          <input
+                            autoComplete="shipping name"
+                            className={shippingInputClasses}
+                            name="shippingName"
+                            placeholder="Full name"
+                            required
+                          />
+                        </ShippingField>
+                        <ShippingField help="Email for delivery questions and order updates.">
+                          <input
+                            autoComplete="shipping email"
+                            className={shippingInputClasses}
+                            name="shippingEmail"
+                            placeholder="Email"
+                            required
+                            type="email"
+                          />
+                        </ShippingField>
+                      </div>
+                      <ShippingField help="Phone number for courier contact if needed.">
+                        <input autoComplete="shipping tel" className={shippingInputClasses} name="shippingPhone" placeholder="Phone" />
+                      </ShippingField>
+                      <ShippingField help="House number, building, and street.">
+                        <input
+                          autoComplete="shipping address-line1"
+                          className={shippingInputClasses}
+                          name="shippingLine1"
+                          placeholder="Address line 1"
+                          required
+                        />
+                      </ShippingField>
+                      <ShippingField help="Flat, unit, or extra delivery detail.">
+                        <input
+                          autoComplete="shipping address-line2"
+                          className={shippingInputClasses}
+                          name="shippingLine2"
+                          placeholder="Address line 2"
+                        />
+                      </ShippingField>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ShippingField help="Town or city for delivery.">
+                          <input
+                            autoComplete="shipping address-level2"
+                            className={shippingInputClasses}
+                            name="shippingCity"
+                            placeholder="Town / city"
+                            required
+                          />
+                        </ShippingField>
+                        <ShippingField help="County, state, or region.">
+                          <input
+                            autoComplete="shipping address-level1"
+                            className={shippingInputClasses}
+                            name="shippingCounty"
+                            placeholder="County / region"
+                          />
+                        </ShippingField>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <ShippingField help="Postcode or ZIP code.">
+                          <input
+                            autoComplete="shipping postal-code"
+                            className={shippingInputClasses}
+                            name="shippingPostcode"
+                            placeholder="Postcode"
+                            required
+                          />
+                        </ShippingField>
+                        <ShippingField help="Destination country.">
+                          <input
+                            autoComplete="shipping country-name"
+                            className={shippingInputClasses}
+                            defaultValue="United Kingdom"
+                            name="shippingCountry"
+                            placeholder="Country"
+                            required
+                          />
+                        </ShippingField>
+                      </div>
+                    </div>
                     <Button className="w-full" disabled={!checkoutReady} type="submit" variant="primary">
                       <ShoppingCart className="h-4 w-4" aria-hidden="true" />
                       Checkout with PayPal

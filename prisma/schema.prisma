@@ -631,6 +631,15 @@ model Order {
   paypalOrderId    String?     @unique
   paypalCaptureId  String?
   paypalPayerEmail String?
+  shippingName     String?
+  shippingEmail    String?
+  shippingPhone    String?
+  shippingLine1    String?
+  shippingLine2    String?
+  shippingCity     String?
+  shippingCounty   String?
+  shippingPostcode String?
+  shippingCountry  String?
   completedAt      DateTime?
   cancelledAt      DateTime?
   createdAt        DateTime    @default(now())

@@ -52,6 +52,15 @@ export type RewardWheelSegmentSpreadInput = {
   wheelId: string;
 };
 
+export type RewardWheelDeleteInput = {
+  wheelId: string;
+};
+
+export type RewardSegmentDeleteInput = {
+  segmentId: string;
+  wheelId: string;
+};
+
 export type PrizeClaimInput = {
   description?: string;
   prizeType: string;
@@ -71,6 +80,19 @@ export type PrizeClaimStatusInput = {
 
 export type AdminSpinWheelsData = {
   claimsPending: number;
+  shopProducts: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    variants: Array<{
+      id: string;
+      name: string;
+      pricePence: number;
+      sku: string;
+      stock: number;
+    }>;
+  }>;
   stats: {
     activeSegments: number;
     activeWheels: number;
@@ -320,7 +342,7 @@ function statusStats<T extends string>(items: Array<{ status: string }>, keys: r
 }
 
 export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
-  const [wheels, claimsPending] = await Promise.all([
+  const [wheels, claimsPending, shopProducts] = await Promise.all([
     prisma.rewardSpinWheel.findMany({
       include: {
         segments: {
@@ -354,12 +376,52 @@ export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
           in: ["pending", "approved"]
         }
       }
+    }),
+    prisma.product.findMany({
+      where: {
+        status: {
+          not: "archived"
+        }
+      },
+      include: {
+        variants: {
+          orderBy: [
+            {
+              name: "asc"
+            },
+            {
+              sku: "asc"
+            }
+          ]
+        }
+      },
+      orderBy: [
+        {
+          name: "asc"
+        },
+        {
+          slug: "asc"
+        }
+      ]
     })
   ]);
   const segments = wheels.flatMap((wheel) => wheel.segments);
 
   return {
     claimsPending,
+    shopProducts: shopProducts.map((product) => ({
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      status: product.status,
+      variants: product.variants.map((variant) => ({
+        id: variant.id,
+        name: variant.name,
+        pricePence: variant.pricePence,
+        sku: variant.sku,
+        stock: variant.stock
+      }))
+    })),
     stats: {
       activeSegments: segments.filter((segment) => segment.status === "active").length,
       activeWheels: wheels.filter((wheel) => wheel.status === "active").length,
@@ -423,6 +485,47 @@ export async function createOrUpdateRewardWheel(input: RewardWheelInput, actorId
     severity: status === "active" ? "warning" : "info",
     metadata: {
       costStars: wheel.costStars,
+      slug: wheel.slug,
+      status: wheel.status
+    }
+  });
+
+  return wheel;
+}
+
+export async function deleteRewardWheel(input: RewardWheelDeleteInput, actorId: string) {
+  if (!input.wheelId) {
+    throw new Error("Missing reward wheel.");
+  }
+
+  const wheel = await prisma.rewardSpinWheel.findUniqueOrThrow({
+    where: {
+      id: input.wheelId
+    },
+    include: {
+      _count: {
+        select: {
+          prizeClaims: true,
+          segments: true
+        }
+      }
+    }
+  });
+
+  await prisma.rewardSpinWheel.delete({
+    where: {
+      id: wheel.id
+    }
+  });
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel.delete",
+    target: `reward-wheel:${wheel.id}`,
+    severity: "warning",
+    metadata: {
+      claimCount: wheel._count.prizeClaims,
+      segmentCount: wheel._count.segments,
       slug: wheel.slug,
       status: wheel.status
     }
@@ -549,6 +652,47 @@ export async function createOrUpdateRewardSegment(input: RewardSegmentInput, act
     metadata: {
       prizeType: segment.prizeType,
       status: segment.status,
+      wheelId: segment.wheelId
+    }
+  });
+
+  return segment;
+}
+
+export async function deleteRewardSegment(input: RewardSegmentDeleteInput, actorId: string) {
+  if (!input.segmentId || !input.wheelId) {
+    throw new Error("Missing reward wheel segment.");
+  }
+
+  const segment = await prisma.rewardSpinWheelSegment.findFirstOrThrow({
+    where: {
+      id: input.segmentId,
+      wheelId: input.wheelId
+    },
+    include: {
+      _count: {
+        select: {
+          prizeClaims: true
+        }
+      }
+    }
+  });
+
+  await prisma.rewardSpinWheelSegment.delete({
+    where: {
+      id: segment.id
+    }
+  });
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel_segment.delete",
+    target: `reward-wheel-segment:${segment.id}`,
+    severity: "warning",
+    metadata: {
+      claimCount: segment._count.prizeClaims,
+      label: segment.label,
+      prizeType: segment.prizeType,
       wheelId: segment.wheelId
     }
   });

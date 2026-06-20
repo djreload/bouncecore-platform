@@ -140,7 +140,6 @@ function wheelStyle(slices: SegmentSlice[], rotation: number): CSSProperties {
 function labelStyle(slice: SegmentSlice): CSSProperties {
   return {
     "--bc-reward-segment-angle": `${slice.midpointAngle.toFixed(2)}deg`,
-    "--bc-reward-segment-angle-negative": `${(-slice.midpointAngle).toFixed(2)}deg`,
     "--bc-reward-segment-color": slice.color,
     "--bc-reward-segment-font-size": slice.labelFontSize,
     "--bc-reward-segment-label-radius": slice.labelRadius,

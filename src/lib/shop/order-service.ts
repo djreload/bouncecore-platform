@@ -16,6 +16,18 @@ export type OrderItemRow = {
   totalPence: number;
 };
 
+export type ShippingAddressRow = {
+  city: string | null;
+  country: string | null;
+  county: string | null;
+  email: string | null;
+  line1: string | null;
+  line2: string | null;
+  name: string | null;
+  phone: string | null;
+  postcode: string | null;
+};
+
 export type OrderRow = {
   id: string;
   userId: string;
@@ -30,6 +42,7 @@ export type OrderRow = {
   completedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
+  shippingAddress: ShippingAddressRow;
   items: OrderItemRow[];
 };
 
@@ -65,6 +78,15 @@ function toOrderRow(order: {
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
   paypalPayerEmail: string | null;
+  shippingName: string | null;
+  shippingEmail: string | null;
+  shippingPhone: string | null;
+  shippingLine1: string | null;
+  shippingLine2: string | null;
+  shippingCity: string | null;
+  shippingCounty: string | null;
+  shippingPostcode: string | null;
+  shippingCountry: string | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
   createdAt: Date;
@@ -88,6 +110,17 @@ function toOrderRow(order: {
     completedAt: order.completedAt?.toISOString() ?? null,
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),
+    shippingAddress: {
+      city: order.shippingCity,
+      country: order.shippingCountry,
+      county: order.shippingCounty,
+      email: order.shippingEmail,
+      line1: order.shippingLine1,
+      line2: order.shippingLine2,
+      name: order.shippingName,
+      phone: order.shippingPhone,
+      postcode: order.shippingPostcode
+    },
     items: order.items.map((item) => ({
       id: item.id,
       productName: item.productName,

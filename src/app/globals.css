@@ -1264,8 +1264,7 @@ select {
   transform:
     translate(-50%, -50%)
     rotate(var(--bc-reward-segment-angle))
-    translateY(var(--bc-reward-segment-label-radius))
-    rotate(var(--bc-reward-segment-angle-negative));
+    translateY(var(--bc-reward-segment-label-radius));
 }
 
 .bc-giveaway-slice-icon {
@@ -1478,8 +1477,7 @@ select {
     transform:
       translate(-50%, -50%)
       rotate(var(--bc-reward-segment-angle))
-      translateY(var(--bc-reward-segment-label-radius))
-      rotate(var(--bc-reward-segment-angle-negative));
+      translateY(var(--bc-reward-segment-label-radius));
   }
 }
 
