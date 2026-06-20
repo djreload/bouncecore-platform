@@ -419,7 +419,7 @@ export async function ensureDefaultRewardWheel(actorId: string) {
     create: {
       cooldownMinutes: 1440,
       costStars: 0,
-      description: "Starter supporter rewards wheel. Keep in draft until prize rules are approved.",
+      description: "Starter supporter rewards wheel. Spin to reveal a saved prize result.",
       name: "Supporter Wheel",
       slug: "supporter-wheel",
       status: "draft",
