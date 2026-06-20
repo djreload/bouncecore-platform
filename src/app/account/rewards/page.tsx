@@ -95,8 +95,16 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
 
   return (
-    <DashboardShell title="Stars" description="Buy stars through PayPal, send them in live chat, and compete on live stream support leaderboards.">
-      <div className="grid gap-4 md:grid-cols-4">
+    <DashboardShell title="Rewards" description="Spin reward wheels, manage stars, and review your support history.">
+      {checkoutMessage ? (
+        <div className={`mb-5 rounded-md border p-3 text-sm ${messageClass(checkoutMessage.tone)}`}>
+          {checkoutMessage.message}
+        </div>
+      ) : null}
+
+      <RewardWheelPanel data={wheelData} />
+
+      <div className="mt-5 grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Stars</Badge>
           <p className="mt-4 text-3xl font-black">{data.wallet.balance.toLocaleString("en-GB")}</p>
@@ -117,16 +125,6 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
           <p className="mt-4 text-3xl font-black">{data.purchaseStats.paidPurchases}</p>
           <p className="mt-2 text-sm text-bc-muted">{data.purchaseStats.purchasedStars.toLocaleString("en-GB")} stars bought.</p>
         </article>
-      </div>
-
-      {checkoutMessage ? (
-        <div className={`mt-5 rounded-md border p-3 text-sm ${messageClass(checkoutMessage.tone)}`}>
-          {checkoutMessage.message}
-        </div>
-      ) : null}
-
-      <div className="mt-5">
-        <RewardWheelPanel data={wheelData} />
       </div>
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
