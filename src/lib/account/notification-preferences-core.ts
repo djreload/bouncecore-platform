@@ -20,6 +20,11 @@ export const notificationPreferenceCategories = [
     description: "Account, login, and security updates."
   },
   {
+    key: "chat",
+    label: "Chat mentions",
+    description: "Replies and mentions from live and community chat."
+  },
+  {
     key: "admin",
     label: "Admin notices",
     description: "Direct notices sent by the site team."
@@ -93,6 +98,10 @@ export function notificationPreferenceCategoryForType(type: string): Notificatio
 
   if (normalized.startsWith("admin.") || normalized.startsWith("notifications.admin")) {
     return "admin";
+  }
+
+  if (normalized.startsWith("chat.")) {
+    return "chat";
   }
 
   return "account";

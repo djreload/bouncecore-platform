@@ -1,7 +1,7 @@
 import { Bell, CheckCheck, Clock3 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { markAllNotificationsReadAction, markNotificationReadAction } from "@/app/account/notifications/actions";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { getAccountNotificationsData } from "@/lib/account/account-service";
@@ -76,14 +76,21 @@ export default async function AccountNotificationsPage() {
                   {notification.body ? <p className="mt-2 text-sm text-bc-muted">{notification.body}</p> : null}
                   <p className="mt-2 text-xs text-bc-muted">{formatDate(notification.createdAt)}</p>
                 </div>
-                {!notification.readAt ? (
-                  <form action={markNotificationReadAction}>
-                    <input name="notificationId" type="hidden" value={notification.id} />
-                    <Button size="sm" type="submit" variant="ghost">
-                      Mark read
-                    </Button>
-                  </form>
-                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {notification.actionUrl ? (
+                    <ButtonLink href={notification.actionUrl} size="sm" variant="primary">
+                      Open
+                    </ButtonLink>
+                  ) : null}
+                  {!notification.readAt ? (
+                    <form action={markNotificationReadAction}>
+                      <input name="notificationId" type="hidden" value={notification.id} />
+                      <Button size="sm" type="submit" variant="ghost">
+                        Mark read
+                      </Button>
+                    </form>
+                  ) : null}
+                </div>
               </div>
             </article>
           ))}

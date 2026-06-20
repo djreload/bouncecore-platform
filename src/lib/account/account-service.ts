@@ -45,6 +45,7 @@ export type AccountOverviewData = {
 };
 
 export type AccountNotificationRow = {
+  actionUrl: string | null;
   id: string;
   body: string | null;
   createdAt: string;
@@ -313,6 +314,7 @@ export async function getAccountOverviewData(userId: string): Promise<AccountOve
 }
 
 function toNotificationRow(notification: {
+  actionUrl: string | null;
   id: string;
   body: string | null;
   createdAt: Date;
@@ -321,6 +323,7 @@ function toNotificationRow(notification: {
   type: string;
 }): AccountNotificationRow {
   return {
+    actionUrl: notification.actionUrl,
     body: notification.body,
     createdAt: notification.createdAt.toISOString(),
     id: notification.id,

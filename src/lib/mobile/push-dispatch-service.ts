@@ -96,6 +96,7 @@ function ticketFromResponse(payload: ExpoPushResponse) {
 }
 
 async function sendExpoPush(input: {
+  actionUrl?: string | null;
   body: string | null;
   deliveryId: string;
   notificationId: string;
@@ -107,6 +108,7 @@ async function sendExpoPush(input: {
     body: JSON.stringify({
       body: compactMessage(input.body, 1024),
       data: {
+        actionUrl: input.actionUrl ?? "",
         deliveryId: input.deliveryId,
         notificationId: input.notificationId,
         type: input.type
@@ -185,6 +187,7 @@ export async function processQueuedMobilePushDeliveries(actorId: string | null, 
       },
       notification: {
         select: {
+          actionUrl: true,
           body: true,
           id: true,
           title: true,
@@ -278,6 +281,7 @@ export async function processQueuedMobilePushDeliveries(actorId: string | null, 
       const token = decryptSecret(delivery.mobileDevice.tokenCiphertext);
       const sendPush = delivery.mobileDevice.provider === "fcm" ? sendFcmPush : sendExpoPush;
       const result = await sendPush({
+        actionUrl: delivery.notification.actionUrl,
         body: delivery.notification.body,
         deliveryId: delivery.id,
         notificationId: delivery.notification.id,

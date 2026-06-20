@@ -54,6 +54,7 @@ import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
     private static final String TAG = "BouncecoreAndroid";
+    static final String EXTRA_NOTIFICATION_ACTION_URL = "uk.co.bouncecore.app.NOTIFICATION_ACTION_URL";
     private static final String APP_OPEN_INTERSTITIAL_DISABLED = "disabled";
     private static final String APP_OPEN_INTERSTITIAL_EVERY_OPEN = "every_open";
     private static final String APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION = "once_per_session";
@@ -101,7 +102,7 @@ public class MainActivity extends Activity {
         NotificationChannels.ensureDefaultChannel(this);
         setContentView(createLayout());
         configureWebView();
-        webView.loadUrl(BuildConfig.BOUNCECORE_WEB_URL);
+        webView.loadUrl(resolveAppUrlFromIntent(getIntent()));
         fetchMobileConfig(false);
     }
 
@@ -349,6 +350,44 @@ public class MainActivity extends Activity {
         } catch (Exception error) {
             Log.w(TAG, "Could not open external URL: " + target + " " + error.getMessage());
         }
+    }
+
+    private String resolveAppUrlFromIntent(Intent intent) {
+        if (intent == null) {
+            return BuildConfig.BOUNCECORE_WEB_URL;
+        }
+
+        String actionUrl = intent.getStringExtra(EXTRA_NOTIFICATION_ACTION_URL);
+        if (TextUtils.isEmpty(actionUrl)) {
+            actionUrl = intent.getStringExtra("actionUrl");
+        }
+
+        return resolveAppUrl(actionUrl);
+    }
+
+    private String resolveAppUrl(String requestedUrl) {
+        if (TextUtils.isEmpty(requestedUrl)) {
+            return BuildConfig.BOUNCECORE_WEB_URL;
+        }
+
+        String trimmed = requestedUrl.trim();
+        Uri base = Uri.parse(BuildConfig.BOUNCECORE_WEB_URL);
+        String root = BuildConfig.BOUNCECORE_WEB_URL.endsWith("/")
+            ? BuildConfig.BOUNCECORE_WEB_URL.substring(0, BuildConfig.BOUNCECORE_WEB_URL.length() - 1)
+            : BuildConfig.BOUNCECORE_WEB_URL;
+
+        Uri target = Uri.parse(trimmed);
+        if (TextUtils.isEmpty(target.getScheme()) && TextUtils.isEmpty(target.getHost())) {
+            if (trimmed.startsWith("/")) {
+                return root + trimmed;
+            }
+
+            return root + "/" + trimmed;
+        }
+
+        boolean sameHost = base.getHost() != null && base.getHost().equalsIgnoreCase(target.getHost());
+        boolean safeScheme = "https".equalsIgnoreCase(target.getScheme()) || "http".equalsIgnoreCase(target.getScheme());
+        return sameHost && safeScheme ? trimmed : BuildConfig.BOUNCECORE_WEB_URL;
     }
 
     private void initializeFirebaseMessaging(MobileRuntimeConfig config) {
@@ -690,6 +729,16 @@ public class MainActivity extends Activity {
 
         if (bannerAdView != null) {
             bannerAdView.resumeAutoRefresh();
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        if (webView != null) {
+            webView.loadUrl(resolveAppUrlFromIntent(intent));
         }
     }
 

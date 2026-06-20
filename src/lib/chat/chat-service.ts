@@ -7,6 +7,7 @@ import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat, getActiveChatBan } from "@/lib/chat/moderation-service";
 import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/chat-asset-service";
 import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
+import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-service";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
@@ -691,12 +692,13 @@ export async function createChatMessage(
     throw new Error("Chat messages must be between 1 and 500 characters.");
   }
 
-  await prisma.chatRoom.findUniqueOrThrow({
+  const room = await prisma.chatRoom.findUniqueOrThrow({
     where: {
       id: roomId
     },
     select: {
-      id: true
+      id: true,
+      slug: true
     }
   });
   await assertUserCanPostInChat(userId, roomId);
@@ -715,6 +717,23 @@ export async function createChatMessage(
     }
   });
 
+  await queueChatMentionNotifications({
+    body: normalizedBody,
+    messageId: message.id,
+    roomSlug: room.slug,
+    senderUserId: userId
+  }).catch((error) =>
+    writeAuditLog({
+      action: "chat.mention_notifications.queue_failed",
+      actorId: userId,
+      metadata: {
+        error: error instanceof Error ? error.message : "Mention notification queue failed.",
+        roomId
+      },
+      severity: "warning",
+      target: `chat-message:${message.id}`
+    })
+  );
   await publishChatRoomChanged(roomId, message.id);
 
   return message;

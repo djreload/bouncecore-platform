@@ -658,9 +658,10 @@ export function ChatRoomPanel({
             return (
               <article
                 className={cn(
-                  "min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-ink p-3",
+                  "min-w-0 scroll-mt-24 overflow-hidden rounded-md border border-bc-line bg-bc-ink p-3 target:border-bc-electric target:shadow-[0_0_0_1px_rgba(0,213,255,0.45)]",
                   mobileLiveMode && "border-white/10 bg-black/35 p-2 backdrop-blur-sm lg:bg-black/25 lg:p-2.5 lg:backdrop-blur-none"
                 )}
+                id={`chat-message-${message.id}`}
                 key={message.id}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">

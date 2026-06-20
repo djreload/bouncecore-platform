@@ -119,6 +119,7 @@ async function getFcmAccessToken() {
 }
 
 export function buildFcmMessage(input: {
+  actionUrl?: string | null;
   body: string | null;
   deliveryId: string;
   notificationId: string;
@@ -136,6 +137,7 @@ export function buildFcmMessage(input: {
         priority: "HIGH"
       },
       data: {
+        actionUrl: input.actionUrl ?? "",
         deliveryId: input.deliveryId,
         notificationId: input.notificationId,
         type: input.type
@@ -158,6 +160,7 @@ function fcmErrorMessage(payload: FcmSendResponse, statusCode: number) {
 }
 
 export async function sendFcmPush(input: {
+  actionUrl?: string | null;
   body: string | null;
   deliveryId: string;
   notificationId: string;

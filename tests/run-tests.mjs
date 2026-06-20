@@ -1,4 +1,5 @@
 import "./chat-effects.test.mjs";
+import "./chat-mention-notifications.test.mjs";
 import "./chat-mentions.test.mjs";
 import "./email-address.test.mjs";
 import "./fcm-push-service.test.mjs";

@@ -6,6 +6,7 @@ import { queueMobilePushForNotification } from "@/lib/mobile/account-notificatio
 import { getNotificationDeliveryPreferencesForUser } from "@/lib/account/notification-preferences-service";
 
 export type AccountNotificationEmailInput = {
+  actionUrl?: string | null;
   auditActionPrefix?: string;
   body: string;
   dedupeKey: string;
@@ -63,6 +64,7 @@ async function createNotificationOnce(input: AccountNotificationEmailInput) {
         id: true
       },
       data: {
+        actionUrl: input.actionUrl ?? null,
         body: input.body,
         dedupeKey: input.dedupeKey,
         title: input.title,

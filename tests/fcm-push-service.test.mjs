@@ -4,6 +4,7 @@ import { buildFcmMessage, fcmErrorMeansDeviceRevoked } from "../src/lib/mobile/f
 
 test("buildFcmMessage creates an Android FCM notification payload", () => {
   const payload = buildFcmMessage({
+    actionUrl: "/chat?room=live#chat-message-1",
     body: "Message body",
     deliveryId: "delivery_1",
     notificationId: "notification_1",
@@ -18,6 +19,7 @@ test("buildFcmMessage creates an Android FCM notification payload", () => {
   assert.equal(payload.message.android.priority, "HIGH");
   assert.equal(payload.message.android.notification.channel_id, "bouncecore_notifications");
   assert.deepEqual(payload.message.data, {
+    actionUrl: "/chat?room=live#chat-message-1",
     deliveryId: "delivery_1",
     notificationId: "notification_1",
     type: "platform"

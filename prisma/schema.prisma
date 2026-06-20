@@ -249,6 +249,7 @@ model Notification {
   type           String
   title          String
   body           String?
+  actionUrl      String?
   dedupeKey      String?              @unique
   readAt         DateTime?
   createdAt      DateTime             @default(now())
