@@ -1025,13 +1025,13 @@ export function ChatRoomPanel({
                   className={cn(
                     "flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end",
                     mobileLiveMode &&
-                      "grid w-full grid-cols-[minmax(0,1fr)_2rem_3.5rem] gap-1 overflow-visible pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2"
+                      "grid w-full grid-cols-[8.5rem_2rem_3.5rem] gap-1 overflow-visible pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2"
                   )}
                 >
                   <ChatEffectSelector
                     className={cn(
-                      "min-h-8 w-full shrink gap-1 px-1.5 py-1 text-[10px] sm:w-auto sm:text-xs",
-                      mobileLiveMode && "lg:min-h-9 lg:w-auto lg:px-2 lg:py-1 lg:text-xs"
+                      "text-[10px] sm:text-xs",
+                      mobileLiveMode && "lg:text-xs"
                     )}
                     disabled={roomLockedForUser}
                     onChange={setSelectedEffectId}

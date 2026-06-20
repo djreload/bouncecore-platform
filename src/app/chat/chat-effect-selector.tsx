@@ -27,7 +27,7 @@ export function ChatEffectSelector({ className, disabled, onChange, selectedEffe
   return (
     <label
       className={cn(
-        "inline-flex min-h-8 max-w-full min-w-0 items-center gap-1.5 rounded-md border border-bc-line bg-white/5 px-2 py-1 text-xs font-semibold text-white",
+        "inline-flex h-8 w-[8.5rem] flex-none items-center gap-1.5 overflow-hidden rounded-md border border-bc-line bg-white/5 px-2 py-1 text-xs font-semibold text-white",
         className
       )}
     >
@@ -35,7 +35,7 @@ export function ChatEffectSelector({ className, disabled, onChange, selectedEffe
       <span className="sr-only">Chat text effect</span>
       <select
         aria-label="Chat text effect"
-        className="min-w-0 max-w-20 bg-transparent text-[inherit] text-white outline-none disabled:opacity-50 sm:max-w-28"
+        className="min-w-0 flex-1 truncate bg-transparent text-[inherit] text-white outline-none disabled:opacity-50"
         disabled={disabled}
         name="effectId"
         onChange={(event) => onChange(event.target.value)}

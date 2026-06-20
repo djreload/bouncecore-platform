@@ -2,9 +2,20 @@ import type { Role } from "@/lib/auth/rbac";
 
 export const chatEffectGroups = ["free", "supporter", "staff", "developer", "owner"] as const;
 export const chatEffectRequiredRoles = ["viewer", "supporter", "moderator", "developer", "owner"] as const;
+export const chatEffectParticlePresets = [
+  "sparkles",
+  "stars",
+  "fire",
+  "ice",
+  "hearts",
+  "storm",
+  "matrix",
+  "crowns"
+] as const;
 
 export type ChatEffectGroup = (typeof chatEffectGroups)[number];
 export type ChatEffectRequiredRole = (typeof chatEffectRequiredRoles)[number];
+export type ChatEffectParticlePreset = (typeof chatEffectParticlePresets)[number];
 
 export type ChatEffectDefinition = {
   id: string;
@@ -14,6 +25,7 @@ export type ChatEffectDefinition = {
   isHidden: boolean;
   className: string;
   description: string;
+  particlePreset?: ChatEffectParticlePreset;
   renderMode?: "text" | "letters";
 };
 
@@ -25,7 +37,8 @@ export const chatEffects = [
     requiredRole: "viewer",
     isHidden: false,
     className: "bc-chat-effect-glow",
-    description: "Soft electric glow for readable highlighted messages."
+    description: "Soft electric glow for readable highlighted messages.",
+    particlePreset: "sparkles"
   },
   {
     id: "bounce",
@@ -62,7 +75,8 @@ export const chatEffects = [
     requiredRole: "viewer",
     isHidden: false,
     className: "bc-chat-effect-rainbow",
-    description: "Moving rainbow gradient text."
+    description: "Moving rainbow gradient text.",
+    particlePreset: "stars"
   },
   {
     id: "float",
@@ -89,7 +103,8 @@ export const chatEffects = [
     requiredRole: "viewer",
     isHidden: false,
     className: "bc-chat-effect-spark",
-    description: "Small sparkling text-shadow flicker."
+    description: "Small sparkling text-shadow flicker.",
+    particlePreset: "stars"
   },
   {
     id: "shadow",
@@ -117,7 +132,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-neon",
-    description: "Bright supporter neon with cyan and pink edges."
+    description: "Bright supporter neon with cyan and pink edges.",
+    particlePreset: "sparkles"
   },
   {
     id: "gold",
@@ -126,7 +142,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-gold",
-    description: "Animated gold premium finish."
+    description: "Animated gold premium finish.",
+    particlePreset: "stars"
   },
   {
     id: "fire",
@@ -135,7 +152,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-fire",
-    description: "Warm fire glow without heavy movement."
+    description: "Warm fire glow with rising ember particles.",
+    particlePreset: "fire"
   },
   {
     id: "ice",
@@ -144,7 +162,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-ice",
-    description: "Cool frosted shimmer."
+    description: "Cool frosted shimmer with drifting ice particles.",
+    particlePreset: "ice"
   },
   {
     id: "heartbeat",
@@ -153,7 +172,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-heartbeat",
-    description: "Short heartbeat scale pulse."
+    description: "Short heartbeat scale pulse with floating hearts.",
+    particlePreset: "hearts"
   },
   {
     id: "matrix",
@@ -162,7 +182,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-matrix",
-    description: "Green terminal-style scan shimmer."
+    description: "Green terminal-style scan shimmer.",
+    particlePreset: "matrix"
   },
   {
     id: "slide",
@@ -180,7 +201,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-storm",
-    description: "Lightning-style highlight pulse."
+    description: "Lightning-style highlight pulse.",
+    particlePreset: "storm"
   },
   {
     id: "glitch",
@@ -225,7 +247,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-galaxy",
-    description: "Cosmic gradient movement."
+    description: "Cosmic gradient movement.",
+    particlePreset: "stars"
   },
   {
     id: "inferno",
@@ -234,7 +257,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-inferno",
-    description: "Deeper fire and ember styling."
+    description: "Deeper fire and ember styling.",
+    particlePreset: "fire"
   },
   {
     id: "legend",
@@ -243,7 +267,8 @@ export const chatEffects = [
     requiredRole: "supporter",
     isHidden: false,
     className: "bc-chat-effect-legend",
-    description: "Premium legendary glow."
+    description: "Premium legendary glow.",
+    particlePreset: "stars"
   },
   {
     id: "moderator",
@@ -261,7 +286,8 @@ export const chatEffects = [
     requiredRole: "moderator",
     isHidden: true,
     className: "bc-chat-effect-shield",
-    description: "Staff shield shimmer."
+    description: "Staff shield shimmer.",
+    particlePreset: "sparkles"
   },
   {
     id: "staff-pulse",
@@ -279,7 +305,8 @@ export const chatEffects = [
     requiredRole: "moderator",
     isHidden: true,
     className: "bc-chat-effect-authority",
-    description: "Subtle staff authority treatment."
+    description: "Subtle staff authority treatment.",
+    particlePreset: "storm"
   },
   {
     id: "watchtower",
@@ -288,7 +315,8 @@ export const chatEffects = [
     requiredRole: "moderator",
     isHidden: true,
     className: "bc-chat-effect-watchtower",
-    description: "Moderator watchtower scan."
+    description: "Moderator watchtower scan.",
+    particlePreset: "sparkles"
   },
   {
     id: "devmode",
@@ -306,7 +334,8 @@ export const chatEffects = [
     requiredRole: "developer",
     isHidden: true,
     className: "bc-chat-effect-debug",
-    description: "Developer debug text treatment."
+    description: "Developer debug text treatment.",
+    particlePreset: "matrix"
   },
   {
     id: "compile",
@@ -315,7 +344,8 @@ export const chatEffects = [
     requiredRole: "developer",
     isHidden: true,
     className: "bc-chat-effect-compile",
-    description: "Compile progress gradient."
+    description: "Compile progress gradient.",
+    particlePreset: "matrix"
   },
   {
     id: "terminal",
@@ -334,7 +364,8 @@ export const chatEffects = [
     requiredRole: "developer",
     isHidden: true,
     className: "bc-chat-effect-syntax",
-    description: "Syntax-highlight gradient."
+    description: "Syntax-highlight gradient.",
+    particlePreset: "matrix"
   },
   {
     id: "founder",
@@ -343,7 +374,8 @@ export const chatEffects = [
     requiredRole: "owner",
     isHidden: true,
     className: "bc-chat-effect-founder",
-    description: "Owner-only founder styling."
+    description: "Owner-only founder styling.",
+    particlePreset: "crowns"
   },
   {
     id: "bouncecore",
@@ -352,7 +384,8 @@ export const chatEffects = [
     requiredRole: "owner",
     isHidden: true,
     className: "bc-chat-effect-bouncecore",
-    description: "Owner-only Bouncecore brand effect."
+    description: "Owner-only Bouncecore brand effect.",
+    particlePreset: "stars"
   },
   {
     id: "reload",
@@ -361,7 +394,8 @@ export const chatEffects = [
     requiredRole: "owner",
     isHidden: true,
     className: "bc-chat-effect-reload",
-    description: "Owner-only reload sweep."
+    description: "Owner-only reload sweep.",
+    particlePreset: "sparkles"
   },
   {
     id: "mythic",
@@ -370,7 +404,8 @@ export const chatEffects = [
     requiredRole: "owner",
     isHidden: true,
     className: "bc-chat-effect-mythic",
-    description: "Owner-only mythic gradient."
+    description: "Owner-only mythic gradient.",
+    particlePreset: "stars"
   },
   {
     id: "crown",
@@ -379,7 +414,8 @@ export const chatEffects = [
     requiredRole: "owner",
     isHidden: true,
     className: "bc-chat-effect-crown",
-    description: "Owner-only crown shimmer."
+    description: "Owner-only crown shimmer.",
+    particlePreset: "crowns"
   }
 ] as const satisfies readonly ChatEffectDefinition[];
 
