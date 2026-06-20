@@ -34,9 +34,16 @@ export type RewardSegmentInput = {
   prizeType: string;
   prizeValue?: string;
   segmentId?: string;
+  sortOrder: string;
   starAmount: string;
   status: string;
   weight: string;
+  wheelId: string;
+};
+
+export type RewardSegmentMoveInput = {
+  direction: "down" | "up";
+  segmentId: string;
   wheelId: string;
 };
 
@@ -78,6 +85,7 @@ export type AdminSpinWheelsData = {
       label: string;
       prizeType: string;
       prizeValue: string | null;
+      sortOrder: number;
       starAmount: number;
       status: string;
       weight: number;
@@ -233,6 +241,16 @@ function parseInteger(value: string, label: string, min: number, max: number) {
   return number;
 }
 
+function parseOptionalInteger(value: string | undefined, label: string, min: number, max: number) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  return parseInteger(text, label, min, max);
+}
+
 function normalizeSlug(value: string, fallback: string) {
   const slug = (value || fallback)
     .trim()
@@ -310,13 +328,13 @@ export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
           },
           orderBy: [
             {
-              status: "asc"
+              sortOrder: "asc"
             },
             {
-              weight: "desc"
+              createdAt: "asc"
             },
             {
-              label: "asc"
+              id: "asc"
             }
           ]
         }
@@ -356,6 +374,7 @@ export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
         label: segment.label,
         prizeType: segment.prizeType,
         prizeValue: segment.prizeValue,
+        sortOrder: segment.sortOrder,
         starAmount: segment.starAmount,
         status: segment.status,
         weight: segment.weight
@@ -429,6 +448,7 @@ export async function ensureDefaultRewardWheel(actorId: string) {
             label: "Sticker pack",
             prizeType: "merch",
             prizeValue: "sticker-pack",
+            sortOrder: 10,
             starAmount: 0,
             weight: 25
           },
@@ -436,11 +456,13 @@ export async function ensureDefaultRewardWheel(actorId: string) {
             label: "VIP shoutout",
             prizeType: "vip",
             prizeValue: "shoutout",
+            sortOrder: 20,
             weight: 10
           },
           {
             label: "Try again",
             prizeType: "none",
+            sortOrder: 30,
             weight: 65
           }
         ]
@@ -468,11 +490,34 @@ export async function createOrUpdateRewardSegment(input: RewardSegmentInput, act
   assertPrizeType(prizeType);
 
   const starAmount = parseInteger(input.starAmount, "Prize quantity", 0, 1000000);
+  const submittedSortOrder = parseOptionalInteger(input.sortOrder, "Wheel order", 0, 100000);
+  let sortOrder = submittedSortOrder;
+
+  if (sortOrder === null) {
+    sortOrder = input.segmentId
+      ? (await prisma.rewardSpinWheelSegment.findUnique({
+          select: {
+            sortOrder: true
+          },
+          where: {
+            id: input.segmentId
+          }
+        }))?.sortOrder ?? 0
+      : ((await prisma.rewardSpinWheelSegment.aggregate({
+          _max: {
+            sortOrder: true
+          },
+          where: {
+            wheelId: input.wheelId
+          }
+        }))._max.sortOrder ?? -10) + 10;
+  }
 
   const data = {
     label: normalizedRequiredText(input.label, 120, "Segment label"),
     prizeType,
     prizeValue: normalizedText(input.prizeValue, 240),
+    sortOrder,
     starAmount,
     status,
     weight: parseInteger(input.weight, "Weight", 1, 100000)
@@ -499,6 +544,68 @@ export async function createOrUpdateRewardSegment(input: RewardSegmentInput, act
     metadata: {
       prizeType: segment.prizeType,
       status: segment.status,
+      wheelId: segment.wheelId
+    }
+  });
+
+  return segment;
+}
+
+export async function moveRewardSegment(input: RewardSegmentMoveInput, actorId: string) {
+  const segments = await prisma.rewardSpinWheelSegment.findMany({
+    orderBy: [
+      {
+        sortOrder: "asc"
+      },
+      {
+        createdAt: "asc"
+      },
+      {
+        id: "asc"
+      }
+    ],
+    where: {
+      wheelId: input.wheelId
+    }
+  });
+  const currentIndex = segments.findIndex((segment) => segment.id === input.segmentId);
+  const targetIndex = input.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+  if (currentIndex < 0) {
+    throw new Error("Reward wheel segment was not found.");
+  }
+
+  const segment = segments[currentIndex];
+  const neighbour = segments[targetIndex];
+
+  if (!neighbour) {
+    return segment;
+  }
+
+  const reorderedSegments = [...segments];
+  reorderedSegments[currentIndex] = neighbour;
+  reorderedSegments[targetIndex] = segment;
+
+  await prisma.$transaction(
+    reorderedSegments.map((orderedSegment, index) =>
+      prisma.rewardSpinWheelSegment.update({
+        data: {
+          sortOrder: index * 10
+        },
+        where: {
+          id: orderedSegment.id
+        }
+      })
+    )
+  );
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel_segment.move",
+    target: `reward-wheel-segment:${segment.id}`,
+    severity: "info",
+    metadata: {
+      direction: input.direction,
       wheelId: segment.wheelId
     }
   });
@@ -640,10 +747,13 @@ export async function getAccountRewardWheelsData(userId: string): Promise<Accoun
           },
           orderBy: [
             {
-              weight: "desc"
+              sortOrder: "asc"
             },
             {
-              label: "asc"
+              createdAt: "asc"
+            },
+            {
+              id: "asc"
             }
           ]
         }
@@ -753,7 +863,18 @@ export async function spinRewardWheel(userId: string, wheelId: string): Promise<
         segments: {
           where: {
             status: "active"
-          }
+          },
+          orderBy: [
+            {
+              sortOrder: "asc"
+            },
+            {
+              createdAt: "asc"
+            },
+            {
+              id: "asc"
+            }
+          ]
         }
       }
     });

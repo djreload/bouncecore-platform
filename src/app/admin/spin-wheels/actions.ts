@@ -7,6 +7,7 @@ import {
   createOrUpdateRewardSegment,
   createOrUpdateRewardWheel,
   ensureDefaultRewardWheel,
+  moveRewardSegment,
   type RewardSegmentInput,
   type RewardWheelInput
 } from "@/lib/rewards/prize-service";
@@ -35,6 +36,7 @@ function segmentInput(formData: FormData): RewardSegmentInput {
     prizeType: formString(formData, "prizeType"),
     prizeValue: formString(formData, "prizeValue"),
     segmentId: formString(formData, "segmentId"),
+    sortOrder: formString(formData, "sortOrder"),
     starAmount: formString(formData, "starAmount"),
     status: formString(formData, "status"),
     weight: formString(formData, "weight"),
@@ -87,11 +89,25 @@ export async function adminSpinWheelsAction(
     }
 
     if (intent === "segment") {
-      await createOrUpdateRewardSegment(segmentInput(formData), actor.id);
+      const segmentAction = formString(formData, "segmentAction") || "save";
+
+      if (segmentAction === "move-up" || segmentAction === "move-down") {
+        await moveRewardSegment(
+          {
+            direction: segmentAction === "move-up" ? "up" : "down",
+            segmentId: formString(formData, "segmentId"),
+            wheelId: formString(formData, "wheelId")
+          },
+          actor.id
+        );
+      } else {
+        await createOrUpdateRewardSegment(segmentInput(formData), actor.id);
+      }
+
       revalidateRewardsViews();
 
       return {
-        message: "Reward wheel segment saved.",
+        message: segmentAction === "save" ? "Reward wheel segment saved." : "Reward wheel segment order updated.",
         status: "success"
       };
     }

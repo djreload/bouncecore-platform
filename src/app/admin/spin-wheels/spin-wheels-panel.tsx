@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Gift, Plus, RotateCw, Save, Sparkles } from "lucide-react";
+import { ArrowDown, ArrowUp, Gift, Plus, RotateCw, Save, Sparkles } from "lucide-react";
 import { adminSpinWheelsAction } from "@/app/admin/spin-wheels/actions";
 import {
   initialAdminSpinWheelsActionState,
@@ -153,7 +153,10 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
       </section>
 
       <div className="grid gap-4">
-        {data.wheels.map((wheel) => (
+        {data.wheels.map((wheel) => {
+          const nextSegmentSortOrder = wheel.segments.reduce((max, segment) => Math.max(max, segment.sortOrder), -10) + 10;
+
+          return (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={wheel.id}>
             <form action={formAction} className="grid gap-4">
               <input name="intent" type="hidden" value="wheel" />
@@ -219,11 +222,16 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
             </form>
 
             <section className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
-              <div className="flex items-center gap-2">
-                <Gift className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-                <h4 className="font-black">Segments</h4>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Gift className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+                  <h4 className="font-black">Segments</h4>
+                </div>
+                <p className="max-w-2xl text-xs text-bc-muted">
+                  Wheel order controls where slices appear. Weight still controls slice size and chance.
+                </p>
               </div>
-              <form action={formAction} className="mt-4 grid gap-3 xl:grid-cols-[1fr_140px_140px_120px_120px_120px_auto]">
+              <form action={formAction} className="mt-4 grid gap-3 xl:grid-cols-[1fr_140px_140px_120px_120px_120px_120px_auto]">
                 <input name="intent" type="hidden" value="segment" />
                 <input name="wheelId" type="hidden" value={wheel.id} />
                 <input
@@ -253,6 +261,14 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                   name="weight"
                   type="number"
                 />
+                <input
+                  className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={nextSegmentSortOrder}
+                  min="0"
+                  name="sortOrder"
+                  placeholder="Order"
+                  type="number"
+                />
                 <select className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white" name="status">
                   {segmentStatusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -265,7 +281,7 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                   name="prizeValue"
                   placeholder="Value"
                 />
-                <Button disabled={pending} type="submit" variant="primary">
+                <Button disabled={pending} name="segmentAction" type="submit" value="save" variant="primary">
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   Add
                 </Button>
@@ -273,7 +289,7 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
 
               <div className="mt-4 grid gap-3">
                 {wheel.segments.map((segment) => (
-                  <form action={formAction} className="grid gap-3 rounded-md border border-bc-line bg-bc-panel p-3 xl:grid-cols-[1fr_140px_140px_120px_120px_120px_auto]" key={segment.id}>
+                  <form action={formAction} className="grid gap-3 rounded-md border border-bc-line bg-bc-panel p-3 xl:grid-cols-[1fr_140px_140px_120px_120px_120px_120px_120px]" key={segment.id}>
                     <input name="intent" type="hidden" value="segment" />
                     <input name="wheelId" type="hidden" value={wheel.id} />
                     <input name="segmentId" type="hidden" value={segment.id} />
@@ -308,6 +324,14 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                       name="weight"
                       type="number"
                     />
+                    <input
+                      className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      defaultValue={segment.sortOrder}
+                      min="0"
+                      name="sortOrder"
+                      title="Wheel order"
+                      type="number"
+                    />
                     <select
                       className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
                       defaultValue={segment.status}
@@ -324,11 +348,36 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                       defaultValue={segment.prizeValue ?? ""}
                       name="prizeValue"
                     />
-                    <Button disabled={pending} type="submit" variant="ghost">
-                      <Save className="h-4 w-4" aria-hidden="true" />
-                      Save
-                    </Button>
-                    <div className="xl:col-span-7 flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        aria-label={`Move ${segment.label} up`}
+                        disabled={pending}
+                        name="segmentAction"
+                        size="sm"
+                        type="submit"
+                        value="move-up"
+                        variant="ghost"
+                      >
+                        <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                      <Button
+                        aria-label={`Move ${segment.label} down`}
+                        disabled={pending}
+                        name="segmentAction"
+                        size="sm"
+                        type="submit"
+                        value="move-down"
+                        variant="ghost"
+                      >
+                        <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                      </Button>
+                      <Button disabled={pending} name="segmentAction" size="sm" type="submit" value="save" variant="ghost">
+                        <Save className="h-4 w-4" aria-hidden="true" />
+                        Save
+                      </Button>
+                    </div>
+                    <div className="xl:col-span-8 flex flex-wrap gap-2">
+                      <Badge tone="cyan">order {segment.sortOrder}</Badge>
                       <Badge tone={statusTone(segment.status)}>{segment.status}</Badge>
                       <Badge tone={prizeTone(segment.prizeType)}>{segment.prizeType}</Badge>
                       <Badge tone="muted">{segment.claimCount} claims</Badge>
@@ -343,7 +392,8 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
               </div>
             </section>
           </article>
-        ))}
+          );
+        })}
 
         {!data.wheels.length ? (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">

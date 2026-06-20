@@ -881,6 +881,7 @@ model RewardSpinWheelSegment {
   prizeValue  String?
   starAmount  Int             @default(0)
   weight      Int             @default(1)
+  sortOrder   Int             @default(0)
   status      String          @default("active")
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -888,6 +889,7 @@ model RewardSpinWheelSegment {
   prizeClaims PrizeClaim[]
 
   @@index([wheelId])
+  @@index([wheelId, sortOrder])
   @@index([status])
 }
 
