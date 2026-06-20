@@ -227,9 +227,19 @@ export function AdminSpinWheelsPanel({ data }: AdminSpinWheelsPanelProps) {
                   <Gift className="h-5 w-5 text-bc-acid" aria-hidden="true" />
                   <h4 className="font-black">Segments</h4>
                 </div>
-                <p className="max-w-2xl text-xs text-bc-muted">
-                  Wheel order controls where slices appear. Weight still controls slice size and chance.
-                </p>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                  <p className="max-w-2xl text-xs text-bc-muted">
+                    Wheel order controls where slices appear. Weight still controls slice size and chance.
+                  </p>
+                  <form action={formAction}>
+                    <input name="intent" type="hidden" value="spread-segments" />
+                    <input name="wheelId" type="hidden" value={wheel.id} />
+                    <Button disabled={pending || wheel.segments.length < 3} size="sm" type="submit" variant="ghost">
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                      Spread slices
+                    </Button>
+                  </form>
+                </div>
               </div>
               <form action={formAction} className="mt-4 grid gap-3 xl:grid-cols-[1fr_140px_140px_120px_120px_120px_120px_auto]">
                 <input name="intent" type="hidden" value="segment" />

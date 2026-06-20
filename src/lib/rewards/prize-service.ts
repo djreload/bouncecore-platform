@@ -47,6 +47,10 @@ export type RewardSegmentMoveInput = {
   wheelId: string;
 };
 
+export type RewardWheelSegmentSpreadInput = {
+  wheelId: string;
+};
+
 export type PrizeClaimInput = {
   description?: string;
   prizeType: string;
@@ -611,6 +615,96 @@ export async function moveRewardSegment(input: RewardSegmentMoveInput, actorId: 
   });
 
   return segment;
+}
+
+function rewardSegmentSpreadKey(segment: { label: string; prizeType: string }) {
+  return `${segment.prizeType}:${segment.label.trim().toLowerCase().replace(/\s+/g, " ")}`;
+}
+
+export async function spreadRewardWheelSegments(input: RewardWheelSegmentSpreadInput, actorId: string) {
+  const segments = await prisma.rewardSpinWheelSegment.findMany({
+    orderBy: [
+      {
+        sortOrder: "asc"
+      },
+      {
+        createdAt: "asc"
+      },
+      {
+        id: "asc"
+      }
+    ],
+    where: {
+      wheelId: input.wheelId
+    }
+  });
+
+  if (segments.length <= 2) {
+    return segments;
+  }
+
+  const buckets = new Map<string, typeof segments>();
+
+  for (const segment of segments) {
+    const key = rewardSegmentSpreadKey(segment);
+    buckets.set(key, [...(buckets.get(key) ?? []), segment]);
+  }
+
+  const reorderedSegments: typeof segments = [];
+  let lastKey = "";
+
+  while (reorderedSegments.length < segments.length) {
+    const candidates = [...buckets.entries()]
+      .filter(([, bucket]) => bucket.length > 0)
+      .sort((left, right) => {
+        const keyPenaltyLeft = left[0] === lastKey ? 1 : 0;
+        const keyPenaltyRight = right[0] === lastKey ? 1 : 0;
+
+        if (keyPenaltyLeft !== keyPenaltyRight) {
+          return keyPenaltyLeft - keyPenaltyRight;
+        }
+
+        return right[1].length - left[1].length || (left[1][0]?.sortOrder ?? 0) - (right[1][0]?.sortOrder ?? 0);
+      });
+    const selected = candidates[0];
+
+    if (!selected) {
+      break;
+    }
+
+    const [key, bucket] = selected;
+    const nextSegment = bucket.shift();
+
+    if (nextSegment) {
+      reorderedSegments.push(nextSegment);
+      lastKey = key;
+    }
+  }
+
+  await prisma.$transaction(
+    reorderedSegments.map((segment, index) =>
+      prisma.rewardSpinWheelSegment.update({
+        data: {
+          sortOrder: index * 10
+        },
+        where: {
+          id: segment.id
+        }
+      })
+    )
+  );
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel_segment.spread",
+    target: `reward-wheel:${input.wheelId}`,
+    severity: "info",
+    metadata: {
+      segmentCount: reorderedSegments.length
+    }
+  });
+
+  return reorderedSegments;
 }
 
 export async function getAdminPrizeClaimsData(): Promise<AdminPrizeClaimsData> {

@@ -8,6 +8,7 @@ import {
   createOrUpdateRewardWheel,
   ensureDefaultRewardWheel,
   moveRewardSegment,
+  spreadRewardWheelSegments,
   type RewardSegmentInput,
   type RewardWheelInput
 } from "@/lib/rewards/prize-service";
@@ -84,6 +85,16 @@ export async function adminSpinWheelsAction(
 
       return {
         message: "Reward wheel saved.",
+        status: "success"
+      };
+    }
+
+    if (intent === "spread-segments") {
+      await spreadRewardWheelSegments({ wheelId: formString(formData, "wheelId") }, actor.id);
+      revalidateRewardsViews();
+
+      return {
+        message: "Reward wheel slices spread out.",
         status: "success"
       };
     }
