@@ -83,9 +83,6 @@ export async function queueChatMentionNotifications(input: {
         }
       },
       where: {
-        id: {
-          not: input.senderUserId
-        },
         status: "active"
       }
     })
