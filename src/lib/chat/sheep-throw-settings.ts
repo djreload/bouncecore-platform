@@ -1,6 +1,7 @@
 export type SheepThrowSettings = {
   enabled: boolean;
   cooldownSeconds: number;
+  costStars: number;
   overlayDurationMs: number;
   pollMs: number;
   maxRecentEvents: number;
@@ -9,11 +10,13 @@ export type SheepThrowSettings = {
 export type SheepThrowSettingsInput = {
   enabled: boolean;
   cooldownMinutes: string;
+  costStars: string;
 };
 
 export const defaultSheepThrowSettings: SheepThrowSettings = {
   enabled: true,
   cooldownSeconds: 300,
+  costStars: 10,
   overlayDurationMs: 4300,
   pollMs: 2000,
   maxRecentEvents: 16
@@ -41,6 +44,7 @@ export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings 
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaultSheepThrowSettings.enabled,
     cooldownSeconds: wholeNumber(value.cooldownSeconds, defaultSheepThrowSettings.cooldownSeconds, 0, 24 * 60 * 60),
+    costStars: wholeNumber(value.costStars, defaultSheepThrowSettings.costStars, 0, 1000000),
     overlayDurationMs: wholeNumber(value.overlayDurationMs, defaultSheepThrowSettings.overlayDurationMs, 1800, 10000),
     pollMs: wholeNumber(value.pollMs, defaultSheepThrowSettings.pollMs, 1000, 10000),
     maxRecentEvents: wholeNumber(value.maxRecentEvents, defaultSheepThrowSettings.maxRecentEvents, 4, 50)
@@ -49,15 +53,21 @@ export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings 
 
 export function normalizeSheepThrowSettingsInput(input: SheepThrowSettingsInput): SheepThrowSettings {
   const cooldownMinutes = Number(input.cooldownMinutes);
+  const costStars = Number(input.costStars);
 
   if (!Number.isFinite(cooldownMinutes) || cooldownMinutes < 0 || cooldownMinutes > 1440) {
     throw new Error("Sheep cooldown must be between 0 and 1440 minutes.");
   }
 
+  if (!Number.isInteger(costStars) || costStars < 0 || costStars > 1000000) {
+    throw new Error("Sheep throw cost must be a whole number between 0 and 1000000 stars.");
+  }
+
   return {
     ...defaultSheepThrowSettings,
     enabled: input.enabled,
-    cooldownSeconds: Math.round(cooldownMinutes * 60)
+    cooldownSeconds: Math.round(cooldownMinutes * 60),
+    costStars
   };
 }
 

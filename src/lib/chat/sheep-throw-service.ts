@@ -1,6 +1,6 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
-import { hasPermission } from "@/lib/auth/rbac";
+import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { getActiveChatBan } from "@/lib/chat/moderation-service";
 import {
   defaultSheepThrowSettings,
@@ -28,7 +28,7 @@ export type ChatSheepThrowOverlayData = {
 };
 
 async function assertUserCanThrowSheep(userId: string, roomId: string) {
-  const [ban, room] = await Promise.all([
+  const [ban, room, user] = await Promise.all([
     getActiveChatBan(userId, roomId),
     prisma.chatRoom.findUniqueOrThrow({
       where: {
@@ -40,8 +40,25 @@ async function assertUserCanThrowSheep(userId: string, roomId: string) {
         name: true,
         slug: true
       }
+    }),
+    prisma.user.findUniqueOrThrow({
+      where: {
+        id: userId
+      },
+      include: {
+        roles: {
+          include: {
+            role: true
+          }
+        }
+      }
     })
   ]);
+  const roles = normalizeRoles(user.roles.map((userRole) => userRole.role.name));
+
+  if (!hasRole({ roles }, "supporter")) {
+    throw new Error("Only supporters can throw sheep.");
+  }
 
   if (ban) {
     throw new Error(
@@ -54,20 +71,6 @@ async function assertUserCanThrowSheep(userId: string, roomId: string) {
   if (!room.lockedAt) {
     return room;
   }
-
-  const user = await prisma.user.findUniqueOrThrow({
-    where: {
-      id: userId
-    },
-    include: {
-      roles: {
-        include: {
-          role: true
-        }
-      }
-    }
-  });
-  const roles = normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 
   if (!hasPermission({ roles }, "moderation.use")) {
     throw new Error(`${room.name} is locked by moderation.`);
@@ -90,11 +93,7 @@ async function resolveTarget(roomId: string, throwerId: string, messageId?: stri
   const normalizedMessageId = messageId?.trim();
 
   if (!normalizedMessageId) {
-    return {
-      targetDisplayName: null,
-      targetMessageId: null,
-      targetUserId: null
-    };
+    throw new Error("Choose a chat user to throw at.");
   }
 
   const message = await prisma.chatMessage.findFirst({
@@ -114,11 +113,7 @@ async function resolveTarget(roomId: string, throwerId: string, messageId?: stri
   }
 
   if (!message.userId) {
-    return {
-      targetDisplayName: "Guest",
-      targetMessageId: message.id,
-      targetUserId: null
-    };
+    throw new Error("Choose a signed-in chat user to throw at.");
   }
 
   if (message.userId === throwerId) {
@@ -213,14 +208,51 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
   }
 
   const target = await resolveTarget(roomId, throwerId, targetMessageId);
-  const sheepThrow = await prisma.chatSheepThrow.create({
-    data: {
-      roomId,
-      throwerId,
-      targetDisplayName: target.targetDisplayName,
-      targetMessageId: target.targetMessageId,
-      targetUserId: target.targetUserId
+  const sheepThrow = await prisma.$transaction(async (tx) => {
+    if (settings.costStars > 0) {
+      const wallet = await tx.starWallet.upsert({
+        where: {
+          userId: throwerId
+        },
+        update: {},
+        create: {
+          balance: 0,
+          userId: throwerId
+        }
+      });
+
+      if (wallet.balance < settings.costStars) {
+        throw new Error(`You need ${settings.costStars.toLocaleString("en-GB")} stars to throw sheep.`);
+      }
+
+      const updatedWallet = await tx.starWallet.updateMany({
+        where: {
+          id: wallet.id,
+          balance: {
+            gte: settings.costStars
+          }
+        },
+        data: {
+          balance: {
+            decrement: settings.costStars
+          }
+        }
+      });
+
+      if (updatedWallet.count !== 1) {
+        throw new Error(`You need ${settings.costStars.toLocaleString("en-GB")} stars to throw sheep.`);
+      }
     }
+
+    return tx.chatSheepThrow.create({
+      data: {
+        roomId,
+        throwerId,
+        targetDisplayName: target.targetDisplayName,
+        targetMessageId: target.targetMessageId,
+        targetUserId: target.targetUserId
+      }
+    });
   });
 
   await writeAuditLog({
@@ -230,6 +262,7 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     severity: "info",
     metadata: {
       roomSlug: room.slug,
+      costStars: settings.costStars,
       targetDisplayName: target.targetDisplayName,
       targetMessageId: target.targetMessageId,
       targetUserId: target.targetUserId
@@ -239,12 +272,12 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
   return sheepThrow;
 }
 
-export async function getChatSheepThrowOverlayData(): Promise<ChatSheepThrowOverlayData> {
+export async function getChatSheepThrowOverlayData(targetUserId?: string | null): Promise<ChatSheepThrowOverlayData> {
   await pruneExpiredSheepThrows();
 
   const settings = await getSheepThrowSettings();
 
-  if (!settings.enabled) {
+  if (!settings.enabled || !targetUserId) {
     return {
       settings,
       recentThrows: []
@@ -256,7 +289,8 @@ export async function getChatSheepThrowOverlayData(): Promise<ChatSheepThrowOver
     where: {
       createdAt: {
         gte: new Date(Date.now() - recentWindowMs)
-      }
+      },
+      targetUserId
     },
     orderBy: {
       createdAt: "desc"

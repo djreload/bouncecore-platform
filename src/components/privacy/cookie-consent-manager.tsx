@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Cookie, ShieldCheck, X } from "lucide-react";
+import { Check, Cookie, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   consentCategories,
@@ -105,24 +105,15 @@ export function CookieConsentManager() {
 
   return (
     <>
-      {record && !panelOpen ? (
-        <button
-          className="bc-focus-ring fixed bottom-4 left-4 z-[70] inline-flex min-h-9 items-center gap-2 rounded-md border border-bc-line bg-bc-panel/95 px-3 text-xs font-semibold text-white shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur hover:border-bc-electric/60"
-          onClick={() => {
-            setDraft(record.preferences);
-            setCustomizing(true);
-            setPanelOpen(true);
-          }}
-          type="button"
-        >
-          <ShieldCheck className="h-4 w-4 text-bc-acid" aria-hidden="true" />
-          Privacy choices
-        </button>
-      ) : null}
-
       {panelOpen ? (
-        <div className="fixed inset-x-0 bottom-0 z-[80] border-t border-bc-line bg-bc-void/95 px-4 py-4 text-white shadow-[0_-20px_80px_rgba(0,0,0,0.7)] backdrop-blur">
-          <section className="mx-auto max-w-5xl">
+        <div
+          className={
+            record
+              ? "fixed inset-0 z-[80] grid place-items-center bg-black/55 px-4 py-4 text-white backdrop-blur-sm"
+              : "fixed inset-x-0 bottom-0 z-[80] border-t border-bc-line bg-bc-void/95 px-4 py-4 text-white shadow-[0_-20px_80px_rgba(0,0,0,0.7)] backdrop-blur"
+          }
+        >
+          <section className={record ? "mx-auto w-full max-w-5xl rounded-md border border-bc-line bg-bc-void/95 p-4 shadow-2xl" : "mx-auto max-w-5xl"}>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-3xl">
                 <div className="flex items-center gap-2">

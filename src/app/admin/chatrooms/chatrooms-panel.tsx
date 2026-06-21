@@ -162,7 +162,7 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
           </div>
           <Badge tone={sheepSettings.enabled ? "acid" : "muted"}>{sheepSettings.enabled ? "Enabled" : "Disabled"}</Badge>
         </div>
-        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[180px_220px_auto]">
+        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[180px_220px_220px_auto]">
           <input name="intent" type="hidden" value="sheep-settings" />
           <div>
             <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-enabled">
@@ -194,6 +194,22 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
               type="number"
             />
             <p className="mt-1 text-xs text-bc-muted">Default is 5 minutes. Use 0 to remove the cooldown.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cost">
+              Star cost
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.costStars)}
+              id="sheep-cost"
+              min={0}
+              max={1000000}
+              name="costStars"
+              step={1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Stars deducted from the supporter who throws. Use 0 for free.</p>
           </div>
           <div className="flex items-end">
             <Button disabled={pending} type="submit" variant="dark">

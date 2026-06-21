@@ -124,7 +124,7 @@ export function SheepThrowOverlay() {
       const y = startY + (targetY - startY) * progress;
       const maxSize = Math.min(width, height) * 0.56;
       const drawSize = Math.max(56, maxSize * (0.16 + progress * 0.84));
-      const frameIndex = Math.min(totalFrames - 1, Math.floor(elapsed / frameMs) % totalFrames);
+      const frameIndex = impactStarted ? totalFrames - 1 : Math.min(totalFrames - 1, Math.floor(elapsed / frameMs) % totalFrames);
       const rotation = (fromLeft ? 1 : -1) * (0.9 - progress * 0.9) + Math.sin(elapsed / 95) * 0.08;
 
       if (impactStarted && elapsed - approachMs < impactShakeMs) {
@@ -146,7 +146,7 @@ export function SheepThrowOverlay() {
       context.save();
       context.globalAlpha = opacity;
       context.translate(impactStarted ? targetX : x, impactStarted ? targetY : y);
-      context.rotate(impactStarted ? Math.sin(elapsed / 160) * 0.06 : rotation);
+      context.rotate(impactStarted ? 0 : rotation);
       context.drawImage(
         images.sheep,
         frameIndex * frameWidth,

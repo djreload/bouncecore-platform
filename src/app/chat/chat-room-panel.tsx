@@ -186,6 +186,7 @@ export function ChatRoomPanel({
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
+  const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
   const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
   const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
   const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
@@ -652,7 +653,9 @@ export function ChatRoomPanel({
             const canUseMessageActions = Boolean(currentUser && selectedRoom && !message.deletedAt);
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
-            const canThrowAtMessageAuthor = Boolean(canUseMessageActions && message.authorUserId && message.authorUserId !== currentUser?.id);
+            const canThrowAtMessageAuthor = Boolean(
+              canUseMessageActions && currentUserCanThrowSheep && message.authorUserId && message.authorUserId !== currentUser?.id
+            );
             const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
@@ -1128,14 +1131,6 @@ export function ChatRoomPanel({
                     <Smile className="h-3.5 w-3.5" aria-hidden="true" />
                     Stickers
                   </Button>
-                  <form action={formAction}>
-                    <input name="intent" type="hidden" value="sheep" />
-                    <input name="roomId" type="hidden" value={selectedRoom.id} />
-                    <Button className="w-full min-h-8 px-2 text-xs" disabled={pending || roomLockedForUser} size="sm" type="submit" variant="ghost">
-                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                      Sheep
-                    </Button>
-                  </form>
                   {currentUserCanClearChat ? (
                     <form action={formAction}>
                       <input name="intent" type="hidden" value="clear-room" />

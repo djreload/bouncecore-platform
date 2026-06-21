@@ -97,7 +97,8 @@ export async function adminChatroomsAction(
       await updateSheepThrowSettings(
         {
           enabled: formString(formData, "enabled") === "true",
-          cooldownMinutes: formString(formData, "cooldownMinutes")
+          cooldownMinutes: formString(formData, "cooldownMinutes"),
+          costStars: formString(formData, "costStars")
         },
         actor.id
       );
