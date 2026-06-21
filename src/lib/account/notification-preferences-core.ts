@@ -21,8 +21,8 @@ export const notificationPreferenceCategories = [
   },
   {
     key: "chat",
-    label: "Chat mentions",
-    description: "Replies and mentions from live and community chat."
+    label: "Chat activity",
+    description: "Replies, mentions, and targeted chat actions from live and community chat."
   },
   {
     key: "admin",

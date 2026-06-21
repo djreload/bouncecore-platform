@@ -538,7 +538,7 @@ export async function getPublicChatRoom(roomId: string) {
 export async function getAdminChatroomsData() {
   await pruneExpiredChatHistory();
 
-  const [rooms, messages] = await Promise.all([
+  const [rooms, messages, sheepThrows] = await Promise.all([
     getRooms(),
     prisma.chatMessage.findMany({
       orderBy: {
@@ -554,9 +554,33 @@ export async function getAdminChatroomsData() {
         room: true
       },
       take: 75
+    }),
+    prisma.chatSheepThrow.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 50
     })
   ]);
   const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+  const sheepUserIds = [
+    ...new Set(sheepThrows.flatMap((sheepThrow) => [sheepThrow.throwerId, sheepThrow.targetUserId]).filter(Boolean) as string[])
+  ];
+  const sheepUsers = sheepUserIds.length
+    ? await prisma.user.findMany({
+        where: {
+          id: {
+            in: sheepUserIds
+          }
+        },
+        select: {
+          displayName: true,
+          id: true
+        }
+      })
+    : [];
+  const sheepUserById = new Map(sheepUsers.map((user) => [user.id, user.displayName]));
+  const roomById = new Map(rooms.map((room) => [room.id, room]));
 
   return {
     rooms: rooms.map(toRoomSummary),
@@ -564,7 +588,20 @@ export async function getAdminChatroomsData() {
       ...toMessageSummary(message, authors),
       roomName: message.room.name,
       roomSlug: message.room.slug
-    }))
+    })),
+    sheepThrows: sheepThrows.map((sheepThrow) => {
+      const room = roomById.get(sheepThrow.roomId);
+
+      return {
+        id: sheepThrow.id,
+        roomName: room?.name ?? "Unknown room",
+        roomSlug: room?.slug ?? "unknown",
+        throwerDisplayName: sheepUserById.get(sheepThrow.throwerId) ?? "Unknown user",
+        targetDisplayName: sheepThrow.targetDisplayName ?? (sheepThrow.targetUserId ? sheepUserById.get(sheepThrow.targetUserId) : null) ?? "Unknown user",
+        targetMessageId: sheepThrow.targetMessageId,
+        createdAt: sheepThrow.createdAt.toISOString()
+      };
+    })
   };
 }
 

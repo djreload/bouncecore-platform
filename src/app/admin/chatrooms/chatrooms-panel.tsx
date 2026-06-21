@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useActionState } from "react";
-import { Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Timer } from "lucide-react";
+import { Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
@@ -12,6 +12,7 @@ import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
   type AdminChatRoomRow,
+  type AdminChatSheepThrowRow,
   type AdminChatroomsActionState
 } from "@/app/admin/chatrooms/state";
 import { chatRoomTypeOptions } from "@/lib/chat/chat-types";
@@ -19,6 +20,7 @@ import { chatRoomTypeOptions } from "@/lib/chat/chat-types";
 type AdminChatroomsPanelProps = {
   rooms: AdminChatRoomRow[];
   messages: AdminChatMessageRow[];
+  sheepThrows: AdminChatSheepThrowRow[];
   roleDisplayLabels: RoleDisplayNameMap;
   sheepSettings: SheepThrowSettings;
 };
@@ -63,7 +65,7 @@ function slowModeLabel(seconds: number) {
   return slowModeOptions.find((option) => option.value === seconds)?.label ?? `${seconds} seconds`;
 }
 
-export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
+export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatroomsActionState, FormData>(
     adminChatroomsAction,
     initialAdminChatroomsActionState
@@ -72,7 +74,7 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Rooms</Badge>
           <p className="mt-4 text-3xl font-black">{rooms.length}</p>
@@ -87,6 +89,11 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
           <Badge tone="pink">Moderated</Badge>
           <p className="mt-4 text-3xl font-black">{messages.length - visibleMessages}</p>
           <p className="mt-2 text-sm text-bc-muted">Recent messages hidden by moderators.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="amber">Sheep throws</Badge>
+          <p className="mt-4 text-3xl font-black">{sheepThrows.length}</p>
+          <p className="mt-2 text-sm text-bc-muted">Recent targeted chat throw activity.</p>
         </article>
       </div>
 
@@ -266,6 +273,63 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
             </Button>
           </div>
         </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-bc-line p-4">
+          <div>
+            <h3 className="text-xl font-black">Recent sheep throws</h3>
+            <p className="mt-1 text-sm text-bc-muted">Targeted supporter throws, useful for moderation and support checks.</p>
+          </div>
+          <Badge tone={sheepSettings.enabled ? "amber" : "muted"}>{sheepSettings.enabled ? "Active" : "Disabled"}</Badge>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+            <thead className="text-bc-muted">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Throw</th>
+                <th className="px-4 py-3 font-semibold">Room</th>
+                <th className="px-4 py-3 font-semibold">Target message</th>
+                <th className="px-4 py-3 font-semibold">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sheepThrows.map((sheepThrow) => (
+                <tr className="border-t border-bc-line" key={sheepThrow.id}>
+                  <td className="px-4 py-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-bc-amber" aria-hidden="true" />
+                      <span className="font-semibold">{sheepThrow.throwerDisplayName}</span>
+                      <span className="text-bc-muted">at</span>
+                      <span className="font-semibold">{sheepThrow.targetDisplayName}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold">{sheepThrow.roomName}</p>
+                    <p className="mt-1 text-xs text-bc-muted">#{sheepThrow.roomSlug}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {sheepThrow.targetMessageId ? (
+                      <code className="rounded border border-bc-line bg-bc-ink px-2 py-1 text-xs text-bc-muted">
+                        {sheepThrow.targetMessageId}
+                      </code>
+                    ) : (
+                      <span className="text-bc-muted">No target message</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-bc-muted">{formatDate(sheepThrow.createdAt)}</td>
+                </tr>
+              ))}
+              {!sheepThrows.length ? (
+                <tr className="border-t border-bc-line">
+                  <td className="px-4 py-8 text-center text-bc-muted" colSpan={4}>
+                    No sheep throws have been recorded yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <div className="grid gap-4">
