@@ -1,9 +1,11 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
+import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { getActiveChatBan } from "@/lib/chat/moderation-service";
 import {
   defaultSheepThrowSettings,
+  formatSheepThrowToast,
   normalizeSheepThrowSettings,
   normalizeSheepThrowSettingsInput,
   remainingSheepThrowCooldownSeconds,
@@ -68,15 +70,20 @@ async function assertUserCanThrowSheep(userId: string, roomId: string) {
     );
   }
 
+  const result = {
+    room,
+    throwerDisplayName: user.displayName
+  };
+
   if (!room.lockedAt) {
-    return room;
+    return result;
   }
 
   if (!hasPermission({ roles }, "moderation.use")) {
     throw new Error(`${room.name} is locked by moderation.`);
   }
 
-  return room;
+  return result;
 }
 
 async function pruneExpiredSheepThrows() {
@@ -187,7 +194,7 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     throw new Error("Sheep throws are currently disabled.");
   }
 
-  const [room, latestThrow] = await Promise.all([
+  const [throwContext, latestThrow] = await Promise.all([
     assertUserCanThrowSheep(throwerId, roomId),
     prisma.chatSheepThrow.findFirst({
       where: {
@@ -208,7 +215,7 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
   }
 
   const target = await resolveTarget(roomId, throwerId, targetMessageId);
-  const sheepThrow = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     if (settings.costStars > 0) {
       const wallet = await tx.starWallet.upsert({
         where: {
@@ -244,7 +251,15 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
       }
     }
 
-    return tx.chatSheepThrow.create({
+    const toastMessage = await tx.chatMessage.create({
+      data: {
+        body: formatSheepThrowToast(throwContext.throwerDisplayName, target.targetDisplayName),
+        kind: "sheep",
+        roomId,
+        userId: throwerId
+      }
+    });
+    const sheepThrow = await tx.chatSheepThrow.create({
       data: {
         roomId,
         throwerId,
@@ -253,23 +268,30 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
         targetUserId: target.targetUserId
       }
     });
+
+    return {
+      sheepThrow,
+      toastMessage
+    };
   });
 
   await writeAuditLog({
     actorId: throwerId,
     action: "chat.sheep_throw.create",
-    target: `chat-sheep-throw:${sheepThrow.id}`,
+    target: `chat-sheep-throw:${result.sheepThrow.id}`,
     severity: "info",
     metadata: {
-      roomSlug: room.slug,
+      roomSlug: throwContext.room.slug,
       costStars: settings.costStars,
+      toastMessageId: result.toastMessage.id,
       targetDisplayName: target.targetDisplayName,
       targetMessageId: target.targetMessageId,
       targetUserId: target.targetUserId
     }
   });
+  await publishChatRoomChanged(roomId, result.toastMessage.id);
 
-  return sheepThrow;
+  return result.sheepThrow;
 }
 
 export async function getChatSheepThrowOverlayData(targetUserId?: string | null): Promise<ChatSheepThrowOverlayData> {

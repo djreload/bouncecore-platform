@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   defaultSheepThrowSettings,
+  formatSheepThrowToast,
   normalizeSheepThrowSettings,
   normalizeSheepThrowSettingsInput,
   remainingSheepThrowCooldownSeconds
@@ -40,4 +41,8 @@ test("sheep throw cooldown returns remaining seconds", () => {
   assert.equal(remainingSheepThrowCooldownSeconds(latestThrow, 300, now), 80);
   assert.equal(remainingSheepThrowCooldownSeconds(latestThrow, 180, now), 0);
   assert.equal(remainingSheepThrowCooldownSeconds(null, 300, now), 0);
+});
+
+test("sheep throw toast names both users", () => {
+  assert.equal(formatSheepThrowToast("Reload", "Richie P"), "Reload threw a sheep at Richie P 😂");
 });

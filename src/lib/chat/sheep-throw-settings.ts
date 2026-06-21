@@ -22,6 +22,10 @@ export const defaultSheepThrowSettings: SheepThrowSettings = {
   maxRecentEvents: 16
 };
 
+export function formatSheepThrowToast(throwerDisplayName: string, targetDisplayName: string) {
+  return `${throwerDisplayName} threw a sheep at ${targetDisplayName} 😂`;
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }

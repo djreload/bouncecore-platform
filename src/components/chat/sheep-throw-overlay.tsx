@@ -53,6 +53,7 @@ function reducedMotionEnabled() {
 
 export function SheepThrowOverlay() {
   const [activeThrow, setActiveThrow] = useState<ChatSheepThrowSummary | null>(null);
+  const [incomingBlur, setIncomingBlur] = useState(false);
   const [settings, setSettings] = useState<SheepThrowSettings>(defaultSheepThrowSettings);
   const activeThrowRef = useRef<ChatSheepThrowSummary | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -66,6 +67,8 @@ export function SheepThrowOverlay() {
   const settingsRef = useRef(settings);
   const startTimeRef = useRef(0);
   const timeoutRef = useRef<number | null>(null);
+  const impactTriggeredRef = useRef(false);
+  const wobbleTimeoutRef = useRef<number | null>(null);
   const activeLabel = useMemo(() => (activeThrow ? throwLabel(activeThrow) : ""), [activeThrow]);
 
   const stopAnimation = useCallback(() => {
@@ -127,6 +130,21 @@ export function SheepThrowOverlay() {
       const frameIndex = impactStarted ? totalFrames - 1 : Math.min(totalFrames - 1, Math.floor(elapsed / frameMs) % totalFrames);
       const rotation = (fromLeft ? 1 : -1) * (0.9 - progress * 0.9) + Math.sin(elapsed / 95) * 0.08;
 
+      if (impactStarted && !impactTriggeredRef.current) {
+        impactTriggeredRef.current = true;
+        setIncomingBlur(false);
+        document.documentElement.classList.add("bc-sheep-impact-wobble");
+
+        if (wobbleTimeoutRef.current !== null) {
+          window.clearTimeout(wobbleTimeoutRef.current);
+        }
+
+        wobbleTimeoutRef.current = window.setTimeout(() => {
+          document.documentElement.classList.remove("bc-sheep-impact-wobble");
+          wobbleTimeoutRef.current = null;
+        }, impactShakeMs);
+      }
+
       if (impactStarted && elapsed - approachMs < impactShakeMs) {
         const shakeAmount = 10 * (1 - (elapsed - approachMs) / impactShakeMs);
         context.translate(Math.sin(elapsed * 0.09) * shakeAmount, Math.cos(elapsed * 0.07) * shakeAmount);
@@ -182,6 +200,7 @@ export function SheepThrowOverlay() {
 
     activeThrowRef.current = nextThrow;
     setActiveThrow(nextThrow);
+    impactTriggeredRef.current = false;
 
     if (timeoutRef.current !== null) {
       window.clearTimeout(timeoutRef.current);
@@ -189,6 +208,7 @@ export function SheepThrowOverlay() {
     }
 
     if (reducedMotionEnabled()) {
+      setIncomingBlur(false);
       timeoutRef.current = window.setTimeout(() => {
         timeoutRef.current = null;
         activeThrowRef.current = null;
@@ -199,6 +219,7 @@ export function SheepThrowOverlay() {
     }
 
     stopAnimation();
+    setIncomingBlur(true);
     startTimeRef.current = performance.now();
     animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
     timeoutRef.current = window.setTimeout(() => {
@@ -286,6 +307,7 @@ export function SheepThrowOverlay() {
           queueRef.current = [];
           activeThrowRef.current = null;
           setActiveThrow(null);
+          setIncomingBlur(false);
           if (timeoutRef.current !== null) {
             window.clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
@@ -317,6 +339,13 @@ export function SheepThrowOverlay() {
         window.clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+
+      if (wobbleTimeoutRef.current !== null) {
+        window.clearTimeout(wobbleTimeoutRef.current);
+        wobbleTimeoutRef.current = null;
+      }
+
+      document.documentElement.classList.remove("bc-sheep-impact-wobble");
     },
     [stopAnimation]
   );
@@ -327,6 +356,7 @@ export function SheepThrowOverlay() {
 
   return (
     <div aria-live="polite" className="pointer-events-none fixed inset-0 z-[72] overflow-hidden">
+      {incomingBlur ? <div className="bc-sheep-motion-blur absolute inset-0" aria-hidden="true" /> : null}
       <canvas className="absolute inset-0 h-full w-full" ref={canvasRef} />
       <div className="absolute inset-x-3 top-[18dvh] flex justify-center">
         <div className="max-w-[min(34rem,92vw)] rounded-md border border-white/20 bg-bc-void/78 px-4 py-3 text-center shadow-2xl shadow-black/40 backdrop-blur">

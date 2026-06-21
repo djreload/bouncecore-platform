@@ -659,6 +659,25 @@ export function ChatRoomPanel({
             const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
+            if (message.kind === "sheep") {
+              return (
+                <article
+                  className={cn(
+                    "mx-auto max-w-[92%] scroll-mt-24 rounded-full border border-bc-amber/35 bg-bc-amber/10 px-3 py-2 text-center text-xs font-black text-white shadow-[0_0_22px_rgba(255,176,32,0.12)]",
+                    mobileLiveMode && "max-w-full bg-black/35 px-2 py-1.5 backdrop-blur-sm"
+                  )}
+                  id={`chat-message-${message.id}`}
+                  key={message.id}
+                >
+                  <div className="flex min-w-0 items-center justify-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-bc-amber" aria-hidden="true" />
+                    <span className="min-w-0 break-words">{message.body}</span>
+                    <span className="shrink-0 text-[10px] font-semibold text-bc-muted">{formatTime(message.createdAt)}</span>
+                  </div>
+                </article>
+              );
+            }
+
             return (
               <article
                 className={cn(
