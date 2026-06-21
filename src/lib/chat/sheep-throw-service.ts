@@ -29,6 +29,11 @@ export type ChatSheepThrowOverlayData = {
   recentThrows: ChatSheepThrowSummary[];
 };
 
+export type ChatSheepThrowReadiness = {
+  latestThrowAt: string | null;
+  remainingCooldownSeconds: number;
+};
+
 async function assertUserCanThrowSheep(userId: string, roomId: string) {
   const [ban, room, user] = await Promise.all([
     getActiveChatBan(userId, roomId),
@@ -183,6 +188,40 @@ export async function updateSheepThrowSettings(input: SheepThrowSettingsInput, a
   });
 
   return settings;
+}
+
+export async function getChatSheepThrowReadiness(
+  userId?: string | null,
+  providedSettings?: SheepThrowSettings
+): Promise<ChatSheepThrowReadiness> {
+  if (!userId) {
+    return {
+      latestThrowAt: null,
+      remainingCooldownSeconds: 0
+    };
+  }
+
+  await pruneExpiredSheepThrows();
+
+  const [settings, latestThrow] = await Promise.all([
+    providedSettings ? Promise.resolve(providedSettings) : getSheepThrowSettings(),
+    prisma.chatSheepThrow.findFirst({
+      where: {
+        throwerId: userId
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      select: {
+        createdAt: true
+      }
+    })
+  ]);
+
+  return {
+    latestThrowAt: latestThrow?.createdAt.toISOString() ?? null,
+    remainingCooldownSeconds: remainingSheepThrowCooldownSeconds(latestThrow?.createdAt, settings.cooldownSeconds)
+  };
 }
 
 export async function createChatSheepThrow(roomId: string, throwerId: string, targetMessageId?: string | null) {

@@ -3,7 +3,7 @@ import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicChatData } from "@/lib/chat/chat-service";
-import { getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
+import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getStarWalletBalance } from "@/lib/stars/star-send-service";
 
@@ -28,6 +28,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     getSheepThrowSettings()
   ]);
   const currentStarBalance = await getStarWalletBalance(currentUser?.id);
+  const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
   const roomRows: PublicChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -101,6 +102,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
           roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}
           selectedRoom={selectedRoomRow}
+          sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
           sheepSettings={sheepSettings}
         />
       </main>

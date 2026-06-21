@@ -13,7 +13,7 @@ import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/a
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
 import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
-import { defaultSheepThrowSettings, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
+import { defaultSheepThrowSettings, formatSheepThrowCooldownLabel, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
@@ -31,6 +31,7 @@ type ChatRoomPanelProps = {
   messages: PublicChatMessageRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
+  sheepRemainingCooldownSeconds?: number;
   sheepSettings?: SheepThrowSettings;
   roleDisplayLabels: RoleDisplayNameMap;
   className?: string;
@@ -153,6 +154,7 @@ export function ChatRoomPanel({
   messages,
   currentUser,
   currentStarBalance = 0,
+  sheepRemainingCooldownSeconds = 0,
   sheepSettings = defaultSheepThrowSettings,
   roleDisplayLabels,
   className,
@@ -181,6 +183,8 @@ export function ChatRoomPanel({
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
+  const [localStarBalance, setLocalStarBalance] = useState(currentStarBalance);
+  const [sheepCooldownRemaining, setSheepCooldownRemaining] = useState(sheepRemainingCooldownSeconds);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const selectedRoomId = selectedRoom?.id;
@@ -190,8 +194,24 @@ export function ChatRoomPanel({
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
-  const currentUserCanAffordSheep = currentStarBalance >= sheepSettings.costStars;
+  const currentUserCanAffordSheep = localStarBalance >= sheepSettings.costStars;
   const sheepThrowCostLabel = sheepSettings.costStars > 0 ? `${sheepSettings.costStars.toLocaleString("en-GB")} stars` : "Free";
+  const sheepCooldownActive = sheepCooldownRemaining > 0;
+  const sheepCooldownLabel = formatSheepThrowCooldownLabel(sheepCooldownRemaining);
+  const sheepThrowStatusLabel = !sheepSettings.enabled
+    ? "Off"
+    : sheepCooldownActive
+      ? `Wait ${sheepCooldownLabel}`
+      : !currentUserCanAffordSheep
+        ? `Need ${sheepThrowCostLabel}`
+        : sheepThrowCostLabel;
+  const sheepThrowDisabledReason = !sheepSettings.enabled
+    ? "Sheep throws are disabled."
+    : sheepCooldownActive
+      ? `Sheep throw cooldown has ${sheepCooldownLabel} remaining.`
+      : !currentUserCanAffordSheep
+        ? `You need ${sheepThrowCostLabel} to throw sheep.`
+        : null;
   const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
   const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
   const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
@@ -361,6 +381,13 @@ export function ChatRoomPanel({
       return;
     }
 
+    const sheepStateTimer =
+      state.intent === "sheep"
+        ? window.setTimeout(() => {
+            setSheepCooldownRemaining(sheepSettings.cooldownSeconds);
+            setLocalStarBalance((balance) => Math.max(0, balance - sheepSettings.costStars));
+          }, 0)
+        : null;
     const resetTimer = window.setTimeout(() => {
       setComposerBody("");
       setOpenMessageActionsId(null);
@@ -375,17 +402,55 @@ export function ChatRoomPanel({
       : null;
 
     return () => {
+      if (sheepStateTimer !== null) {
+        window.clearTimeout(sheepStateTimer);
+      }
+
       window.clearTimeout(resetTimer);
 
       if (syncTimer !== null) {
         window.clearTimeout(syncTimer);
       }
     };
-  }, [loadLatestMessages, state.status, state.message, selectedRoomId]);
+  }, [loadLatestMessages, sheepSettings.cooldownSeconds, sheepSettings.costStars, state.intent, state.message, state.status, selectedRoomId]);
 
   useEffect(() => {
     scrollToLatestMessage();
   }, [latestMessageId, scrollToLatestMessage]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setLocalStarBalance(currentStarBalance);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [currentStarBalance]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSheepCooldownRemaining(sheepRemainingCooldownSeconds);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [sheepRemainingCooldownSeconds]);
+
+  useEffect(() => {
+    if (!sheepCooldownActive) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setSheepCooldownRemaining((remaining) => Math.max(0, remaining - 1));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [sheepCooldownActive]);
 
   useEffect(() => {
     if (!mobileLiveMode || typeof window === "undefined" || !window.visualViewport) {
@@ -535,7 +600,7 @@ export function ChatRoomPanel({
           <div className="flex flex-wrap items-center gap-2">
             <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
             <span className="font-black">Send stars</span>
-            <Badge tone="acid">{currentStarBalance.toLocaleString("en-GB")} available</Badge>
+            <Badge tone="acid">{localStarBalance.toLocaleString("en-GB")} available</Badge>
           </div>
           <ButtonLink href="/account/rewards" size="sm" variant="dark">
             Buy stars
@@ -568,7 +633,7 @@ export function ChatRoomPanel({
           />
           <Button
             className={cn("min-w-0 px-3", compactStarForm && "min-h-8 px-2 text-xs")}
-            disabled={pending || roomLockedForUser || currentStarBalance < liveStarSendAmounts[0]}
+            disabled={pending || roomLockedForUser || localStarBalance < liveStarSendAmounts[0]}
             type="submit"
             variant="primary"
           >
@@ -659,11 +724,7 @@ export function ChatRoomPanel({
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
             const canThrowAtMessageAuthor = Boolean(
-              canUseMessageActions &&
-                sheepSettings.enabled &&
-                currentUserCanThrowSheep &&
-                message.authorUserId &&
-                message.authorUserId !== currentUser?.id
+              canUseMessageActions && currentUserCanThrowSheep && message.authorUserId && message.authorUserId !== currentUser?.id
             );
             const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
@@ -820,16 +881,21 @@ export function ChatRoomPanel({
                         <input name="messageId" type="hidden" value={message.id} />
                         <Button
                           className="min-h-7 px-2 text-xs"
-                          disabled={pending || roomLockedForUser || !currentUserCanAffordSheep}
+                          disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
                           size="sm"
-                          title={currentUserCanAffordSheep ? `Throw sheep for ${sheepThrowCostLabel}` : `Need ${sheepThrowCostLabel} to throw sheep`}
+                          title={sheepThrowDisabledReason ?? `Throw sheep for ${sheepThrowCostLabel}`}
                           type="submit"
                           variant="ghost"
                         >
                           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                           Throw sheep
-                          <span className="rounded-full bg-bc-acid/15 px-1.5 py-0.5 text-[10px] font-black text-bc-acid">
-                            {sheepThrowCostLabel}
+                          <span
+                            className={cn(
+                              "rounded-full px-1.5 py-0.5 text-[10px] font-black",
+                              sheepThrowDisabledReason ? "bg-bc-muted/15 text-bc-muted" : "bg-bc-acid/15 text-bc-acid"
+                            )}
+                          >
+                            {sheepThrowStatusLabel}
                           </span>
                         </Button>
                       </form>

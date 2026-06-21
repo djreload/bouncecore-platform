@@ -20,7 +20,7 @@ import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
-import { getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
+import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getPublicSiteSettings, type LiveSocialLink } from "@/lib/admin/site-settings-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
@@ -115,6 +115,7 @@ export default async function LivePage() {
     getLiveStarSupportData(),
     getStarWalletBalance(currentUser?.id)
   ]);
+  const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
   const { channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
@@ -255,6 +256,7 @@ export default async function LivePage() {
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}
+              sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
               sheepSettings={sheepSettings}
               showRoomLinks={false}
             />

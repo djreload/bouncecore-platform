@@ -130,3 +130,20 @@ export function remainingSheepThrowCooldownSeconds(
 
   return Math.max(0, cooldownSeconds - elapsedSeconds);
 }
+
+export function formatSheepThrowCooldownLabel(seconds: number) {
+  const remaining = Math.max(0, Math.ceil(seconds));
+
+  if (remaining < 1) {
+    return "Ready";
+  }
+
+  if (remaining < 60) {
+    return `${remaining}s`;
+  }
+
+  const minutes = Math.floor(remaining / 60);
+  const trailingSeconds = remaining % 60;
+
+  return trailingSeconds > 0 ? `${minutes}m ${trailingSeconds}s` : `${minutes}m`;
+}

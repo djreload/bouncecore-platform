@@ -32,6 +32,7 @@ export async function publicChatAction(
 
   if (!user) {
     return {
+      intent,
       status: "error",
       message: "Sign in to send chat messages."
     };
@@ -39,6 +40,7 @@ export async function publicChatAction(
 
   if (!roomId) {
     return {
+      intent,
       status: "error",
       message: "Choose a chat room before sending a message."
     };
@@ -116,6 +118,7 @@ export async function publicChatAction(
     revalidatePath("/admin/audit-logs");
 
     return {
+      intent,
       status: "success",
       message:
         intent === "report"
@@ -141,6 +144,7 @@ export async function publicChatAction(
   } catch (error) {
     if (intent === "report" || intent === "clear-room" || intent === "delete-message" || intent === "ban-user") {
       return {
+        intent,
         status: "error",
         message:
           error instanceof Error
@@ -156,6 +160,7 @@ export async function publicChatAction(
     }
 
     return {
+      intent,
       status: "error",
       message:
         error instanceof Error

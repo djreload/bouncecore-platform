@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   defaultSheepThrowSettings,
+  formatSheepThrowCooldownLabel,
   formatSheepThrowToast,
   normalizeSheepThrowSettings,
   normalizeSheepThrowSettingsInput,
@@ -69,6 +70,13 @@ test("sheep throw cooldown returns remaining seconds", () => {
   assert.equal(remainingSheepThrowCooldownSeconds(latestThrow, 300, now), 80);
   assert.equal(remainingSheepThrowCooldownSeconds(latestThrow, 180, now), 0);
   assert.equal(remainingSheepThrowCooldownSeconds(null, 300, now), 0);
+});
+
+test("sheep throw cooldown label is compact for chat buttons", () => {
+  assert.equal(formatSheepThrowCooldownLabel(0), "Ready");
+  assert.equal(formatSheepThrowCooldownLabel(12), "12s");
+  assert.equal(formatSheepThrowCooldownLabel(60), "1m");
+  assert.equal(formatSheepThrowCooldownLabel(75), "1m 15s");
 });
 
 test("sheep throw toast names both users", () => {
