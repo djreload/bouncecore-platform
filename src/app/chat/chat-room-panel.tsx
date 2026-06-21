@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
-import { AtSign, Ban, Flag, ImageIcon, Lock, LogIn, MessageSquare, Plus, Reply, Search, Send, Smile, Star, Timer, Trash2, X } from "lucide-react";
+import { AtSign, Ban, Flag, ImageIcon, Lock, LogIn, MessageSquare, Plus, Reply, Search, Send, Smile, Sparkles, Star, Timer, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
@@ -652,6 +652,7 @@ export function ChatRoomPanel({
             const canUseMessageActions = Boolean(currentUser && selectedRoom && !message.deletedAt);
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
+            const canThrowAtMessageAuthor = Boolean(canUseMessageActions && message.authorUserId && message.authorUserId !== currentUser?.id);
             const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
 
@@ -781,6 +782,17 @@ export function ChatRoomPanel({
                       <Reply className="h-3.5 w-3.5" aria-hidden="true" />
                       Reply
                     </button>
+                    {canThrowAtMessageAuthor ? (
+                      <form action={formAction} className="inline-flex">
+                        <input name="intent" type="hidden" value="sheep" />
+                        <input name="roomId" type="hidden" value={selectedRoom.id} />
+                        <input name="messageId" type="hidden" value={message.id} />
+                        <Button className="min-h-7 px-2 text-xs" disabled={pending || roomLockedForUser} size="sm" type="submit" variant="ghost">
+                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                          Throw sheep
+                        </Button>
+                      </form>
+                    ) : null}
                     <div>
                       <p className="text-[11px] font-black uppercase text-bc-muted">Reactions</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -1116,6 +1128,14 @@ export function ChatRoomPanel({
                     <Smile className="h-3.5 w-3.5" aria-hidden="true" />
                     Stickers
                   </Button>
+                  <form action={formAction}>
+                    <input name="intent" type="hidden" value="sheep" />
+                    <input name="roomId" type="hidden" value={selectedRoom.id} />
+                    <Button className="w-full min-h-8 px-2 text-xs" disabled={pending || roomLockedForUser} size="sm" type="submit" variant="ghost">
+                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                      Sheep
+                    </Button>
+                  </form>
                   {currentUserCanClearChat ? (
                     <form action={formAction}>
                       <input name="intent" type="hidden" value="clear-room" />

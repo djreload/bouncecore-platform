@@ -451,6 +451,21 @@ model ChatRoom {
   createdAt       DateTime      @default(now())
 }
 
+model ChatSheepThrow {
+  id                String   @id @default(cuid())
+  roomId            String
+  throwerId         String
+  targetUserId      String?
+  targetDisplayName String?
+  targetMessageId   String?
+  createdAt         DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([roomId, createdAt])
+  @@index([throwerId, createdAt])
+  @@index([targetUserId])
+}
+
 model ChatMessage {
   id               String         @id @default(cuid())
   roomId           String

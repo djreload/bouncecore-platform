@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Radio } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
+import { SheepThrowOverlay } from "@/components/chat/sheep-throw-overlay";
 import { NavList } from "@/components/navigation/nav-list";
 import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
 import { ButtonLink } from "@/components/ui/button";
@@ -64,6 +66,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             <NavList items={visibleNavigationItems} orientation="horizontal" />
           </div>
           <div className="ml-auto hidden items-center gap-2 lg:flex">
+            <HeaderAjaxCart />
             {signedIn ? (
               <LogoutButton />
             ) : (
@@ -83,6 +86,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
         </div>
       </header>
       <StarSupportOverlay />
+      <SheepThrowOverlay />
       {children}
       <footer className={`${hideFooterOnMobile ? "hidden lg:block" : ""} border-t border-bc-line bg-bc-ink`}>
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-bc-muted md:grid-cols-[1.3fr_1fr_1fr]">

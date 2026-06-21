@@ -1,9 +1,12 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { LogIn, ShoppingCart, Trash2, X } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { dispatchCartUpdated } from "@/lib/cart/cart-events";
 import { musicCartStorageKey } from "@/lib/cart/storage-keys";
+import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
 
 export type MusicCartTrack = {
   artworkUrl: string | null;
@@ -75,17 +78,26 @@ export function MusicCartProvider({
 }) {
   const tracksById = useMemo(() => new Map(tracks.map((track) => [track.id, track])), [tracks]);
   const [cartIds, setCartIds] = useState<string[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setCartIds(storedCartIds(tracksById)));
+    const frame = window.requestAnimationFrame(() => {
+      setCartIds(storedCartIds(tracksById));
+      setCartHydrated(true);
+    });
 
     return () => window.cancelAnimationFrame(frame);
   }, [tracksById]);
 
   useEffect(() => {
+    if (!cartHydrated) {
+      return;
+    }
+
     window.localStorage.setItem(musicCartStorageKey, JSON.stringify(cartIds));
-  }, [cartIds]);
+    dispatchCartUpdated();
+  }, [cartHydrated, cartIds]);
 
   const cartTracks = useMemo(
     () => cartIds.map((trackId) => tracksById.get(trackId)).filter((track): track is MusicCartTrack => Boolean(track)),
@@ -175,6 +187,17 @@ export function MusicCartProvider({
                       <ShoppingCart className="h-4 w-4" aria-hidden="true" />
                       Checkout with PayPal
                     </Button>
+                    <p className="mt-2 text-xs leading-5 text-bc-muted">
+                      Checkout stores purchase, download entitlement, and PayPal reference details. See{" "}
+                      <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
+                        Privacy
+                      </Link>{" "}
+                      and{" "}
+                      <Link className="font-semibold text-bc-electric hover:text-white" href={termsHref}>
+                        Terms
+                      </Link>
+                      .
+                    </p>
                     {!checkoutReady ? <p className="mt-2 text-xs text-bc-muted">{checkoutReason}</p> : null}
                   </form>
                 )}

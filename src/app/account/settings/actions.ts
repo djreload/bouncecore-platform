@@ -6,8 +6,9 @@ import {
   notificationPreferenceCategories,
   type NotificationPreferences
 } from "@/lib/account/notification-preferences-core";
+import { requestAccountDeletion } from "@/lib/account/account-deletion-service";
 import { updateUserNotificationPreferences } from "@/lib/account/notification-preferences-service";
-import type { NotificationPreferencesActionState } from "@/app/account/settings/state";
+import type { AccountDeletionActionState, NotificationPreferencesActionState } from "@/app/account/settings/state";
 
 function checkboxEnabled(formData: FormData, key: string) {
   return formData.get(key) === "on";
@@ -42,6 +43,32 @@ export async function updateNotificationPreferencesAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "Notification preferences could not be saved.",
+      status: "error"
+    };
+  }
+}
+
+export async function requestAccountDeletionAction(
+  _previousState: AccountDeletionActionState,
+  formData: FormData
+): Promise<AccountDeletionActionState> {
+  const actor = await requireSignedInUser();
+
+  try {
+    await requestAccountDeletion(actor, {
+      confirmation: typeof formData.get("confirmation") === "string" ? String(formData.get("confirmation")) : "",
+      reason: typeof formData.get("reason") === "string" ? String(formData.get("reason")) : ""
+    });
+
+    revalidatePath("/account/settings");
+
+    return {
+      message: "Account deletion request submitted. The site operator must review retention requirements before removal.",
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Account deletion request could not be submitted.",
       status: "error"
     };
   }

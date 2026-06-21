@@ -2,6 +2,8 @@ package uk.co.bouncecore.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.SharedPreferences;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -58,6 +60,11 @@ public class MainActivity extends Activity {
     private static final String APP_OPEN_INTERSTITIAL_DISABLED = "disabled";
     private static final String APP_OPEN_INTERSTITIAL_EVERY_OPEN = "every_open";
     private static final String APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION = "once_per_session";
+    private static final String MOBILE_PRIVACY_CHOICES_PATH = "/mobile/privacy-choices";
+    private static final String PRIVACY_PREFS_NAME = "bouncecore_privacy";
+    private static final String PREF_ADS_CONSENT_SET = "ads_consent_set";
+    private static final String PREF_ADS_MARKETING_CONSENT = "ads_marketing_consent";
+    private static final String PREF_NOTIFICATION_DISCLOSURE_SHOWN = "notification_disclosure_shown";
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
@@ -90,6 +97,8 @@ public class MainActivity extends Activity {
     private boolean pausedForInterstitial = false;
     private boolean firebaseInitialized = false;
     private boolean fcmTokenRequestInFlight = false;
+    private boolean adConsentDialogShowing = false;
+    private boolean notificationDisclosureShowing = false;
     private int bannerRetryCount = 0;
     private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
@@ -175,6 +184,11 @@ public class MainActivity extends Activity {
 
                 if (!TextUtils.isEmpty(runtimeConfig.updateUrl) && runtimeConfig.updateUrl.equals(target.toString())) {
                     openExternalUrl(target);
+                    return true;
+                }
+
+                if (sameHost && MOBILE_PRIVACY_CHOICES_PATH.equals(target.getPath())) {
+                    showAdConsentDialog(true);
                     return true;
                 }
 
@@ -286,7 +300,7 @@ public class MainActivity extends Activity {
         }
 
         if (config.adsEnabled) {
-            initializeLevelPlay(config);
+            maybeInitializeLevelPlayWithConsent(config);
         } else {
             destroyBanner();
             disableInterstitialAds();
@@ -390,13 +404,94 @@ public class MainActivity extends Activity {
         return sameHost && safeScheme ? trimmed : BuildConfig.BOUNCECORE_WEB_URL;
     }
 
+    private SharedPreferences privacyPreferences() {
+        return getSharedPreferences(PRIVACY_PREFS_NAME, MODE_PRIVATE);
+    }
+
+    private boolean hasAdConsentChoice() {
+        return privacyPreferences().getBoolean(PREF_ADS_CONSENT_SET, false);
+    }
+
+    private boolean adConsentGranted() {
+        return hasAdConsentChoice() && privacyPreferences().getBoolean(PREF_ADS_MARKETING_CONSENT, false);
+    }
+
+    private void setAdConsent(boolean granted) {
+        privacyPreferences()
+            .edit()
+            .putBoolean(PREF_ADS_CONSENT_SET, true)
+            .putBoolean(PREF_ADS_MARKETING_CONSENT, granted)
+            .apply();
+        LevelPlay.setConsent(granted);
+
+        if (!granted) {
+            destroyBanner();
+            disableInterstitialAds();
+        }
+    }
+
+    private void maybeInitializeLevelPlayWithConsent(MobileRuntimeConfig config) {
+        if (!hasAdConsentChoice()) {
+            LevelPlay.setConsent(false);
+            destroyBanner();
+            disableInterstitialAds();
+            showAdConsentDialog(false);
+            return;
+        }
+
+        if (!adConsentGranted()) {
+            LevelPlay.setConsent(false);
+            destroyBanner();
+            disableInterstitialAds();
+            return;
+        }
+
+        LevelPlay.setConsent(true);
+        initializeLevelPlay(config);
+    }
+
+    private void openInternalPath(String path) {
+        String root = BuildConfig.BOUNCECORE_WEB_URL.endsWith("/")
+            ? BuildConfig.BOUNCECORE_WEB_URL.substring(0, BuildConfig.BOUNCECORE_WEB_URL.length() - 1)
+            : BuildConfig.BOUNCECORE_WEB_URL;
+        webView.loadUrl(root + path);
+    }
+
+    private void showAdConsentDialog(boolean force) {
+        if (adConsentDialogShowing || (!force && !runtimeConfig.adsEnabled)) {
+            return;
+        }
+
+        adConsentDialogShowing = true;
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Mobile advertising privacy")
+            .setMessage(
+                "Bouncecore can show Unity LevelPlay ads. Ads may use the Android advertising ID, app/device data, and network data for ad delivery, measurement, fraud prevention, and frequency control. Choose Allow ads to enable the ad SDK. Choose Necessary only to keep ads disabled."
+            )
+            .setPositiveButton("Allow ads", (dialogInterface, which) -> {
+                setAdConsent(true);
+                maybeInitializeLevelPlayWithConsent(runtimeConfig);
+            })
+            .setNegativeButton("Necessary only", (dialogInterface, which) -> setAdConsent(false))
+            .setNeutralButton("Privacy Policy", null)
+            .create();
+
+        dialog.setCancelable(force);
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnDismissListener((dialogInterface) -> adConsentDialogShowing = false);
+        dialog.setOnShowListener((dialogInterface) -> dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener((view) -> openInternalPath("/privacy")));
+        dialog.show();
+    }
+
     private void initializeFirebaseMessaging(MobileRuntimeConfig config) {
         if (!config.hasFirebaseAndroidConfig()) {
             Log.w(TAG, "Firebase Android config is missing; push token registration is disabled.");
             return;
         }
 
-        requestNotificationPermissionIfNeeded();
+        if (!notificationPermissionReady()) {
+            return;
+        }
 
         if (!firebaseInitialized) {
             try {
@@ -420,16 +515,44 @@ public class MainActivity extends Activity {
         requestFcmToken();
     }
 
-    private void requestNotificationPermissionIfNeeded() {
+    private boolean notificationPermissionReady() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            return;
+            return true;
         }
 
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+
+        showNotificationPermissionDisclosure();
+        return false;
+    }
+
+    private void showNotificationPermissionDisclosure() {
+        if (notificationDisclosureShowing || privacyPreferences().getBoolean(PREF_NOTIFICATION_DISCLOSURE_SHOWN, false)) {
             return;
         }
 
-        requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, NOTIFICATION_PERMISSION_REQUEST_CODE);
+        notificationDisclosureShowing = true;
+        AlertDialog dialog = new AlertDialog.Builder(this)
+            .setTitle("Enable Bouncecore notifications")
+            .setMessage(
+                "Bouncecore uses notifications for chat mentions, livestream updates, order and download updates, account security, and admin messages you choose in notification settings. Android will ask for permission before notifications can be shown."
+            )
+            .setPositiveButton("Continue", (dialogInterface, which) -> {
+                privacyPreferences().edit().putBoolean(PREF_NOTIFICATION_DISCLOSURE_SHOWN, true).apply();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, NOTIFICATION_PERMISSION_REQUEST_CODE);
+                }
+            })
+            .setNegativeButton("Not now", (dialogInterface, which) ->
+                privacyPreferences().edit().putBoolean(PREF_NOTIFICATION_DISCLOSURE_SHOWN, true).apply()
+            )
+            .create();
+
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnDismissListener((dialogInterface) -> notificationDisclosureShowing = false);
+        dialog.show();
     }
 
     private void requestFcmToken() {
@@ -491,6 +614,7 @@ public class MainActivity extends Activity {
             LevelPlay.setMetaData("is_test_suite", "enable");
         }
 
+        LevelPlay.setConsent(true);
         LevelPlayInitRequest initRequest = new LevelPlayInitRequest.Builder(config.levelPlayAppKey).build();
         LevelPlay.init(this, initRequest, new LevelPlayInitListener() {
             @Override
@@ -739,6 +863,17 @@ public class MainActivity extends Activity {
 
         if (webView != null) {
             webView.loadUrl(resolveAppUrlFromIntent(intent));
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE
+            && grantResults.length > 0
+            && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            initializeFirebaseMessaging(runtimeConfig);
         }
     }
 

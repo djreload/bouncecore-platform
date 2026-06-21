@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CreditCard, Gift, ShoppingBag, Sparkles, Star, Trophy } from "lucide-react";
 import { RewardWheelPanel } from "@/app/account/rewards/reward-wheel-panel";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -7,6 +8,7 @@ import { requireSignedInUser } from "@/lib/auth/guards";
 import { getPayPalIntegrationData, getPayPalStarsReadiness } from "@/lib/payments/paypal-service";
 import { getAccountRewardWheelsData } from "@/lib/rewards/prize-service";
 import { getAccountRewardsData, starPackages } from "@/lib/rewards/stars-service";
+import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
 
 export const dynamic = "force-dynamic";
 
@@ -180,6 +182,16 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
                     <CreditCard className="h-4 w-4" aria-hidden="true" />
                     PayPal checkout
                   </Button>
+                  <p className="mt-2 text-xs leading-5 text-bc-muted">
+                    Uses PayPal and stores purchase references.{" "}
+                    <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
+                      Privacy
+                    </Link>{" "}
+                    /{" "}
+                    <Link className="font-semibold text-bc-electric hover:text-white" href={termsHref}>
+                      Terms
+                    </Link>
+                  </p>
                 </form>
               ))}
             </div>

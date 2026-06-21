@@ -1,5 +1,8 @@
-import { Bell, Lock, Settings, UserRound } from "lucide-react";
+import Link from "next/link";
+import { Bell, Lock, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { DeleteAccountForm } from "@/app/account/settings/delete-account-form";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { ConsentPreferencesButton } from "@/components/privacy/consent-preferences-button";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
@@ -8,6 +11,7 @@ import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAccountSettingsData } from "@/lib/account/account-service";
 import { getUserNotificationPreferences } from "@/lib/account/notification-preferences-service";
 import { NotificationPreferencesForm } from "@/app/account/settings/notification-preferences-form";
+import { cookiePolicyHref, mobilePrivacyChoicesHref, privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
 
 export const dynamic = "force-dynamic";
 
@@ -99,6 +103,37 @@ export default async function AccountSettingsPage() {
 
       <section className="mt-5">
         <NotificationPreferencesForm preferences={notificationPreferences} />
+      </section>
+
+      <section className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-bc-electric" aria-hidden="true" />
+            <h3 className="text-xl font-black">Privacy controls</h3>
+          </div>
+          <p className="mt-2 text-sm leading-6 text-bc-muted">
+            Review legal policies, update cookie choices, and open native mobile privacy choices inside the Android app.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={privacyPolicyHref}>
+              Privacy Policy
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={cookiePolicyHref}>
+              Cookie Policy
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={termsHref}>
+              Terms
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={mobilePrivacyChoicesHref}>
+              Mobile privacy
+            </Link>
+          </div>
+          <div className="mt-4">
+            <ConsentPreferencesButton />
+          </div>
+        </article>
+
+        <DeleteAccountForm />
       </section>
 
       <section className="mt-5 grid gap-4 md:grid-cols-2">

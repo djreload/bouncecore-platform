@@ -11,6 +11,7 @@ import {
 } from "@/lib/chat/chat-service";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { createChatBan, createChatReport } from "@/lib/chat/moderation-service";
+import { createChatSheepThrow } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
 import type { PublicChatActionState } from "@/app/chat/state";
@@ -94,6 +95,8 @@ export async function publicChatAction(
       await createChatStickerMessage(roomId, user.id, formString(formData, "assetId"));
     } else if (intent === "reaction") {
       await toggleChatMessageReaction(formString(formData, "messageId"), user.id, formString(formData, "reactionKey"));
+    } else if (intent === "sheep") {
+      await createChatSheepThrow(roomId, user.id, formString(formData, "messageId"));
     } else if (intent === "stars") {
       await createLiveChatStarSend(roomId, user.id, {
         amount: formString(formData, "amount"),
@@ -129,6 +132,8 @@ export async function publicChatAction(
               ? "Sticker sent."
               : intent === "reaction"
                 ? "Reaction updated."
+                : intent === "sheep"
+                  ? "Sheep thrown."
             : intent === "stars"
               ? "Stars sent to live chat."
               : "Message sent."
@@ -161,6 +166,8 @@ export async function publicChatAction(
               ? "Sticker was not sent."
               : intent === "reaction"
                 ? "Reaction was not saved."
+                : intent === "sheep"
+                  ? "Sheep was not thrown."
             : intent === "stars"
               ? "Stars were not sent."
             : "Message was not sent. Keep it between 1 and 500 characters."

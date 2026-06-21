@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import type { SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
 import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
@@ -19,6 +20,7 @@ type AdminChatroomsPanelProps = {
   rooms: AdminChatRoomRow[];
   messages: AdminChatMessageRow[];
   roleDisplayLabels: RoleDisplayNameMap;
+  sheepSettings: SheepThrowSettings;
 };
 
 function formatDate(value: string) {
@@ -61,7 +63,7 @@ function slowModeLabel(seconds: number) {
   return slowModeOptions.find((option) => option.value === seconds)?.label ?? `${seconds} seconds`;
 }
 
-export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: AdminChatroomsPanelProps) {
+export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatroomsActionState, FormData>(
     adminChatroomsAction,
     initialAdminChatroomsActionState
@@ -146,6 +148,59 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create
           </Button>
+        </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="acid">Chat fun</Badge>
+            <h3 className="mt-4 text-2xl font-black">Sheep throw overlay</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              Let signed-in chat users trigger the sheep overlay from chat. The cooldown is enforced per user.
+            </p>
+          </div>
+          <Badge tone={sheepSettings.enabled ? "acid" : "muted"}>{sheepSettings.enabled ? "Enabled" : "Disabled"}</Badge>
+        </div>
+        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[180px_220px_auto]">
+          <input name="intent" type="hidden" value="sheep-settings" />
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-enabled">
+              Status
+            </label>
+            <select
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={sheepSettings.enabled ? "true" : "false"}
+              id="sheep-enabled"
+              name="enabled"
+            >
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+            <p className="mt-1 text-xs text-bc-muted">Turns the sheep throw chat action and site overlay on or off.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cooldown">
+              Cooldown minutes
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.cooldownSeconds / 60)}
+              id="sheep-cooldown"
+              min={0}
+              max={1440}
+              name="cooldownMinutes"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Default is 5 minutes. Use 0 to remove the cooldown.</p>
+          </div>
+          <div className="flex items-end">
+            <Button disabled={pending} type="submit" variant="dark">
+              <Save className="h-4 w-4" aria-hidden="true" />
+              Save
+            </Button>
+          </div>
         </form>
       </section>
 

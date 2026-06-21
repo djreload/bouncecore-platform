@@ -1,6 +1,8 @@
+import "./account-deletion.test.mjs";
 import "./chat-effects.test.mjs";
 import "./chat-mention-notifications.test.mjs";
 import "./chat-mentions.test.mjs";
+import "./cart-events.test.mjs";
 import "./email-address.test.mjs";
 import "./fcm-push-service.test.mjs";
 import "./ingest-url.test.mjs";
@@ -14,7 +16,9 @@ import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
+import "./privacy-consent.test.mjs";
 import "./reward-wheel-core.test.mjs";
+import "./sheep-throw-settings.test.mjs";
 import "./star-packages.test.mjs";
 import "./support-request.test.mjs";
 import "./transcoder-source.test.mjs";

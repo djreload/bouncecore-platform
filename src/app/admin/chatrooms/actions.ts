@@ -10,6 +10,7 @@ import {
   updateChatRoom,
   type ChatRoomInput
 } from "@/lib/chat/chat-service";
+import { updateSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
 import type { AdminChatroomsActionState } from "@/app/admin/chatrooms/state";
 
@@ -92,6 +93,22 @@ export async function adminChatroomsAction(
       };
     }
 
+    if (intent === "sheep-settings") {
+      await updateSheepThrowSettings(
+        {
+          enabled: formString(formData, "enabled") === "true",
+          cooldownMinutes: formString(formData, "cooldownMinutes")
+        },
+        actor.id
+      );
+      revalidateChatViews();
+
+      return {
+        status: "success",
+        message: "Sheep throw settings updated."
+      };
+    }
+
     if (intent === "delete-message") {
       const messageId = formString(formData, "messageId");
 
@@ -115,10 +132,10 @@ export async function adminChatroomsAction(
       status: "error",
       message: "Unknown chatroom action."
     };
-  } catch {
+  } catch (error) {
     return {
       status: "error",
-      message: "Chatroom action failed. Check slugs, room names, and moderation state."
+      message: error instanceof Error ? error.message : "Chatroom action failed. Check slugs, room names, and moderation state."
     };
   }
 }

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { icons } from "@/components/navigation/icons";
 import { publicNavigation, type NavigationItem } from "@/config/navigation";
 import { cn } from "@/lib/utils";
@@ -106,6 +107,7 @@ export function PublicMobileMenu({ isSignedIn, items, siteName }: PublicMobileMe
             </nav>
 
             <div className="grid shrink-0 gap-2 border-t border-bc-line bg-bc-ink p-4">
+              <HeaderAjaxCart compact />
               {isSignedIn ? (
                 <LogoutButton label="Logout" size="md" />
               ) : (

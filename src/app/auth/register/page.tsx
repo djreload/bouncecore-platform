@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { roleDisplayName } from "@/lib/auth/role-display";
 import { getRegisterInvitePreview } from "@/lib/auth/user-invite-service";
+import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
+import Link from "next/link";
 
 const errorMessages: Record<string, string> = {
   "invalid-input": "Use a valid email, display name, and password of at least 12 characters.",
@@ -75,6 +77,17 @@ export default async function RegisterPage({
           <Button className="mt-6 w-full" type="submit" variant="pink">
             Register
           </Button>
+          <p className="mt-3 text-xs leading-5 text-bc-muted">
+            By registering, you agree to the{" "}
+            <Link className="font-semibold text-bc-electric hover:text-white" href={termsHref}>
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
+              Privacy Policy
+            </Link>
+            .
+          </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {invitePreview ? (
               invitePreview.roles.map((role) => (

@@ -1,9 +1,12 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { LogIn, Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { dispatchCartUpdated } from "@/lib/cart/cart-events";
 import { shopCartStorageKey } from "@/lib/cart/storage-keys";
+import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
 const maxQuantity = 10;
 
 export type ShopCartVariant = {
@@ -111,17 +114,26 @@ export function ShopCartProvider({
 }) {
   const variantsById = useMemo(() => new Map(variants.map((variant) => [variant.id, variant])), [variants]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartHydrated, setCartHydrated] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
   useEffect(() => {
-    const frame = window.requestAnimationFrame(() => setCartItems(storedCartItems(variantsById)));
+    const frame = window.requestAnimationFrame(() => {
+      setCartItems(storedCartItems(variantsById));
+      setCartHydrated(true);
+    });
 
     return () => window.cancelAnimationFrame(frame);
   }, [variantsById]);
 
   useEffect(() => {
+    if (!cartHydrated) {
+      return;
+    }
+
     window.localStorage.setItem(shopCartStorageKey, JSON.stringify(cartItems));
-  }, [cartItems]);
+    dispatchCartUpdated();
+  }, [cartHydrated, cartItems]);
 
   const cartLines = useMemo(
     () =>
@@ -366,6 +378,17 @@ export function ShopCartProvider({
                       <ShoppingCart className="h-4 w-4" aria-hidden="true" />
                       Checkout with PayPal
                     </Button>
+                    <p className="mt-2 text-xs leading-5 text-bc-muted">
+                      Checkout stores order, shipping, fulfilment, and PayPal reference details. See{" "}
+                      <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
+                        Privacy
+                      </Link>{" "}
+                      and{" "}
+                      <Link className="font-semibold text-bc-electric hover:text-white" href={termsHref}>
+                        Terms
+                      </Link>
+                      .
+                    </p>
                     {!checkoutReady ? <p className="mt-2 text-xs text-bc-muted">{checkoutReason}</p> : null}
                   </form>
                 )}
