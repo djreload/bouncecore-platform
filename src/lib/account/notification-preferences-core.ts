@@ -22,7 +22,12 @@ export const notificationPreferenceCategories = [
   {
     key: "chat",
     label: "Chat activity",
-    description: "Replies, mentions, and targeted chat actions from live and community chat."
+    description: "Replies, mentions, and normal live/community chat activity."
+  },
+  {
+    key: "sheep",
+    label: "Sheep throws",
+    description: "Targeted sheep throw chat notifications. Off by default until each user opts in."
   },
   {
     key: "admin",
@@ -36,12 +41,40 @@ export type NotificationPreferenceChannel = "email" | "push";
 export type NotificationChannelPreferences = Record<NotificationPreferenceChannel, boolean>;
 export type NotificationPreferences = Record<NotificationPreferenceCategory, NotificationChannelPreferences>;
 
+const defaultNotificationPreferenceChannels: Record<NotificationPreferenceCategory, NotificationChannelPreferences> = {
+  account: {
+    email: true,
+    push: true
+  },
+  admin: {
+    email: true,
+    push: true
+  },
+  chat: {
+    email: true,
+    push: true
+  },
+  producer: {
+    email: true,
+    push: true
+  },
+  purchases: {
+    email: true,
+    push: true
+  },
+  sheep: {
+    email: false,
+    push: false
+  },
+  stream: {
+    email: true,
+    push: true
+  }
+};
+
 export function defaultNotificationPreferences(): NotificationPreferences {
   return notificationPreferenceCategories.reduce((preferences, category) => {
-    preferences[category.key] = {
-      email: true,
-      push: true
-    };
+    preferences[category.key] = { ...defaultNotificationPreferenceChannels[category.key] };
 
     return preferences;
   }, {} as NotificationPreferences);
@@ -98,6 +131,10 @@ export function notificationPreferenceCategoryForType(type: string): Notificatio
 
   if (normalized.startsWith("admin.") || normalized.startsWith("notifications.admin")) {
     return "admin";
+  }
+
+  if (normalized === "chat.sheep_throw" || normalized.startsWith("chat.sheep_throw.")) {
+    return "sheep";
   }
 
   if (normalized.startsWith("chat.")) {

@@ -1,6 +1,7 @@
-import { Clock, KeyRound, Mail, Plus, Save, ShieldCheck, X } from "lucide-react";
+import { Clock, KeyRound, Mail, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
 import {
   addAdminUserRoleAction,
+  deleteAdminUserAction,
   removeAdminUserRoleAction,
   updateAdminUserStatusAction
 } from "@/app/admin/users/actions";
@@ -10,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminRoles, getAdminUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { hasPermission } from "@/lib/auth/rbac";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { userStatusOptions } from "@/lib/auth/user-admin-service";
@@ -18,7 +20,9 @@ import { getAdminUserInvites, inviteAssignableRoles } from "@/lib/auth/user-invi
 export const dynamic = "force-dynamic";
 
 function formatDate(date: Date | null) {
-  return date ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(date) : "Not yet";
+  return date
+    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(date)
+    : "Not yet";
 }
 
 function statusTone(status: string) {
@@ -43,6 +47,7 @@ export default async function AdminUsersPage() {
   ]);
   const activeUsers = users.filter((user) => user.status === "active").length;
   const ownerUsers = users.filter((user) => user.roles.some((userRole) => userRole.role.name === "owner")).length;
+  const canDeleteUsers = hasPermission(actor, "users.manage");
 
   return (
     <AdminShell
@@ -179,27 +184,57 @@ export default async function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      {assignableRoles.length ? (
-                        <form action={addAdminUserRoleAction} className="flex flex-wrap gap-2">
-                          <input name="userId" type="hidden" value={user.id} />
-                          <select
-                            className="min-h-9 max-w-[220px] rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
-                            name="role"
-                          >
-                            {assignableRoles.map((role) => (
-                              <option key={role.id} value={role.name}>
-                                {roleDisplayName(role.name, roleDisplayLabels)} ({role.name})
-                              </option>
-                            ))}
-                          </select>
-                          <Button size="sm" type="submit" variant="primary">
-                            <Plus className="h-4 w-4" aria-hidden="true" />
-                            Add role
-                          </Button>
-                        </form>
-                      ) : (
-                        <Badge tone="muted">All roles assigned</Badge>
-                      )}
+                      <div className="grid gap-3">
+                        {assignableRoles.length ? (
+                          <form action={addAdminUserRoleAction} className="flex flex-wrap gap-2">
+                            <input name="userId" type="hidden" value={user.id} />
+                            <select
+                              className="min-h-9 max-w-[220px] rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
+                              name="role"
+                            >
+                              {assignableRoles.map((role) => (
+                                <option key={role.id} value={role.name}>
+                                  {roleDisplayName(role.name, roleDisplayLabels)} ({role.name})
+                                </option>
+                              ))}
+                            </select>
+                            <Button size="sm" type="submit" variant="primary">
+                              <Plus className="h-4 w-4" aria-hidden="true" />
+                              Add role
+                            </Button>
+                          </form>
+                        ) : (
+                          <Badge tone="muted">All roles assigned</Badge>
+                        )}
+
+                        {canDeleteUsers ? (
+                          user.id === actor.id ? (
+                            <Badge tone="muted">Delete from account settings</Badge>
+                          ) : isLastOwner ? (
+                            <Badge tone="amber">Last owner cannot be deleted</Badge>
+                          ) : (
+                            <form action={deleteAdminUserAction} className="grid gap-2">
+                              <input name="userId" type="hidden" value={user.id} />
+                              <label className="text-xs font-semibold text-bc-muted" htmlFor={`delete-${user.id}`}>
+                                Type this user&apos;s email to delete the account and related data.
+                              </label>
+                              <div className="flex flex-wrap gap-2">
+                                <input
+                                  className="min-h-9 max-w-[260px] rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
+                                  id={`delete-${user.id}`}
+                                  name="confirmation"
+                                  placeholder={user.email}
+                                  type="email"
+                                />
+                                <Button size="sm" type="submit" variant="pink">
+                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </form>
+                          )
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );

@@ -6,7 +6,9 @@ import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { addAdminUserRole, removeAdminUserRole, updateAdminUserStatus } from "@/lib/auth/user-admin-service";
 import { sendInviteEmail } from "@/lib/auth/email-verification-service";
+import { deleteUserAndRelatedData } from "@/lib/auth/user-deletion-service";
 import { createAdminUserInvite, revokeAdminUserInvite, rolesFromInviteJson } from "@/lib/auth/user-invite-service";
+import { prisma } from "@/lib/db/prisma";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -66,6 +68,47 @@ export async function removeAdminUserRoleAction(formData: FormData) {
   }
 
   await removeAdminUserRole(formString(formData, "userId"), formString(formData, "role"), actor.id);
+  revalidateUserAdminViews();
+}
+
+export async function deleteAdminUserAction(formData: FormData) {
+  const actor = await requireSignedInUser();
+
+  if (!hasPermission(actor, "users.manage")) {
+    throw new Error("You do not have permission to delete users.");
+  }
+
+  const userId = formString(formData, "userId");
+  const confirmation = formString(formData, "confirmation").trim().toLowerCase();
+
+  if (!userId) {
+    throw new Error("Missing user.");
+  }
+
+  if (userId === actor.id) {
+    throw new Error("Use account settings to delete your own account.");
+  }
+
+  const target = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId
+    },
+    select: {
+      email: true
+    }
+  });
+
+  if (confirmation !== target.email.toLowerCase()) {
+    throw new Error("Type the user's email address to confirm deletion.");
+  }
+
+  await deleteUserAndRelatedData({
+    actorId: actor.id,
+    mode: "admin",
+    reason: "Deleted from the admin user directory.",
+    targetUserId: userId
+  });
+
   revalidateUserAdminViews();
 }
 

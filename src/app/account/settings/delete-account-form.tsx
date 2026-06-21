@@ -1,27 +1,36 @@
 "use client";
 
 import { useActionState } from "react";
-import { AlertTriangle, Send } from "lucide-react";
-import { requestAccountDeletionAction } from "@/app/account/settings/actions";
+import { AlertTriangle, Trash2 } from "lucide-react";
+import { deleteOwnAccountAction } from "@/app/account/settings/actions";
 import { initialAccountDeletionActionState, type AccountDeletionActionState } from "@/app/account/settings/state";
 import { Button } from "@/components/ui/button";
 import { accountDeletionConfirmationText } from "@/lib/account/account-deletion-core";
 
 export function DeleteAccountForm() {
   const [state, formAction, pending] = useActionState<AccountDeletionActionState, FormData>(
-    requestAccountDeletionAction,
+    deleteOwnAccountAction,
     initialAccountDeletionActionState
   );
 
   return (
-    <form action={formAction} className="rounded-md border border-bc-pink/35 bg-bc-panel p-5" id="delete-account">
+    <form
+      action={formAction}
+      className="rounded-md border border-bc-pink/35 bg-bc-panel p-5"
+      id="delete-account"
+      onSubmit={(event) => {
+        if (!window.confirm("this action can't be undone, are you sure you want to continiue!")) {
+          event.preventDefault();
+        }
+      }}
+    >
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-1 h-5 w-5 text-bc-pink" aria-hidden="true" />
         <div>
-          <h3 className="text-xl font-black">Delete account request</h3>
+          <h3 className="text-xl font-black">Delete account</h3>
           <p className="mt-2 text-sm leading-6 text-bc-muted">
-            Request deletion of your account and associated personal data. Some records may need to be retained for payment,
-            fraud prevention, security, tax, or legal obligations.
+            Permanently delete your account and related site data. This removes your active sessions, roles, profile, chat data,
+            notifications, mobile devices, purchases, orders, stream keys, and producer records from this instance.
           </p>
         </div>
       </div>
@@ -46,7 +55,7 @@ export function DeleteAccountForm() {
         id="deletion-reason"
         maxLength={1000}
         name="reason"
-        placeholder="Optional context for the site operator"
+        placeholder="Optional note for the audit log"
       />
       <p className="mt-1 text-xs text-bc-muted">Optional. Maximum 1000 characters.</p>
 
@@ -60,11 +69,11 @@ export function DeleteAccountForm() {
         placeholder={accountDeletionConfirmationText}
         required
       />
-      <p className="mt-1 text-xs text-bc-muted">Type {accountDeletionConfirmationText} to submit this deletion request.</p>
+      <p className="mt-1 text-xs text-bc-muted">Type {accountDeletionConfirmationText} to permanently delete this account.</p>
 
       <Button className="mt-5" disabled={pending} type="submit" variant="pink">
-        <Send className="h-4 w-4" aria-hidden="true" />
-        Request account deletion
+        <Trash2 className="h-4 w-4" aria-hidden="true" />
+        Delete my account permanently
       </Button>
     </form>
   );

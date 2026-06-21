@@ -91,7 +91,9 @@ const inlineBanDurationOptions = [
 const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(
+    new Date(value)
+  );
 }
 
 function roomTone(type: string) {

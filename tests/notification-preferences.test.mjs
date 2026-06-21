@@ -8,7 +8,7 @@ import {
   notificationPreferenceEnabled
 } from "../src/lib/account/notification-preferences-core.ts";
 
-test("notification preferences default every category to email and push", () => {
+test("notification preferences default sheep throws off and other categories on", () => {
   const preferences = defaultNotificationPreferences();
 
   assert.equal(preferences.stream.email, true);
@@ -18,6 +18,8 @@ test("notification preferences default every category to email and push", () => 
   assert.equal(preferences.account.email, true);
   assert.equal(preferences.chat.email, true);
   assert.equal(preferences.chat.push, true);
+  assert.equal(preferences.sheep.email, false);
+  assert.equal(preferences.sheep.push, false);
   assert.equal(preferences.admin.push, true);
 });
 
@@ -40,6 +42,8 @@ test("notification preference merging preserves defaults for missing or invalid 
   assert.equal(preferences.producer.push, true);
   assert.equal(preferences.chat.email, true);
   assert.equal(preferences.chat.push, true);
+  assert.equal(preferences.sheep.email, false);
+  assert.equal(preferences.sheep.push, false);
 });
 
 test("notification types map to the correct preference categories", () => {
@@ -49,6 +53,7 @@ test("notification types map to the correct preference categories", () => {
   assert.equal(notificationPreferenceCategoryForType("stars.purchase.paid"), "purchases");
   assert.equal(notificationPreferenceCategoryForType("producer.sale.paid"), "producer");
   assert.equal(notificationPreferenceCategoryForType("chat.mention"), "chat");
+  assert.equal(notificationPreferenceCategoryForType("chat.sheep_throw"), "sheep");
   assert.equal(notificationPreferenceCategoryForType("notifications.admin_send"), "admin");
   assert.equal(notificationPreferenceCategoryForType("account.security.changed"), "account");
 });
