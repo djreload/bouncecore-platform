@@ -1,13 +1,17 @@
-import { Activity, ShieldCheck } from "lucide-react";
+import { Activity, ShieldCheck, Trash2 } from "lucide-react";
+import { clearAuditLogsAction } from "@/app/admin/audit-logs/actions";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { clearAuditLogsConfirmationText } from "@/lib/admin/maintenance-core";
 import { getAdminAuditLogs } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { hasPermission } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(date);
 }
 
 function severityTone(severity: string) {
@@ -23,8 +27,9 @@ function severityTone(severity: string) {
 }
 
 export default async function AdminAuditLogsPage() {
-  await requireUserPermission("audit.view");
+  const actor = await requireUserPermission("audit.view");
   const auditLogs = await getAdminAuditLogs();
+  const canClearAuditLogs = hasPermission(actor, "settings.manage");
 
   return (
     <AdminShell
@@ -41,7 +46,22 @@ export default async function AdminAuditLogsPage() {
               <p className="mt-1 text-sm text-bc-muted">Showing the latest {auditLogs.length} audit records.</p>
             </div>
           </div>
-          <Badge tone="acid">Database-backed</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="acid">Database-backed</Badge>
+            {canClearAuditLogs ? (
+              <form action={clearAuditLogsAction} className="flex flex-wrap gap-2">
+                <input
+                  className="min-h-9 w-52 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
+                  name="confirmation"
+                  placeholder={clearAuditLogsConfirmationText}
+                />
+                <Button disabled={!auditLogs.length} size="sm" type="submit" variant="pink">
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Clear logs
+                </Button>
+              </form>
+            ) : null}
+          </div>
         </div>
 
         <div className="overflow-x-auto">

@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import type { CurrentUser } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
 
 const directEmailSentActions = ["auth.email_verification.send", "auth.password_reset.send"];
@@ -293,4 +294,31 @@ export async function getAdminNotificationLogData(): Promise<AdminNotificationLo
       totalNotifications
     }
   };
+}
+
+export async function clearAdminNotificationLogs(actor: CurrentUser) {
+  return prisma.$transaction(async (tx) => {
+    const emailEvents = await tx.auditLog.deleteMany({
+      where: emailEventWhere
+    });
+    const notifications = await tx.notification.deleteMany();
+
+    await tx.auditLog.create({
+      data: {
+        action: "admin.notification_logs.clear",
+        actorId: actor.id,
+        metadata: {
+          deletedEmailEvents: emailEvents.count,
+          deletedNotifications: notifications.count
+        },
+        severity: "warning",
+        target: "notification-logs"
+      }
+    });
+
+    return {
+      deletedEmailEvents: emailEvents.count,
+      deletedNotifications: notifications.count
+    };
+  });
 }

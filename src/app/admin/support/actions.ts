@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import type { AdminSupportActionState } from "@/app/admin/support/state";
+import { assertMaintenanceConfirmation, clearSupportInboxConfirmationText } from "@/lib/admin/maintenance-core";
 import { requireUserPermission } from "@/lib/auth/guards";
-import { updateSupportRequestStatus } from "@/lib/support/support-service";
+import { clearSupportInbox, updateSupportRequestStatus } from "@/lib/support/support-service";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -34,6 +35,31 @@ export async function adminSupportAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "Support request could not be updated.",
+      status: "error"
+    };
+  }
+}
+
+export async function clearSupportInboxAction(
+  _previousState: AdminSupportActionState,
+  formData: FormData
+): Promise<AdminSupportActionState> {
+  const actor = await requireUserPermission("admin.access");
+
+  try {
+    assertMaintenanceConfirmation(formString(formData, "confirmation"), clearSupportInboxConfirmationText);
+    const result = await clearSupportInbox(actor);
+
+    revalidatePath("/admin/support");
+    revalidatePath("/admin/audit-logs");
+
+    return {
+      message: `${result.count} support requests cleared from the inbox.`,
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Support inbox could not be cleared.",
       status: "error"
     };
   }

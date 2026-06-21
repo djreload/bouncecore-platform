@@ -384,6 +384,26 @@ export async function markAllAccountNotificationsRead(userId: string) {
   });
 }
 
+export async function clearAccountNotifications(userId: string) {
+  const result = await prisma.notification.deleteMany({
+    where: {
+      userId
+    }
+  });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "account.notifications.clear",
+    metadata: {
+      deletedNotifications: result.count
+    },
+    severity: "warning",
+    target: `user:${userId}`
+  });
+
+  return result;
+}
+
 export async function getAccountSettingsData(userId: string): Promise<AccountSettingsData> {
   const [user, activeSessions, unreadNotifications] = await Promise.all([
     prisma.user.findUniqueOrThrow({

@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { markAccountNotificationRead, markAllAccountNotificationsRead } from "@/lib/account/account-service";
+import {
+  clearAccountNotifications,
+  markAccountNotificationRead,
+  markAllAccountNotificationsRead
+} from "@/lib/account/account-service";
 import { getMobileNotificationsPayload, requireMobileUser } from "@/lib/mobile/account-api";
 import { mobileRouteError } from "@/lib/mobile/responses";
 
@@ -31,5 +35,17 @@ export async function PATCH(request: Request) {
     return NextResponse.json(await getMobileNotificationsPayload(user));
   } catch (error) {
     return mobileRouteError(error, "Notification state could not be updated.");
+  }
+}
+
+export async function DELETE() {
+  try {
+    const user = await requireMobileUser();
+
+    await clearAccountNotifications(user.id);
+
+    return NextResponse.json(await getMobileNotificationsPayload(user));
+  } catch (error) {
+    return mobileRouteError(error, "Notifications could not be cleared.");
   }
 }

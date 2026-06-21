@@ -163,3 +163,19 @@ export async function updateSupportRequestStatus(input: {
 
   return request;
 }
+
+export async function clearSupportInbox(actor: CurrentUser) {
+  const result = await prisma.supportRequest.deleteMany();
+
+  await writeAuditLog({
+    actorId: actor.id,
+    action: "support.inbox.clear",
+    metadata: {
+      deletedRequests: result.count
+    },
+    severity: "warning",
+    target: "support-inbox"
+  });
+
+  return result;
+}

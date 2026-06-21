@@ -1,10 +1,12 @@
 import { AdminSupportPanel } from "@/app/admin/support/support-panel";
 import { AdminShell } from "@/components/layout/admin-shell";
+import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminSupportRequestsData } from "@/lib/support/support-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSupportPage() {
+  await requireUserPermission("admin.access");
   const data = await getAdminSupportRequestsData();
 
   return (

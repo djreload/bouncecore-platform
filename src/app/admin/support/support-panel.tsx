@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { Inbox, Mail, Save } from "lucide-react";
-import { adminSupportAction } from "@/app/admin/support/actions";
+import { Inbox, Mail, Save, Trash2 } from "lucide-react";
+import { adminSupportAction, clearSupportInboxAction } from "@/app/admin/support/actions";
 import { initialAdminSupportActionState, type AdminSupportActionState } from "@/app/admin/support/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { clearSupportInboxConfirmationText } from "@/lib/admin/maintenance-core";
 import type { AdminSupportRequestsData } from "@/lib/support/support-service";
 import { supportStatuses } from "@/lib/support/support-request-core";
 
@@ -14,7 +15,9 @@ type AdminSupportPanelProps = {
 };
 
 function formatDate(value: string | null) {
-  return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Not set";
+  return value
+    ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(new Date(value))
+    : "Not set";
 }
 
 function toneForStatus(status: string) {
@@ -52,6 +55,10 @@ function labelFromKey(value: string) {
 export function AdminSupportPanel({ data }: AdminSupportPanelProps) {
   const [state, formAction, pending] = useActionState<AdminSupportActionState, FormData>(
     adminSupportAction,
+    initialAdminSupportActionState
+  );
+  const [clearState, clearFormAction, clearPending] = useActionState<AdminSupportActionState, FormData>(
+    clearSupportInboxAction,
     initialAdminSupportActionState
   );
 
@@ -96,6 +103,19 @@ export function AdminSupportPanel({ data }: AdminSupportPanelProps) {
           <Inbox className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
 
+        <form action={clearFormAction} className="mt-5 flex flex-wrap gap-2">
+          <input
+            className="min-h-10 w-64 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+            disabled={clearPending}
+            name="confirmation"
+            placeholder={clearSupportInboxConfirmationText}
+          />
+          <Button disabled={clearPending || !data.stats.total} type="submit" variant="pink">
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Clear inbox
+          </Button>
+        </form>
+
         {state.message ? (
           <div
             className={`mt-5 rounded-md border p-3 text-sm ${
@@ -103,6 +123,16 @@ export function AdminSupportPanel({ data }: AdminSupportPanelProps) {
             }`}
           >
             {state.message}
+          </div>
+        ) : null}
+
+        {clearState.message ? (
+          <div
+            className={`mt-5 rounded-md border p-3 text-sm ${
+              clearState.status === "error" ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink" : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
+            }`}
+          >
+            {clearState.message}
           </div>
         ) : null}
       </section>

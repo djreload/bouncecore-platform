@@ -1,15 +1,22 @@
-import { Bell, CheckCheck, Clock3 } from "lucide-react";
+import { Bell, CheckCheck, Clock3, Trash2 } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { markAllNotificationsReadAction, markNotificationReadAction } from "@/app/account/notifications/actions";
+import {
+  clearNotificationsAction,
+  markAllNotificationsReadAction,
+  markNotificationReadAction
+} from "@/app/account/notifications/actions";
+import { clearNotificationInboxConfirmationText } from "@/lib/admin/maintenance-core";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { getAccountNotificationsData } from "@/lib/account/account-service";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(
+    new Date(value)
+  );
 }
 
 function notificationTone(readAt: string | null) {
@@ -51,12 +58,25 @@ export default async function AccountNotificationsPage() {
           </div>
           <Bell className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
-        <form action={markAllNotificationsReadAction} className="mt-5">
-          <Button disabled={!data.stats.unread} type="submit" variant="primary">
-            <CheckCheck className="h-4 w-4" aria-hidden="true" />
-            Mark all read
-          </Button>
-        </form>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <form action={markAllNotificationsReadAction}>
+            <Button disabled={!data.stats.unread} type="submit" variant="primary">
+              <CheckCheck className="h-4 w-4" aria-hidden="true" />
+              Mark all read
+            </Button>
+          </form>
+          <form action={clearNotificationsAction} className="flex flex-wrap gap-2">
+            <input
+              className="min-h-10 w-56 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              name="confirmation"
+              placeholder={clearNotificationInboxConfirmationText}
+            />
+            <Button disabled={!data.stats.total} type="submit" variant="pink">
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Clear inbox
+            </Button>
+          </form>
+        </div>
       </section>
 
       <section className="mt-5 rounded-md border border-bc-line bg-bc-panel">

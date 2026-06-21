@@ -1,7 +1,10 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Bell, CheckCircle2, Clock, Mail, Smartphone, TriangleAlert } from "lucide-react";
+import { Activity, Bell, CheckCircle2, Clock, Mail, Smartphone, Trash2, TriangleAlert } from "lucide-react";
+import { clearNotificationLogsAction } from "@/app/admin/notification-logs/actions";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { clearNotificationLogsConfirmationText } from "@/lib/admin/maintenance-core";
 import { getAdminNotificationLogData } from "@/lib/admin/notification-log-service";
 import { requireUserPermission } from "@/lib/auth/guards";
 
@@ -14,7 +17,9 @@ function formatDate(value: string | null) {
     return "Not yet";
   }
 
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(
+    new Date(value)
+  );
 }
 
 function statusTone(status: string): BadgeTone {
@@ -115,6 +120,29 @@ export default async function AdminNotificationLogsPage() {
             value={data.stats.failedPushDeliveries + data.stats.blockedPushDeliveries}
           />
         </div>
+
+        <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Badge tone="pink">Maintenance</Badge>
+              <h3 className="mt-4 text-xl font-black">Clear notification logs</h3>
+              <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+                Deletes stored in-app notification rows, mobile push delivery rows, and email delivery audit events.
+              </p>
+            </div>
+            <form action={clearNotificationLogsAction} className="flex flex-wrap gap-2">
+              <input
+                className="min-h-10 w-64 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                name="confirmation"
+                placeholder={clearNotificationLogsConfirmationText}
+              />
+              <Button disabled={!data.stats.totalNotifications && !data.stats.emailEvents} type="submit" variant="pink">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Clear notification logs
+              </Button>
+            </form>
+          </div>
+        </section>
 
         <section className="rounded-md border border-bc-line bg-bc-panel">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
