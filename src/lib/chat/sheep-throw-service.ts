@@ -3,6 +3,7 @@ import { normalizeRoles } from "@/lib/auth/role-normalize";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { getActiveChatBan } from "@/lib/chat/moderation-service";
+import { queueChatSheepThrowNotification } from "@/lib/chat/sheep-throw-notification-service";
 import {
   defaultSheepThrowSettings,
   formatSheepThrowToast,
@@ -328,6 +329,26 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
       targetUserId: target.targetUserId
     }
   });
+  await queueChatSheepThrowNotification({
+    messageId: result.toastMessage.id,
+    roomSlug: throwContext.room.slug,
+    sheepThrowId: result.sheepThrow.id,
+    targetUserId: target.targetUserId,
+    throwerDisplayName: throwContext.throwerDisplayName,
+    throwerUserId: throwerId
+  }).catch((error) =>
+    writeAuditLog({
+      action: "chat.sheep_throw.notification.queue_failed",
+      actorId: throwerId,
+      metadata: {
+        error: error instanceof Error ? error.message : "Sheep throw notification queue failed.",
+        roomSlug: throwContext.room.slug,
+        targetUserId: target.targetUserId
+      },
+      severity: "warning",
+      target: `chat-sheep-throw:${result.sheepThrow.id}`
+    })
+  );
   await publishChatRoomChanged(roomId, result.toastMessage.id);
 
   return result.sheepThrow;
