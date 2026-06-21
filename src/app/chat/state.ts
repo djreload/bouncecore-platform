@@ -50,6 +50,15 @@ export type PublicChatReactionRow = {
   reacted: boolean;
 };
 
+export type PublicChatPresenceUserRow = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  roles: Role[];
+  status: "online" | "away";
+  lastActiveAt: string;
+};
+
 export type PublicChatAssetRow = {
   id: string;
   packId: string;

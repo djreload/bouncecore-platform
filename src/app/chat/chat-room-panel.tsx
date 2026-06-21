@@ -3,7 +3,28 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
-import { AtSign, Ban, Flag, ImageIcon, Lock, LogIn, MessageSquare, Plus, Reply, Search, Send, Smile, Sparkles, Star, Timer, Trash2, X } from "lucide-react";
+import {
+  AtSign,
+  Ban,
+  ChevronLeft,
+  ChevronRight,
+  Flag,
+  ImageIcon,
+  Lock,
+  LogIn,
+  MessageSquare,
+  Plus,
+  Reply,
+  Search,
+  Send,
+  Smile,
+  Sparkles,
+  Star,
+  Timer,
+  Trash2,
+  UsersRound,
+  X
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
@@ -20,6 +41,7 @@ import {
   type PublicChatActionState,
   type PublicChatAssetRow,
   type PublicChatMessageRow,
+  type PublicChatPresenceUserRow,
   type PublicChatRoomRow,
   type PublicChatUser
 } from "@/app/chat/state";
@@ -29,6 +51,7 @@ type ChatRoomPanelProps = {
   rooms: PublicChatRoomRow[];
   selectedRoom: PublicChatRoomRow | null;
   messages: PublicChatMessageRow[];
+  presenceUsers?: PublicChatPresenceUserRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
   sheepRemainingCooldownSeconds?: number;
@@ -39,6 +62,7 @@ type ChatRoomPanelProps = {
   hideHeader?: boolean;
   mobileLiveMode?: boolean;
   messagesClassName?: string;
+  showPresenceRail?: boolean;
   showRoomLinks?: boolean;
 };
 
@@ -60,6 +84,10 @@ type ChatStreamPayload = {
   messages?: PublicChatMessageRow[];
 };
 
+type ChatPresenceStreamPayload = {
+  presenceUsers?: PublicChatPresenceUserRow[];
+};
+
 type ChatRoomStreamPayload = {
   room?: PublicChatRoomRow | null;
 };
@@ -79,6 +107,11 @@ type MentionSuggestion = {
   displayName: string;
   token: string;
   userId: string | null;
+};
+
+type SyncedPresence = {
+  roomId: string;
+  users: PublicChatPresenceUserRow[];
 };
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
@@ -149,11 +182,126 @@ function chatMessagePreviewText(message: ChatReplyTarget) {
   return message.body.replace(/\s+/g, " ").trim();
 }
 
+function presenceStatusTone(status: PublicChatPresenceUserRow["status"]) {
+  return status === "online" ? "bg-bc-acid shadow-[0_0_10px_rgba(163,255,18,0.72)]" : "bg-bc-amber shadow-[0_0_10px_rgba(255,176,32,0.55)]";
+}
+
+function presenceStatusLabel(status: PublicChatPresenceUserRow["status"]) {
+  return status === "online" ? "Online" : "Away";
+}
+
+function formatPresenceLastActive(value: string) {
+  return formatTime(value);
+}
+
+function ChatPresenceRail({
+  open,
+  roleDisplayLabels,
+  users,
+  onToggle
+}: {
+  open: boolean;
+  roleDisplayLabels: RoleDisplayNameMap;
+  users: PublicChatPresenceUserRow[];
+  onToggle: () => void;
+}) {
+  const onlineCount = users.filter((user) => user.status === "online").length;
+
+  return (
+    <>
+      <button
+        aria-expanded={open}
+        aria-label={open ? "Hide online users" : "Show online users"}
+        className="bc-focus-ring absolute -left-9 top-3 z-30 hidden h-8 w-8 place-items-center rounded-l-md border border-r-0 border-bc-line bg-bc-panel text-white shadow-lg shadow-black/25 transition hover:border-bc-electric/60 hover:text-bc-electric lg:grid"
+        onClick={onToggle}
+        title={open ? "Hide online users" : "Show online users"}
+        type="button"
+      >
+        {open ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <UsersRound className="h-4 w-4" aria-hidden="true" />}
+      </button>
+      <aside
+        aria-label="Online chat users"
+        className={cn(
+          "absolute right-full top-0 z-20 hidden h-full w-56 min-w-56 flex-col overflow-hidden rounded-l-md border border-r-0 border-bc-line bg-bc-panel shadow-2xl shadow-black/35 transition duration-300 ease-out lg:flex",
+          open ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-full opacity-0"
+        )}
+      >
+        <div className="shrink-0 border-b border-bc-line p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <UsersRound className="h-4 w-4 shrink-0 text-bc-electric" aria-hidden="true" />
+              <h3 className="truncate text-sm font-black">Online users</h3>
+            </div>
+            <button
+              aria-label="Close online users"
+              className="bc-focus-ring inline-grid h-7 w-7 shrink-0 place-items-center rounded-md border border-bc-line bg-bc-ink text-bc-muted transition hover:text-white"
+              onClick={onToggle}
+              type="button"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-bc-muted">
+            {onlineCount} online / {Math.max(0, users.length - onlineCount)} away
+          </p>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          {users.length ? (
+            <div className="grid gap-2">
+              {users.map((user) => (
+                <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-panel text-xs font-black text-bc-electric">
+                      {user.avatarUrl ? (
+                        <Image alt="" className="h-full w-full object-cover" height={32} src={user.avatarUrl} unoptimized width={32} />
+                      ) : (
+                        authorInitial(user.displayName)
+                      )}
+                      <span
+                        aria-label={presenceStatusLabel(user.status)}
+                        className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-bc-ink", presenceStatusTone(user.status))}
+                        title={presenceStatusLabel(user.status)}
+                      />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-black">{user.displayName}</p>
+                      <p className="text-[11px] font-semibold text-bc-muted">
+                        {presenceStatusLabel(user.status)} / {formatPresenceLastActive(user.lastActiveAt)}
+                      </p>
+                    </div>
+                  </div>
+                  {user.roles.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {user.roles.slice(0, 2).map((role) => (
+                        <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
+                          {roleDisplayName(role, roleDisplayLabels)}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="grid h-full min-h-40 place-items-center rounded-md border border-dashed border-bc-line bg-bc-ink p-4 text-center">
+              <div>
+                <UsersRound className="mx-auto h-6 w-6 text-bc-muted" aria-hidden="true" />
+                <p className="mt-3 text-xs text-bc-muted">No recent chat activity yet.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export function ChatRoomPanel({
   assets,
   rooms,
   selectedRoom,
   messages,
+  presenceUsers = [],
   currentUser,
   currentStarBalance = 0,
   sheepRemainingCooldownSeconds = 0,
@@ -164,6 +312,7 @@ export function ChatRoomPanel({
   hideHeader = false,
   mobileLiveMode = false,
   messagesClassName,
+  showPresenceRail = false,
   showRoomLinks = true
 }: ChatRoomPanelProps) {
   const [state, formAction, pending] = useActionState<PublicChatActionState, FormData>(
@@ -174,6 +323,7 @@ export function ChatRoomPanel({
   const [assetPanelOpen, setAssetPanelOpen] = useState(false);
   const [starsPanelOpen, setStarsPanelOpen] = useState(false);
   const [composerToolsOpen, setComposerToolsOpen] = useState(false);
+  const [presenceRailOpen, setPresenceRailOpen] = useState(true);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
@@ -184,6 +334,7 @@ export function ChatRoomPanel({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
+  const [syncedPresence, setSyncedPresence] = useState<SyncedPresence | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const [localStarBalance, setLocalStarBalance] = useState(currentStarBalance);
   const [sheepCooldownRemaining, setSheepCooldownRemaining] = useState(sheepRemainingCooldownSeconds);
@@ -192,6 +343,7 @@ export function ChatRoomPanel({
   const selectedRoomId = selectedRoom?.id;
   const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
+  const visiblePresence = syncedPresence && syncedPresence.roomId === selectedRoomId ? syncedPresence.users : presenceUsers;
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
@@ -241,12 +393,16 @@ export function ChatRoomPanel({
       addSuggestion(currentUser.displayName, currentUser.id);
     }
 
+    for (const user of visiblePresence) {
+      addSuggestion(user.displayName, user.id);
+    }
+
     for (const message of visibleMessages) {
       addSuggestion(message.authorDisplayName, message.authorUserId);
     }
 
     return suggestions.slice(0, 12);
-  }, [currentUser, visibleMessages]);
+  }, [currentUser, visibleMessages, visiblePresence]);
   const filteredMentionSuggestions = useMemo(() => {
     if (mentionQuery === null) {
       return [];
@@ -276,13 +432,20 @@ export function ChatRoomPanel({
     const response = await fetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
       cache: "no-store"
     });
-    const payload = (await response.json()) as { messages?: PublicChatMessageRow[] };
+    const payload = (await response.json()) as { messages?: PublicChatMessageRow[]; presenceUsers?: PublicChatPresenceUserRow[] };
 
     if (response.ok && payload.messages) {
       setSyncedMessages({
         roomId,
         messages: payload.messages
       });
+
+      if (payload.presenceUsers) {
+        setSyncedPresence({
+          roomId,
+          users: payload.presenceUsers
+        });
+      }
     }
   }, []);
 
@@ -352,6 +515,25 @@ export function ChatRoomPanel({
           }
         } catch {
           // Ignore malformed room events and keep the current room state.
+        }
+      });
+
+      eventSource.addEventListener("presence", (event) => {
+        if (!active) {
+          return;
+        }
+
+        try {
+          const payload = JSON.parse((event as MessageEvent<string>).data) as ChatPresenceStreamPayload;
+
+          if (payload.presenceUsers) {
+            setSyncedPresence({
+              roomId,
+              users: payload.presenceUsers
+            });
+          }
+        } catch {
+          // Ignore malformed presence events and keep the current user list.
         }
       });
 
@@ -648,7 +830,16 @@ export function ChatRoomPanel({
   }
 
   return (
-    <section className={cn("min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel", className)}>
+    <section className={cn("relative min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel lg:overflow-visible", className)}>
+      {showPresenceRail ? (
+        <ChatPresenceRail
+          open={presenceRailOpen}
+          roleDisplayLabels={roleDisplayLabels}
+          users={visiblePresence}
+          onToggle={() => setPresenceRailOpen((open) => !open)}
+        />
+      ) : null}
+      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[inherit] bg-inherit">
       {!hideHeader ? (
         <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3")}>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1403,6 +1594,7 @@ export function ChatRoomPanel({
             ) : null}
           </div>
         )}
+      </div>
       </div>
     </section>
   );

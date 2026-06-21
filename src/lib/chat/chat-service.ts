@@ -12,6 +12,8 @@ import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
+const chatPresenceOnlineMs = 5 * 60 * 1000;
+const chatPresenceAwayMs = 30 * 60 * 1000;
 
 export type ChatRoomInput = {
   locked?: boolean;
@@ -83,10 +85,20 @@ export type ChatReactionSummary = {
   reacted: boolean;
 };
 
+export type ChatPresenceUserSummary = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  roles: Role[];
+  status: "online" | "away";
+  lastActiveAt: string;
+};
+
 export type PublicChatData = {
   rooms: ChatRoomSummary[];
   selectedRoom: ChatRoomSummary | null;
   messages: ChatMessageSummary[];
+  presenceUsers: ChatPresenceUserSummary[];
   assets: ChatStickerAssetSummary[];
 };
 
@@ -378,6 +390,76 @@ async function getChatEffectUserRoles(userId: string) {
   return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 }
 
+export async function getPublicChatPresence(roomId: string, currentUserId?: string | null): Promise<ChatPresenceUserSummary[]> {
+  if (!roomId) {
+    return [];
+  }
+
+  const now = new Date();
+  const awayCutoff = new Date(now.getTime() - chatPresenceAwayMs);
+  const onlineCutoff = new Date(now.getTime() - chatPresenceOnlineMs);
+  const recentMessages = await prisma.chatMessage.findMany({
+    where: {
+      roomId,
+      deletedAt: null,
+      userId: {
+        not: null
+      },
+      createdAt: {
+        gte: awayCutoff
+      }
+    },
+    orderBy: {
+      createdAt: "desc"
+    },
+    select: {
+      createdAt: true,
+      userId: true
+    },
+    take: 200
+  });
+  const latestActivityByUser = new Map<string, Date>();
+
+  for (const message of recentMessages) {
+    if (message.userId && !latestActivityByUser.has(message.userId)) {
+      latestActivityByUser.set(message.userId, message.createdAt);
+    }
+  }
+
+  if (currentUserId) {
+    latestActivityByUser.set(currentUserId, now);
+  }
+
+  const authors = await getAuthorSummaries([...latestActivityByUser.keys()]);
+
+  return [...latestActivityByUser.entries()]
+    .map(([userId, lastActiveAt]) => {
+      const author = authors.get(userId);
+
+      if (!author) {
+        return null;
+      }
+
+      return {
+        id: userId,
+        displayName: author.displayName,
+        avatarUrl: author.avatarUrl,
+        roles: author.roles,
+        status: lastActiveAt >= onlineCutoff ? ("online" as const) : ("away" as const),
+        lastActiveAt: lastActiveAt.toISOString()
+      };
+    })
+    .filter((user): user is ChatPresenceUserSummary => Boolean(user))
+    .sort((first, second) => {
+      if (first.status !== second.status) {
+        return first.status === "online" ? -1 : 1;
+      }
+
+      return new Date(second.lastActiveAt).getTime() - new Date(first.lastActiveAt).getTime();
+    })
+    .slice(0, 50);
+}
+
 async function getRooms() {
   return prisma.chatRoom.findMany({
     orderBy: [
@@ -415,6 +497,7 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
       rooms: roomSummaries,
       selectedRoom: null,
       messages: [],
+      presenceUsers: [],
       assets
     };
   }
@@ -454,11 +537,13 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
     take: 40
   });
   const authors = await getAuthorSummaries(getMessageAuthorIds(messages));
+  const presenceUsers = await getPublicChatPresence(selectedRoom.id, currentUserId);
 
   return {
     rooms: roomSummaries,
     selectedRoom: toRoomSummary(selectedRoom),
     messages: messages.reverse().map((message) => toMessageSummary(message, authors, currentUserId)),
+    presenceUsers,
     assets
   };
 }

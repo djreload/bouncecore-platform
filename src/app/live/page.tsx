@@ -13,7 +13,7 @@ import {
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
 import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
-import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
+import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatPresenceUserRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
@@ -171,6 +171,14 @@ export default async function LivePage() {
     kind: asset.kind,
     isAnimated: asset.isAnimated
   }));
+  const presenceRows: PublicChatPresenceUserRow[] = chatData.presenceUsers.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    roles: user.roles,
+    status: user.status,
+    lastActiveAt: user.lastActiveAt
+  }));
 
   return (
     <PublicShell hideFooterOnMobile siteSettings={siteSettings}>
@@ -242,7 +250,7 @@ export default async function LivePage() {
             </section>
           </div>
 
-          <aside className="relative z-30 flex min-h-0 min-w-0 flex-1 overflow-hidden px-0 pb-0 lg:fixed lg:right-0 lg:top-[65px] lg:h-[calc(100dvh-65px)] lg:w-[340px] lg:px-0 xl:w-[360px] 2xl:w-[380px]">
+          <aside className="relative z-30 flex min-h-0 min-w-0 flex-1 overflow-hidden px-0 pb-0 lg:fixed lg:right-0 lg:top-[65px] lg:h-[calc(100dvh-65px)] lg:w-[340px] lg:overflow-visible lg:px-0 xl:w-[360px] 2xl:w-[380px]">
             <ChatRoomPanel
               className="flex h-full min-h-0 flex-col overflow-hidden rounded-none border-x-0 border-b-0 border-white/15 bg-bc-panel/75 shadow-none backdrop-blur-md lg:border-y-0 lg:border-r-0 lg:border-bc-line lg:bg-[#050712]/95 lg:backdrop-blur-none"
               compact
@@ -253,11 +261,13 @@ export default async function LivePage() {
               assets={assetRows}
               messagesClassName="min-h-0 flex-1 max-h-none p-2 lg:p-3"
               messages={messageRows}
+              presenceUsers={presenceRows}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}
               sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
               sheepSettings={sheepSettings}
+              showPresenceRail
               showRoomLinks={false}
             />
           </aside>
