@@ -16,12 +16,25 @@ test("sheep throw settings default to enabled with a five minute cooldown", () =
 });
 
 test("sheep throw settings input converts admin minutes to seconds", () => {
-  assert.deepEqual(normalizeSheepThrowSettingsInput({ enabled: false, cooldownMinutes: "2.5", costStars: "25" }), {
-    ...defaultSheepThrowSettings,
-    enabled: false,
-    cooldownSeconds: 150,
-    costStars: 25
-  });
+  assert.deepEqual(
+    normalizeSheepThrowSettingsInput({
+      enabled: false,
+      cooldownMinutes: "2.5",
+      costStars: "25",
+      overlayDurationSeconds: "5.5",
+      pollSeconds: "1.5",
+      maxRecentEvents: "24"
+    }),
+    {
+      ...defaultSheepThrowSettings,
+      enabled: false,
+      cooldownSeconds: 150,
+      costStars: 25,
+      overlayDurationMs: 5500,
+      pollMs: 1500,
+      maxRecentEvents: 24
+    }
+  );
 });
 
 test("sheep throw settings reject impossible cooldown values", () => {
@@ -32,6 +45,21 @@ test("sheep throw settings reject impossible cooldown values", () => {
 test("sheep throw settings reject impossible star costs", () => {
   assert.throws(() => normalizeSheepThrowSettingsInput({ enabled: true, cooldownMinutes: "5", costStars: "-1" }), /whole number/);
   assert.throws(() => normalizeSheepThrowSettingsInput({ enabled: true, cooldownMinutes: "5", costStars: "1.5" }), /whole number/);
+});
+
+test("sheep throw settings reject impossible overlay timing", () => {
+  assert.throws(
+    () => normalizeSheepThrowSettingsInput({ enabled: true, cooldownMinutes: "5", costStars: "10", overlayDurationSeconds: "1" }),
+    /duration/
+  );
+  assert.throws(
+    () => normalizeSheepThrowSettingsInput({ enabled: true, cooldownMinutes: "5", costStars: "10", pollSeconds: "0.2" }),
+    /polling/
+  );
+  assert.throws(
+    () => normalizeSheepThrowSettingsInput({ enabled: true, cooldownMinutes: "5", costStars: "10", maxRecentEvents: "3" }),
+    /queue/
+  );
 });
 
 test("sheep throw cooldown returns remaining seconds", () => {

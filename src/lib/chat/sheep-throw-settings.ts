@@ -11,6 +11,9 @@ export type SheepThrowSettingsInput = {
   enabled: boolean;
   cooldownMinutes: string;
   costStars: string;
+  overlayDurationSeconds?: string;
+  pollSeconds?: string;
+  maxRecentEvents?: string;
 };
 
 export const defaultSheepThrowSettings: SheepThrowSettings = {
@@ -40,6 +43,26 @@ function wholeNumber(value: unknown, fallback: number, min: number, max: number)
   return Math.min(max, Math.max(min, number));
 }
 
+function requiredDecimal(value: unknown, label: string, min: number, max: number) {
+  const number = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(number) || number < min || number > max) {
+    throw new Error(`${label} must be between ${min} and ${max}.`);
+  }
+
+  return number;
+}
+
+function requiredWholeNumber(value: unknown, label: string, min: number, max: number) {
+  const number = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw new Error(`${label} must be a whole number between ${min} and ${max}.`);
+  }
+
+  return number;
+}
+
 export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings {
   if (!isObject(value)) {
     return defaultSheepThrowSettings;
@@ -58,6 +81,16 @@ export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings 
 export function normalizeSheepThrowSettingsInput(input: SheepThrowSettingsInput): SheepThrowSettings {
   const cooldownMinutes = Number(input.cooldownMinutes);
   const costStars = Number(input.costStars);
+  const overlayDurationSeconds =
+    input.overlayDurationSeconds === undefined
+      ? defaultSheepThrowSettings.overlayDurationMs / 1000
+      : requiredDecimal(input.overlayDurationSeconds, "Sheep overlay duration", 1.8, 10);
+  const pollSeconds =
+    input.pollSeconds === undefined ? defaultSheepThrowSettings.pollMs / 1000 : requiredDecimal(input.pollSeconds, "Sheep polling speed", 1, 10);
+  const maxRecentEvents =
+    input.maxRecentEvents === undefined
+      ? defaultSheepThrowSettings.maxRecentEvents
+      : requiredWholeNumber(input.maxRecentEvents, "Sheep event queue", 4, 50);
 
   if (!Number.isFinite(cooldownMinutes) || cooldownMinutes < 0 || cooldownMinutes > 1440) {
     throw new Error("Sheep cooldown must be between 0 and 1440 minutes.");
@@ -71,7 +104,10 @@ export function normalizeSheepThrowSettingsInput(input: SheepThrowSettingsInput)
     ...defaultSheepThrowSettings,
     enabled: input.enabled,
     cooldownSeconds: Math.round(cooldownMinutes * 60),
-    costStars
+    costStars,
+    overlayDurationMs: Math.round(overlayDurationSeconds * 1000),
+    pollMs: Math.round(pollSeconds * 1000),
+    maxRecentEvents
   };
 }
 

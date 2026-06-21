@@ -20,6 +20,7 @@ import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
+import { getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getPublicSiteSettings, type LiveSocialLink } from "@/lib/admin/site-settings-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
@@ -102,12 +103,13 @@ function LiveSocialLinks({ links }: { links: LiveSocialLink[] }) {
 
 export default async function LivePage() {
   const currentUser = await getCurrentUser();
-  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings] = await Promise.all([
+  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings, sheepSettings] = await Promise.all([
     getPublicLiveState(),
     getPublicChatData("live", currentUser?.id),
     getRoleDisplayNameOverrides(),
     getPublicUpcomingStreamSchedules(),
-    getPublicSiteSettings()
+    getPublicSiteSettings(),
+    getSheepThrowSettings()
   ]);
   const [starSupport, currentStarBalance] = await Promise.all([
     getLiveStarSupportData(),
@@ -253,6 +255,7 @@ export default async function LivePage() {
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}
+              sheepSettings={sheepSettings}
               showRoomLinks={false}
             />
           </aside>

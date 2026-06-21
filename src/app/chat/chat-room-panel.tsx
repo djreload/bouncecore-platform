@@ -13,6 +13,7 @@ import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/a
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
 import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
+import { defaultSheepThrowSettings, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
@@ -30,6 +31,7 @@ type ChatRoomPanelProps = {
   messages: PublicChatMessageRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
+  sheepSettings?: SheepThrowSettings;
   roleDisplayLabels: RoleDisplayNameMap;
   className?: string;
   compact?: boolean;
@@ -151,6 +153,7 @@ export function ChatRoomPanel({
   messages,
   currentUser,
   currentStarBalance = 0,
+  sheepSettings = defaultSheepThrowSettings,
   roleDisplayLabels,
   className,
   compact = false,
@@ -187,6 +190,8 @@ export function ChatRoomPanel({
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
+  const currentUserCanAffordSheep = currentStarBalance >= sheepSettings.costStars;
+  const sheepThrowCostLabel = sheepSettings.costStars > 0 ? `${sheepSettings.costStars.toLocaleString("en-GB")} stars` : "Free";
   const roomLockedForUser = Boolean(visibleRoom?.lockedAt && !currentUserCanModerate);
   const stickerAssets = assets.filter((asset) => asset.kind === "sticker");
   const emojiAssets = assets.filter((asset) => asset.kind === "emoji");
@@ -654,7 +659,11 @@ export function ChatRoomPanel({
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
             const canThrowAtMessageAuthor = Boolean(
-              canUseMessageActions && currentUserCanThrowSheep && message.authorUserId && message.authorUserId !== currentUser?.id
+              canUseMessageActions &&
+                sheepSettings.enabled &&
+                currentUserCanThrowSheep &&
+                message.authorUserId &&
+                message.authorUserId !== currentUser?.id
             );
             const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
@@ -809,9 +818,19 @@ export function ChatRoomPanel({
                         <input name="intent" type="hidden" value="sheep" />
                         <input name="roomId" type="hidden" value={selectedRoom.id} />
                         <input name="messageId" type="hidden" value={message.id} />
-                        <Button className="min-h-7 px-2 text-xs" disabled={pending || roomLockedForUser} size="sm" type="submit" variant="ghost">
+                        <Button
+                          className="min-h-7 px-2 text-xs"
+                          disabled={pending || roomLockedForUser || !currentUserCanAffordSheep}
+                          size="sm"
+                          title={currentUserCanAffordSheep ? `Throw sheep for ${sheepThrowCostLabel}` : `Need ${sheepThrowCostLabel} to throw sheep`}
+                          type="submit"
+                          variant="ghost"
+                        >
                           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
                           Throw sheep
+                          <span className="rounded-full bg-bc-acid/15 px-1.5 py-0.5 text-[10px] font-black text-bc-acid">
+                            {sheepThrowCostLabel}
+                          </span>
                         </Button>
                       </form>
                     ) : null}

@@ -98,7 +98,10 @@ export async function adminChatroomsAction(
         {
           enabled: formString(formData, "enabled") === "true",
           cooldownMinutes: formString(formData, "cooldownMinutes"),
-          costStars: formString(formData, "costStars")
+          costStars: formString(formData, "costStars"),
+          overlayDurationSeconds: formString(formData, "overlayDurationSeconds"),
+          pollSeconds: formString(formData, "pollSeconds"),
+          maxRecentEvents: formString(formData, "maxRecentEvents")
         },
         actor.id
       );

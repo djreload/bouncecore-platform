@@ -157,12 +157,12 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
             <Badge tone="acid">Chat fun</Badge>
             <h3 className="mt-4 text-2xl font-black">Sheep throw overlay</h3>
             <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-              Let signed-in chat users trigger the sheep overlay from chat. The cooldown is enforced per user.
+              Let supporters trigger the sheep overlay from chat. The cooldown is enforced per user and the overlay queue is targeted.
             </p>
           </div>
           <Badge tone={sheepSettings.enabled ? "acid" : "muted"}>{sheepSettings.enabled ? "Enabled" : "Disabled"}</Badge>
         </div>
-        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[180px_220px_220px_auto]">
+        <form action={formAction} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_repeat(5,minmax(140px,1fr))_auto]">
           <input name="intent" type="hidden" value="sheep-settings" />
           <div>
             <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-enabled">
@@ -210,6 +210,54 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels, sheepS
               type="number"
             />
             <p className="mt-1 text-xs text-bc-muted">Stars deducted from the supporter who throws. Use 0 for free.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-overlay-duration">
+              Overlay seconds
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.overlayDurationMs / 1000)}
+              id="sheep-overlay-duration"
+              min={1.8}
+              max={10}
+              name="overlayDurationSeconds"
+              step={0.1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">How long each targeted sheep throw stays on screen.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-poll-speed">
+              Poll seconds
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.pollMs / 1000)}
+              id="sheep-poll-speed"
+              min={1}
+              max={10}
+              name="pollSeconds"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">How often viewers check for sheep throws targeted at them.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-max-events">
+              Queue depth
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.maxRecentEvents)}
+              id="sheep-max-events"
+              min={4}
+              max={50}
+              name="maxRecentEvents"
+              step={1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Maximum recent targeted throws to queue after a viewer reconnects.</p>
           </div>
           <div className="flex items-end">
             <Button disabled={pending} type="submit" variant="dark">
