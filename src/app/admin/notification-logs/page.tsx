@@ -1,9 +1,8 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Bell, CheckCircle2, Clock, Mail, Smartphone, Trash2, TriangleAlert } from "lucide-react";
-import { clearNotificationLogsAction } from "@/app/admin/notification-logs/actions";
+import { Activity, Bell, CheckCircle2, Clock, Mail, Smartphone, TriangleAlert } from "lucide-react";
+import { ClearNotificationLogsForm } from "@/app/admin/notification-logs/clear-notification-logs-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { clearNotificationLogsConfirmationText } from "@/lib/admin/maintenance-core";
 import { getAdminNotificationLogData } from "@/lib/admin/notification-log-service";
 import { requireUserPermission } from "@/lib/auth/guards";
@@ -130,17 +129,10 @@ export default async function AdminNotificationLogsPage() {
                 Deletes stored in-app notification rows, mobile push delivery rows, and email delivery audit events.
               </p>
             </div>
-            <form action={clearNotificationLogsAction} className="flex flex-wrap gap-2">
-              <input
-                className="min-h-10 w-64 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                name="confirmation"
-                placeholder={clearNotificationLogsConfirmationText}
-              />
-              <Button disabled={!data.stats.totalNotifications && !data.stats.emailEvents} type="submit" variant="pink">
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                Clear notification logs
-              </Button>
-            </form>
+            <ClearNotificationLogsForm
+              confirmationText={clearNotificationLogsConfirmationText}
+              disabled={!data.stats.totalNotifications && !data.stats.emailEvents}
+            />
           </div>
         </section>
 
