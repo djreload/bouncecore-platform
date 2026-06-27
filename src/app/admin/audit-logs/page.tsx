@@ -1,8 +1,7 @@
-import { Activity, ShieldCheck, Trash2 } from "lucide-react";
-import { clearAuditLogsAction } from "@/app/admin/audit-logs/actions";
+import { Activity, ShieldCheck } from "lucide-react";
+import { ClearAuditLogsForm } from "@/app/admin/audit-logs/clear-audit-logs-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { clearAuditLogsConfirmationText } from "@/lib/admin/maintenance-core";
 import { getAdminAuditLogs } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
@@ -49,17 +48,7 @@ export default async function AdminAuditLogsPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="acid">Database-backed</Badge>
             {canClearAuditLogs ? (
-              <form action={clearAuditLogsAction} className="flex flex-wrap gap-2">
-                <input
-                  className="min-h-9 w-52 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
-                  name="confirmation"
-                  placeholder={clearAuditLogsConfirmationText}
-                />
-                <Button disabled={!auditLogs.length} size="sm" type="submit" variant="pink">
-                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                  Clear logs
-                </Button>
-              </form>
+              <ClearAuditLogsForm confirmationText={clearAuditLogsConfirmationText} disabled={!auditLogs.length} />
             ) : null}
           </div>
         </div>
