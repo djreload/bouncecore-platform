@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { AdminUserInviteActionState } from "@/app/admin/users/state";
+import type { AdminUserInviteActionState, AdminUserManagementActionState } from "@/app/admin/users/state";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { addAdminUserRole, removeAdminUserRole, updateAdminUserStatus } from "@/lib/auth/user-admin-service";
@@ -38,78 +38,142 @@ function adminInviteUrl(token: string) {
   return url.toString();
 }
 
-export async function updateAdminUserStatusAction(formData: FormData) {
-  const actor = await requireSignedInUser();
-
-  if (!hasPermission(actor, "users.manage")) {
-    throw new Error("You do not have permission to manage users.");
-  }
-
-  await updateAdminUserStatus(formString(formData, "userId"), formString(formData, "status"), actor.id);
-  revalidateUserAdminViews();
+function actionErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
-export async function addAdminUserRoleAction(formData: FormData) {
+export async function updateAdminUserStatusAction(
+  _previousState: AdminUserManagementActionState,
+  formData: FormData
+): Promise<AdminUserManagementActionState> {
   const actor = await requireSignedInUser();
 
-  if (!hasPermission(actor, "roles.manage")) {
-    throw new Error("You do not have permission to assign roles.");
-  }
-
-  await addAdminUserRole(formString(formData, "userId"), formString(formData, "role"), actor.id);
-  revalidateUserAdminViews();
-}
-
-export async function removeAdminUserRoleAction(formData: FormData) {
-  const actor = await requireSignedInUser();
-
-  if (!hasPermission(actor, "roles.manage")) {
-    throw new Error("You do not have permission to remove roles.");
-  }
-
-  await removeAdminUserRole(formString(formData, "userId"), formString(formData, "role"), actor.id);
-  revalidateUserAdminViews();
-}
-
-export async function deleteAdminUserAction(formData: FormData) {
-  const actor = await requireSignedInUser();
-
-  if (!hasPermission(actor, "users.manage")) {
-    throw new Error("You do not have permission to delete users.");
-  }
-
-  const userId = formString(formData, "userId");
-  const confirmation = formString(formData, "confirmation").trim().toLowerCase();
-
-  if (!userId) {
-    throw new Error("Missing user.");
-  }
-
-  if (userId === actor.id) {
-    throw new Error("Use account settings to delete your own account.");
-  }
-
-  const target = await prisma.user.findUniqueOrThrow({
-    where: {
-      id: userId
-    },
-    select: {
-      email: true
+  try {
+    if (!hasPermission(actor, "users.manage")) {
+      throw new Error("You do not have permission to manage users.");
     }
-  });
 
-  if (confirmation !== target.email.toLowerCase()) {
-    throw new Error("Type the user's email address to confirm deletion.");
+    await updateAdminUserStatus(formString(formData, "userId"), formString(formData, "status"), actor.id);
+    revalidateUserAdminViews();
+
+    return {
+      message: "User status updated.",
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: actionErrorMessage(error, "User status could not be updated."),
+      status: "error"
+    };
   }
+}
 
-  await deleteUserAndRelatedData({
-    actorId: actor.id,
-    mode: "admin",
-    reason: "Deleted from the admin user directory.",
-    targetUserId: userId
-  });
+export async function addAdminUserRoleAction(
+  _previousState: AdminUserManagementActionState,
+  formData: FormData
+): Promise<AdminUserManagementActionState> {
+  const actor = await requireSignedInUser();
 
-  revalidateUserAdminViews();
+  try {
+    if (!hasPermission(actor, "roles.manage")) {
+      throw new Error("You do not have permission to assign roles.");
+    }
+
+    await addAdminUserRole(formString(formData, "userId"), formString(formData, "role"), actor.id);
+    revalidateUserAdminViews();
+
+    return {
+      message: "Role assigned.",
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: actionErrorMessage(error, "Role could not be assigned."),
+      status: "error"
+    };
+  }
+}
+
+export async function removeAdminUserRoleAction(
+  _previousState: AdminUserManagementActionState,
+  formData: FormData
+): Promise<AdminUserManagementActionState> {
+  const actor = await requireSignedInUser();
+
+  try {
+    if (!hasPermission(actor, "roles.manage")) {
+      throw new Error("You do not have permission to remove roles.");
+    }
+
+    await removeAdminUserRole(formString(formData, "userId"), formString(formData, "role"), actor.id);
+    revalidateUserAdminViews();
+
+    return {
+      message: "Role removed.",
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: actionErrorMessage(error, "Role could not be removed."),
+      status: "error"
+    };
+  }
+}
+
+export async function deleteAdminUserAction(
+  _previousState: AdminUserManagementActionState,
+  formData: FormData
+): Promise<AdminUserManagementActionState> {
+  const actor = await requireSignedInUser();
+
+  try {
+    if (!hasPermission(actor, "users.manage")) {
+      throw new Error("You do not have permission to delete users.");
+    }
+
+    const userId = formString(formData, "userId");
+    const confirmation = formString(formData, "confirmation").trim().toLowerCase();
+
+    if (!userId) {
+      throw new Error("Missing user.");
+    }
+
+    if (userId === actor.id) {
+      throw new Error("Use account settings to delete your own account.");
+    }
+
+    const target = await prisma.user.findUniqueOrThrow({
+      where: {
+        id: userId
+      },
+      select: {
+        email: true
+      }
+    });
+
+    if (confirmation !== target.email.toLowerCase()) {
+      throw new Error("Type the user's email address to confirm deletion.");
+    }
+
+    const deletedUser = await deleteUserAndRelatedData({
+      actorId: actor.id,
+      mode: "admin",
+      reason: "Deleted from the admin user directory.",
+      targetUserId: userId
+    });
+
+    revalidateUserAdminViews();
+
+    return {
+      message: `${deletedUser.email} and related account data deleted.`,
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: actionErrorMessage(error, "User account could not be deleted."),
+      status: "error"
+    };
+  }
 }
 
 export async function createAdminUserInviteAction(
@@ -163,13 +227,28 @@ export async function createAdminUserInviteAction(
   }
 }
 
-export async function revokeAdminUserInviteAction(formData: FormData) {
+export async function revokeAdminUserInviteAction(
+  _previousState: AdminUserManagementActionState,
+  formData: FormData
+): Promise<AdminUserManagementActionState> {
   const actor = await requireSignedInUser();
 
-  if (!hasPermission(actor, "users.manage")) {
-    throw new Error("You do not have permission to revoke invites.");
-  }
+  try {
+    if (!hasPermission(actor, "users.manage")) {
+      throw new Error("You do not have permission to revoke invites.");
+    }
 
-  await revokeAdminUserInvite(formString(formData, "inviteId"), actor.id);
-  revalidateUserAdminViews();
+    await revokeAdminUserInvite(formString(formData, "inviteId"), actor.id);
+    revalidateUserAdminViews();
+
+    return {
+      message: "Invite revoked.",
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: actionErrorMessage(error, "Invite could not be revoked."),
+      status: "error"
+    };
+  }
 }

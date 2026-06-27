@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Ban, Check, Clipboard, Clock, Mail, Send, UserPlus } from "lucide-react";
-import { createAdminUserInviteAction, revokeAdminUserInviteAction } from "@/app/admin/users/actions";
+import { Check, Clipboard, Clock, Mail, Send, UserPlus } from "lucide-react";
+import { createAdminUserInviteAction } from "@/app/admin/users/actions";
+import { RevokeInviteForm } from "@/app/admin/users/user-management-forms";
 import {
   initialAdminUserInviteActionState,
   type AdminUserInviteActionState
@@ -226,13 +227,7 @@ export function AdminUserInvitesPanel({ invites, roleDisplayLabels, roles }: Adm
                   </td>
                   <td className="px-4 py-3">
                     {inviteIsRevocable(invite) ? (
-                      <form action={revokeAdminUserInviteAction}>
-                        <input name="inviteId" type="hidden" value={invite.id} />
-                        <Button size="sm" type="submit" variant="dark">
-                          <Ban className="h-4 w-4" aria-hidden="true" />
-                          Revoke
-                        </Button>
-                      </form>
+                      <RevokeInviteForm inviteId={invite.id} />
                     ) : (
                       <Badge tone="muted">Closed</Badge>
                     )}

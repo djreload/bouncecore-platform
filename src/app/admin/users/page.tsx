@@ -1,14 +1,13 @@
-import { Clock, KeyRound, Mail, Plus, Save, ShieldCheck, Trash2, X } from "lucide-react";
-import {
-  addAdminUserRoleAction,
-  deleteAdminUserAction,
-  removeAdminUserRoleAction,
-  updateAdminUserStatusAction
-} from "@/app/admin/users/actions";
+import { Clock, KeyRound, Mail, ShieldCheck } from "lucide-react";
 import { AdminUserInvitesPanel } from "@/app/admin/users/invites-panel";
+import {
+  AddUserRoleForm,
+  DeleteUserForm,
+  RemoveUserRoleForm,
+  UserStatusForm
+} from "@/app/admin/users/user-management-forms";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { getAdminRoles, getAdminUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { hasPermission } from "@/lib/auth/rbac";
@@ -133,16 +132,7 @@ export default async function AdminUsersPage() {
                               </Badge>
                               {userRole.role.name === "owner" && isLastOwner ? (
                                 <Badge tone="amber">Required</Badge>
-                              ) : (
-                                <form action={removeAdminUserRoleAction}>
-                                  <input name="userId" type="hidden" value={user.id} />
-                                  <input name="role" type="hidden" value={userRole.role.name} />
-                                  <Button size="sm" type="submit" variant="dark">
-                                    <X className="h-4 w-4" aria-hidden="true" />
-                                    Remove
-                                  </Button>
-                                </form>
-                              )}
+                              ) : <RemoveUserRoleForm role={userRole.role.name} userId={user.id} />}
                             </div>
                           ))
                         ) : (
@@ -152,24 +142,7 @@ export default async function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={statusTone(user.status)}>{user.status}</Badge>
-                      <form action={updateAdminUserStatusAction} className="mt-3 flex flex-wrap gap-2">
-                        <input name="userId" type="hidden" value={user.id} />
-                        <select
-                          className="min-h-9 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
-                          defaultValue={user.status}
-                          name="status"
-                        >
-                          {statusChoices.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
-                        <Button size="sm" type="submit" variant="ghost">
-                          <Save className="h-4 w-4" aria-hidden="true" />
-                          Save
-                        </Button>
-                      </form>
+                      <UserStatusForm statuses={statusChoices} userId={user.id} value={user.status} />
                     </td>
                     <td className="px-4 py-3 text-bc-muted">
                       <div className="flex items-center gap-2">
@@ -186,23 +159,14 @@ export default async function AdminUsersPage() {
                     <td className="px-4 py-3">
                       <div className="grid gap-3">
                         {assignableRoles.length ? (
-                          <form action={addAdminUserRoleAction} className="flex flex-wrap gap-2">
-                            <input name="userId" type="hidden" value={user.id} />
-                            <select
-                              className="min-h-9 max-w-[220px] rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
-                              name="role"
-                            >
-                              {assignableRoles.map((role) => (
-                                <option key={role.id} value={role.name}>
-                                  {roleDisplayName(role.name, roleDisplayLabels)} ({role.name})
-                                </option>
-                              ))}
-                            </select>
-                            <Button size="sm" type="submit" variant="primary">
-                              <Plus className="h-4 w-4" aria-hidden="true" />
-                              Add role
-                            </Button>
-                          </form>
+                          <AddUserRoleForm
+                            roles={assignableRoles.map((role) => ({
+                              id: role.id,
+                              label: `${roleDisplayName(role.name, roleDisplayLabels)} (${role.name})`,
+                              value: role.name
+                            }))}
+                            userId={user.id}
+                          />
                         ) : (
                           <Badge tone="muted">All roles assigned</Badge>
                         )}
@@ -213,25 +177,7 @@ export default async function AdminUsersPage() {
                           ) : isLastOwner ? (
                             <Badge tone="amber">Last owner cannot be deleted</Badge>
                           ) : (
-                            <form action={deleteAdminUserAction} className="grid gap-2">
-                              <input name="userId" type="hidden" value={user.id} />
-                              <label className="text-xs font-semibold text-bc-muted" htmlFor={`delete-${user.id}`}>
-                                Type this user&apos;s email to delete the account and related data.
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                <input
-                                  className="min-h-9 max-w-[260px] rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
-                                  id={`delete-${user.id}`}
-                                  name="confirmation"
-                                  placeholder={user.email}
-                                  type="email"
-                                />
-                                <Button size="sm" type="submit" variant="pink">
-                                  <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                  Delete
-                                </Button>
-                              </div>
-                            </form>
+                            <DeleteUserForm email={user.email} userId={user.id} />
                           )
                         ) : null}
                       </div>
