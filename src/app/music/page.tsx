@@ -183,6 +183,8 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
               {tracks.map((track) => {
                 const owned = purchasedTrackIds.has(track.id);
                 const ownTrack = ownTrackIds.has(track.id);
+                const canBuyTrack = track.pricePence > 0 && Boolean(track.downloadUrl);
+                const cartLabel = track.pricePence <= 0 ? "Free track" : track.downloadUrl ? "Add to cart" : "Delivery missing";
 
                 return (
                   <article className="grid gap-4 p-4 md:grid-cols-[6rem_minmax(0,1fr)_14rem] md:items-center" key={track.id}>
@@ -243,7 +245,12 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                             Downloads
                           </ButtonLink>
                         ) : (
-                          <MusicCartButton disabled={track.pricePence <= 0} size="sm" trackId={track.id} />
+                          <MusicCartButton
+                            disabled={!canBuyTrack}
+                            label={cartLabel}
+                            size="sm"
+                            trackId={track.id}
+                          />
                         )}
                       </div>
                     </div>
@@ -276,6 +283,8 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                   const owned = purchasedTrackIds.has(track.id);
                   const ownTrack = ownTrackIds.has(track.id);
                   const rank = index + 1;
+                  const canBuyTrack = track.pricePence > 0 && Boolean(track.downloadUrl);
+                  const cartLabel = track.pricePence <= 0 ? "Free track" : track.downloadUrl ? "Add to cart" : "Delivery missing";
 
                   return (
                     <li className={`p-3 ${index < 5 ? "bc-music-top-five" : ""}`} key={track.id}>
@@ -304,7 +313,12 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                             Downloads
                           </ButtonLink>
                         ) : (
-                          <MusicCartButton disabled={track.pricePence <= 0} size="sm" trackId={track.id} />
+                          <MusicCartButton
+                            disabled={!canBuyTrack}
+                            label={cartLabel}
+                            size="sm"
+                            trackId={track.id}
+                          />
                         )}
                       </div>
                     </li>

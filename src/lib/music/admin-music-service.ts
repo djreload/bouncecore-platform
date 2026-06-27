@@ -139,6 +139,12 @@ function parseBpm(value: string | undefined) {
   return bpm;
 }
 
+function assertApprovedTrackHasDelivery(status: DigitalTrackStatus, downloadUrl: string | null) {
+  if (status === "approved" && !downloadUrl) {
+    throw new Error("Approved tracks need a download MP3 or Google Drive delivery link before they can go live.");
+  }
+}
+
 async function normalizeTrackInput(input: AdminTrackInput) {
   assertTrackStatus(input.status);
 
@@ -148,10 +154,14 @@ async function normalizeTrackInput(input: AdminTrackInput) {
     throw new Error("Track title must be at least 2 characters.");
   }
 
+  const downloadUrl = await normalizeDownloadUrl(input.downloadUrl);
+
+  assertApprovedTrackHasDelivery(input.status, downloadUrl);
+
   return {
     artworkUrl: normalizeOptionalImageUrl(input.artworkUrl, "Track artwork URL"),
     bpm: parseBpm(input.bpm),
-    downloadUrl: await normalizeDownloadUrl(input.downloadUrl),
+    downloadUrl,
     genre: normalizedText(input.genre, 60),
     licenseSummary: normalizedText(input.licenseSummary, 1200),
     licenseType: normalizedLicenseType(input.licenseType),
@@ -344,6 +354,9 @@ export async function setAdminTrackStatus(actorId: string, trackId: string, stat
       id: trackId
     }
   });
+
+  assertApprovedTrackHasDelivery(status, existing.downloadUrl);
+
   const track = await prisma.digitalTrack.update({
     where: {
       id: trackId

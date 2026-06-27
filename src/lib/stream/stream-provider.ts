@@ -108,7 +108,7 @@ type StreamCoreSnapshot = {
   error?: string;
   health: StreamHealth;
   playbackUrl: string | null;
-  provider: "mock" | "stream-core";
+  provider: "mock" | "stream-core" | "unconfigured";
   reachable: boolean;
   status: StreamStatus;
   viewerCount: number;
@@ -162,6 +162,14 @@ function parseSnapshot(value: unknown): StreamCoreSnapshot {
   };
 }
 
+function isMockProviderAllowed() {
+  return process.env.NODE_ENV !== "production" || envValue("ALLOW_MOCK_STREAM_PROVIDER").toLowerCase() === "true";
+}
+
+function unsupportedProviderOperation(operation: string): never {
+  throw new Error(`${operation} is not supported by the configured stream provider.`);
+}
+
 class LocalStreamKeyFactory {
   protected async createKey(keyId: string): Promise<StreamKeyResult> {
     const rawKey = `bc_live_${randomBytes(32).toString("base64url")}`;
@@ -173,6 +181,61 @@ class LocalStreamKeyFactory {
       fingerprint,
       createdAt: new Date().toISOString()
     };
+  }
+}
+
+class MisconfiguredStreamProvider implements StreamProvider {
+  constructor(
+    private readonly mode: string,
+    private readonly reason: string
+  ) {}
+
+  async getStreamStatus(): Promise<StreamStatus> {
+    return "degraded";
+  }
+
+  async getPlaybackUrl(): Promise<string | null> {
+    return envValue("PUBLIC_PLAYBACK_URL") || null;
+  }
+
+  async getViewerCount(): Promise<number> {
+    return 0;
+  }
+
+  async getStreamHealth(): Promise<StreamHealth> {
+    return {
+      checkedAt: new Date().toISOString(),
+      ingestConnected: false,
+      status: "critical"
+    };
+  }
+
+  async rotateStreamKey(): Promise<StreamKeyResult> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
+  }
+
+  async createStreamKeyForUser(): Promise<StreamKeyResult> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
+  }
+
+  async revokeStreamKey(): Promise<void> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
+  }
+
+  async updateStreamSettings(): Promise<void> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
+  }
+
+  async startRecording(): Promise<{ recordingId: string }> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
+  }
+
+  async stopRecording(): Promise<void> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
+  }
+
+  async handleWebhook(): Promise<void> {
+    throw new Error(`Stream provider ${this.mode} is not ready: ${this.reason}`);
   }
 }
 
@@ -206,23 +269,23 @@ export class MockStreamProvider extends LocalStreamKeyFactory implements StreamP
   }
 
   async revokeStreamKey(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Stream key revocation");
   }
 
   async updateStreamSettings(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Stream settings update");
   }
 
   async startRecording(): Promise<{ recordingId: string }> {
-    return { recordingId: `rec_${randomUUID()}` };
+    unsupportedProviderOperation("Recording start");
   }
 
   async stopRecording(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Recording stop");
   }
 
   async handleWebhook(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Provider webhook handling");
   }
 }
 
@@ -269,23 +332,23 @@ export class StreamCoreHttpProvider extends LocalStreamKeyFactory implements Str
   }
 
   async revokeStreamKey(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Stream key revocation");
   }
 
   async updateStreamSettings(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Stream settings update");
   }
 
   async startRecording(): Promise<{ recordingId: string }> {
-    return { recordingId: `rec_${randomUUID()}` };
+    unsupportedProviderOperation("Recording start");
   }
 
   async stopRecording(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Recording stop");
   }
 
   async handleWebhook(): Promise<void> {
-    return;
+    unsupportedProviderOperation("Provider webhook handling");
   }
 
   private async readSnapshot() {
@@ -334,7 +397,13 @@ export class StreamCoreHttpProvider extends LocalStreamKeyFactory implements Str
 }
 
 export function getStreamProviderMode() {
-  return envValue("STREAM_PROVIDER") || "mock";
+  const configuredMode = envValue("STREAM_PROVIDER");
+
+  if (configuredMode) {
+    return configuredMode;
+  }
+
+  return isMockProviderAllowed() ? "mock" : "unconfigured";
 }
 
 export function getStreamProvider(): StreamProvider {
@@ -345,5 +414,14 @@ export function getStreamProvider(): StreamProvider {
     return new StreamCoreHttpProvider(baseUrl, envValue("STREAM_CORE_INTERNAL_TOKEN") || null);
   }
 
-  return new MockStreamProvider();
+  if (mode === "mock" && isMockProviderAllowed()) {
+    return new MockStreamProvider();
+  }
+
+  const reason =
+    mode === "stream-core" || mode === "http"
+      ? "STREAM_CORE_INTERNAL_URL is missing."
+      : "Set STREAM_PROVIDER=stream-core with STREAM_CORE_INTERNAL_URL, or explicitly allow mock mode only for local development.";
+
+  return new MisconfiguredStreamProvider(mode, reason);
 }

@@ -11,7 +11,7 @@ import type { StreamKeySummary } from "@/lib/stream/stream-key-service";
 
 type StreamKeyPanelProps = {
   initialKey: StreamKeySummary | null;
-  ingestUrl: string;
+  ingestUrl: string | null;
 };
 
 type CopyTarget = "key" | "server" | null;
@@ -34,7 +34,8 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
   const [copied, setCopied] = useState<CopyTarget>(null);
   const key = state.key !== undefined ? state.key : initialKey;
   const hasActiveKey = Boolean(key && key.status === "active" && !key.revokedAt);
-  const obsServerUrl = obsServerUrlFromIngestUrl(ingestUrl);
+  const obsServerUrl = ingestUrl ? obsServerUrlFromIngestUrl(ingestUrl) : null;
+  const obsServerLabel = obsServerUrl ?? "RTMPS ingest URL is not configured.";
 
   async function copyValue(target: Exclude<CopyTarget, null>, value: string | null) {
     if (!value) {
@@ -82,7 +83,8 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Badge tone="cyan">OBS server</Badge>
                 <button
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-bc-electric hover:text-white"
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-bc-electric hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!obsServerUrl}
                   onClick={() => copyValue("server", obsServerUrl)}
                   type="button"
                 >
@@ -90,7 +92,7 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
                   {copied === "server" ? "Copied" : "Copy server"}
                 </button>
               </div>
-              <p className="mt-3 break-all font-mono text-sm text-bc-muted">{obsServerUrl}</p>
+              <p className="mt-3 break-all font-mono text-sm text-bc-muted">{obsServerLabel}</p>
             </div>
           </div>
         ) : (
@@ -144,7 +146,7 @@ export function StreamKeyPanel({ initialKey, ingestUrl }: StreamKeyPanelProps) {
         <dl className="mt-4 space-y-4 text-sm">
           <div>
             <dt className="font-semibold">Server</dt>
-            <dd className="mt-1 break-all text-bc-muted">{obsServerUrl}</dd>
+            <dd className="mt-1 break-all text-bc-muted">{obsServerLabel}</dd>
           </div>
           <div>
             <dt className="font-semibold">Stream key</dt>

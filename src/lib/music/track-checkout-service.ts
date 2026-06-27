@@ -39,6 +39,12 @@ function producerEarnings(pricePence: number) {
   };
 }
 
+function assertTrackHasDelivery(track: { downloadUrl: string | null }) {
+  if (!track.downloadUrl) {
+    throw new Error("Music checkout cannot start until the track has a download MP3 or Google Drive delivery link.");
+  }
+}
+
 async function loadCheckoutTrack(trackId: string) {
   if (!trackId) {
     throw new Error("Choose a music track.");
@@ -60,6 +66,8 @@ async function loadCheckoutTrack(trackId: string) {
   if (track.pricePence <= 0) {
     throw new Error("Free tracks cannot use PayPal checkout.");
   }
+
+  assertTrackHasDelivery(track);
 
   return track;
 }
@@ -110,6 +118,8 @@ async function loadCheckoutTracks(trackIds: string[]) {
     if (track.pricePence <= 0) {
       throw new Error("Free tracks cannot use PayPal checkout.");
     }
+
+    assertTrackHasDelivery(track);
 
     return track;
   });

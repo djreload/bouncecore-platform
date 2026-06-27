@@ -134,7 +134,10 @@ function absolutePath(path: string) {
 export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData> {
   const [paypal, stream] = await Promise.all([getPayPalIntegrationData(), getAdminStreamControlData()]);
   const streamProviderMode = getStreamProviderMode();
-  const streamProviderReady = streamProviderMode !== "mock" && configured("STREAM_CORE_INTERNAL_URL");
+  const normalizedStreamProviderMode = streamProviderMode.toLowerCase();
+  const streamProviderReady =
+    (normalizedStreamProviderMode === "stream-core" || normalizedStreamProviderMode === "http") &&
+    configured("STREAM_CORE_INTERNAL_URL");
   const transcoderEnabled = enabled("TRANSCODER_ENABLED");
   const streamIsActive = stream.provider.health.ingestConnected || stream.provider.status !== "offline";
   const playbackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") || stream.provider.playbackUrl : stream.provider.playbackUrl;
@@ -168,8 +171,10 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       "Stream provider",
       streamProviderReady,
       streamProviderMode,
-      streamProviderMode === "mock"
-        ? "Mock mode is available for local fallback. Use stream-core/http mode for real provider telemetry."
+      normalizedStreamProviderMode === "mock"
+        ? "Mock mode is local-only. Use stream-core/http mode for real provider telemetry."
+        : normalizedStreamProviderMode === "unconfigured"
+          ? "Set STREAM_PROVIDER=stream-core and STREAM_CORE_INTERNAL_URL before production streaming."
         : "Provider selector behind the stream boundary."
     ),
     check(

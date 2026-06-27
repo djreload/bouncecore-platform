@@ -210,7 +210,17 @@ export function MusicCartProvider({
   );
 }
 
-export function MusicCartButton({ disabled, size = "sm", trackId }: { disabled?: boolean; size?: "sm" | "md"; trackId: string }) {
+export function MusicCartButton({
+  disabled,
+  label = "Add to cart",
+  size = "sm",
+  trackId
+}: {
+  disabled?: boolean;
+  label?: string;
+  size?: "sm" | "md";
+  trackId: string;
+}) {
   const { addTrack, isInCart, openCart } = useMusicCart();
   const added = isInCart(trackId);
 
@@ -226,7 +236,7 @@ export function MusicCartButton({ disabled, size = "sm", trackId }: { disabled?:
   return (
     <Button disabled={disabled} onClick={() => addTrack(trackId)} size={size} type="button" variant="primary">
       <ShoppingCart className="h-4 w-4" aria-hidden="true" />
-      Add to cart
+      {label}
     </Button>
   );
 }
