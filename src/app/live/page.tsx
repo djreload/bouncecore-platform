@@ -184,7 +184,7 @@ export default async function LivePage() {
     <PublicShell hideFooterOnMobile siteSettings={siteSettings}>
       <main className="h-[calc(100dvh-65px)] min-h-0 w-full overflow-hidden px-0 py-0 lg:-mt-[65px] lg:h-auto lg:overflow-visible lg:px-4 xl:px-5">
         <section className="mx-auto flex h-full min-h-0 w-full max-w-[1920px] flex-col overflow-hidden lg:block lg:h-auto lg:min-h-[100dvh] lg:overflow-visible">
-          <div className="min-w-0 shrink-0 lg:mr-[356px] lg:pb-4 lg:pt-[81px] xl:mr-[380px] 2xl:mr-[400px]">
+          <div className="min-w-0 shrink-0 transition-[margin-right] duration-300 ease-out lg:mr-[calc(340px+var(--bc-live-presence-rail-width,224px)+16px)] lg:pb-4 lg:pt-[81px] xl:mr-[calc(360px+var(--bc-live-presence-rail-width,224px)+20px)] 2xl:mr-[calc(380px+var(--bc-live-presence-rail-width,224px)+20px)]">
             <div className="relative z-20 shrink-0 lg:static lg:z-auto">
               <LivePlaybackPlayer
                 offlineImageUrl={offlineImageUrl}

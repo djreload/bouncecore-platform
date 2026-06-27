@@ -406,6 +406,18 @@ export function ChatRoomPanel({
   }, [mentionQuery, mentionSuggestions]);
   const activeReplyTarget = replyTarget && visibleMessages.some((message) => message.id === replyTarget.id) ? replyTarget : null;
 
+  useEffect(() => {
+    if (!showPresenceRail) {
+      return;
+    }
+
+    document.documentElement.style.setProperty("--bc-live-presence-rail-width", presenceRailOpen ? "224px" : "0px");
+
+    return () => {
+      document.documentElement.style.removeProperty("--bc-live-presence-rail-width");
+    };
+  }, [presenceRailOpen, showPresenceRail]);
+
   const scrollToLatestMessage = useCallback(() => {
     const viewport = messagesViewportRef.current;
 
