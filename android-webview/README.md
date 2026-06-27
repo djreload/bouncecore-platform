@@ -10,7 +10,7 @@ This is a small native Android wrapper for the Bouncecore site. It renders the c
 - Interstitial ad unit: set with `LEVELPLAY_INTERSTITIAL_AD_UNIT_ID`
 
 The Android wrapper uses Unity LevelPlay SDK. Ads are disabled if the app key is missing.
-At runtime the app fetches `https://your-domain.example/api/mobile/v1/config` and uses the saved admin mobile settings first.
+At runtime the app fetches `<https-url>/api/mobile/v1/config` and uses the saved admin mobile settings first.
 The Gradle properties are fallback values for local testing or if the backend config cannot be reached.
 
 ## Build
@@ -20,13 +20,13 @@ Open this `android-webview` folder in Android Studio, let Gradle sync, then buil
 To point the WebView at your live site, set this Gradle property:
 
 ```properties
-BOUNCECORE_WEB_URL=https://your-domain.example
+BOUNCECORE_WEB_URL=<https-url>
 ```
 
 For command-line debug builds on Windows:
 
 ```powershell
-.\android-webview\gradlew.bat -p android-webview --no-daemon assembleDebug -PBOUNCECORE_WEB_URL=https://your-domain.example -PLEVELPLAY_APP_KEY=<app-key> -PLEVELPLAY_BANNER_AD_UNIT_ID=<banner-ad-unit-id> -PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=<interstitial-ad-unit-id>
+.\android-webview\gradlew.bat -p android-webview --no-daemon assembleDebug -PBOUNCECORE_WEB_URL=<https-url> -PLEVELPLAY_APP_KEY=<app-key> -PLEVELPLAY_BANNER_AD_UNIT_ID=<banner-ad-unit-id> -PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=<interstitial-ad-unit-id>
 ```
 
 The debug APK is written to `android-webview/app/build/outputs/apk/debug/app-debug.apk`.
@@ -38,7 +38,7 @@ Use the release scripts from the repository root:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1 -GeneratePasswords
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://your-domain.example -VersionCode 2 -VersionName 1.0.1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl <https-url> -VersionCode 2 -VersionName 1.0.1
 ```
 
 For Google Play, add `-Bundle` to create `app-release.aab`.
@@ -47,7 +47,7 @@ Full release instructions are in `docs/ANDROID_RELEASE.md`. Back up `android-web
 Release builds can also embed fallback mobile integration values used before the backend config response is available:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://your-domain.example -VersionCode 1 -VersionName 1.0.0 -Bundle -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-unit-id> -InterstitialAdUnitId <interstitial-unit-id>
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl <https-url> -VersionCode 1 -VersionName 1.0.0 -Bundle -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-unit-id> -InterstitialAdUnitId <interstitial-unit-id>
 ```
 
 ## Push Notifications
@@ -77,7 +77,7 @@ PUSH_TOKEN_ENCRYPTION_KEY=
 To build, install, and launch on a connected ADB device:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-android-debug.ps1 -WebUrl https://your-domain.example
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-android-debug.ps1 -WebUrl <https-url>
 ```
 
 Use `-Serial <device-serial>` if more than one phone/emulator is connected.
@@ -85,7 +85,7 @@ Use `-Serial <device-serial>` if more than one phone/emulator is connected.
 The install script accepts LevelPlay values for device testing:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-android-debug.ps1 -WebUrl https://your-domain.example -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-ad-unit-id> -InterstitialAdUnitId <interstitial-ad-unit-id>
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-android-debug.ps1 -WebUrl <https-url> -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-ad-unit-id> -InterstitialAdUnitId <interstitial-ad-unit-id>
 ```
 
 Add `-LevelPlayTestSuite` to launch Unity's LevelPlay integration test suite after SDK initialization.

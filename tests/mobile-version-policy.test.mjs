@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   defaultMobileVersionPolicy,
   isAndroidUpdateRequired,
+  mergeMobileVersionPolicy,
   normalizeMobileVersionPolicyInput
 } from "../src/lib/mobile/version-policy.ts";
 
@@ -19,7 +20,7 @@ test("mobile version policy blocks Android clients below the minimum build", () 
     androidLatestVersionCode: "4",
     androidLatestVersionName: "1.1.0",
     androidMinimumVersionCode: "3",
-    androidUpdateUrl: "https://example.com/app.apk"
+    androidUpdateUrl: "https://downloads.invalid/app.apk"
   });
 
   assert.equal(isAndroidUpdateRequired(2, policy), true);
@@ -34,7 +35,7 @@ test("mobile version policy validates update version fields", () => {
       normalizeMobileVersionPolicyInput({
         androidLatestVersionCode: "2",
         androidMinimumVersionCode: "3",
-        androidUpdateUrl: "https://example.com/app.apk"
+        androidUpdateUrl: "https://downloads.invalid/app.apk"
       }),
     /Latest Android version code/
   );
@@ -49,8 +50,20 @@ test("mobile version policy validates update version fields", () => {
     () =>
       normalizeMobileVersionPolicyInput({
         androidMinimumVersionCode: "2",
-        androidUpdateUrl: "http://example.com/app.apk"
+        androidUpdateUrl: "http://downloads.invalid/app.apk"
       }),
     /HTTPS/
   );
+});
+
+test("saved mobile version policy ignores invalid stored update URLs", () => {
+  const policy = mergeMobileVersionPolicy({
+    latestVersionCode: 4,
+    minimumSupportedVersionCode: 3,
+    updateUrl: "http://downloads.invalid/app.apk"
+  });
+
+  assert.equal(policy.latestVersionCode, 4);
+  assert.equal(policy.minimumSupportedVersionCode, 3);
+  assert.equal(policy.updateUrl, null);
 });

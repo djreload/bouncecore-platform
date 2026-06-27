@@ -16,7 +16,7 @@ def configValue(String name, String fallback = "") {
 def requiredConfigValue(String name) {
     def value = configValue(name).trim()
     if (!value) {
-        throw new GradleException("${name} is required. Pass -P${name}=https://your-domain.example or set it in a local Gradle property.")
+        throw new GradleException("${name} is required. Pass -P${name}=<https-url> or set it in a local Gradle property.")
     }
 
     return value

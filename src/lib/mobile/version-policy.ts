@@ -85,6 +85,18 @@ function normalizedUpdateUrl(value: string | undefined) {
   return parsedUrl.toString();
 }
 
+function normalizeStoredUpdateUrl(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  try {
+    return normalizedUpdateUrl(value);
+  } catch {
+    return null;
+  }
+}
+
 export function mergeMobileVersionPolicy(value: unknown): MobileVersionPolicy {
   const policy = defaultMobileVersionPolicy();
 
@@ -108,9 +120,7 @@ export function mergeMobileVersionPolicy(value: unknown): MobileVersionPolicy {
     policy.minimumSupportedVersionCode = Math.min(value.minimumSupportedVersionCode, maxAndroidVersionCode);
   }
 
-  if (typeof value.updateUrl === "string" && value.updateUrl.trim()) {
-    policy.updateUrl = value.updateUrl.trim().slice(0, 300);
-  }
+  policy.updateUrl = normalizeStoredUpdateUrl(value.updateUrl);
 
   if (typeof value.updateMessage === "string" && value.updateMessage.trim()) {
     policy.updateMessage = value.updateMessage.trim().slice(0, 180);

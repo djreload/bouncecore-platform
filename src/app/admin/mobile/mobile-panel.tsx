@@ -415,7 +415,7 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
                   disabled={pending}
                   id="mobile-android-update-url"
                   name="androidUpdateUrl"
-                  placeholder="https://example.com/app.apk"
+                  placeholder="Paste HTTPS APK update URL"
                   type="url"
                 />
               </div>
