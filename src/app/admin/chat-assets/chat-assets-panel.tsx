@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useActionState } from "react";
 import { Package, Plus, Save, Smile, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { adminChatAssetsAction } from "@/app/admin/chat-assets/actions";
 import {
   initialAdminChatAssetsActionState,
@@ -16,8 +16,11 @@ import {
 
 type AdminChatAssetsPanelProps = {
   packs: AdminChatAssetPackRow[];
+  repairFilter?: AdminChatAssetsRepairFilter | null;
   stats: AdminChatAssetsStats;
 };
+
+type AdminChatAssetsRepairFilter = "empty-packs";
 
 const packStatusOptions = ["active", "draft", "archived"] as const;
 const assetKindOptions = ["sticker", "emoji"] as const;
@@ -43,6 +46,17 @@ function assetTone(kind: string) {
   return kind === "emoji" ? ("cyan" as const) : ("pink" as const);
 }
 
+function repairLabel() {
+  return {
+    detail: "Showing active chat asset packs that need at least one sticker or animated emoji.",
+    title: "Empty active packs"
+  };
+}
+
+function matchesRepairFilter(pack: AdminChatAssetPackRow, filter: AdminChatAssetsRepairFilter) {
+  return filter === "empty-packs" && pack.status === "active" && pack.stickers.length === 0;
+}
+
 function AssetPreview({ asset }: { asset: AdminChatAssetRow }) {
   return (
     <div className="grid gap-2">
@@ -65,11 +79,13 @@ function AssetPreview({ asset }: { asset: AdminChatAssetRow }) {
   );
 }
 
-export function AdminChatAssetsPanel({ packs, stats }: AdminChatAssetsPanelProps) {
+export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: AdminChatAssetsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatAssetsActionState, FormData>(
     adminChatAssetsAction,
     initialAdminChatAssetsActionState
   );
+  const visiblePacks = repairFilter ? packs.filter((pack) => matchesRepairFilter(pack, repairFilter)) : packs;
+  const activeRepair = repairFilter ? repairLabel() : null;
 
   return (
     <div className="space-y-5">
@@ -160,8 +176,26 @@ export function AdminChatAssetsPanel({ packs, stats }: AdminChatAssetsPanelProps
         </form>
       </section>
 
+      {activeRepair ? (
+        <section className="rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge tone="acid">Repair filter</Badge>
+              <h3 className="mt-2 text-xl font-black">{activeRepair.title}</h3>
+              <p className="mt-1 text-sm text-bc-muted">
+                {activeRepair.detail} Showing {visiblePacks.length.toLocaleString("en-GB")} of{" "}
+                {packs.length.toLocaleString("en-GB")} packs.
+              </p>
+            </div>
+            <ButtonLink href="/admin/chat-assets" size="sm" variant="ghost">
+              Clear filter
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-4">
-        {packs.map((pack) => (
+        {visiblePacks.map((pack) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={pack.id}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -376,11 +410,17 @@ export function AdminChatAssetsPanel({ packs, stats }: AdminChatAssetsPanelProps
             </div>
           </article>
         ))}
-        {!packs.length ? (
+        {!visiblePacks.length ? (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">
             <Package className="h-7 w-7 text-bc-electric" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-black">No chat asset packs yet</h3>
-            <p className="mt-2 text-sm text-bc-muted">Create a pack, add sticker or emoji images, then set it active.</p>
+            <h3 className="mt-4 text-xl font-black">
+              {activeRepair ? "No packs match this repair filter" : "No chat asset packs yet"}
+            </h3>
+            <p className="mt-2 text-sm text-bc-muted">
+              {activeRepair
+                ? "This repair category is currently clean."
+                : "Create a pack, add sticker or emoji images, then set it active."}
+            </p>
           </article>
         ) : null}
       </div>

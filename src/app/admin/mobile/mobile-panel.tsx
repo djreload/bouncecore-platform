@@ -5,12 +5,15 @@ import { BadgeDollarSign, BellRing, Download, Megaphone, Save, Settings2, Smartp
 import { adminMobileAction } from "@/app/admin/mobile/actions";
 import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import type { AdminMobileConfigData, MobileFeatureKey } from "@/lib/admin/mobile-service";
 
 type AdminMobilePanelProps = {
   data: AdminMobileConfigData;
+  repairFilter?: AdminMobileRepairFilter | null;
 };
+
+type AdminMobileRepairFilter = "update-url";
 
 const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads", "push"] as const satisfies readonly MobileFeatureKey[];
 const mobileThemeModes = ["dark", "light"] as const;
@@ -32,11 +35,20 @@ function frequencyLabel(value: string) {
   return featureLabel(value.replaceAll("_", " "));
 }
 
-export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
+function repairLabel() {
+  return {
+    detail:
+      "Review the Android update URL and save a valid HTTPS APK or release page URL. Invalid saved URLs are hidden from the public mobile config.",
+    title: "Android update URL"
+  };
+}
+
+export function AdminMobilePanel({ data, repairFilter = null }: AdminMobilePanelProps) {
   const [state, formAction, pending] = useActionState<AdminMobileActionState, FormData>(
     adminMobileAction,
     initialAdminMobileActionState
   );
+  const activeRepair = repairFilter === "update-url" ? repairLabel() : null;
 
   return (
     <div className="space-y-5">
@@ -64,6 +76,21 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
           <p className="mt-2 text-sm text-bc-muted">{formatDate(data.stats.updatedAt)}</p>
         </article>
       </div>
+
+      {activeRepair ? (
+        <section className="rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge tone="acid">Repair focus</Badge>
+              <h3 className="mt-2 text-xl font-black">{activeRepair.title}</h3>
+              <p className="mt-1 max-w-3xl text-sm text-bc-muted">{activeRepair.detail}</p>
+            </div>
+            <ButtonLink href="/admin/mobile" size="sm" variant="ghost">
+              Clear focus
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">

@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Activity, Plus, Radio, Save, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { adminStreamAction } from "@/app/admin/stream/actions";
 import {
   initialAdminStreamActionState,
@@ -17,8 +17,11 @@ import { streamStatusOptions } from "@/lib/stream/stream-status";
 type AdminStreamControlPanelProps = {
   channels: AdminStreamChannelRow[];
   provider: AdminStreamProviderState;
+  repairFilter?: AdminStreamRepairFilter | null;
   streamProfiles: AdminStreamProfileRow[];
 };
+
+type AdminStreamRepairFilter = "missing-offline-image";
 
 function statusTone(status: string) {
   if (status === "live") {
@@ -36,13 +39,31 @@ function profileOptionLabel(profile: AdminStreamProfileRow) {
   return `${profile.label} - ${profile.videoHeight}p${profile.fps} / ${profile.videoBitrateKbps} Kbps`;
 }
 
-export function AdminStreamControlPanel({ channels, provider, streamProfiles }: AdminStreamControlPanelProps) {
+function repairLabel() {
+  return {
+    detail: "Showing stream channels that need an offline image for the public player fallback.",
+    title: "Missing offline image"
+  };
+}
+
+function matchesRepairFilter(channel: AdminStreamChannelRow, filter: AdminStreamRepairFilter) {
+  return filter === "missing-offline-image" && !channel.offlineImageUrl;
+}
+
+export function AdminStreamControlPanel({
+  channels,
+  provider,
+  repairFilter = null,
+  streamProfiles
+}: AdminStreamControlPanelProps) {
   const [state, formAction, pending] = useActionState<AdminStreamActionState, FormData>(
     adminStreamAction,
     initialAdminStreamActionState
   );
   const liveChannels = channels.filter((channel) => channel.status === "live").length;
   const enabledProfiles = streamProfiles.filter((profile) => profile.isEnabled);
+  const visibleChannels = repairFilter ? channels.filter((channel) => matchesRepairFilter(channel, repairFilter)) : channels;
+  const activeRepair = repairFilter ? repairLabel() : null;
 
   return (
     <div className="space-y-5">
@@ -159,8 +180,26 @@ export function AdminStreamControlPanel({ channels, provider, streamProfiles }: 
         </form>
       </section>
 
+      {activeRepair ? (
+        <section className="rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge tone="acid">Repair filter</Badge>
+              <h3 className="mt-2 text-xl font-black">{activeRepair.title}</h3>
+              <p className="mt-1 text-sm text-bc-muted">
+                {activeRepair.detail} Showing {visibleChannels.length.toLocaleString("en-GB")} of{" "}
+                {channels.length.toLocaleString("en-GB")} channels.
+              </p>
+            </div>
+            <ButtonLink href="/admin/stream" size="sm" variant="ghost">
+              Clear filter
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-4">
-        {channels.map((channel) => (
+        {visibleChannels.map((channel) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={channel.id}>
             <form
               action={formAction}
@@ -277,11 +316,17 @@ export function AdminStreamControlPanel({ channels, provider, streamProfiles }: 
             </div>
           </article>
         ))}
-        {!channels.length ? (
+        {!visibleChannels.length ? (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">
             <Activity className="h-7 w-7 text-bc-electric" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-black">No channels yet</h3>
-            <p className="mt-2 text-sm text-bc-muted">Use Ensure default to create the main Bouncecore Live channel.</p>
+            <h3 className="mt-4 text-xl font-black">
+              {activeRepair ? "No channels match this repair filter" : "No channels yet"}
+            </h3>
+            <p className="mt-2 text-sm text-bc-muted">
+              {activeRepair
+                ? "This repair category is currently clean."
+                : "Use Ensure default to create the main Bouncecore Live channel."}
+            </p>
           </article>
         ) : null}
       </div>

@@ -6,8 +6,17 @@ import { getAdminChatAssetData } from "@/lib/chat/chat-asset-service";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminChatAssetsPage() {
+type AdminChatAssetsPageProps = {
+  searchParams?: Promise<{ repair?: string }>;
+};
+
+function repairFilter(value: string | undefined) {
+  return value === "empty-packs" ? value : null;
+}
+
+export default async function AdminChatAssetsPage({ searchParams }: AdminChatAssetsPageProps) {
   await requireUserPermission("admin.access");
+  const params = searchParams ? await searchParams : {};
   const { packs, stats } = await getAdminChatAssetData();
   const packRows: AdminChatAssetPackRow[] = packs.map((pack) => ({
     id: pack.id,
@@ -38,7 +47,7 @@ export default async function AdminChatAssetsPage() {
       title="Chat Assets"
       description="Upload custom sticker packs and animated emoji for public chat and live chat."
     >
-      <AdminChatAssetsPanel packs={packRows} stats={stats} />
+      <AdminChatAssetsPanel packs={packRows} repairFilter={repairFilter(params.repair)} stats={stats} />
     </AdminShell>
   );
 }

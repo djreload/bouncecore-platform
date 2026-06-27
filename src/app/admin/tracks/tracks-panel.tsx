@@ -6,12 +6,15 @@ import { Archive, CheckCircle2, Disc3, Image as ImageIcon, Save, ShieldCheck, Un
 import { adminTracksAction } from "@/app/admin/tracks/actions";
 import { initialAdminTracksActionState, type AdminTracksActionState } from "@/app/admin/tracks/state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import type { AdminMusicData, AdminMusicTrackRow } from "@/lib/music/admin-music-service";
+
+type AdminTracksRepairFilter = "missing-delivery" | "missing-artwork";
 
 type AdminTracksPanelProps = {
   data: AdminMusicData;
   mode?: "catalogue" | "approvals";
+  repairFilter?: AdminTracksRepairFilter | null;
 };
 
 const trackStatusOptions = ["draft", "pending", "approved", "archived"] as const;
@@ -38,6 +41,28 @@ function statusTone(status: string) {
   }
 
   return "cyan" as const;
+}
+
+function repairLabel(filter: AdminTracksRepairFilter) {
+  if (filter === "missing-delivery") {
+    return {
+      detail: "Showing approved paid tracks that need a download MP3 or Google Drive delivery link before checkout can work.",
+      title: "Missing delivery"
+    };
+  }
+
+  return {
+    detail: "Showing approved tracks missing catalogue artwork.",
+    title: "Missing artwork"
+  };
+}
+
+function matchesRepairFilter(track: AdminMusicTrackRow, filter: AdminTracksRepairFilter) {
+  if (filter === "missing-delivery") {
+    return track.status === "approved" && track.pricePence > 0 && !track.downloadUrl;
+  }
+
+  return track.status === "approved" && !track.artworkUrl;
 }
 
 function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTrackRow }) {
@@ -293,12 +318,14 @@ function StatusButton({
   );
 }
 
-export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelProps) {
+export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null }: AdminTracksPanelProps) {
   const [state, formAction, pending] = useActionState<AdminTracksActionState, FormData>(
     adminTracksAction,
     initialAdminTracksActionState
   );
-  const tracks = mode === "approvals" ? data.tracks.filter((track) => track.status === "pending") : data.tracks;
+  const baseTracks = mode === "approvals" ? data.tracks.filter((track) => track.status === "pending") : data.tracks;
+  const tracks = repairFilter ? baseTracks.filter((track) => matchesRepairFilter(track, repairFilter)) : baseTracks;
+  const activeRepair = repairFilter ? repairLabel(repairFilter) : null;
 
   return (
     <div className="space-y-5">
@@ -352,6 +379,23 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
         ) : null}
       </section>
 
+      {activeRepair ? (
+        <section className="rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge tone="acid">Repair filter</Badge>
+              <h3 className="mt-2 text-xl font-black">{activeRepair.title}</h3>
+              <p className="mt-1 text-sm text-bc-muted">
+                {activeRepair.detail} Showing {tracks.length.toLocaleString("en-GB")} of {baseTracks.length.toLocaleString("en-GB")} records.
+              </p>
+            </div>
+            <ButtonLink href="/admin/tracks" size="sm" variant="ghost">
+              Clear filter
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
+
       <div className="grid gap-4">
         {tracks.map((track) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={track.id}>
@@ -365,15 +409,15 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
                   </div>
                 )}
                 <div>
-                <div className="flex flex-wrap gap-2">
-                  <Badge tone={statusTone(track.status)}>{track.status}</Badge>
-                  <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
-                  {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
-                </div>
-                <h4 className="mt-3 text-xl font-black">{track.title}</h4>
-                <p className="mt-1 text-sm text-bc-muted">
-                  {track.producerName} / {track.producerEmail}
-                </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={statusTone(track.status)}>{track.status}</Badge>
+                    <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
+                    {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
+                  </div>
+                  <h4 className="mt-3 text-xl font-black">{track.title}</h4>
+                  <p className="mt-1 text-sm text-bc-muted">
+                    {track.producerName} / {track.producerEmail}
+                  </p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -419,9 +463,13 @@ export function AdminTracksPanel({ data, mode = "catalogue" }: AdminTracksPanelP
         {!tracks.length ? (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">
             <Disc3 className="h-7 w-7 text-bc-acid" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-black">{mode === "approvals" ? "No pending approvals" : "No tracks yet"}</h3>
+            <h3 className="mt-4 text-xl font-black">
+              {activeRepair ? "No tracks match this repair filter" : mode === "approvals" ? "No pending approvals" : "No tracks yet"}
+            </h3>
             <p className="mt-2 text-sm text-bc-muted">
-              {mode === "approvals"
+              {activeRepair
+                ? "This repair category is currently clean."
+                : mode === "approvals"
                 ? "Pending producer submissions will appear here automatically."
                 : "Producer tracks will appear here once creators start uploading catalogue records."}
             </p>

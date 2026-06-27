@@ -408,7 +408,7 @@ export async function getAdminSystemHealthData() {
       critical: true,
       detail: "Approved paid music tracks need a download MP3 or Google Drive delivery link before users can buy them.",
       healthyDetail: "All approved paid music tracks have delivery links.",
-      href: "/admin/tracks",
+      href: "/admin/tracks?repair=missing-delivery",
       label: "Paid track delivery",
       singular: "track",
       plural: "tracks"
@@ -418,7 +418,7 @@ export async function getAdminSystemHealthData() {
       critical: true,
       detail: "Paid music purchases without any stored or current track download URL will fail when customers open downloads.",
       healthyDetail: "All paid music purchases resolve to a delivery URL.",
-      href: "/admin/tracks",
+      href: "/admin/tracks?repair=missing-delivery",
       label: "Paid purchase delivery",
       singular: "purchase",
       plural: "purchases"
@@ -427,7 +427,7 @@ export async function getAdminSystemHealthData() {
       count: approvedTracksMissingArtwork,
       detail: "Approved music tracks without artwork still sell, but the public catalogue has broken or weak visual presentation.",
       healthyDetail: "All approved music tracks have artwork.",
-      href: "/admin/tracks",
+      href: "/admin/tracks?repair=missing-artwork",
       label: "Track artwork",
       singular: "track",
       plural: "tracks"
@@ -436,7 +436,7 @@ export async function getAdminSystemHealthData() {
       count: activeProductsMissingImages,
       detail: "Active shop products without product images weaken the storefront and can look broken in mobile clients.",
       healthyDetail: "All active shop products have images.",
-      href: "/admin/products",
+      href: "/admin/products?repair=missing-images",
       label: "Product images",
       singular: "product",
       plural: "products"
@@ -446,7 +446,7 @@ export async function getAdminSystemHealthData() {
       critical: true,
       detail: "Active shop products without variants cannot be added to checkout correctly.",
       healthyDetail: "All active shop products have at least one variant.",
-      href: "/admin/products",
+      href: "/admin/products?repair=missing-variants",
       label: "Product variants",
       singular: "product",
       plural: "products"
@@ -455,7 +455,7 @@ export async function getAdminSystemHealthData() {
       count: activeStickerPacksWithoutStickers,
       detail: "Active chat sticker packs without stickers appear empty to users.",
       healthyDetail: "All active chat sticker packs contain stickers.",
-      href: "/admin/chat-assets",
+      href: "/admin/chat-assets?repair=empty-packs",
       label: "Sticker packs",
       singular: "pack",
       plural: "packs"
@@ -464,7 +464,7 @@ export async function getAdminSystemHealthData() {
       count: streamChannelsMissingOfflineImage,
       detail: "Stream channels without offline images fall back to the default offline presentation.",
       healthyDetail: "All stream channels have offline images.",
-      href: "/admin/stream",
+      href: "/admin/stream?repair=missing-offline-image",
       label: "Offline stream images",
       singular: "channel",
       plural: "channels"
@@ -473,7 +473,7 @@ export async function getAdminSystemHealthData() {
       detail: mobileUpdateUrlInvalid
         ? "Saved mobile update URL is invalid or not HTTPS. The public mobile config now ignores it until repaired."
         : "Saved mobile update URL is empty or valid HTTPS.",
-      href: "/admin/mobile",
+      href: "/admin/mobile?repair=update-url",
       label: "Mobile update URL",
       status: mobileUpdateUrlInvalid ? "warning" : "healthy",
       value: mobileUpdateUrlInvalid ? "Repair needed" : "Clean"
