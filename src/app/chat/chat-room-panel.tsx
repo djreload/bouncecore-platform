@@ -217,29 +217,19 @@ function ChatPresenceRail({
         title={open ? "Hide online users" : "Show online users"}
         type="button"
       >
-        {open ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <UsersRound className="h-4 w-4" aria-hidden="true" />}
+        {open ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
       </button>
       <aside
         aria-label="Online chat users"
         className={cn(
           "absolute right-full top-0 z-20 hidden h-full w-56 min-w-56 flex-col overflow-hidden rounded-l-md border border-r-0 border-bc-line bg-bc-panel shadow-2xl shadow-black/35 transition duration-300 ease-out lg:flex",
-          open ? "translate-x-0 opacity-100" : "pointer-events-none -translate-x-full opacity-0"
+          open ? "translate-x-0 opacity-100" : "pointer-events-none translate-x-full opacity-0"
         )}
       >
         <div className="shrink-0 border-b border-bc-line p-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <UsersRound className="h-4 w-4 shrink-0 text-bc-electric" aria-hidden="true" />
-              <h3 className="truncate text-sm font-black">Online users</h3>
-            </div>
-            <button
-              aria-label="Close online users"
-              className="bc-focus-ring inline-grid h-7 w-7 shrink-0 place-items-center rounded-md border border-bc-line bg-bc-ink text-bc-muted transition hover:text-white"
-              onClick={onToggle}
-              type="button"
-            >
-              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-            </button>
+          <div className="flex min-w-0 items-center gap-2">
+            <UsersRound className="h-4 w-4 shrink-0 text-bc-electric" aria-hidden="true" />
+            <h3 className="truncate text-sm font-black">Online users</h3>
           </div>
           <p className="mt-2 text-xs text-bc-muted">
             {onlineCount} online / {Math.max(0, users.length - onlineCount)} away

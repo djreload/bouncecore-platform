@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PersistentLiveAudio } from "@/components/live/persistent-live-audio";
+import { SitePresenceHeartbeat } from "@/components/presence/site-presence-heartbeat";
 import { CookieConsentManager } from "@/components/privacy/cookie-consent-manager";
 import "./globals.css";
 
@@ -14,6 +15,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         {children}
         <PersistentLiveAudio />
+        <SitePresenceHeartbeat />
         <CookieConsentManager />
       </body>
     </html>

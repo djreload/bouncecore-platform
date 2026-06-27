@@ -75,6 +75,27 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return getCurrentUserByTokenHash(await getSessionTokenHash());
 }
 
+export async function touchSessionActivity(tokenHash: string | null) {
+  if (!tokenHash) {
+    return 0;
+  }
+
+  const result = await prisma.authSession.updateMany({
+    where: {
+      tokenHash,
+      revokedAt: null,
+      expiresAt: {
+        gt: new Date()
+      }
+    },
+    data: {
+      updatedAt: new Date()
+    }
+  });
+
+  return result.count;
+}
+
 export async function getCurrentUserFromRequest(): Promise<CurrentUser | null> {
   return getCurrentUserByTokenHash(await getRequestTokenHash());
 }

@@ -390,66 +390,109 @@ async function getChatEffectUserRoles(userId: string) {
   return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 }
 
-export async function getPublicChatPresence(roomId: string, currentUserId?: string | null): Promise<ChatPresenceUserSummary[]> {
-  if (!roomId) {
+export async function getPublicChatPresence(_roomId: string, currentUserId?: string | null): Promise<ChatPresenceUserSummary[]> {
+  if (!_roomId) {
     return [];
   }
 
   const now = new Date();
   const awayCutoff = new Date(now.getTime() - chatPresenceAwayMs);
   const onlineCutoff = new Date(now.getTime() - chatPresenceOnlineMs);
-  const recentMessages = await prisma.chatMessage.findMany({
+  const activeSessions = await prisma.authSession.findMany({
     where: {
-      roomId,
-      deletedAt: null,
-      userId: {
-        not: null
+      revokedAt: null,
+      expiresAt: {
+        gt: now
       },
-      createdAt: {
+      updatedAt: {
         gte: awayCutoff
+      },
+      user: {
+        status: "active",
+        emailVerifiedAt: {
+          not: null
+        }
       }
     },
     orderBy: {
-      createdAt: "desc"
+      updatedAt: "desc"
     },
-    select: {
-      createdAt: true,
-      userId: true
+    include: {
+      user: {
+        include: {
+          profile: {
+            select: {
+              avatarUrl: true
+            }
+          },
+          roles: {
+            include: {
+              role: true
+            }
+          }
+        }
+      }
     },
-    take: 200
+    take: 300
   });
-  const latestActivityByUser = new Map<string, Date>();
+  const latestSessionByUser = new Map<string, (typeof activeSessions)[number]>();
 
-  for (const message of recentMessages) {
-    if (message.userId && !latestActivityByUser.has(message.userId)) {
-      latestActivityByUser.set(message.userId, message.createdAt);
+  for (const session of activeSessions) {
+    if (!latestSessionByUser.has(session.userId)) {
+      latestSessionByUser.set(session.userId, session);
     }
   }
 
-  if (currentUserId) {
-    latestActivityByUser.set(currentUserId, now);
+  const currentUser =
+    currentUserId && !latestSessionByUser.has(currentUserId)
+      ? await prisma.user.findFirst({
+          where: {
+            id: currentUserId,
+            status: "active",
+            emailVerifiedAt: {
+              not: null
+            }
+          },
+          include: {
+            profile: {
+              select: {
+                avatarUrl: true
+              }
+            },
+            roles: {
+              include: {
+                role: true
+              }
+            }
+          }
+        })
+      : null;
+
+  const users: ChatPresenceUserSummary[] = [...latestSessionByUser.values()].map((session) => {
+    const lastActiveAt = session.updatedAt;
+
+    return {
+      id: session.user.id,
+      displayName: session.user.displayName,
+      avatarUrl: session.user.profile?.avatarUrl ?? null,
+      roles: normalizeRoles(session.user.roles.map((userRole) => userRole.role.name)),
+      status: lastActiveAt >= onlineCutoff ? "online" : "away",
+      lastActiveAt: lastActiveAt.toISOString()
+    };
+  });
+
+  if (currentUser) {
+    users.push({
+      id: currentUser.id,
+      displayName: currentUser.displayName,
+      avatarUrl: currentUser.profile?.avatarUrl ?? null,
+      roles: normalizeRoles(currentUser.roles.map((userRole) => userRole.role.name)),
+      status: "online",
+      lastActiveAt: now.toISOString()
+    });
   }
 
-  const authors = await getAuthorSummaries([...latestActivityByUser.keys()]);
-
-  return [...latestActivityByUser.entries()]
-    .map(([userId, lastActiveAt]) => {
-      const author = authors.get(userId);
-
-      if (!author) {
-        return null;
-      }
-
-      return {
-        id: userId,
-        displayName: author.displayName,
-        avatarUrl: author.avatarUrl,
-        roles: author.roles,
-        status: lastActiveAt >= onlineCutoff ? ("online" as const) : ("away" as const),
-        lastActiveAt: lastActiveAt.toISOString()
-      };
-    })
-    .filter((user): user is ChatPresenceUserSummary => Boolean(user))
+  return users
     .sort((first, second) => {
       if (first.status !== second.status) {
         return first.status === "online" ? -1 : 1;
