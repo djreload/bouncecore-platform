@@ -84,7 +84,7 @@ export default async function HomePage() {
       <section className="bc-grid border-t border-bc-line bg-bc-void py-12">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 lg:grid-cols-[1fr_380px]">
           <div>
-            <Badge tone="acid">Foundation modules</Badge>
+            <Badge tone="acid">Platform modules</Badge>
             <h2 className="mt-4 text-3xl font-black">One account, live chat, stars, music, merch, and streamer tools.</h2>
             <p className="mt-3 max-w-3xl text-bc-muted">
               Bouncecore keeps public pages, account dashboards, role-specific workspaces, payments, uploads, and admin tools

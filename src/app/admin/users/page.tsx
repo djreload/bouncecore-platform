@@ -52,7 +52,7 @@ export default async function AdminUsersPage() {
   return (
     <AdminShell
       title="Users"
-      description="Phase 1 user-management foundation for status, roles, account security, and audit-friendly admin actions."
+      description="Manage account status, roles, invites, account security, and audit-friendly admin actions."
     >
       <div className="mb-5 grid gap-4 md:grid-cols-3">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">

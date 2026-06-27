@@ -82,7 +82,7 @@ function defaultSiteSettings(): SiteSettings {
     footerSummary: "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.",
     homepageBadge: "Bouncecore platform",
     homepageIntro:
-      "A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
+      "A dark, premium platform for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
     legalPages: mergeLegalPages(null),
     liveSocialLinks: [],
     siteName: "Bouncecore",
