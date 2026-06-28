@@ -4,8 +4,11 @@ param(
   [string]$ComposeFile = "docker-compose.instance.yml",
   [string]$EnvFile = ".env.instance",
   [string]$DockerNetwork = "bouncecore_default",
+  [string]$AppBindHost = $env:STREAM_SMOKE_APP_BIND_HOST,
+  [string]$AppPort = $env:STREAM_SMOKE_APP_PORT,
   [int]$DurationSeconds = 90,
   [int]$HlsTimeoutSeconds = 70,
+  [switch]$CreateMissingUser,
   [switch]$UseTranscoder,
   [switch]$SkipAppStart
 )
@@ -90,7 +93,15 @@ function Wait-ForAppHealth([string]$Url) {
 }
 
 function Create-TempKey([string]$Email) {
-  $keyJson = & node $nodeHelper create --email $Email
+  $keyArgs = @("create", "--email", $Email)
+
+  if ($CreateMissingUser) {
+    $keyArgs += "--create-user"
+    $keyArgs += "--display-name"
+    $keyArgs += "Stream Smoke"
+  }
+
+  $keyJson = & node $nodeHelper @keyArgs
 
   if ($LASTEXITCODE -ne 0) {
     Fail "Temporary stream key creation failed for $Email."
@@ -140,15 +151,25 @@ $repoRoot = Resolve-Path (Join-Path $scriptRoot "..")
 $nodeHelper = Join-Path $scriptRoot "temp-stream-key.mjs"
 $dualSmokeScript = Join-Path $scriptRoot "stream-dual-smoke-test.ps1"
 $envValues = Read-EnvFile $EnvFile
-$appHost = EnvValue $envValues "APP_BIND_HOST" "127.0.0.1"
-$appPort = EnvValue $envValues "APP_PORT" "3000"
+$appHost = if ($AppBindHost) { $AppBindHost } else { EnvValue $envValues "APP_BIND_HOST" "127.0.0.1" }
+$appPort = if ($AppPort) { $AppPort } else { EnvValue $envValues "APP_PORT" "3000" }
 $appHealthUrl = "http://${appHost}:${appPort}/api/health"
 $previousDatabaseUrl = $env:DATABASE_URL
+$previousAppBindHost = $env:APP_BIND_HOST
+$previousAppPort = $env:APP_PORT
 $primaryTempKey = $null
 $secondaryTempKey = $null
 
 Push-Location $repoRoot
 try {
+  if ($AppBindHost) {
+    $env:APP_BIND_HOST = $AppBindHost
+  }
+
+  if ($AppPort) {
+    $env:APP_PORT = $AppPort
+  }
+
   if (-not $SkipAppStart) {
     Write-Host "Starting app dependencies for dual stream smoke test..."
     & docker compose -f $ComposeFile --env-file $EnvFile up -d postgres redis app
@@ -164,15 +185,21 @@ try {
   $primaryTempKey = Create-TempKey ($UserEmail.ToLower())
   $secondaryTempKey = Create-TempKey ($SecondaryUserEmail.ToLower())
 
-  & powershell -ExecutionPolicy Bypass -File $dualSmokeScript `
-    -PrimaryStreamKey $primaryTempKey.rawKey `
-    -SecondaryStreamKey $secondaryTempKey.rawKey `
-    -ComposeFile $ComposeFile `
-    -EnvFile $EnvFile `
-    -DockerNetwork $DockerNetwork `
-    -DurationSeconds $DurationSeconds `
-    -HlsTimeoutSeconds $HlsTimeoutSeconds `
-    -UseTranscoder:$UseTranscoder
+  $dualSmokeArgs = @(
+    "-PrimaryStreamKey", $primaryTempKey.rawKey,
+    "-SecondaryStreamKey", $secondaryTempKey.rawKey,
+    "-ComposeFile", $ComposeFile,
+    "-EnvFile", $EnvFile,
+    "-DockerNetwork", $DockerNetwork,
+    "-DurationSeconds", $DurationSeconds,
+    "-HlsTimeoutSeconds", $HlsTimeoutSeconds
+  )
+
+  if ($UseTranscoder) {
+    $dualSmokeArgs += "-UseTranscoder"
+  }
+
+  & powershell -ExecutionPolicy Bypass -File $dualSmokeScript @dualSmokeArgs
 
   if ($LASTEXITCODE -ne 0) {
     Fail "Dual stream smoke test failed."
@@ -182,5 +209,7 @@ try {
   Revoke-TempKey $secondaryTempKey
 
   $env:DATABASE_URL = $previousDatabaseUrl
+  $env:APP_BIND_HOST = $previousAppBindHost
+  $env:APP_PORT = $previousAppPort
   Pop-Location
 }

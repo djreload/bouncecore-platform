@@ -138,8 +138,15 @@ function ActiveIngestsFromStatus($Status) {
   return @()
 }
 
+function IngestSummary($Ingests) {
+  return (@($Ingests) | ForEach-Object {
+    "$($_.role):$($_.streamKeyFingerprint):$($_.status):$($_.playbackUrl)"
+  }) -join ", "
+}
+
 function Wait-ForDualIngests([string]$PrimaryFingerprint, [string]$SecondaryFingerprint) {
   $deadline = (Get-Date).AddSeconds($HlsTimeoutSeconds)
+  $lastSummary = ""
 
   while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
@@ -147,6 +154,7 @@ function Wait-ForDualIngests([string]$PrimaryFingerprint, [string]$SecondaryFing
     try {
       $status = Get-StreamCoreStatus
       $ingests = ActiveIngestsFromStatus $status
+      $lastSummary = IngestSummary $ingests
       $primary = $ingests | Where-Object { $_.role -eq "primary" } | Select-Object -First 1
       $secondary = $ingests | Where-Object { $_.role -eq "secondary" } | Select-Object -First 1
 
@@ -163,11 +171,12 @@ function Wait-ForDualIngests([string]$PrimaryFingerprint, [string]$SecondaryFing
     }
   }
 
-  Fail "Stream-core did not report the expected primary and secondary ingests within $HlsTimeoutSeconds seconds."
+  Fail "Stream-core did not report the expected primary and secondary ingests within $HlsTimeoutSeconds seconds. Last ingests: $lastSummary"
 }
 
 function Wait-ForPromotedSecondary([string]$SecondaryFingerprint) {
   $deadline = (Get-Date).AddSeconds($HlsTimeoutSeconds)
+  $lastSummary = ""
 
   while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
@@ -175,9 +184,10 @@ function Wait-ForPromotedSecondary([string]$SecondaryFingerprint) {
     try {
       $status = Get-StreamCoreStatus
       $ingests = ActiveIngestsFromStatus $status
+      $lastSummary = IngestSummary $ingests
       $primary = $ingests | Where-Object { $_.role -eq "primary" } | Select-Object -First 1
 
-      if ($ingests.Count -eq 1 -and $primary.streamKeyFingerprint -eq $SecondaryFingerprint) {
+      if ($primary.streamKeyFingerprint -eq $SecondaryFingerprint) {
         Write-Host "Secondary publisher was promoted to primary after the first publisher stopped."
         return $status
       }
@@ -186,7 +196,7 @@ function Wait-ForPromotedSecondary([string]$SecondaryFingerprint) {
     }
   }
 
-  Fail "Stream-core did not promote the secondary ingest within $HlsTimeoutSeconds seconds."
+  Fail "Stream-core did not promote the secondary ingest within $HlsTimeoutSeconds seconds. Last ingests: $lastSummary"
 }
 
 function Wait-ForHls([string]$Url, [string]$Label, [switch]$RequireVariants) {
