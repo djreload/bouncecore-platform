@@ -1,7 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
-import { FileText, Globe2, Megaphone, Save, Settings, Share2 } from "lucide-react";
+/* eslint-disable @next/next/no-img-element */
+
+import { useActionState, useState } from "react";
+import { FileText, Globe2, Image as ImageIcon, Megaphone, Save, Settings, Share2, UploadCloud } from "lucide-react";
 import { adminSettingsAction } from "@/app/admin/settings/actions";
 import { initialAdminSettingsActionState, type AdminSettingsActionState } from "@/app/admin/settings/state";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +27,11 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
     adminSettingsAction,
     initialAdminSettingsActionState
   );
+  const [logoUrl, setLogoUrl] = useState(data.settings.branding.logoUrl ?? "");
+  const [faviconUrl, setFaviconUrl] = useState(data.settings.branding.faviconUrl ?? "");
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [faviconUploading, setFaviconUploading] = useState(false);
+  const [brandUploadError, setBrandUploadError] = useState("");
   const socialLinkRows = Array.from({ length: 8 }, (_value, index) => {
     const link = data.settings.liveSocialLinks[index];
 
@@ -35,6 +42,37 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
       url: link?.url ?? ""
     };
   });
+
+  async function uploadBrandingAsset(
+    kind: "branding-logo" | "branding-favicon",
+    file: File,
+    onUrl: (url: string) => void,
+    onUploading: (uploading: boolean) => void
+  ) {
+    const uploadData = new FormData();
+    uploadData.set("kind", kind);
+    uploadData.set("file", file);
+    setBrandUploadError("");
+    onUploading(true);
+
+    try {
+      const response = await fetch("/api/admin/uploads", {
+        body: uploadData,
+        method: "POST"
+      });
+      const result = (await response.json().catch(() => ({}))) as { error?: unknown; url?: unknown };
+
+      if (!response.ok || typeof result.url !== "string") {
+        throw new Error(typeof result.error === "string" ? result.error : "Upload failed.");
+      }
+
+      onUrl(result.url);
+    } catch (error) {
+      setBrandUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      onUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -81,6 +119,126 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
         ) : null}
 
         <form action={formAction} className="mt-5 grid gap-5">
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-bc-electric" aria-hidden="true" />
+                  <h4 className="font-black">Branding</h4>
+                </div>
+                <p className="mt-2 text-sm text-bc-muted">
+                  Upload a public logo and favicon. Files are saved under /uploads/branding-images and validated before the
+                  settings can be saved.
+                </p>
+              </div>
+              <Badge tone={logoUrl || faviconUrl ? "acid" : "amber"}>{logoUrl || faviconUrl ? "Configured" : "Default"}</Badge>
+            </div>
+
+            {brandUploadError ? (
+              <div className="mt-4 rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
+                {brandUploadError}
+              </div>
+            ) : null}
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-md border border-bc-line bg-bc-panel p-3">
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="logo-url">
+                  Public logo URL
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  disabled={pending || logoUploading}
+                  id="logo-url"
+                  name="logoUrl"
+                  onChange={(event) => setLogoUrl(event.currentTarget.value)}
+                  placeholder="/uploads/branding-images/logo.png"
+                  value={logoUrl}
+                />
+                <p className="mt-2 text-xs text-bc-muted">
+                  Used in the site header. Leave blank to use the default broadcast icon.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="grid h-14 w-14 place-items-center rounded-md border border-bc-line bg-bc-ink">
+                    {logoUrl ? (
+                      <img className="max-h-11 max-w-11 object-contain" src={logoUrl} alt="" />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-bc-muted" aria-hidden="true" />
+                    )}
+                  </span>
+                  <label className="bc-focus-ring inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-semibold text-white hover:border-bc-electric/60">
+                    <UploadCloud className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                    {logoUploading ? "Uploading..." : "Upload logo"}
+                    <input
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                      className="sr-only"
+                      disabled={pending || logoUploading}
+                      onChange={async (event) => {
+                        const input = event.currentTarget;
+                        const file = input.files?.[0];
+
+                        if (!file) {
+                          return;
+                        }
+
+                        await uploadBrandingAsset("branding-logo", file, setLogoUrl, setLogoUploading);
+                        input.value = "";
+                      }}
+                      type="file"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-bc-line bg-bc-panel p-3">
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="favicon-url">
+                  Favicon URL
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  disabled={pending || faviconUploading}
+                  id="favicon-url"
+                  name="faviconUrl"
+                  onChange={(event) => setFaviconUrl(event.currentTarget.value)}
+                  placeholder="/uploads/branding-images/favicon.png"
+                  value={faviconUrl}
+                />
+                <p className="mt-2 text-xs text-bc-muted">
+                  Used as the browser tab icon. Use a square PNG, WebP, GIF, JPG, or AVIF image.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="grid h-14 w-14 place-items-center rounded-md border border-bc-line bg-bc-ink">
+                    {faviconUrl ? (
+                      <img className="max-h-9 max-w-9 object-contain" src={faviconUrl} alt="" />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-bc-muted" aria-hidden="true" />
+                    )}
+                  </span>
+                  <label className="bc-focus-ring inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-semibold text-white hover:border-bc-electric/60">
+                    <UploadCloud className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                    {faviconUploading ? "Uploading..." : "Upload favicon"}
+                    <input
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                      className="sr-only"
+                      disabled={pending || faviconUploading}
+                      onChange={async (event) => {
+                        const input = event.currentTarget;
+                        const file = input.files?.[0];
+
+                        if (!file) {
+                          return;
+                        }
+
+                        await uploadBrandingAsset("branding-favicon", file, setFaviconUrl, setFaviconUploading);
+                        input.value = "";
+                      }}
+                      type="file"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="site-name">

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { Radio } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { BrandMark } from "@/components/branding/brand-mark";
 import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { SheepThrowOverlay } from "@/components/chat/sheep-throw-overlay";
 import { NavList } from "@/components/navigation/nav-list";
@@ -15,7 +15,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 type PublicShellProps = {
   children: React.ReactNode;
   hideFooterOnMobile?: boolean;
-  siteSettings?: Pick<SiteSettings, "footerSummary" | "legalPages" | "siteName" | "stagingTarget" | "supportEmail">;
+  siteSettings?: Pick<SiteSettings, "branding" | "footerSummary" | "legalPages" | "siteName" | "stagingTarget" | "supportEmail">;
 };
 
 function publicNavigationForAuth(items: NavigationItem[], signedIn: boolean) {
@@ -42,6 +42,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
   const signedIn = Boolean(user);
   const visibleNavigationItems = publicNavigationForAuth(navigationItems, signedIn);
   const siteName = resolvedSiteSettings.siteName ?? "Bouncecore";
+  const logoUrl = resolvedSiteSettings.branding?.logoUrl ?? null;
   const footerSummary =
     resolvedSiteSettings.footerSummary ??
     "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.";
@@ -57,9 +58,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
       <header className="sticky top-0 z-40 border-b border-bc-line/80 bg-bc-void/90 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
           <Link className="bc-focus-ring flex items-center gap-3 rounded-md" href="/">
-            <span className="grid h-10 w-10 place-items-center rounded-md border border-bc-electric/40 bg-bc-electric/10 text-bc-electric shadow-[0_0_26px_rgba(0,213,255,0.22)]">
-              <Radio className="h-5 w-5" aria-hidden="true" />
-            </span>
+            <BrandMark logoUrl={logoUrl} siteName={siteName} />
             <span className="text-lg font-black uppercase">{siteName}</span>
           </Link>
           <div className="hidden flex-1 justify-center lg:flex">
@@ -81,7 +80,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             )}
           </div>
           <div className="ml-auto lg:hidden">
-            <PublicMobileMenu isSignedIn={signedIn} items={visibleNavigationItems} siteName={siteName} />
+            <PublicMobileMenu isSignedIn={signedIn} items={visibleNavigationItems} logoUrl={logoUrl} siteName={siteName} />
           </div>
         </div>
       </header>

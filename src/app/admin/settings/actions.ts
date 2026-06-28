@@ -8,6 +8,7 @@ import { requireSignedInUser } from "@/lib/auth/guards";
 import { updateSiteSettings } from "@/lib/admin/site-settings-service";
 
 function revalidateSiteSettingsViews() {
+  revalidatePath("/", "layout");
   revalidatePath("/");
   revalidatePath("/cookies");
   revalidatePath("/live");

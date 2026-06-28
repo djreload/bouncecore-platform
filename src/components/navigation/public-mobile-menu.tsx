@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
+import { BrandMark } from "@/components/branding/brand-mark";
 import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { icons } from "@/components/navigation/icons";
 import { publicNavigation, type NavigationItem } from "@/config/navigation";
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
 type PublicMobileMenuProps = {
   isSignedIn: boolean;
   items: NavigationItem[];
+  logoUrl?: string | null;
   siteName: string;
 };
 
@@ -30,7 +32,7 @@ function navigationForAuth(items: NavigationItem[], signedIn: boolean) {
   });
 }
 
-export function PublicMobileMenu({ isSignedIn, items, siteName }: PublicMobileMenuProps) {
+export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: PublicMobileMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const visibleItems = navigationForAuth(items.length ? items : publicNavigation, isSignedIn);
@@ -62,9 +64,12 @@ export function PublicMobileMenu({ isSignedIn, items, siteName }: PublicMobileMe
           <aside className="fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
             <div className="shrink-0 border-b border-bc-line bg-bc-ink p-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
-                  <h2 className="truncate text-xl font-black">{siteName}</h2>
+                <div className="flex min-w-0 items-center gap-3">
+                  <BrandMark className="h-9 w-9" iconClassName="h-4 w-4" logoUrl={logoUrl} siteName={siteName} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
+                    <h2 className="truncate text-xl font-black">{siteName}</h2>
+                  </div>
                 </div>
                 <button
                   aria-label="Close site menu"

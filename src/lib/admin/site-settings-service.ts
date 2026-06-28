@@ -9,6 +9,7 @@ import {
 } from "@/lib/admin/legal-pages-core";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeOptionalBrandingImageUrl } from "@/lib/media/media-service";
 
 const siteSettingsKey = "site.general";
 
@@ -18,6 +19,7 @@ export type SiteSettingsInput = {
   announcementCtaLabel?: string;
   announcementEnabled: boolean;
   announcementTitle?: string;
+  faviconUrl?: string;
   footerSummary?: string;
   homepageBadge?: string;
   homepageIntro?: string;
@@ -28,6 +30,7 @@ export type SiteSettingsInput = {
     platform?: string;
     url?: string;
   }>;
+  logoUrl?: string;
   siteName?: string;
   stagingTarget?: string;
   supportEmail?: string;
@@ -47,6 +50,10 @@ export type SiteSettings = {
     ctaLabel: string | null;
     enabled: boolean;
     title: string | null;
+  };
+  branding: {
+    faviconUrl: string | null;
+    logoUrl: string | null;
   };
   footerSummary: string;
   homepageBadge: string;
@@ -78,6 +85,10 @@ function defaultSiteSettings(): SiteSettings {
       ctaLabel: null,
       enabled: false,
       title: null
+    },
+    branding: {
+      faviconUrl: null,
+      logoUrl: null
     },
     footerSummary: "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.",
     homepageBadge: "Bouncecore platform",
@@ -177,6 +188,18 @@ function normalizedExternalUrl(value: string | undefined, label: string) {
   return url;
 }
 
+function safeBrandingImageUrl(value: unknown, label: string) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return normalizeOptionalBrandingImageUrl(value, label);
+  } catch {
+    return null;
+  }
+}
+
 function normalizePlatform(value: string | undefined) {
   const platform = normalizedText(value, 40)?.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
@@ -267,6 +290,11 @@ function mergeSiteSettings(value: unknown): SiteSettings {
     }
   }
 
+  if (isObject(value.branding)) {
+    settings.branding.logoUrl = safeBrandingImageUrl(value.branding.logoUrl, "Logo URL");
+    settings.branding.faviconUrl = safeBrandingImageUrl(value.branding.faviconUrl, "Favicon URL");
+  }
+
   if (Array.isArray(value.liveSocialLinks)) {
     settings.liveSocialLinks = value.liveSocialLinks
       .map((link) => {
@@ -321,6 +349,10 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
       ctaLabel: announcementCtaLabel,
       enabled: input.announcementEnabled,
       title: announcementTitle
+    },
+    branding: {
+      faviconUrl: normalizeOptionalBrandingImageUrl(input.faviconUrl, "Favicon URL"),
+      logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL")
     },
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),
     homepageBadge: normalizedRequiredText(input.homepageBadge, 80, "Homepage badge"),
@@ -402,6 +434,15 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
         value: settings.liveSocialLinks.filter((link) => link.enabled).length.toString()
       },
       {
+        detail:
+          settings.branding.logoUrl || settings.branding.faviconUrl
+            ? "Custom public logo or browser icon is configured."
+            : "No custom public logo or browser icon is configured.",
+        label: "Branding",
+        status: settings.branding.logoUrl || settings.branding.faviconUrl ? "ready" : "warning",
+        value: settings.branding.logoUrl || settings.branding.faviconUrl ? "set" : "missing"
+      },
+      {
         detail: settings.legalPages.some((page) => page.enabled)
           ? `${settings.legalPages.filter((page) => page.enabled).length} public legal pages are enabled.`
           : "No public legal pages are enabled.",
@@ -443,6 +484,8 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
     severity: settings.announcement.enabled ? "warning" : "info",
     metadata: {
       announcementEnabled: settings.announcement.enabled,
+      brandingFaviconSet: Boolean(settings.branding.faviconUrl),
+      brandingLogoSet: Boolean(settings.branding.logoUrl),
       legalPages: settings.legalPages.filter((page) => page.enabled).map((page) => page.key),
       liveSocialLinks: settings.liveSocialLinks.filter((link) => link.enabled).length,
       siteName: settings.siteName,

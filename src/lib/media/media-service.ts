@@ -26,6 +26,7 @@ const mp3UploadTypes = [
 ];
 
 type UploadKind =
+  | "branding-images"
   | "product-images"
   | "track-artwork"
   | "profile-avatars"
@@ -328,6 +329,35 @@ export function normalizeOptionalImageUrl(value: string | undefined, label = "Im
   return text;
 }
 
+export function normalizeOptionalBrandingImageUrl(value: string | undefined, label = "Branding image URL") {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error(`${label} must be 500 characters or fewer.`);
+  }
+
+  if (text.startsWith("/uploads/")) {
+    if (/^\/uploads\/branding-images\/[^/]+\.(jpg|jpeg|png|webp|gif|avif)$/i.test(text)) {
+      return text;
+    }
+
+    throw new Error(`${label} upload path must point to an uploaded branding image file.`);
+  }
+
+  const url = assertHttpUrl(text, label);
+  const pathname = url.pathname.toLowerCase();
+
+  if (!/\.(jpg|jpeg|png|webp|gif|avif)$/.test(pathname)) {
+    throw new Error(`${label} must point to a JPG, PNG, WebP, GIF, or AVIF image file.`);
+  }
+
+  return text;
+}
+
 export function normalizeOptionalStreamOfflineImageUrl(value: string | undefined) {
   const text = value?.trim() ?? "";
 
@@ -528,6 +558,21 @@ export async function saveOptionalImageUpload(file: File | null | undefined, kin
   const image = validateImageUpload(file, buffer, "Image upload");
 
   return savePublicUpload(kind, file, maxImageBytes, "Image upload", image.extension, buffer);
+}
+
+export async function saveOptionalBrandingImageUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxImageBytes) {
+    throw new Error(`Branding image upload is too large. Maximum ${formatBytes(maxImageBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Branding image upload");
+
+  return savePublicUpload("branding-images", file, maxImageBytes, "Branding image upload", image.extension, buffer);
 }
 
 export async function saveOptionalStreamOfflineImageUpload(file: File | null | undefined) {

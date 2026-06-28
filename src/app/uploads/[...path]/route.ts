@@ -15,6 +15,7 @@ type RouteContext = {
 
 const uploadsRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "uploads");
 const allowedUploadRoots = new Set([
+  "branding-images",
   "chat-emojis",
   "chat-stickers",
   "music-downloads",

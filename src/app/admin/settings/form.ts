@@ -31,11 +31,13 @@ export function adminSettingsInput(formData: FormData): SiteSettingsInput {
     announcementCtaLabel: formString(formData, "announcementCtaLabel"),
     announcementEnabled: formBoolean(formData, "announcementEnabled"),
     announcementTitle: formString(formData, "announcementTitle"),
+    faviconUrl: formString(formData, "faviconUrl"),
     footerSummary: formString(formData, "footerSummary"),
     homepageBadge: formString(formData, "homepageBadge"),
     homepageIntro: formString(formData, "homepageIntro"),
     legalPages,
     liveSocialLinks,
+    logoUrl: formString(formData, "logoUrl"),
     siteName: formString(formData, "siteName"),
     stagingTarget: formString(formData, "stagingTarget"),
     supportEmail: formString(formData, "supportEmail")
