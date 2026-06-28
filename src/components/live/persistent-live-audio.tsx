@@ -2,25 +2,21 @@
 
 import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
-import { Pause, Play, Radio, Volume2, WifiOff } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 type LiveAudioState = {
   playbackUrl: string | null;
   status: string;
-  title: string;
-  viewerCount: number;
 };
 
 type LiveStatusPayload = {
   playbackUrl?: unknown;
   status?: unknown;
-  viewerCount?: unknown;
-  channel?: {
-    title?: unknown;
-  } | null;
 };
+
+const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
+const liveAudioEnableEvent = "bouncecore:live-audio-enable";
 
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
@@ -37,10 +33,32 @@ function isLikelyHls(playbackUrl: string | null) {
 function normalizePayload(payload: LiveStatusPayload, current: LiveAudioState): LiveAudioState {
   return {
     playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
-    status: typeof payload.status === "string" ? payload.status : current.status,
-    title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
-    viewerCount: typeof payload.viewerCount === "number" && Number.isFinite(payload.viewerCount) ? payload.viewerCount : current.viewerCount
+    status: typeof payload.status === "string" ? payload.status : current.status
   };
+}
+
+function storedAudioEnabled() {
+  try {
+    return window.localStorage.getItem(liveAudioEnabledStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function storeAudioEnabled(enabled: boolean) {
+  try {
+    window.localStorage.setItem(liveAudioEnabledStorageKey, enabled ? "true" : "false");
+  } catch {
+    // Storage can be unavailable in strict privacy modes; playback still works for this page lifetime.
+  }
+}
+
+export function requestPersistentLiveAudio() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(liveAudioEnableEvent));
 }
 
 export function PersistentLiveAudio() {
@@ -49,16 +67,25 @@ export function PersistentLiveAudio() {
   const hlsRef = useRef<Hls | null>(null);
   const [liveState, setLiveState] = useState<LiveAudioState>({
     playbackUrl: null,
-    status: "checking",
-    title: "Bouncecore Live",
-    viewerCount: 0
+    status: "checking"
   });
   const [userEnabled, setUserEnabled] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [blocked, setBlocked] = useState(false);
   const canPlay = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
-  const visible = canPlay || userEnabled;
   const onLivePage = pathname === "/live" || pathname.startsWith("/live?");
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      if (!cancelled) {
+        setUserEnabled(storedAudioEnabled());
+      }
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,31 +135,11 @@ export function PersistentLiveAudio() {
 
     audio.removeAttribute("src");
     audio.load();
-    setPlaying(false);
 
     if (!playbackUrl || !canPlay) {
       return () => {
         cancelled = true;
       };
-    }
-
-    async function playIfRequested() {
-      if (!audio || !userEnabled || cancelled) {
-        return;
-      }
-
-      try {
-        await audio.play();
-        if (!cancelled) {
-          setBlocked(false);
-          setPlaying(true);
-        }
-      } catch {
-        if (!cancelled) {
-          setBlocked(true);
-          setPlaying(false);
-        }
-      }
     }
 
     if (isLikelyHls(playbackUrl) && Hls.isSupported()) {
@@ -142,9 +149,6 @@ export function PersistentLiveAudio() {
         startLevel: -1
       });
       hlsRef.current = hls;
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        void playIfRequested();
-      });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (!data.fatal || cancelled) {
           return;
@@ -172,12 +176,11 @@ export function PersistentLiveAudio() {
     }
 
     audio.src = playbackUrl;
-    void playIfRequested();
 
     return () => {
       cancelled = true;
     };
-  }, [canPlay, liveState.playbackUrl, userEnabled]);
+  }, [canPlay, liveState.playbackUrl]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -186,91 +189,68 @@ export function PersistentLiveAudio() {
       return;
     }
 
-    function onPlay() {
-      setPlaying(true);
-      setBlocked(false);
+    if (!canPlay || !userEnabled || onLivePage) {
+      audio.pause();
+      return;
     }
 
-    function onPause() {
-      setPlaying(false);
+    void audio.play().catch(() => undefined);
+  }, [canPlay, onLivePage, userEnabled]);
+
+  useEffect(() => {
+    function enableAudio() {
+      setUserEnabled(true);
+      storeAudioEnabled(true);
     }
 
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
+    window.addEventListener(liveAudioEnableEvent, enableAudio);
+    window.addEventListener("bouncecore:live-video-play", enableAudio);
 
     return () => {
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
+      window.removeEventListener(liveAudioEnableEvent, enableAudio);
+      window.removeEventListener("bouncecore:live-video-play", enableAudio);
     };
   }, []);
 
-  async function togglePlayback() {
-    const audio = audioRef.current;
+  useEffect(() => {
+    function eventLeavesLivePage(event: Event) {
+      const target = event.target;
 
-    if (!audio || !canPlay) {
-      setUserEnabled(false);
-      return;
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      const anchor = target.closest("a[href]");
+
+      if (!(anchor instanceof HTMLAnchorElement) || !anchor.href) {
+        return false;
+      }
+
+      try {
+        const url = new URL(anchor.href);
+
+        return url.origin === window.location.origin && url.pathname !== "/live";
+      } catch {
+        return false;
+      }
     }
 
-    if (userEnabled && !audio.paused) {
-      audio.pause();
-      setUserEnabled(false);
-      return;
+    function primeBackgroundAudio(event: Event) {
+      const audio = audioRef.current;
+
+      if (!audio || !canPlay || !userEnabled || !onLivePage || !eventLeavesLivePage(event)) {
+        return;
+      }
+
+      void audio.play().catch(() => undefined);
     }
 
-    setUserEnabled(true);
+    document.addEventListener("pointerdown", primeBackgroundAudio, { capture: true });
 
-    try {
-      await audio.play();
-      setBlocked(false);
-      setPlaying(true);
-    } catch {
-      setBlocked(true);
-      setPlaying(false);
-    }
-  }
+    return () => {
+      document.removeEventListener("pointerdown", primeBackgroundAudio, { capture: true });
+    };
+  }, [canPlay, onLivePage, userEnabled]);
 
-  return (
-    <>
-      <audio ref={audioRef} preload="none" />
-      {visible ? (
-        <section
-          className={`fixed z-[65] w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-bc-line bg-bc-panel/95 p-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur ${
-            onLivePage ? "right-3 top-20" : "bottom-16 right-4"
-          }`}
-          aria-label="Persistent live audio"
-        >
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-bc-electric/40 bg-bc-electric/10 text-bc-electric">
-              {canPlay ? <Volume2 className="h-5 w-5" aria-hidden="true" /> : <WifiOff className="h-5 w-5" aria-hidden="true" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black">{liveState.title}</p>
-              <p className="mt-0.5 truncate text-xs text-bc-muted">
-                {canPlay
-                  ? `${playing ? "Playing" : "Live audio ready"} / ${liveState.viewerCount.toLocaleString("en-GB")} viewers`
-                  : "Live audio is offline"}
-              </p>
-              {blocked ? <p className="mt-1 text-xs text-bc-amber">Tap play again if the browser blocked autoplay.</p> : null}
-            </div>
-            <button
-              aria-label={playing ? "Pause live audio" : "Play live audio"}
-              className="bc-focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-md border border-bc-line bg-bc-ink text-white hover:border-bc-electric/60"
-              disabled={!canPlay}
-              onClick={togglePlayback}
-              type="button"
-            >
-              {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-            </button>
-          </div>
-          {!canPlay ? (
-            <div className="mt-2 flex items-center gap-2 text-xs text-bc-muted">
-              <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-              Audio will become available when the stream is live.
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-    </>
-  );
+  return <audio aria-hidden="true" data-persistent-live-audio ref={audioRef} preload="auto" />;
 }

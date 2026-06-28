@@ -5,6 +5,7 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { requestPersistentLiveAudio } from "@/components/live/persistent-live-audio";
 import { cn } from "@/lib/utils";
 import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 
@@ -97,12 +98,14 @@ function HlsVideo({
   className,
   controls,
   muted,
+  onPlaybackStarted,
   playbackUrl
 }: {
   ariaLabel: string;
   className?: string;
   controls?: boolean;
   muted: boolean;
+  onPlaybackStarted?: () => void;
   playbackUrl: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -137,7 +140,12 @@ function HlsVideo({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
-          void video.play().catch(() => undefined);
+          void video
+            .play()
+            .then(() => {
+              onPlaybackStarted?.();
+            })
+            .catch(() => undefined);
         }
       });
 
@@ -169,12 +177,17 @@ function HlsVideo({
     }
 
     video.src = playbackUrl;
-    void video.play().catch(() => undefined);
+    void video
+      .play()
+      .then(() => {
+        onPlaybackStarted?.();
+      })
+      .catch(() => undefined);
 
     return () => {
       cancelled = true;
     };
-  }, [playbackUrl]);
+  }, [onPlaybackStarted, playbackUrl]);
 
   return (
     <video
@@ -183,6 +196,7 @@ function HlsVideo({
       className={className}
       controls={controls}
       muted={muted}
+      onPlay={onPlaybackStarted}
       playsInline
       preload="metadata"
       ref={videoRef}
@@ -278,6 +292,7 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
           className="absolute inset-0 h-full w-full bg-black object-contain"
           controls
           muted={false}
+          onPlaybackStarted={requestPersistentLiveAudio}
           playbackUrl={primaryPlaybackUrl}
         />
       ) : (
