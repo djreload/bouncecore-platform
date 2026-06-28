@@ -10,6 +10,7 @@ import "./fcm-push-service.test.mjs";
 import "./ingest-url.test.mjs";
 import "./legal-pages.test.mjs";
 import "./live-hls-transcoder-config.test.mjs";
+import "./live-playback-speed.test.mjs";
 import "./live-status-snapshot.test.mjs";
 import "./maintenance-core.test.mjs";
 import "./media-service.test.mjs";

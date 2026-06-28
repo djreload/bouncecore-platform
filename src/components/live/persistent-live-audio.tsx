@@ -37,6 +37,14 @@ function seekToLiveEdge(video: HTMLVideoElement) {
   }
 }
 
+function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
+  video.defaultPlaybackRate = 1;
+
+  if (video.playbackRate !== 1) {
+    video.playbackRate = 1;
+  }
+}
+
 function storedAudioEnabled() {
   try {
     return window.localStorage.getItem(liveAudioEnabledStorageKey) === "true";
@@ -197,10 +205,16 @@ export function PersistentLiveAudio() {
     activeVideo.muted = !userEnabledRef.current;
     activeVideo.playsInline = true;
     activeVideo.preload = "auto";
+    keepNormalPlaybackSpeed(activeVideo);
     activeVideo.addEventListener("pointerdown", enableAudioFromUserGesture);
     activeVideo.addEventListener("keydown", enableAudioFromUserGesture);
+    activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
     activeVideo.addEventListener("volumechange", rememberAudiblePlayback);
     activeVideo.addEventListener("ended", recoverLivePlayback);
+
+    function resetPlaybackSpeed() {
+      keepNormalPlaybackSpeed(activeVideo);
+    }
 
     function recoverLivePlayback() {
       if (!canPlayRef.current) {
@@ -209,6 +223,7 @@ export function PersistentLiveAudio() {
 
       hlsRef.current?.startLoad(-1);
       seekToLiveEdge(activeVideo);
+      keepNormalPlaybackSpeed(activeVideo);
       activeVideo.muted = !userEnabledRef.current;
       void activeVideo.play().catch(() => undefined);
     }
@@ -240,6 +255,7 @@ export function PersistentLiveAudio() {
       throttledObserver.disconnect();
       activeVideo.removeEventListener("pointerdown", enableAudioFromUserGesture);
       activeVideo.removeEventListener("keydown", enableAudioFromUserGesture);
+      activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
       activeVideo.removeEventListener("volumechange", rememberAudiblePlayback);
       activeVideo.removeEventListener("ended", recoverLivePlayback);
     };
@@ -324,7 +340,7 @@ export function PersistentLiveAudio() {
         lowLatencyMode: true,
         manifestLoadingMaxRetry: 8,
         maxBufferLength: 30,
-        maxLiveSyncPlaybackRate: 1.5,
+        maxLiveSyncPlaybackRate: 1,
         startLevel: -1
       });
       hlsRef.current = hls;
@@ -334,6 +350,7 @@ export function PersistentLiveAudio() {
         }
 
         video.muted = !userEnabledRef.current;
+        keepNormalPlaybackSpeed(video);
         void video.play().catch(() => undefined);
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
@@ -343,6 +360,7 @@ export function PersistentLiveAudio() {
 
         seekToLiveEdge(video);
         video.muted = !userEnabledRef.current;
+        keepNormalPlaybackSpeed(video);
         void video.play().catch(() => undefined);
       });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
@@ -372,6 +390,7 @@ export function PersistentLiveAudio() {
     }
 
     video.src = playbackUrl;
+    keepNormalPlaybackSpeed(video);
 
     return () => {
       cancelled = true;
@@ -391,6 +410,7 @@ export function PersistentLiveAudio() {
     }
 
     video.muted = !userEnabled;
+    keepNormalPlaybackSpeed(video);
     void video.play().catch(() => undefined);
   }, [canPlay, userEnabled]);
 
@@ -400,6 +420,10 @@ export function PersistentLiveAudio() {
       setAudiblePreference(true, videoRef.current);
 
       if (canPlayRef.current) {
+        if (videoRef.current) {
+          keepNormalPlaybackSpeed(videoRef.current);
+        }
+
         void videoRef.current?.play().catch(() => undefined);
       }
     }

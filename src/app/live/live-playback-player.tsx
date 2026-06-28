@@ -52,6 +52,14 @@ function seekToLiveEdge(video: HTMLVideoElement) {
   }
 }
 
+function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
+  video.defaultPlaybackRate = 1;
+
+  if (video.playbackRate !== 1) {
+    video.playbackRate = 1;
+  }
+}
+
 function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
   return source?.presenterName ?? source?.title ?? fallback;
 }
@@ -90,14 +98,21 @@ function HlsVideo({
     hlsRef.current = null;
     activeVideo.removeAttribute("src");
     activeVideo.load();
+    keepNormalPlaybackSpeed(activeVideo);
 
     function recoverLivePlayback() {
       hlsRef.current?.startLoad(-1);
       seekToLiveEdge(activeVideo);
+      keepNormalPlaybackSpeed(activeVideo);
       void activeVideo.play().catch(() => undefined);
     }
 
+    function resetPlaybackSpeed() {
+      keepNormalPlaybackSpeed(activeVideo);
+    }
+
     activeVideo.addEventListener("ended", recoverLivePlayback);
+    activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
 
     const hlsPlayback = isLikelyHls(playbackUrl);
 
@@ -115,7 +130,7 @@ function HlsVideo({
         lowLatencyMode: true,
         manifestLoadingMaxRetry: 8,
         maxBufferLength: 30,
-        maxLiveSyncPlaybackRate: 1.5,
+        maxLiveSyncPlaybackRate: 1,
         startLevel: -1
       });
       hlsRef.current = hls;
@@ -136,6 +151,7 @@ function HlsVideo({
         }
 
         seekToLiveEdge(activeVideo);
+        keepNormalPlaybackSpeed(activeVideo);
         void activeVideo.play().catch(() => undefined);
       });
 
@@ -163,11 +179,13 @@ function HlsVideo({
       return () => {
         cancelled = true;
         activeVideo.removeEventListener("ended", recoverLivePlayback);
+        activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
         hls.destroy();
       };
     }
 
     activeVideo.src = playbackUrl;
+    keepNormalPlaybackSpeed(activeVideo);
     void activeVideo
       .play()
       .then(() => {
@@ -178,6 +196,7 @@ function HlsVideo({
     return () => {
       cancelled = true;
       activeVideo.removeEventListener("ended", recoverLivePlayback);
+      activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
     };
   }, [onPlaybackStarted, playbackUrl]);
 
