@@ -97,6 +97,7 @@ const mediaGatewayPlaybackUrl = playbackUrls.directMediaGatewayPlaybackUrl;
 const mediaGatewayApiUrl = envValue("MEDIA_GATEWAY_API_URL").replace(/\/+$/, "");
 const transcoderSourceUrlTemplate =
   envValue("STREAM_CORE_TRANSCODER_SOURCE_URL") || envValue("TRANSCODER_INPUT_URL") || "rtmp://media-gateway:1935/{path}";
+const restreamSourceUrlTemplate = envValue("STREAM_CORE_RESTREAM_SOURCE_URL") || transcoderSourceUrlTemplate;
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
 const publicPlaybackUrl = playbackUrls.primaryPublicPlaybackUrl;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
@@ -381,6 +382,16 @@ function currentTranscoderSourceUrl() {
   }
 
   return resolveTranscoderSourceUrlTemplate(transcoderSourceUrlTemplate, primaryIngest()?.ingestPath || state.ingestPath || "live");
+}
+
+function currentRestreamSourceUrl() {
+  const primary = primaryIngest();
+
+  if (!restreamSourceUrlTemplate || !primary) {
+    return null;
+  }
+
+  return resolveTranscoderSourceUrlTemplate(restreamSourceUrlTemplate, primary.ingestPath);
 }
 
 function ingestId(path: string, fingerprint: string | null) {
@@ -1209,6 +1220,27 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       }
 
       const sourceUrl = currentTranscoderSourceUrl();
+
+      if (!sourceUrl) {
+        noContent(response);
+        return;
+      }
+
+      text(response, 200, `${sourceUrl}\n`);
+      return;
+    }
+
+    if (url.pathname === "/restream/source" || url.pathname === "/api/restream/source") {
+      if (request.method !== "GET") {
+        methodNotAllowed(response);
+        return;
+      }
+
+      if (!requireAuth(request, response)) {
+        return;
+      }
+
+      const sourceUrl = currentRestreamSourceUrl();
 
       if (!sourceUrl) {
         noContent(response);

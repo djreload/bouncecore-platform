@@ -9,6 +9,7 @@ import {
   streamProfileToSummary,
   type StreamProfileSummary
 } from "@/lib/stream/stream-profile-service";
+import { getAdminRestreamSettings } from "@/lib/stream/restream-settings-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 
 export type StreamChannelInput = {
@@ -148,7 +149,7 @@ export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
 export async function getAdminStreamControlData() {
   await ensureDefaultStreamProfiles();
 
-  const [channels, provider, streamProfiles] = await Promise.all([
+  const [channels, provider, restreamSettings, streamProfiles] = await Promise.all([
     prisma.streamChannel.findMany({
       orderBy: {
         slug: "asc"
@@ -165,6 +166,7 @@ export async function getAdminStreamControlData() {
       }
     }),
     getProviderSnapshot(),
+    getAdminRestreamSettings(),
     getStreamProfiles({
       includeDisabled: true
     })
@@ -173,6 +175,7 @@ export async function getAdminStreamControlData() {
   return {
     channels: channels.map(toSummary),
     provider,
+    restreamSettings,
     streamProfiles
   };
 }

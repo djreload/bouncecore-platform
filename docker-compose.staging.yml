@@ -173,6 +173,52 @@ services:
     volumes:
       - bouncecore_transcoder_hls:/hls
 
+  media-restreamer:
+    profiles:
+      - restream
+    image: jrottenberg/ffmpeg:7.1-alpine
+    container_name: bouncecore-media-restreamer
+    restart: unless-stopped
+    environment:
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:?INTERNAL_TASK_TOKEN is required}
+      STREAM_CORE_INTERNAL_TOKEN: ${STREAM_CORE_INTERNAL_TOKEN:?STREAM_CORE_INTERNAL_TOKEN is required}
+      RESTREAM_SOURCE_URL: http://stream-core:8088/api/restream/source
+      RESTREAM_TARGET_URL: http://app:3000/internal/stream/restream-target
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - |
+        fetch_source() {
+          wget -q -T 5 -O - --header "Authorization: Bearer $$STREAM_CORE_INTERNAL_TOKEN" "$$RESTREAM_SOURCE_URL" 2>/dev/null || true
+        }
+        fetch_target() {
+          wget -q -T 5 -O - --header "Authorization: Bearer $$INTERNAL_TASK_TOKEN" "$$RESTREAM_TARGET_URL" 2>/dev/null || true
+        }
+        while true; do
+          source_url="$$(fetch_source)"
+          target_url="$$(fetch_target)"
+          if [ -z "$$source_url" ] || [ -z "$$target_url" ]; then
+            sleep 5
+            continue
+          fi
+          echo "Starting external restream output."
+          ffmpeg -hide_banner -loglevel warning -re -i "$$source_url" -c copy -f flv "$$target_url" &
+          restream_pid="$$!"
+          while kill -0 "$$restream_pid" 2>/dev/null; do
+            sleep 10
+            next_source_url="$$(fetch_source)"
+            next_target_url="$$(fetch_target)"
+            if [ "$$next_source_url" != "$$source_url" ] || [ "$$next_target_url" != "$$target_url" ]; then
+              echo "Restream source or target changed; restarting output."
+              kill "$$restream_pid" 2>/dev/null || true
+              wait "$$restream_pid" 2>/dev/null || true
+              break
+            fi
+          done
+          wait "$$restream_pid" 2>/dev/null || true
+          sleep 2
+        done
+
   worker:
     profiles:
       - worker

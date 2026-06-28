@@ -24,6 +24,7 @@ import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
 import "./privacy-consent.test.mjs";
+import "./restream-settings.test.mjs";
 import "./reward-wheel-core.test.mjs";
 import "./sheep-throw-settings.test.mjs";
 import "./star-packages.test.mjs";

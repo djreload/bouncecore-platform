@@ -9,6 +9,7 @@ import {
   ensureDefaultStreamChannel,
   updateStreamChannel
 } from "@/lib/stream/stream-channel-service";
+import { updateRestreamSettings } from "@/lib/stream/restream-settings-service";
 import { ensureDefaultStreamProfiles, updateStreamProfile } from "@/lib/stream/stream-profile-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 import type { AdminStreamActionState } from "@/app/admin/stream/state";
@@ -70,6 +71,17 @@ function streamProfileInput(formData: FormData) {
     isEnabled: formBoolean(formData, "isEnabled"),
     isDefault: formBoolean(formData, "isDefault"),
     sortOrder: formNumber(formData, "sortOrder")
+  };
+}
+
+function restreamSettingsInput(formData: FormData) {
+  return {
+    clearStreamKey: formBoolean(formData, "clearStreamKey"),
+    enabled: formBoolean(formData, "enabled"),
+    label: formString(formData, "label"),
+    provider: formString(formData, "provider"),
+    serverUrl: formString(formData, "serverUrl"),
+    streamKey: formString(formData, "streamKey")
   };
 }
 
@@ -147,6 +159,16 @@ export async function adminStreamAction(
       return {
         status: "success",
         message: "Stream profile updated."
+      };
+    }
+
+    if (intent === "update-restream") {
+      await updateRestreamSettings(restreamSettingsInput(formData), actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Restream output settings updated."
       };
     }
 
