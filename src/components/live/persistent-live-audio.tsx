@@ -22,6 +22,21 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
+function seekToLiveEdge(video: HTMLVideoElement) {
+  const seekable = video.seekable;
+
+  if (!seekable.length) {
+    return;
+  }
+
+  const end = seekable.end(seekable.length - 1);
+  const start = seekable.start(seekable.length - 1);
+
+  if (Number.isFinite(end)) {
+    video.currentTime = Math.max(start, end - 0.35);
+  }
+}
+
 function storedAudioEnabled() {
   try {
     return window.localStorage.getItem(liveAudioEnabledStorageKey) === "true";
@@ -73,10 +88,20 @@ export function PersistentLiveAudio() {
   const parkingRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const canPlayRef = useRef(false);
+  const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
   const [userEnabled, setUserEnabled] = useState(false);
   const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
   const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
+
+  useEffect(() => {
+    canPlayRef.current = canPlay;
+  }, [canPlay]);
+
+  useEffect(() => {
+    userEnabledRef.current = userEnabled;
+  }, [userEnabled]);
 
   const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
     const video = videoRef.current;
@@ -144,16 +169,32 @@ export function PersistentLiveAudio() {
       return;
     }
 
+    const activeVideo = video;
+
     function enableAudio() {
       setUserEnabled(true);
       storeAudioEnabled(true);
     }
 
-    video.autoplay = true;
-    video.muted = false;
-    video.playsInline = true;
-    video.preload = "auto";
-    video.addEventListener("play", enableAudio);
+    activeVideo.autoplay = true;
+    activeVideo.muted = false;
+    activeVideo.playsInline = true;
+    activeVideo.preload = "auto";
+    activeVideo.addEventListener("play", enableAudio);
+    activeVideo.addEventListener("ended", recoverLivePlayback);
+
+    function recoverLivePlayback() {
+      if (!canPlayRef.current) {
+        return;
+      }
+
+      hlsRef.current?.startLoad(-1);
+      seekToLiveEdge(activeVideo);
+
+      if (userEnabledRef.current) {
+        void activeVideo.play().catch(() => undefined);
+      }
+    }
 
     updateVideoPlacement();
 
@@ -180,7 +221,8 @@ export function PersistentLiveAudio() {
       }
 
       throttledObserver.disconnect();
-      video.removeEventListener("play", enableAudio);
+      activeVideo.removeEventListener("play", enableAudio);
+      activeVideo.removeEventListener("ended", recoverLivePlayback);
     };
   }, [updateVideoPlacement]);
 
@@ -253,11 +295,28 @@ export function PersistentLiveAudio() {
 
     if (isLikelyHls(playbackUrl) && Hls.isSupported()) {
       const hls = new Hls({
+        backBufferLength: 30,
         enableWorker: true,
+        fragLoadingMaxRetry: 8,
+        levelLoadingMaxRetry: 8,
+        liveDurationInfinity: true,
+        liveMaxLatencyDurationCount: 10,
+        liveSyncDurationCount: 3,
         lowLatencyMode: true,
+        manifestLoadingMaxRetry: 8,
+        maxBufferLength: 30,
+        maxLiveSyncPlaybackRate: 1.5,
         startLevel: -1
       });
       hlsRef.current = hls;
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (!data.details.live || cancelled || !userEnabledRef.current || !video.paused) {
+          return;
+        }
+
+        seekToLiveEdge(video);
+        void video.play().catch(() => undefined);
+      });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (!data.fatal || cancelled) {
           return;

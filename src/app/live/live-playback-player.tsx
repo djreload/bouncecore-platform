@@ -37,6 +37,21 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
+function seekToLiveEdge(video: HTMLVideoElement) {
+  const seekable = video.seekable;
+
+  if (!seekable.length) {
+    return;
+  }
+
+  const end = seekable.end(seekable.length - 1);
+  const start = seekable.start(seekable.length - 1);
+
+  if (Number.isFinite(end)) {
+    video.currentTime = Math.max(start, end - 0.35);
+  }
+}
+
 function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
   return source?.presenterName ?? source?.title ?? fallback;
 }
@@ -69,32 +84,59 @@ function HlsVideo({
       };
     }
 
+    const activeVideo = video;
+
     hlsRef.current?.destroy();
     hlsRef.current = null;
-    video.removeAttribute("src");
-    video.load();
+    activeVideo.removeAttribute("src");
+    activeVideo.load();
+
+    function recoverLivePlayback() {
+      hlsRef.current?.startLoad(-1);
+      seekToLiveEdge(activeVideo);
+      void activeVideo.play().catch(() => undefined);
+    }
+
+    activeVideo.addEventListener("ended", recoverLivePlayback);
 
     const hlsPlayback = isLikelyHls(playbackUrl);
 
     if (hlsPlayback && Hls.isSupported()) {
       const hls = new Hls({
         abrEwmaDefaultEstimate: 3_000_000,
+        backBufferLength: 30,
         capLevelToPlayerSize: true,
         enableWorker: true,
+        fragLoadingMaxRetry: 8,
+        levelLoadingMaxRetry: 8,
+        liveDurationInfinity: true,
+        liveMaxLatencyDurationCount: 10,
+        liveSyncDurationCount: 3,
         lowLatencyMode: true,
+        manifestLoadingMaxRetry: 8,
+        maxBufferLength: 30,
+        maxLiveSyncPlaybackRate: 1.5,
         startLevel: -1
       });
       hlsRef.current = hls;
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
-          void video
+          void activeVideo
             .play()
             .then(() => {
               onPlaybackStarted?.();
             })
             .catch(() => undefined);
         }
+      });
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (!data.details.live || cancelled || !activeVideo.paused) {
+          return;
+        }
+
+        seekToLiveEdge(activeVideo);
+        void activeVideo.play().catch(() => undefined);
       });
 
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
@@ -115,17 +157,18 @@ function HlsVideo({
         hls.destroy();
       });
 
-      hls.attachMedia(video);
+      hls.attachMedia(activeVideo);
       hls.loadSource(playbackUrl);
 
       return () => {
         cancelled = true;
+        activeVideo.removeEventListener("ended", recoverLivePlayback);
         hls.destroy();
       };
     }
 
-    video.src = playbackUrl;
-    void video
+    activeVideo.src = playbackUrl;
+    void activeVideo
       .play()
       .then(() => {
         onPlaybackStarted?.();
@@ -134,6 +177,7 @@ function HlsVideo({
 
     return () => {
       cancelled = true;
+      activeVideo.removeEventListener("ended", recoverLivePlayback);
     };
   }, [onPlaybackStarted, playbackUrl]);
 
