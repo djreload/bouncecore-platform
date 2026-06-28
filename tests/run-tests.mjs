@@ -14,6 +14,7 @@ import "./media-gateway-state.test.mjs";
 import "./music-checkout-errors.test.mjs";
 import "./music-ranking.test.mjs";
 import "./mobile-music-payload.test.mjs";
+import "./mobile-shop-payload.test.mjs";
 import "./mobile-event-notifications.test.mjs";
 import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";

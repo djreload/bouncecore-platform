@@ -1,8 +1,9 @@
 import { getPublicChatData, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
 import { getPublicMusicTracks } from "@/lib/music/music-service";
 import { buildMobileMusicPayload } from "@/lib/mobile/music-payload-core";
+import { buildMobileShopPayload } from "@/lib/mobile/shop-payload-core";
 import { starPackages } from "@/lib/rewards/stars-service";
-import { getPublicShopProducts, type ProductRow } from "@/lib/shop/shop-service";
+import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 
@@ -10,25 +11,6 @@ export type MobileEndpoint = {
   href: string;
   key: string;
 };
-
-function publicProduct(product: ProductRow) {
-  return {
-    id: product.id,
-    slug: product.slug,
-    name: product.name,
-    description: product.description,
-    imageUrl: product.imageUrl,
-    minPricePence: product.minPricePence,
-    totalStock: product.totalStock,
-    variants: product.variants.map((variant) => ({
-      id: variant.id,
-      sku: variant.sku,
-      name: variant.name,
-      pricePence: variant.pricePence,
-      stock: variant.stock
-    }))
-  };
-}
 
 function publicRoom(room: ChatRoomSummary) {
   return {
@@ -142,14 +124,7 @@ export async function getMobileChatPayload(roomSlug?: string) {
 export async function getMobileShopPayload() {
   const products = await getPublicShopProducts();
 
-  return {
-    products: products.map(publicProduct),
-    stats: {
-      products: products.length,
-      variants: products.reduce((total, product) => total + product.variantCount, 0),
-      totalStock: products.reduce((total, product) => total + product.totalStock, 0)
-    }
-  };
+  return buildMobileShopPayload(products);
 }
 
 export async function getMobileMusicPayload() {
