@@ -4,39 +4,21 @@ import { dirname } from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { resolveTranscoderSourceUrlTemplate } from "../lib/stream/transcoder-source";
 import { mediaGatewayPathOnline } from "../lib/stream/media-gateway-state";
+import {
+  createActiveIngestId,
+  removeActiveIngestState,
+  sortActiveIngests,
+  toPublicActiveIngests,
+  upsertActiveIngestState,
+  type ActiveIngestState,
+  type ActiveIngestStreamProfile
+} from "../lib/stream/active-ingest-state";
 
 type StreamStatus = "offline" | "starting" | "live" | "degraded";
 type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
 
-type StreamProfileConfig = {
-  audioBitrateKbps: number;
-  fps: number;
-  key: string;
-  keyframeSeconds: number;
-  label: string;
-  videoBitrateKbps: number;
-  videoHeight: number;
-  videoWidth: number;
-};
-
-type ActiveIngest = {
-  bitrateKbps: number | null;
-  channelId: string | null;
-  channelSlug: string | null;
-  channelTitle: string | null;
-  directPlaybackUrl: string | null;
-  droppedFrames: number | null;
-  id: string;
-  ingestPath: string;
-  lastIngestAt: string;
-  playbackUrl: string | null;
-  presenterName: string | null;
-  startedAt: string;
-  status: StreamStatus;
-  streamKeyFingerprint: string | null;
-  streamProfile: StreamProfileConfig | null;
-  viewerCount: number;
-};
+type StreamProfileConfig = ActiveIngestStreamProfile;
+type ActiveIngest = ActiveIngestState;
 
 type StreamCoreState = {
   activeIngests: ActiveIngest[];
@@ -409,27 +391,15 @@ function currentTranscoderSourceUrl() {
 }
 
 function ingestId(path: string, fingerprint: string | null) {
-  return createHash("sha256")
-    .update(`${fingerprint ?? "unknown"}:${path}`)
-    .digest("hex")
-    .slice(0, 16);
-}
-
-function activeIngestIsFresh(ingest: ActiveIngest, now = new Date()) {
-  const lastIngestAt = new Date(ingest.lastIngestAt);
-
-  if (!Number.isFinite(lastIngestAt.getTime())) {
-    return false;
-  }
-
-  return now.getTime() - lastIngestAt.getTime() <= offlineAfterSeconds * 1000;
+  return createActiveIngestId(path, fingerprint);
 }
 
 function sortedActiveIngests(now = new Date()) {
-  return state.activeIngests
-    .filter((ingest) => ingest.status !== "offline" && activeIngestIsFresh(ingest, now))
-    .sort((left, right) => new Date(left.startedAt).getTime() - new Date(right.startedAt).getTime())
-    .slice(0, maxActiveIngests);
+  return sortActiveIngests(state.activeIngests, {
+    maxActiveIngests,
+    now,
+    offlineAfterSeconds
+  });
 }
 
 function primaryIngest() {
@@ -445,18 +415,7 @@ function publicPlaybackUrlForIngest(ingest: ActiveIngest, index: number) {
 }
 
 function publicActiveIngests(now = new Date()) {
-  return sortedActiveIngests(now).map((ingest, index) => ({
-    id: ingest.id,
-    lastIngestAt: ingest.lastIngestAt,
-    playbackUrl: publicPlaybackUrlForIngest(ingest, index),
-    presenterName: ingest.presenterName,
-    role: index === 0 ? "primary" : "secondary",
-    startedAt: ingest.startedAt,
-    status: ingest.status,
-    streamKeyFingerprint: ingest.streamKeyFingerprint,
-    title: ingest.channelTitle,
-    profile: ingest.streamProfile
-  }));
+  return toPublicActiveIngests(sortedActiveIngests(now), publicPlaybackUrlForIngest);
 }
 
 function syncLegacyStateFromActiveIngests(now = new Date()) {
@@ -522,40 +481,36 @@ function upsertActiveIngest(
 ) {
   const id = ingestId(path, result.key.fingerprint);
   const existing = state.activeIngests.find((ingest) => ingest.id === id);
-  const freshIngests = sortedActiveIngests(new Date(now));
+  const updated = activeIngestFromValidatedStream(result, path, playbackUrl, now, existing);
+  const resultState = upsertActiveIngestState(state.activeIngests, updated, {
+    maxActiveIngests,
+    now: new Date(now),
+    offlineAfterSeconds
+  });
 
-  if (!existing && freshIngests.length >= maxActiveIngests) {
+  if (!resultState.accepted) {
+    state.activeIngests = resultState.activeIngests;
+    syncLegacyStateFromActiveIngests(new Date(now));
     return null;
   }
 
-  const updated = activeIngestFromValidatedStream(result, path, playbackUrl, now, existing);
-  const others = state.activeIngests.filter((ingest) => ingest.id !== id && activeIngestIsFresh(ingest, new Date(now)));
-
-  state.activeIngests = [...others, updated]
-    .sort((left, right) => new Date(left.startedAt).getTime() - new Date(right.startedAt).getTime())
-    .slice(0, maxActiveIngests);
+  state.activeIngests = resultState.activeIngests;
   syncLegacyStateFromActiveIngests(new Date(now));
 
   return updated;
 }
 
 function removeActiveIngest(path: string | null, fingerprint?: string | null) {
-  const before = state.activeIngests.length;
-
-  state.activeIngests = state.activeIngests.filter((ingest) => {
-    if (path && ingest.ingestPath === path) {
-      return false;
-    }
-
-    if (fingerprint && ingest.streamKeyFingerprint === fingerprint) {
-      return false;
-    }
-
-    return true;
+  const result = removeActiveIngestState(state.activeIngests, { path, fingerprint }, {
+    maxActiveIngests,
+    now: new Date(),
+    offlineAfterSeconds
   });
+
+  state.activeIngests = result.activeIngests;
   syncLegacyStateFromActiveIngests();
 
-  return state.activeIngests.length !== before;
+  return result.removed;
 }
 
 function toActiveIngest(value: unknown): ActiveIngest | null {

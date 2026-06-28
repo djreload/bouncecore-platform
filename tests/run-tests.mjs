@@ -1,4 +1,5 @@
 import "./account-deletion.test.mjs";
+import "./active-ingest-state.test.mjs";
 import "./chat-effects.test.mjs";
 import "./chat-mention-notifications.test.mjs";
 import "./chat-mentions.test.mjs";
