@@ -1,7 +1,14 @@
 import { getPublicChatData, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
 import { getPublicMusicTracks } from "@/lib/music/music-service";
 import { buildMobileMusicPayload } from "@/lib/mobile/music-payload-core";
+import { buildMobilePayPalCheckoutStatus } from "@/lib/mobile/paypal-checkout-status";
 import { buildMobileShopPayload } from "@/lib/mobile/shop-payload-core";
+import {
+  getPayPalCheckoutReadiness,
+  getPayPalIntegrationData,
+  getPayPalMusicReadiness,
+  getPayPalStarsReadiness
+} from "@/lib/payments/paypal-service";
 import { starPackages } from "@/lib/rewards/stars-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
@@ -122,19 +129,36 @@ export async function getMobileChatPayload(roomSlug?: string) {
 }
 
 export async function getMobileShopPayload() {
-  const products = await getPublicShopProducts();
+  const [products, paypal] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData()]);
+  const checkoutReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
 
-  return buildMobileShopPayload(products);
+  return {
+    ...buildMobileShopPayload(products),
+    checkout: buildMobilePayPalCheckoutStatus({
+      mode: paypal.settings.mode,
+      ready: checkoutReadiness.ready,
+      reason: checkoutReadiness.reason
+    })
+  };
 }
 
 export async function getMobileMusicPayload() {
-  const tracks = await getPublicMusicTracks();
+  const [tracks, paypal] = await Promise.all([getPublicMusicTracks(), getPayPalIntegrationData()]);
+  const checkoutReadiness = getPayPalMusicReadiness(paypal.settings, paypal.secretConfigured);
 
-  return buildMobileMusicPayload(tracks);
+  return {
+    ...buildMobileMusicPayload(tracks),
+    checkout: buildMobilePayPalCheckoutStatus({
+      mode: paypal.settings.mode,
+      ready: checkoutReadiness.ready,
+      reason: checkoutReadiness.reason
+    })
+  };
 }
 
 export async function getMobileRewardsPayload() {
-  const data = await getLiveStarSupportData();
+  const [data, paypal] = await Promise.all([getLiveStarSupportData(), getPayPalIntegrationData()]);
+  const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
 
   return {
     live: {
@@ -145,6 +169,11 @@ export async function getMobileRewardsPayload() {
       totalStarsSent: data.totalStarsSent
     },
     packages: starPackages,
-    latestSend: data.latestSend
+    latestSend: data.latestSend,
+    checkout: buildMobilePayPalCheckoutStatus({
+      mode: paypal.settings.mode,
+      ready: checkoutReadiness.ready,
+      reason: checkoutReadiness.reason
+    })
   };
 }
