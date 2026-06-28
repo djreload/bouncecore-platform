@@ -31,7 +31,8 @@ export function orderMusicTracksOldestFirst<T extends MusicRankingTrack>(tracks:
 }
 
 export function getTopDownloadedMusicTracks<T extends MusicRankingTrack>(tracks: T[], limit = 20) {
-  return [...tracks]
+  return tracks
+    .filter((track) => track.successfulDownloads > 0)
     .sort((first, second) => {
       const downloadDiff = second.successfulDownloads - first.successfulDownloads;
 

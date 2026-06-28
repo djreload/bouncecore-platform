@@ -21,3 +21,22 @@ test("top downloaded tracks rank by successful downloads", () => {
     ["second", "first"]
   );
 });
+
+test("top downloaded tracks exclude tracks with zero downloads", () => {
+  const ranked = getTopDownloadedMusicTracks(
+    [
+      ...tracks,
+      { createdAt: "2026-06-04T00:00:00.000Z", id: "zero", successfulDownloads: 0, title: "Zero" }
+    ],
+    20
+  );
+
+  assert.equal(ranked.some((track) => track.id === "zero"), false);
+});
+
+test("top downloaded tracks are empty when no downloads are registered", () => {
+  assert.deepEqual(
+    getTopDownloadedMusicTracks([{ createdAt: "2026-06-04T00:00:00.000Z", id: "zero", successfulDownloads: 0, title: "Zero" }]),
+    []
+  );
+});

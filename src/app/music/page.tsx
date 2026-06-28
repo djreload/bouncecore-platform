@@ -326,7 +326,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                 })}
 
                 {!topTracks.length ? (
-                  <li className="p-4 text-sm text-bc-muted">No approved tracks yet.</li>
+                  <li className="p-4 text-sm text-bc-muted">No tracks have registered downloads yet.</li>
                 ) : null}
               </ol>
             </section>
