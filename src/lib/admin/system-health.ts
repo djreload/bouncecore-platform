@@ -11,6 +11,7 @@ type HealthCheck = {
   status: HealthStatus;
   value: string;
   detail: string;
+  href?: string;
 };
 
 function formatBytes(bytes: number) {
@@ -55,6 +56,22 @@ function envNumber(key: string, fallback: number) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function storedHttpsUrlIsInvalid(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) {
+    return false;
+  }
+
+  try {
+    return new URL(value).protocol !== "https:";
+  } catch {
+    return true;
+  }
+}
+
 function modeCheck(label: string, active: boolean, detail: string): HealthCheck {
   return {
     detail,
@@ -88,6 +105,34 @@ function optionalEnvCheck(label: string, key: string): HealthCheck {
   };
 }
 
+function countQualityCheck({
+  count,
+  critical,
+  detail,
+  href,
+  label,
+  healthyDetail,
+  singular,
+  plural
+}: {
+  count: number;
+  critical?: boolean;
+  detail: string;
+  href: string;
+  label: string;
+  healthyDetail: string;
+  singular: string;
+  plural: string;
+}): HealthCheck {
+  return {
+    detail: count > 0 ? detail : healthyDetail,
+    href,
+    label,
+    status: count > 0 ? (critical ? "critical" : "warning") : "healthy",
+    value: count > 0 ? `${count.toLocaleString("en-GB")} ${count === 1 ? singular : plural}` : "Clean"
+  };
+}
+
 async function databaseCheck(): Promise<HealthCheck> {
   const startedAt = performance.now();
 
@@ -115,7 +160,15 @@ export async function getAdminSystemHealthData() {
     auditLogs,
     queuedPushDeliveries,
     failedPayPalWebhooks,
-    stalePayPalWebhooks
+    stalePayPalWebhooks,
+    approvedPaidTracksMissingDelivery,
+    paidPurchasesMissingDelivery,
+    approvedTracksMissingArtwork,
+    activeProductsMissingImages,
+    activeProductsWithoutVariants,
+    activeStickerPacksWithoutStickers,
+    streamChannelsMissingOfflineImage,
+    mobileConfigSetting
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -173,6 +226,65 @@ export async function getAdminSystemHealthData() {
           lt: staleWebhookCutoff
         }
       }
+    }),
+    prisma.digitalTrack.count({
+      where: {
+        pricePence: {
+          gt: 0
+        },
+        status: "approved",
+        OR: [{ downloadUrl: null }, { downloadUrl: "" }]
+      }
+    }),
+    prisma.digitalTrackPurchase.count({
+      where: {
+        status: "paid",
+        OR: [{ downloadUrl: null }, { downloadUrl: "" }],
+        track: {
+          OR: [{ downloadUrl: null }, { downloadUrl: "" }]
+        }
+      }
+    }),
+    prisma.digitalTrack.count({
+      where: {
+        status: "approved",
+        OR: [{ artworkUrl: null }, { artworkUrl: "" }]
+      }
+    }),
+    prisma.product.count({
+      where: {
+        status: "active",
+        OR: [{ imageUrl: null }, { imageUrl: "" }]
+      }
+    }),
+    prisma.product.count({
+      where: {
+        status: "active",
+        variants: {
+          none: {}
+        }
+      }
+    }),
+    prisma.chatStickerPack.count({
+      where: {
+        status: "active",
+        stickers: {
+          none: {}
+        }
+      }
+    }),
+    prisma.streamChannel.count({
+      where: {
+        OR: [{ offlineImageUrl: null }, { offlineImageUrl: "" }]
+      }
+    }),
+    prisma.appSetting.findUnique({
+      where: {
+        key: "mobile.config"
+      },
+      select: {
+        value: true
+      }
     })
   ]);
   const memoryTotal = totalmem();
@@ -187,6 +299,9 @@ export async function getAdminSystemHealthData() {
   const pushBacklogWarningThreshold = envNumber("WORKER_QUEUE_BACKLOG_WARNING", 250);
   const paypalWebhookStatus =
     failedPayPalWebhooks > 0 ? "critical" : stalePayPalWebhooks > 0 ? "warning" : ("healthy" as const);
+  const savedMobileConfig = mobileConfigSetting?.value;
+  const savedMobileVersion = isObject(savedMobileConfig) && isObject(savedMobileConfig.version) ? savedMobileConfig.version : {};
+  const mobileUpdateUrlInvalid = storedHttpsUrlIsInvalid(savedMobileVersion.updateUrl);
   const playbackUrl = transcoderEnabled
     ? process.env.TRANSCODER_HLS_PUBLIC_URL?.trim() || streamResult.playbackUrl
     : streamResult.playbackUrl ?? process.env.PUBLIC_PLAYBACK_URL?.trim() ?? null;
@@ -287,13 +402,92 @@ export async function getAdminSystemHealthData() {
             : "Healthy"
     }
   ];
-  const criticalChecks = checks.filter((check) => check.status === "critical").length;
-  const warningChecks = checks.filter((check) => check.status === "warning").length;
+  const dataQuality: HealthCheck[] = [
+    countQualityCheck({
+      count: approvedPaidTracksMissingDelivery,
+      critical: true,
+      detail: "Approved paid music tracks need a download MP3 or Google Drive delivery link before users can buy them.",
+      healthyDetail: "All approved paid music tracks have delivery links.",
+      href: "/admin/tracks?repair=missing-delivery",
+      label: "Paid track delivery",
+      singular: "track",
+      plural: "tracks"
+    }),
+    countQualityCheck({
+      count: paidPurchasesMissingDelivery,
+      critical: true,
+      detail: "Paid music purchases without any stored or current track download URL will fail when customers open downloads.",
+      healthyDetail: "All paid music purchases resolve to a delivery URL.",
+      href: "/admin/tracks?repair=missing-delivery",
+      label: "Paid purchase delivery",
+      singular: "purchase",
+      plural: "purchases"
+    }),
+    countQualityCheck({
+      count: approvedTracksMissingArtwork,
+      detail: "Approved music tracks without artwork still sell, but the public catalogue has broken or weak visual presentation.",
+      healthyDetail: "All approved music tracks have artwork.",
+      href: "/admin/tracks?repair=missing-artwork",
+      label: "Track artwork",
+      singular: "track",
+      plural: "tracks"
+    }),
+    countQualityCheck({
+      count: activeProductsMissingImages,
+      detail: "Active shop products without product images weaken the storefront and can look broken in mobile clients.",
+      healthyDetail: "All active shop products have images.",
+      href: "/admin/products?repair=missing-images",
+      label: "Product images",
+      singular: "product",
+      plural: "products"
+    }),
+    countQualityCheck({
+      count: activeProductsWithoutVariants,
+      critical: true,
+      detail: "Active shop products without variants cannot be added to checkout correctly.",
+      healthyDetail: "All active shop products have at least one variant.",
+      href: "/admin/products?repair=missing-variants",
+      label: "Product variants",
+      singular: "product",
+      plural: "products"
+    }),
+    countQualityCheck({
+      count: activeStickerPacksWithoutStickers,
+      detail: "Active chat sticker packs without stickers appear empty to users.",
+      healthyDetail: "All active chat sticker packs contain stickers.",
+      href: "/admin/chat-assets?repair=empty-packs",
+      label: "Sticker packs",
+      singular: "pack",
+      plural: "packs"
+    }),
+    countQualityCheck({
+      count: streamChannelsMissingOfflineImage,
+      detail: "Stream channels without offline images fall back to the default offline presentation.",
+      healthyDetail: "All stream channels have offline images.",
+      href: "/admin/stream?repair=missing-offline-image",
+      label: "Offline stream images",
+      singular: "channel",
+      plural: "channels"
+    }),
+    {
+      detail: mobileUpdateUrlInvalid
+        ? "Saved mobile update URL is invalid or not HTTPS. The public mobile config now ignores it until repaired."
+        : "Saved mobile update URL is empty or valid HTTPS.",
+      href: "/admin/mobile?repair=update-url",
+      label: "Mobile update URL",
+      status: mobileUpdateUrlInvalid ? "warning" : "healthy",
+      value: mobileUpdateUrlInvalid ? "Repair needed" : "Clean"
+    }
+  ];
+  const allChecks = [...checks, ...dataQuality];
+  const criticalChecks = allChecks.filter((check) => check.status === "critical").length;
+  const warningChecks = allChecks.filter((check) => check.status === "warning").length;
 
   return {
     checkedAt: new Date().toISOString(),
     overallStatus: criticalChecks ? "critical" : warningChecks ? "warning" : "healthy",
     checks,
+    dataQuality,
     metrics: [
       {
         label: "Active sessions",

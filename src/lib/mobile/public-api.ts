@@ -1,7 +1,16 @@
 import { getPublicChatData, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
-import { getPublicMusicTracks, type PublicMusicTrack } from "@/lib/music/music-service";
+import { getPublicMusicTracks } from "@/lib/music/music-service";
+import { buildMobileMusicPayload } from "@/lib/mobile/music-payload-core";
+import { buildMobilePayPalCheckoutStatus } from "@/lib/mobile/paypal-checkout-status";
+import { buildMobileShopPayload } from "@/lib/mobile/shop-payload-core";
+import {
+  getPayPalCheckoutReadiness,
+  getPayPalIntegrationData,
+  getPayPalMusicReadiness,
+  getPayPalStarsReadiness
+} from "@/lib/payments/paypal-service";
 import { starPackages } from "@/lib/rewards/stars-service";
-import { getPublicShopProducts, type ProductRow } from "@/lib/shop/shop-service";
+import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 
@@ -9,46 +18,6 @@ export type MobileEndpoint = {
   href: string;
   key: string;
 };
-
-function publicProduct(product: ProductRow) {
-  return {
-    id: product.id,
-    slug: product.slug,
-    name: product.name,
-    description: product.description,
-    imageUrl: product.imageUrl,
-    minPricePence: product.minPricePence,
-    totalStock: product.totalStock,
-    variants: product.variants.map((variant) => ({
-      id: variant.id,
-      sku: variant.sku,
-      name: variant.name,
-      pricePence: variant.pricePence,
-      stock: variant.stock
-    }))
-  };
-}
-
-function publicTrack(track: PublicMusicTrack) {
-  return {
-    id: track.id,
-    slug: track.slug,
-    title: track.title,
-    genre: track.genre,
-    bpm: track.bpm,
-    musicalKey: track.musicalKey,
-    artworkUrl: track.artworkUrl,
-    previewUrl: track.previewUrl,
-    licenseType: track.licenseType,
-    licenseSummary: track.licenseSummary,
-    pricePence: track.pricePence,
-    producer: {
-      name: track.producerName,
-      slug: track.producerSlug,
-      bio: track.producerBio
-    }
-  };
-}
 
 function publicRoom(room: ChatRoomSummary) {
   return {
@@ -68,6 +37,7 @@ function publicMessage(message: ChatMessageSummary) {
   return {
     id: message.id,
     roomId: message.roomId,
+    replyTo: message.replyTo,
     body: mediaOnlyMessage ? "" : message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,
@@ -80,6 +50,7 @@ function publicMessage(message: ChatMessageSummary) {
     starNote: message.starNote,
     createdAt: message.createdAt,
     author: {
+      avatarUrl: message.authorAvatarUrl,
       displayName: message.authorDisplayName,
       roles: message.authorRoles
     },
@@ -101,9 +72,11 @@ export function getMobileEndpoints(): MobileEndpoint[] {
     { key: "account.profile", href: "/api/mobile/v1/account/profile" },
     { key: "account.devices", href: "/api/mobile/v1/account/devices" },
     { key: "account.notifications", href: "/api/mobile/v1/account/notifications" },
+    { key: "account.notificationPreferences", href: "/api/mobile/v1/account/notification-preferences" },
     { key: "account.orders", href: "/api/mobile/v1/account/orders" },
     { key: "account.downloads", href: "/api/mobile/v1/account/downloads" },
     { key: "account.rewards", href: "/api/mobile/v1/account/rewards" },
+    { key: "account.rewards.spin", href: "/api/mobile/v1/account/rewards/spin" },
     { key: "live", href: "/api/mobile/v1/live" },
     { key: "chat", href: "/api/mobile/v1/chat" },
     { key: "chat.gifs", href: "/api/mobile/v1/chat/gifs?q=rave" },
@@ -127,6 +100,7 @@ export async function getMobileLivePayload() {
   const live = await getPublicLiveState();
 
   return {
+    activeIngests: live.activeIngests,
     channel: live.channel,
     health: live.health,
     offlineImageUrl: live.offlineImageUrl,
@@ -157,36 +131,36 @@ export async function getMobileChatPayload(roomSlug?: string) {
 }
 
 export async function getMobileShopPayload() {
-  const products = await getPublicShopProducts();
+  const [products, paypal] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData()]);
+  const checkoutReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
 
   return {
-    products: products.map(publicProduct),
-    stats: {
-      products: products.length,
-      variants: products.reduce((total, product) => total + product.variantCount, 0),
-      totalStock: products.reduce((total, product) => total + product.totalStock, 0)
-    }
+    ...buildMobileShopPayload(products),
+    checkout: buildMobilePayPalCheckoutStatus({
+      mode: paypal.settings.mode,
+      ready: checkoutReadiness.ready,
+      reason: checkoutReadiness.reason
+    })
   };
 }
 
 export async function getMobileMusicPayload() {
-  const tracks = await getPublicMusicTracks();
-  const genres = new Set(tracks.flatMap((track) => (track.genre ? [track.genre] : [])));
+  const [tracks, paypal] = await Promise.all([getPublicMusicTracks(), getPayPalIntegrationData()]);
+  const checkoutReadiness = getPayPalMusicReadiness(paypal.settings, paypal.secretConfigured);
 
   return {
-    tracks: tracks.map(publicTrack),
-    stats: {
-      tracks: tracks.length,
-      genres: genres.size,
-      averagePricePence: tracks.length
-        ? Math.round(tracks.reduce((total, track) => total + track.pricePence, 0) / tracks.length)
-        : 0
-    }
+    ...buildMobileMusicPayload(tracks),
+    checkout: buildMobilePayPalCheckoutStatus({
+      mode: paypal.settings.mode,
+      ready: checkoutReadiness.ready,
+      reason: checkoutReadiness.reason
+    })
   };
 }
 
 export async function getMobileRewardsPayload() {
-  const data = await getLiveStarSupportData();
+  const [data, paypal] = await Promise.all([getLiveStarSupportData(), getPayPalIntegrationData()]);
+  const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
 
   return {
     live: {
@@ -197,6 +171,11 @@ export async function getMobileRewardsPayload() {
       totalStarsSent: data.totalStarsSent
     },
     packages: starPackages,
-    latestSend: data.latestSend
+    latestSend: data.latestSend,
+    checkout: buildMobilePayPalCheckoutStatus({
+      mode: paypal.settings.mode,
+      ready: checkoutReadiness.ready,
+      reason: checkoutReadiness.reason
+    })
   };
 }

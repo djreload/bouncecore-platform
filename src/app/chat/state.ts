@@ -13,6 +13,7 @@ export type PublicChatRoomRow = {
 export type PublicChatMessageRow = {
   id: string;
   roomId: string;
+  replyTo: PublicChatReplyRow | null;
   body: string;
   kind: string;
   mediaUrl: string | null;
@@ -28,15 +29,34 @@ export type PublicChatMessageRow = {
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
+  authorAvatarUrl: string | null;
   authorUserId: string | null;
   authorRoles: Role[];
   reactions: PublicChatReactionRow[];
+};
+
+export type PublicChatReplyRow = {
+  id: string;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: string | null;
+  authorDisplayName: string;
 };
 
 export type PublicChatReactionRow = {
   key: string;
   count: number;
   reacted: boolean;
+};
+
+export type PublicChatPresenceUserRow = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  roles: Role[];
+  status: "online" | "away";
+  lastActiveAt: string;
 };
 
 export type PublicChatAssetRow = {
@@ -57,6 +77,7 @@ export type PublicChatUser = {
 };
 
 export type PublicChatActionState = {
+  intent?: string;
   status: "idle" | "success" | "error";
   message?: string;
 };

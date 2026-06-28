@@ -2,6 +2,7 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ObsSetupPanel } from "@/app/streamer/obs/obs-setup-panel";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
+import { getConfiguredRtmpIngestUrl } from "@/lib/stream/stream-ingest-settings";
 import { getOwnActiveStreamKey } from "@/lib/stream/stream-key-service";
 import { getStreamProfiles } from "@/lib/stream/stream-profile-service";
 
@@ -14,7 +15,7 @@ export default async function StreamerObsPage() {
     getOwnActiveStreamKey(user.id),
     getStreamProfiles()
   ]);
-  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://bouncecore.example.com:1936/live/{streamKey}";
+  const ingestUrl = getConfiguredRtmpIngestUrl();
   const appOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ?? "http://localhost:3000";
   const starOverlayUrl = `${appOrigin}/overlay/stars`;
   const activeProfile =

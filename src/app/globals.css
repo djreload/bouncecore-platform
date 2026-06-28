@@ -146,6 +146,17 @@ select {
   animation: bc-star-alert-firework 1.55s ease-out var(--bc-alert-delay) 2 both;
 }
 
+.bc-sheep-motion-blur {
+  background: rgba(5, 5, 10, 0.04);
+  backdrop-filter: blur(2px) saturate(1.08);
+  animation: bc-sheep-motion-blur 1.15s ease-out both;
+}
+
+html.bc-sheep-impact-wobble body {
+  animation: bc-sheep-impact-wobble 650ms cubic-bezier(0.12, 0.8, 0.18, 1) both;
+  transform-origin: 50% 50%;
+}
+
 @keyframes bc-star-alert-card {
   0% {
     opacity: 0;
@@ -165,6 +176,53 @@ select {
   100% {
     opacity: 0;
     transform: translateY(-22px) scale(0.97);
+  }
+}
+
+@keyframes bc-sheep-motion-blur {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0) saturate(1);
+  }
+
+  22% {
+    opacity: 1;
+    backdrop-filter: blur(2px) saturate(1.08);
+  }
+
+  100% {
+    opacity: 0.78;
+    backdrop-filter: blur(1.4px) saturate(1.04);
+  }
+}
+
+@keyframes bc-sheep-impact-wobble {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    filter: none;
+  }
+
+  14% {
+    transform: translate3d(-7px, 3px, 0) rotate(-0.22deg);
+    filter: blur(0.45px);
+  }
+
+  30% {
+    transform: translate3d(6px, -4px, 0) rotate(0.18deg);
+  }
+
+  48% {
+    transform: translate3d(-4px, 2px, 0) rotate(-0.12deg);
+  }
+
+  68% {
+    transform: translate3d(3px, -1px, 0) rotate(0.08deg);
+    filter: blur(0.15px);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    filter: none;
   }
 }
 
@@ -234,10 +292,172 @@ select {
 }
 
 .bc-chat-effect {
+  position: relative;
+  z-index: 0;
+  display: block;
+  isolation: isolate;
   font-weight: 800;
   letter-spacing: 0;
+  overflow: visible;
   overflow-wrap: anywhere;
   will-change: transform, opacity, text-shadow, background-position, filter;
+}
+
+.bc-chat-effect[data-chat-particles]::before {
+  position: absolute;
+  inset: -0.42rem -0.2rem;
+  z-index: -2;
+  border-radius: 0.65rem;
+  pointer-events: none;
+  content: "";
+  opacity: 0.38;
+  filter: blur(10px);
+  animation: bc-chat-particle-aura 3.8s ease-in-out infinite;
+}
+
+.bc-chat-effect[data-chat-particles="fire"]::before {
+  background: radial-gradient(circle at 45% 80%, rgba(255, 96, 0, 0.45), transparent 62%);
+}
+
+.bc-chat-effect[data-chat-particles="ice"]::before {
+  background: radial-gradient(circle at 50% 42%, rgba(0, 213, 255, 0.36), transparent 64%);
+}
+
+.bc-chat-effect[data-chat-particles="hearts"]::before {
+  background: radial-gradient(circle at 50% 58%, rgba(255, 43, 214, 0.42), transparent 62%);
+}
+
+.bc-chat-effect[data-chat-particles="stars"],
+.bc-chat-effect[data-chat-particles="sparkles"],
+.bc-chat-effect[data-chat-particles="crowns"] {
+  text-shadow: 0 0 10px rgba(247, 251, 255, 0.2);
+}
+
+.bc-chat-effect[data-chat-particles="stars"]::before,
+.bc-chat-effect[data-chat-particles="sparkles"]::before,
+.bc-chat-effect[data-chat-particles="crowns"]::before {
+  background: radial-gradient(circle at 50% 45%, rgba(182, 255, 46, 0.28), rgba(0, 213, 255, 0.14) 38%, transparent 70%);
+}
+
+.bc-chat-effect[data-chat-particles="storm"]::before {
+  background: radial-gradient(circle at 50% 50%, rgba(247, 251, 255, 0.4), rgba(0, 213, 255, 0.2) 38%, transparent 68%);
+}
+
+.bc-chat-effect[data-chat-particles="matrix"]::before {
+  background: radial-gradient(circle at 52% 45%, rgba(182, 255, 46, 0.32), transparent 62%);
+}
+
+.bc-chat-effect-particles {
+  position: absolute;
+  inset: -0.55rem -0.12rem;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: 0.65rem;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.bc-chat-effect-particle {
+  position: absolute;
+  left: var(--bc-chat-particle-x);
+  top: var(--bc-chat-particle-y);
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translate3d(-50%, -50%, 0) scale(var(--bc-chat-particle-scale));
+  animation-delay: var(--bc-chat-particle-delay);
+  animation-duration: var(--bc-chat-particle-duration);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+  will-change: transform, opacity, filter;
+}
+
+.bc-chat-effect-particles-sparkles .bc-chat-effect-particle,
+.bc-chat-effect-particles-stars .bc-chat-effect-particle,
+.bc-chat-effect-particles-crowns .bc-chat-effect-particle,
+.bc-chat-effect-particles-hearts .bc-chat-effect-particle,
+.bc-chat-effect-particles-matrix .bc-chat-effect-particle {
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 0 8px currentColor;
+}
+
+.bc-chat-effect-particles-sparkles .bc-chat-effect-particle {
+  width: 0.34rem;
+  height: 0.34rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, #ffffff 0 20%, #b6ff2e 34%, rgba(0, 213, 255, 0.08) 70%);
+  box-shadow: 0 0 8px rgba(182, 255, 46, 0.7), 0 0 14px rgba(0, 213, 255, 0.34);
+  animation-name: bc-chat-particle-sparkle;
+}
+
+.bc-chat-effect-particles-stars .bc-chat-effect-particle {
+  color: #fff7bf;
+  font-size: 0.82rem;
+  animation-name: bc-chat-particle-star-float;
+}
+
+.bc-chat-effect-particles-fire .bc-chat-effect-particle,
+.bc-chat-effect-particles-ice .bc-chat-effect-particle,
+.bc-chat-effect-particles-storm .bc-chat-effect-particle {
+  width: 0.42rem;
+  height: 0.42rem;
+}
+
+.bc-chat-effect-particles-fire .bc-chat-effect-particle {
+  border-radius: 62% 38% 48% 52% / 60% 42% 58% 40%;
+  background:
+    radial-gradient(circle at 50% 68%, rgba(255, 242, 184, 0.95) 0 18%, transparent 19%),
+    radial-gradient(circle at 50% 40%, #ffb020 0 32%, #ff4d00 58%, rgba(255, 43, 214, 0.06) 76%);
+  box-shadow: 0 0 9px rgba(255, 96, 0, 0.74), 0 0 16px rgba(255, 43, 214, 0.18);
+  animation-name: bc-chat-particle-fire-rise;
+}
+
+.bc-chat-effect-particles-ice .bc-chat-effect-particle {
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(45deg, transparent 42%, rgba(255, 255, 255, 0.85) 43% 57%, transparent 58%),
+    linear-gradient(135deg, transparent 42%, rgba(0, 213, 255, 0.72) 43% 57%, transparent 58%);
+  clip-path: polygon(50% 0, 68% 30%, 100% 50%, 68% 70%, 50% 100%, 32% 70%, 0 50%, 32% 30%);
+  filter: drop-shadow(0 0 8px rgba(0, 213, 255, 0.68));
+  animation-name: bc-chat-particle-ice-drift;
+}
+
+.bc-chat-effect-particles-hearts .bc-chat-effect-particle {
+  color: #ff7ae7;
+  font-size: 0.78rem;
+  animation-name: bc-chat-particle-heart-float;
+}
+
+.bc-chat-effect-particles-storm .bc-chat-effect-particle {
+  background: linear-gradient(180deg, #ffffff, #00d5ff 56%, rgba(255, 43, 214, 0.45));
+  clip-path: polygon(42% 0, 82% 0, 58% 42%, 92% 42%, 28% 100%, 42% 56%, 12% 56%);
+  filter: drop-shadow(0 0 8px rgba(247, 251, 255, 0.8));
+  animation-name: bc-chat-particle-storm-flash;
+}
+
+.bc-chat-effect-particles-matrix .bc-chat-effect-particle {
+  color: #b6ff2e;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.52rem;
+  animation-name: bc-chat-particle-matrix-fall;
+}
+
+.bc-chat-effect-particles-crowns .bc-chat-effect-particle {
+  color: #fff7bf;
+  font-size: 0.86rem;
+  text-shadow: 0 0 8px rgba(255, 176, 32, 0.82), 0 0 14px rgba(255, 43, 214, 0.24);
+  animation-name: bc-chat-particle-crown-orbit;
+}
+
+.bc-chat-mention {
+  display: inline;
+  border-radius: 0.25rem;
+  background: rgba(0, 213, 255, 0.14);
+  color: #87ecff;
+  font-weight: 900;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .bc-chat-effect-letter {
@@ -745,12 +965,603 @@ select {
   }
 }
 
+@keyframes bc-chat-particle-aura {
+  0%,
+  100% {
+    opacity: 0.22;
+    transform: scaleX(0.96);
+  }
+
+  50% {
+    opacity: 0.46;
+    transform: scaleX(1.04);
+  }
+}
+
+@keyframes bc-chat-particle-sparkle {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(0.2);
+  }
+
+  22%,
+  58% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% - 1rem), 0) scale(1.25);
+  }
+}
+
+@keyframes bc-chat-particle-star-float {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -30%, 0) rotate(0deg) scale(0.38);
+  }
+
+  18%,
+  62% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% - 1.35rem), 0) rotate(160deg) scale(1);
+  }
+}
+
+@keyframes bc-chat-particle-fire-rise {
+  0% {
+    opacity: 0;
+    filter: blur(0.2px);
+    transform: translate3d(-50%, 20%, 0) rotate(-8deg) scale(0.42);
+  }
+
+  16%,
+  58% {
+    opacity: 0.86;
+  }
+
+  100% {
+    opacity: 0;
+    filter: blur(1.5px);
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% - 1.75rem), 0) rotate(18deg) scale(0.12);
+  }
+}
+
+@keyframes bc-chat-particle-ice-drift {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -70%, 0) rotate(0deg) scale(0.35);
+  }
+
+  20%,
+  70% {
+    opacity: 0.84;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% + 1.2rem), 0) rotate(180deg) scale(0.9);
+  }
+}
+
+@keyframes bc-chat-particle-heart-float {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, 10%, 0) rotate(-10deg) scale(0.45);
+  }
+
+  16%,
+  64% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% - 1.45rem), 0) rotate(10deg) scale(1.05);
+  }
+}
+
+@keyframes bc-chat-particle-storm-flash {
+  0%,
+  34%,
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(0.2);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), -50%, 0) scale(1.1);
+  }
+
+  46% {
+    opacity: 0.22;
+    transform: translate3d(calc(-50% - var(--bc-chat-particle-drift)), -50%, 0) scale(0.72);
+  }
+}
+
+@keyframes bc-chat-particle-matrix-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -110%, 0) scale(0.7);
+  }
+
+  18%,
+  62% {
+    opacity: 0.74;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% + 1.7rem), 0) scale(1);
+  }
+}
+
+@keyframes bc-chat-particle-crown-orbit {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) rotate(-18deg) scale(0.3);
+  }
+
+  24%,
+  68% {
+    opacity: 0.9;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(-50% + var(--bc-chat-particle-drift)), calc(-50% - 0.8rem), 0) rotate(22deg) scale(1.05);
+  }
+}
+
+@keyframes bc-music-top-five-glow {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px rgba(182, 255, 46, 0.14), 0 0 0 rgba(182, 255, 46, 0);
+  }
+
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(182, 255, 46, 0.42), 0 0 24px rgba(182, 255, 46, 0.18);
+  }
+}
+
+.bc-music-top-five {
+  animation: bc-music-top-five-glow 2.8s ease-in-out infinite;
+}
+
+.bc-music-top-five:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.bc-music-top-five:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+.bc-music-top-five:nth-child(4) {
+  animation-delay: 0.54s;
+}
+
+.bc-music-top-five:nth-child(5) {
+  animation-delay: 0.72s;
+}
+
+.bc-reward-payline {
+  position: relative;
+  overflow: hidden;
+}
+
+.bc-reward-payline::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  content: "";
+  background: var(--bc-reward-segment-color);
+  box-shadow: 0 0 14px var(--bc-reward-segment-color);
+}
+
+.bc-reward-casino {
+  position: relative;
+  background:
+    radial-gradient(circle at center, rgba(255, 189, 46, 0.12), transparent 38%),
+    linear-gradient(135deg, #030303, #171717);
+}
+
+.bc-giveaway-wheel-card,
+.bc-giveaway-result-card {
+  border: 1px solid rgba(255, 202, 74, 0.25);
+  border-radius: 1.75rem;
+  background: rgba(15, 15, 15, 0.9);
+  box-shadow: 0 20px 80px rgba(0, 0, 0, 0.55);
+}
+
+.bc-giveaway-wheel-card {
+  padding: clamp(12px, 2vw, 24px);
+}
+
+.bc-giveaway-stage {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  container-type: inline-size;
+  place-items: center;
+}
+
+.bc-giveaway-pointer {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  z-index: 10;
+  width: clamp(54px, 10vw, 80px);
+  height: clamp(74px, 14vw, 110px);
+  pointer-events: none;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.65));
+  transform: translateX(-50%);
+}
+
+.bc-giveaway-pointer::before {
+  position: absolute;
+  inset: 0;
+  border: 4px solid #fff3ac;
+  border-radius: 999px 999px 40px 40px;
+  content: "";
+  background: linear-gradient(160deg, #fff0a4, #ffc338 45%, #9b5b08);
+  clip-path: polygon(50% 100%, 10% 24%, 18% 10%, 34% 1%, 50% 0, 66% 1%, 82% 10%, 90% 24%);
+}
+
+.bc-giveaway-pointer::after {
+  position: absolute;
+  top: 24%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  content: "";
+  background: #fff7c2;
+  box-shadow: 0 0 22px #fff0a4;
+  transform: translateX(-50%);
+}
+
+.bc-giveaway-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 40%, transparent 61%, rgba(0, 0, 0, 0.42) 62%, transparent 66%),
+    radial-gradient(circle at 50% 40%, #fff0a4, #ffc338 45%, #9b5b08);
+  box-shadow:
+    inset 0 0 0 8px #ffd15a,
+    inset 0 0 0 34px rgba(0, 0, 0, 0.22),
+    0 18px 55px rgba(0, 0, 0, 0.75);
+}
+
+.bc-giveaway-bulbs {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.bc-giveaway-bulbs span {
+  --bc-bulb-angle: 0deg;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: clamp(10px, 2vw, 18px);
+  height: clamp(10px, 2vw, 18px);
+  margin: clamp(-9px, -1vw, -5px);
+  border-radius: 999px;
+  background: #fff7bd;
+  box-shadow: 0 0 16px #fff2a1, inset 0 -2px 5px rgba(155, 91, 8, 0.6);
+  animation: bc-giveaway-bulb 1.2s ease-in-out infinite;
+  transform: rotate(var(--bc-bulb-angle)) translateY(-47.5cqw);
+}
+
+.bc-giveaway-bulbs span:nth-child(2n) {
+  animation-delay: 0.18s;
+}
+
+.bc-giveaway-bulbs span:nth-child(3n) {
+  background: #fff0a4;
+  animation-delay: 0.36s;
+}
+
+.bc-giveaway-wheel {
+  --bc-reward-wheel-bg: conic-gradient(#ffc928, #64b71f, #e22d70, #0569c9, #ffc928);
+  --bc-reward-wheel-dividers: none;
+  position: relative;
+  z-index: 3;
+  width: 88%;
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.16), transparent 34%),
+    var(--bc-reward-wheel-bg);
+  box-shadow:
+    inset 0 0 0 4px #6a3c05,
+    inset 0 0 34px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  transition: transform 7s cubic-bezier(0.08, 0.72, 0.12, 1);
+}
+
+.bc-giveaway-wheel::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    radial-gradient(circle at 50% 52%, transparent 0 25.8%, rgba(0, 0, 0, 0.72) 26% 27%, transparent 27.4%),
+    var(--bc-reward-wheel-dividers),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14), transparent 36%, rgba(0, 0, 0, 0.16));
+}
+
+.bc-giveaway-wheel-landing {
+  filter: saturate(1.08) drop-shadow(0 0 26px rgba(255, 202, 74, 0.22));
+}
+
+.bc-giveaway-slice-content {
+  --bc-reward-segment-font-size: 16px;
+  --bc-reward-segment-label-radius: -29cqw;
+  --bc-reward-segment-label-width: 150px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 4;
+  display: grid;
+  width: min(var(--bc-reward-segment-label-width), 30cqw);
+  justify-items: center;
+  align-content: center;
+  gap: 0.35rem;
+  pointer-events: none;
+  text-align: center;
+  transform:
+    translate(-50%, -50%)
+    rotate(var(--bc-reward-segment-angle))
+    translateY(var(--bc-reward-segment-label-radius));
+}
+
+.bc-giveaway-slice-icon {
+  width: clamp(28px, 6vw, 62px);
+  height: clamp(28px, 6vw, 62px);
+  color: #ffffff;
+  filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.45));
+}
+
+.bc-giveaway-slice-label {
+  white-space: pre-line;
+  color: #ffffff;
+  font-family: Impact, "Arial Black", Arial, sans-serif;
+  font-size: var(--bc-reward-segment-font-size);
+  line-height: 0.95;
+  text-transform: uppercase;
+  text-shadow:
+    -1px -1px 0 #111,
+    1px -1px 0 #111,
+    -1px 1px 0 #111,
+    1px 1px 0 #111,
+    0 4px 8px rgba(0, 0, 0, 0.42);
+}
+
+.bc-giveaway-center-button {
+  position: absolute;
+  inset: 50%;
+  z-index: 8;
+  display: grid;
+  width: 27%;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 8px solid #e5a82a;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 25%, #3e3e3e, #050505 72%);
+  box-shadow:
+    0 0 0 8px #7d4a07,
+    0 0 0 15px #ffce54,
+    0 8px 22px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+  user-select: none;
+  transform: translate(-50%, -50%);
+}
+
+.bc-giveaway-center-button:disabled {
+  cursor: wait;
+  opacity: 0.86;
+}
+
+.bc-giveaway-center-text {
+  display: grid;
+  color: #ffcf55;
+  font-family: Impact, "Arial Black", Arial, sans-serif;
+  font-size: clamp(22px, 4.8vw, 56px);
+  line-height: 0.85;
+  text-align: center;
+  text-shadow: 0 3px 0 #6c3b04;
+}
+
+.bc-giveaway-center-text small {
+  margin-top: 9px;
+  color: #ffffff;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: 0.34em;
+  text-shadow: none;
+}
+
+.bc-giveaway-result-card {
+  padding: 24px;
+}
+
+.bc-giveaway-result-box {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  border: 1px solid rgba(255, 202, 74, 0.22);
+  border-radius: 1.25rem;
+  background:
+    radial-gradient(circle at center, rgba(255, 206, 83, 0.12), transparent 70%),
+    #0a0a0a;
+  padding: 20px;
+  text-align: center;
+}
+
+.bc-giveaway-result-title,
+.bc-giveaway-toast-title {
+  color: #ffcf55;
+  font-family: Impact, "Arial Black", Arial, sans-serif;
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 0.95;
+  text-transform: uppercase;
+  text-shadow: 0 4px 0 #6c3b04;
+}
+
+.bc-giveaway-result-sub,
+.bc-giveaway-toast-subtitle {
+  margin-top: 12px;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.bc-giveaway-spin-again,
+.bc-giveaway-toast-close {
+  width: 100%;
+  margin-top: 18px;
+  border: 0;
+  border-radius: 1rem;
+  background: linear-gradient(160deg, #fff0a4, #ffc338, #9b5b08);
+  color: #151515;
+  cursor: pointer;
+  font-family: "Arial Black", Arial, sans-serif;
+  font-size: 1rem;
+  padding: 15px 18px;
+}
+
+.bc-giveaway-spin-again:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.bc-giveaway-toast-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.bc-giveaway-toast-overlay.show {
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.bc-giveaway-winner-toast {
+  width: min(430px, 92vw);
+  border: 2px solid rgba(255, 207, 85, 0.65);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 220, 116, 0.22), transparent 45%),
+    #111111;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.8);
+  padding: 28px;
+  text-align: center;
+  transform: scale(0.84) translateY(18px);
+  transition: transform 0.25s ease;
+}
+
+.bc-giveaway-toast-overlay.show .bc-giveaway-winner-toast {
+  transform: scale(1) translateY(0);
+}
+
+.bc-giveaway-toast-close {
+  width: auto;
+  min-width: 150px;
+}
+
+@keyframes bc-giveaway-bulb {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: rotate(var(--bc-bulb-angle)) translateY(-47.5cqw) scale(0.82);
+  }
+
+  50% {
+    opacity: 1;
+    transform: rotate(var(--bc-bulb-angle)) translateY(-47.5cqw) scale(1);
+  }
+}
+
+@media (max-width: 900px) {
+  .bc-giveaway-result-card {
+    order: -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .bc-giveaway-wheel-card,
+  .bc-giveaway-result-card {
+    border-radius: 1rem;
+  }
+
+  .bc-giveaway-stage {
+    max-width: 360px;
+    margin-inline: auto;
+  }
+
+  .bc-giveaway-rim {
+    box-shadow:
+      inset 0 0 0 5px #ffd15a,
+      inset 0 0 0 22px rgba(0, 0, 0, 0.22),
+      0 12px 34px rgba(0, 0, 0, 0.65);
+  }
+
+  .bc-giveaway-center-button {
+    border-width: 5px;
+    box-shadow:
+      0 0 0 5px #7d4a07,
+      0 0 0 10px #ffce54,
+      0 8px 22px rgba(0, 0, 0, 0.7);
+  }
+
+  .bc-giveaway-slice-content {
+    width: min(var(--bc-reward-segment-label-width), 34cqw);
+    gap: 0.2rem;
+    transform:
+      translate(-50%, -50%)
+      rotate(var(--bc-reward-segment-angle))
+      translateY(var(--bc-reward-segment-label-radius));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bc-chat-effect,
+  .bc-chat-effect::before,
   .bc-chat-effect::after,
-  .bc-chat-effect .bc-chat-effect-letter {
+  .bc-chat-effect-particle,
+  .bc-chat-effect .bc-chat-effect-letter,
+  .bc-giveaway-bulbs span,
+  .bc-giveaway-wheel,
+  .bc-giveaway-winner-toast,
+  .bc-music-top-five,
+  .bc-sheep-motion-blur,
+  html.bc-sheep-impact-wobble body {
     animation: none !important;
+    filter: none !important;
     transform: none !important;
     transition: none !important;
+  }
+
+  .bc-chat-effect-particles {
+    display: none !important;
+  }
+
+  .bc-sheep-motion-blur {
+    display: none !important;
   }
 }

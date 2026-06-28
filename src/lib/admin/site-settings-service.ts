@@ -1,6 +1,15 @@
 import { Prisma } from "@prisma/client";
+import {
+  legalPageForKey,
+  mergeLegalPages,
+  normalizeLegalPagesInput,
+  type LegalPageInput,
+  type LegalPageKey,
+  type LegalPageSettings
+} from "@/lib/admin/legal-pages-core";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeOptionalBrandingImageUrl } from "@/lib/media/media-service";
 
 const siteSettingsKey = "site.general";
 
@@ -10,15 +19,18 @@ export type SiteSettingsInput = {
   announcementCtaLabel?: string;
   announcementEnabled: boolean;
   announcementTitle?: string;
+  faviconUrl?: string;
   footerSummary?: string;
   homepageBadge?: string;
   homepageIntro?: string;
+  legalPages: LegalPageInput[];
   liveSocialLinks: Array<{
     enabled: boolean;
     label?: string;
     platform?: string;
     url?: string;
   }>;
+  logoUrl?: string;
   siteName?: string;
   stagingTarget?: string;
   supportEmail?: string;
@@ -39,10 +51,15 @@ export type SiteSettings = {
     enabled: boolean;
     title: string | null;
   };
+  branding: {
+    faviconUrl: string | null;
+    logoUrl: string | null;
+  };
   footerSummary: string;
   homepageBadge: string;
   homepageIntro: string;
   liveSocialLinks: LiveSocialLink[];
+  legalPages: LegalPageSettings[];
   siteName: string;
   stagingTarget: string | null;
   supportEmail: string | null;
@@ -69,10 +86,15 @@ function defaultSiteSettings(): SiteSettings {
       enabled: false,
       title: null
     },
+    branding: {
+      faviconUrl: null,
+      logoUrl: null
+    },
     footerSummary: "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.",
     homepageBadge: "Bouncecore platform",
     homepageIntro:
-      "A dark, premium platform foundation for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
+      "A dark, premium platform for UK rave livestreams, chatrooms, DJ profiles, producer music, merch, live star support, and mobile apps.",
+    legalPages: mergeLegalPages(null),
     liveSocialLinks: [],
     siteName: "Bouncecore",
     stagingTarget: null,
@@ -166,6 +188,18 @@ function normalizedExternalUrl(value: string | undefined, label: string) {
   return url;
 }
 
+function safeBrandingImageUrl(value: unknown, label: string) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return normalizeOptionalBrandingImageUrl(value, label);
+  } catch {
+    return null;
+  }
+}
+
 function normalizePlatform(value: string | undefined) {
   const platform = normalizedText(value, 40)?.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
@@ -256,6 +290,11 @@ function mergeSiteSettings(value: unknown): SiteSettings {
     }
   }
 
+  if (isObject(value.branding)) {
+    settings.branding.logoUrl = safeBrandingImageUrl(value.branding.logoUrl, "Logo URL");
+    settings.branding.faviconUrl = safeBrandingImageUrl(value.branding.faviconUrl, "Favicon URL");
+  }
+
   if (Array.isArray(value.liveSocialLinks)) {
     settings.liveSocialLinks = value.liveSocialLinks
       .map((link) => {
@@ -280,6 +319,10 @@ function mergeSiteSettings(value: unknown): SiteSettings {
       })
       .filter((link): link is LiveSocialLink => Boolean(link))
       .slice(0, 8);
+  }
+
+  if (Array.isArray(value.legalPages)) {
+    settings.legalPages = mergeLegalPages(value.legalPages);
   }
 
   return settings;
@@ -307,9 +350,14 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
       enabled: input.announcementEnabled,
       title: announcementTitle
     },
+    branding: {
+      faviconUrl: normalizeOptionalBrandingImageUrl(input.faviconUrl, "Favicon URL"),
+      logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL")
+    },
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),
     homepageBadge: normalizedRequiredText(input.homepageBadge, 80, "Homepage badge"),
     homepageIntro: normalizedRequiredText(input.homepageIntro, 320, "Homepage intro"),
+    legalPages: normalizeLegalPagesInput(input.legalPages),
     liveSocialLinks: normalizeLiveSocialLinks(input.liveSocialLinks),
     siteName: normalizedRequiredText(input.siteName, 80, "Site name"),
     stagingTarget: normalizedText(input.stagingTarget, 160),
@@ -335,6 +383,16 @@ export async function getPublicSiteSettings() {
   const { settings } = await readSiteSettings();
 
   return settings;
+}
+
+export async function getPublicLegalPageData(key: LegalPageKey) {
+  const { settings, updatedAt } = await readSiteSettings();
+
+  return {
+    page: legalPageForKey(settings.legalPages, key),
+    siteSettings: settings,
+    updatedAt: updatedAt?.toISOString() ?? null
+  };
 }
 
 export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData> {
@@ -374,6 +432,23 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
         label: "Live social links",
         status: settings.liveSocialLinks.some((link) => link.enabled) ? "ready" : "warning",
         value: settings.liveSocialLinks.filter((link) => link.enabled).length.toString()
+      },
+      {
+        detail:
+          settings.branding.logoUrl || settings.branding.faviconUrl
+            ? "Custom public logo or browser icon is configured."
+            : "No custom public logo or browser icon is configured.",
+        label: "Branding",
+        status: settings.branding.logoUrl || settings.branding.faviconUrl ? "ready" : "warning",
+        value: settings.branding.logoUrl || settings.branding.faviconUrl ? "set" : "missing"
+      },
+      {
+        detail: settings.legalPages.some((page) => page.enabled)
+          ? `${settings.legalPages.filter((page) => page.enabled).length} public legal pages are enabled.`
+          : "No public legal pages are enabled.",
+        label: "Legal pages",
+        status: settings.legalPages.some((page) => page.enabled) ? "ready" : "warning",
+        value: settings.legalPages.filter((page) => page.enabled).length.toString()
       }
     ],
     settings,
@@ -409,6 +484,9 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
     severity: settings.announcement.enabled ? "warning" : "info",
     metadata: {
       announcementEnabled: settings.announcement.enabled,
+      brandingFaviconSet: Boolean(settings.branding.faviconUrl),
+      brandingLogoSet: Boolean(settings.branding.logoUrl),
+      legalPages: settings.legalPages.filter((page) => page.enabled).map((page) => page.key),
       liveSocialLinks: settings.liveSocialLinks.filter((link) => link.enabled).length,
       siteName: settings.siteName,
       supportEmailSet: Boolean(settings.supportEmail)

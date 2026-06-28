@@ -27,15 +27,15 @@ export function ChatEffectSelector({ className, disabled, onChange, selectedEffe
   return (
     <label
       className={cn(
-        "inline-flex min-h-10 max-w-full min-w-0 items-center gap-2 rounded-md border border-bc-line bg-white/5 px-3 py-2 text-sm font-semibold text-white",
+        "inline-flex h-8 w-[8.5rem] flex-none items-center gap-1.5 overflow-hidden rounded-md border border-bc-line bg-white/5 px-2 py-1 text-xs font-semibold text-white",
         className
       )}
     >
-      <Sparkles className="h-4 w-4 shrink-0 text-bc-acid" aria-hidden="true" />
+      <Sparkles className="h-3.5 w-3.5 shrink-0 text-bc-acid" aria-hidden="true" />
       <span className="sr-only">Chat text effect</span>
       <select
         aria-label="Chat text effect"
-        className="min-w-0 max-w-28 bg-transparent text-sm text-white outline-none disabled:opacity-50 sm:max-w-36"
+        className="min-w-0 flex-1 truncate bg-transparent text-[inherit] text-white outline-none disabled:opacity-50"
         disabled={disabled}
         name="effectId"
         onChange={(event) => onChange(event.target.value)}

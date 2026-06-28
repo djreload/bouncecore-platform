@@ -2,43 +2,30 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Hls from "hls.js";
-import type { ErrorData, Level } from "hls.js";
-import { AlertTriangle, Play, Radio, SignalHigh, SlidersHorizontal, Wifi, WifiOff } from "lucide-react";
+import type { ErrorData } from "hls.js";
+import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
+import { cn } from "@/lib/utils";
+import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 
 type LivePlaybackPlayerProps = {
+  activeIngests?: StreamPlaybackSource[];
   title: string;
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
-  viewerCount: number;
-  healthStatus: string;
-  streamProfile: StreamProfileSummary | null;
-};
-
-type PlaybackEngine = "none" | "hls-js" | "native-hls" | "browser";
-
-type PlaybackLevel = {
-  bitrateKbps: number;
-  height: number | null;
-  index: number;
-  label: string;
-  width: number | null;
 };
 
 type LivePlaybackState = {
+  activeIngests: StreamPlaybackSource[];
   title: string;
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
-  viewerCount: number;
-  healthStatus: string;
-  streamProfile: StreamProfileSummary | null;
 };
 
 type LiveStatusPayload = {
+  activeIngests?: unknown;
   status?: unknown;
   playbackUrl?: unknown;
   offlineImageUrl?: unknown;
@@ -48,33 +35,9 @@ type LiveStatusPayload = {
   };
   channel?: {
     title?: unknown;
-    streamProfile?: StreamProfileSummary | null;
+    streamProfile?: unknown;
   } | null;
 };
-
-function statusTone(status: string) {
-  if (status === "live") {
-    return "acid" as const;
-  }
-
-  if (status === "starting" || status === "degraded") {
-    return "amber" as const;
-  }
-
-  return "muted" as const;
-}
-
-function hostLabel(playbackUrl: string | null) {
-  if (!playbackUrl) {
-    return "No source";
-  }
-
-  try {
-    return new URL(playbackUrl).host;
-  } catch {
-    return "Configured source";
-  }
-}
 
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
@@ -88,67 +51,164 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
-function levelLabel(level: Level, index: number): PlaybackLevel {
-  const bitrateKbps = Math.round((level.bitrate || 0) / 1000);
-  const height = level.height || null;
-  const width = level.width || null;
-  const label = level.name || (height ? `${height}p` : bitrateKbps ? `${bitrateKbps} Kbps` : `Profile ${index + 1}`);
-
-  return {
-    bitrateKbps,
-    height,
-    index,
-    label: bitrateKbps ? `${label} / ${bitrateKbps} Kbps` : label,
-    width
-  };
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function formatBandwidth(value: number | null) {
-  if (!value || !Number.isFinite(value)) {
-    return "Measuring";
+function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  return `${Math.max(1, Math.round(value / 1000)).toLocaleString("en-GB")} Kbps`;
+  const sources: Array<StreamPlaybackSource | null> = value.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    const source = item as Record<string, unknown>;
+    const id = stringOrNull(source.id);
+
+    if (!id) {
+      return null;
+    }
+
+    return {
+      id,
+      lastIngestAt: stringOrNull(source.lastIngestAt) ?? new Date().toISOString(),
+      playbackUrl: stringOrNull(source.playbackUrl),
+      presenterName: stringOrNull(source.presenterName),
+      role: source.role === "secondary" ? "secondary" : "primary",
+      startedAt: stringOrNull(source.startedAt) ?? new Date().toISOString(),
+      status: source.status === "starting" || source.status === "degraded" || source.status === "offline" ? source.status : "live",
+      streamKeyFingerprint: stringOrNull(source.streamKeyFingerprint),
+      title: stringOrNull(source.title) ?? (index === 0 ? "Primary DJ" : "Connecting DJ")
+    };
+  });
+
+  return sources.filter((source): source is StreamPlaybackSource => Boolean(source)).slice(0, 2);
 }
 
-function configuredProfileLabel(profile: StreamProfileSummary | null) {
-  if (!profile) {
-    return "Profile waiting";
-  }
-
-  return `${profile.label} ${profile.videoHeight}p${profile.fps}`;
-}
-
-export function LivePlaybackPlayer({
-  title,
-  status,
-  playbackUrl,
-  offlineImageUrl,
-  viewerCount,
-  healthStatus,
-  streamProfile
-}: LivePlaybackPlayerProps) {
+function HlsVideo({
+  ariaLabel,
+  className,
+  controls,
+  muted,
+  playbackUrl
+}: {
+  ariaLabel: string;
+  className?: string;
+  controls?: boolean;
+  muted: boolean;
+  playbackUrl: string;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [playerState, setPlayerState] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [playbackEngine, setPlaybackEngine] = useState<PlaybackEngine>("none");
-  const [levels, setLevels] = useState<PlaybackLevel[]>([]);
-  const [currentLevel, setCurrentLevel] = useState<number>(-1);
-  const [selectedLevel, setSelectedLevel] = useState<number>(-1);
-  const [bandwidthEstimate, setBandwidthEstimate] = useState<number | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    let cancelled = false;
+
+    if (!video) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+    video.removeAttribute("src");
+    video.load();
+
+    const hlsPlayback = isLikelyHls(playbackUrl);
+
+    if (hlsPlayback && Hls.isSupported()) {
+      const hls = new Hls({
+        abrEwmaDefaultEstimate: 3_000_000,
+        capLevelToPlayerSize: true,
+        enableWorker: true,
+        lowLatencyMode: true,
+        startLevel: -1
+      });
+      hlsRef.current = hls;
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!cancelled) {
+          void video.play().catch(() => undefined);
+        }
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
+        if (cancelled || !data.fatal) {
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls.startLoad();
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          return;
+        }
+
+        hls.destroy();
+      });
+
+      hls.attachMedia(video);
+      hls.loadSource(playbackUrl);
+
+      return () => {
+        cancelled = true;
+        hls.destroy();
+      };
+    }
+
+    video.src = playbackUrl;
+    void video.play().catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [playbackUrl]);
+
+  return (
+    <video
+      aria-label={ariaLabel}
+      autoPlay
+      className={className}
+      controls={controls}
+      muted={muted}
+      playsInline
+      preload="metadata"
+      ref={videoRef}
+    />
+  );
+}
+
+export function LivePlaybackPlayer({ activeIngests = [], title, status, playbackUrl, offlineImageUrl }: LivePlaybackPlayerProps) {
   const [liveState, setLiveState] = useState<LivePlaybackState>({
+    activeIngests,
     title,
     status,
     playbackUrl,
-    offlineImageUrl,
-    viewerCount,
-    healthStatus,
-    streamProfile
+    offlineImageUrl
   });
-  const canAttemptPlayback = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
-  const sourceLabel = useMemo(() => hostLabel(liveState.playbackUrl), [liveState.playbackUrl]);
-  const activeLevel = currentLevel >= 0 ? levels.find((level) => level.index === currentLevel) : null;
-  const adaptiveEnabled = playbackEngine === "hls-js" || playbackEngine === "native-hls";
+  const primarySource = useMemo(
+    () => liveState.activeIngests.find((source) => source.role === "primary" && source.playbackUrl) ?? liveState.activeIngests[0] ?? null,
+    [liveState.activeIngests]
+  );
+  const secondarySource = useMemo(
+    () =>
+      liveState.activeIngests.find((source) => source.role === "secondary" && source.playbackUrl) ??
+      liveState.activeIngests.find((source) => source.id !== primarySource?.id && source.playbackUrl) ??
+      null,
+    [liveState.activeIngests, primarySource?.id]
+  );
+  const primaryPlaybackUrl = primarySource?.playbackUrl ?? liveState.playbackUrl;
+  const secondaryPlaybackUrl =
+    secondarySource?.playbackUrl && secondarySource.playbackUrl !== primaryPlaybackUrl ? secondarySource.playbackUrl : null;
+  const canAttemptPlayback = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
 
   useEffect(() => {
     let cancelled = false;
@@ -170,6 +230,9 @@ export function LivePlaybackPlayer({
         }
 
         setLiveState((current) => ({
+          activeIngests: normalizeActiveIngests(payload.activeIngests).length
+            ? normalizeActiveIngests(payload.activeIngests)
+            : current.activeIngests,
           title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
           status: typeof payload.status === "string" ? payload.status : current.status,
           playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
@@ -178,10 +241,7 @@ export function LivePlaybackPlayer({
               ? payload.offlineImageUrl
               : payload.offlineImageUrl === null
                 ? null
-                : current.offlineImageUrl,
-          viewerCount: typeof payload.viewerCount === "number" ? payload.viewerCount : current.viewerCount,
-          healthStatus: typeof payload.health?.status === "string" ? payload.health.status : current.healthStatus,
-          streamProfile: payload.channel?.streamProfile ?? current.streamProfile
+                : current.offlineImageUrl
         }));
       } catch {
         // Keep the last known state if the transient status poll fails.
@@ -197,156 +257,15 @@ export function LivePlaybackPlayer({
     };
   }, []);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    let cancelled = false;
-    const currentPlaybackUrl = liveState.playbackUrl;
-
-    function applyState(update: () => void) {
-      window.queueMicrotask(() => {
-        if (!cancelled) {
-          update();
-        }
-      });
-    }
-
-    applyState(() => {
-      setPlayerState(canAttemptPlayback ? "loading" : "idle");
-      setPlaybackEngine("none");
-      setLevels([]);
-      setCurrentLevel(-1);
-      setSelectedLevel(-1);
-      setBandwidthEstimate(null);
-    });
-
-    if (!video) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    hlsRef.current?.destroy();
-    hlsRef.current = null;
-    video.removeAttribute("src");
-    video.load();
-
-    if (!canAttemptPlayback || !currentPlaybackUrl) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const hlsPlayback = isLikelyHls(currentPlaybackUrl);
-
-    if (hlsPlayback && Hls.isSupported()) {
-      const hls = new Hls({
-        abrEwmaDefaultEstimate: 3_000_000,
-        capLevelToPlayerSize: true,
-        enableWorker: true,
-        startLevel: -1
-      });
-      hlsRef.current = hls;
-      applyState(() => setPlaybackEngine("hls-js"));
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (cancelled) {
-          return;
-        }
-
-        const nextLevels = hls.levels.map(levelLabel);
-        setLevels(nextLevels);
-        setBandwidthEstimate(hls.bandwidthEstimate);
-        setPlayerState("ready");
-        void video.play().catch(() => undefined);
-      });
-
-      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
-        if (cancelled) {
-          return;
-        }
-
-        setCurrentLevel(data.level);
-        setBandwidthEstimate(hls.bandwidthEstimate);
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
-        if (cancelled) {
-          return;
-        }
-
-        setBandwidthEstimate(hls.bandwidthEstimate);
-
-        if (!data.fatal) {
-          return;
-        }
-
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          hls.startLoad();
-          return;
-        }
-
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          hls.recoverMediaError();
-          return;
-        }
-
-        setPlayerState("error");
-        hls.destroy();
-      });
-
-      hls.attachMedia(video);
-      hls.loadSource(currentPlaybackUrl);
-
-      return () => {
-        cancelled = true;
-        hls.destroy();
-      };
-    }
-
-    if (hlsPlayback && video.canPlayType("application/vnd.apple.mpegurl")) {
-      applyState(() => setPlaybackEngine("native-hls"));
-      video.src = currentPlaybackUrl;
-      void video.play().catch(() => undefined);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    applyState(() => setPlaybackEngine("browser"));
-    video.src = currentPlaybackUrl;
-    void video.play().catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canAttemptPlayback, liveState.playbackUrl]);
-
-  function updateSelectedLevel(value: string) {
-    const nextLevel = Number.parseInt(value, 10);
-
-    setSelectedLevel(nextLevel);
-
-    if (hlsRef.current) {
-      hlsRef.current.currentLevel = nextLevel;
-      setBandwidthEstimate(hlsRef.current.bandwidthEstimate);
-    }
-  }
-
   return (
-    <section className="bc-scanlines relative aspect-video overflow-hidden rounded-md border border-bc-line bg-black shadow-2xl shadow-bc-electric/10">
-      {canAttemptPlayback ? (
-        <video
-          autoPlay
-          ref={videoRef}
+    <section className="bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x">
+      {canAttemptPlayback && primaryPlaybackUrl ? (
+        <HlsVideo
+          ariaLabel={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
           className="absolute inset-0 h-full w-full bg-black object-contain"
           controls
-          muted
-          onCanPlay={() => setPlayerState("ready")}
-          onError={() => setPlayerState("error")}
-          onLoadStart={() => setPlayerState("loading")}
-          onPlaying={() => setPlayerState("ready")}
-          playsInline
-          preload="metadata"
+          muted={false}
+          playbackUrl={primaryPlaybackUrl}
         />
       ) : (
         <div className="absolute inset-0">
@@ -356,13 +275,37 @@ export function LivePlaybackPlayer({
         </div>
       )}
 
+      {canAttemptPlayback && secondaryPlaybackUrl ? (
+        <div className="absolute bottom-3 right-3 z-20 w-[34%] min-w-32 overflow-hidden rounded-md border border-bc-electric/60 bg-black shadow-[0_14px_44px_rgba(0,0,0,0.62)]">
+          <div className="relative aspect-video bg-black">
+            <HlsVideo
+              ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
+              className="absolute inset-0 h-full w-full bg-black object-cover"
+              muted
+              playbackUrl={secondaryPlaybackUrl}
+            />
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-2 border-t border-bc-line bg-bc-ink/92 px-2 py-1 text-[11px] font-black uppercase text-white">
+            <span className="truncate">{secondarySource?.presenterName ?? secondarySource?.title ?? "Next DJ"}</span>
+            <span className="shrink-0 rounded bg-bc-electric/15 px-1.5 py-0.5 text-bc-electric">Muted</span>
+          </div>
+        </div>
+      ) : null}
+
+      {canAttemptPlayback && liveState.activeIngests.length > 1 ? (
+        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
+          {liveState.activeIngests.length} DJs connected
+        </div>
+      ) : null}
+
       {!canAttemptPlayback ? (
         <div
-          className={`absolute inset-0 grid place-items-center px-6 text-center ${
+          className={cn(
+            "absolute inset-0 grid place-items-center px-6 text-center",
             liveState.offlineImageUrl
               ? "bg-black/45"
               : "bg-[radial-gradient(circle_at_center,rgba(0,213,255,0.16),transparent_42%),linear-gradient(135deg,rgba(255,43,214,0.10),transparent_45%),#070914]"
-          }`}
+          )}
         >
           <div className="max-w-xl">
             {liveState.playbackUrl ? (
@@ -379,64 +322,6 @@ export function LivePlaybackPlayer({
           </div>
         </div>
       ) : null}
-
-      <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
-        <Badge tone={statusTone(liveState.status)}>{liveState.status.toUpperCase()}</Badge>
-        <Badge tone="muted">{sourceLabel}</Badge>
-        <Badge tone={adaptiveEnabled ? "acid" : "muted"}>{adaptiveEnabled ? "AUTO ABR" : "SINGLE SOURCE"}</Badge>
-      </div>
-
-      <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap items-center justify-between gap-3 rounded-md border border-white/10 bg-black/68 px-4 py-3 backdrop-blur">
-        <div>
-          <p className="text-xs font-semibold uppercase text-bc-muted">Now playing</p>
-          <h2 className="mt-1 text-lg font-black">{liveState.title}</h2>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-bc-muted">
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <SignalHigh className="h-3.5 w-3.5 text-bc-acid" aria-hidden="true" />
-            {liveState.viewerCount} viewers
-          </span>
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <Radio className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
-            {liveState.healthStatus.toUpperCase()}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <Wifi className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
-            {formatBandwidth(bandwidthEstimate)}
-          </span>
-          <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-bc-pink" aria-hidden="true" />
-            {activeLevel?.label ?? configuredProfileLabel(liveState.streamProfile)}
-          </span>
-          {playbackEngine === "hls-js" && levels.length > 1 ? (
-            <select
-              aria-label="Playback quality"
-              className="h-8 rounded border border-bc-line bg-black/70 px-2 text-xs font-semibold text-white"
-              onChange={(event) => updateSelectedLevel(event.target.value)}
-              value={selectedLevel}
-            >
-              <option value={-1}>Auto</option>
-              {levels.map((level) => (
-                <option key={level.index} value={level.index}>
-                  {level.label}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          {playerState === "loading" ? (
-            <span className="inline-flex items-center gap-1 rounded border border-bc-line bg-white/5 px-2 py-1">
-              <Play className="h-3.5 w-3.5 text-bc-amber" aria-hidden="true" />
-              Loading
-            </span>
-          ) : null}
-          {playerState === "error" ? (
-            <span className="inline-flex items-center gap-1 rounded border border-bc-amber/40 bg-bc-amber/10 px-2 py-1 text-bc-amber">
-              <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-              Source unavailable
-            </span>
-          ) : null}
-        </div>
-      </div>
     </section>
   );
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPublicChatMessages } from "@/lib/chat/chat-service";
+import { getPublicChatMessages, getPublicChatPresence } from "@/lib/chat/chat-service";
 import { getCurrentUser } from "@/lib/auth/session";
 
 type RouteContext = {
@@ -13,9 +13,12 @@ export async function GET(_request: Request, context: RouteContext) {
 
   try {
     const user = await getCurrentUser();
-    const messages = await getPublicChatMessages(roomId, user?.id);
+    const [messages, presenceUsers] = await Promise.all([
+      getPublicChatMessages(roomId, user?.id),
+      getPublicChatPresence(roomId, user?.id)
+    ]);
 
-    return NextResponse.json({ messages });
+    return NextResponse.json({ messages, presenceUsers });
   } catch {
     return NextResponse.json({ error: "Chat messages are not available right now." }, { status: 404 });
   }

@@ -13,7 +13,7 @@ type ObsSetupPanelProps = {
   hasActiveKey: boolean;
   healthStatus: string;
   ingestConnected: boolean;
-  ingestUrl: string;
+  ingestUrl: string | null;
   keyFingerprint: string | null;
   playbackUrl: string | null;
   streamProfile: StreamProfileSummary | null;
@@ -58,7 +58,8 @@ export function ObsSetupPanel({
   starOverlayUrl
 }: ObsSetupPanelProps) {
   const [copied, setCopied] = useState<CopyTarget>(null);
-  const obsServerUrl = obsServerUrlFromIngestUrl(ingestUrl);
+  const obsServerUrl = ingestUrl ? obsServerUrlFromIngestUrl(ingestUrl) : null;
+  const obsServerLabel = obsServerUrl ?? "RTMPS ingest URL is not configured.";
 
   async function copyValue(target: Exclude<CopyTarget, null>, value: string | null) {
     if (!value) {
@@ -94,9 +95,9 @@ export function ObsSetupPanel({
                 <Signal className="h-4 w-4 text-bc-electric" aria-hidden="true" />
                 <h4 className="font-semibold">Server</h4>
               </div>
-              <CopyButton copied={copied === "ingest"} onCopy={() => copyValue("ingest", obsServerUrl)} />
+              <CopyButton copied={copied === "ingest"} disabled={!obsServerUrl} onCopy={() => copyValue("ingest", obsServerUrl)} />
             </div>
-            <p className="mt-3 break-all font-mono text-sm text-bc-muted">{obsServerUrl}</p>
+            <p className="mt-3 break-all font-mono text-sm text-bc-muted">{obsServerLabel}</p>
           </article>
 
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">

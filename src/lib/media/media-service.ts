@@ -6,10 +6,12 @@ const publicUploadsRoot = path.join(process.cwd(), "public", "uploads");
 const maxPreviewMp3Bytes = 100 * 1024 * 1024;
 const maxImageBytes = 100 * 1024 * 1024;
 const maxChatImageBytes = 150 * 1024 * 1024;
+const maxProfileAvatarBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 200 * 1024 * 1024;
 const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
 const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
 const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
+const profileAvatarExtensions = [".jpg", ".jpeg", ".png"];
 const mp3UploadTypes = [
   "audio/mpeg",
   "audio/mp3",
@@ -24,8 +26,10 @@ const mp3UploadTypes = [
 ];
 
 type UploadKind =
+  | "branding-images"
   | "product-images"
   | "track-artwork"
+  | "profile-avatars"
   | "stream-offline-images"
   | "chat-stickers"
   | "chat-emojis"
@@ -152,6 +156,21 @@ function validateImageUpload(file: File, buffer: Buffer, label: string) {
   };
 }
 
+function validateProfileAvatarUpload(file: File, buffer: Buffer) {
+  const extension = fileExtension(file.name);
+  const image = validateImageUpload(file, buffer, "Profile avatar upload");
+
+  if (!profileAvatarExtensions.includes(extension)) {
+    throw new Error("Profile avatar upload must be a PNG, JPG, or JPEG image.");
+  }
+
+  if (image.contentType !== "image/jpeg" && image.contentType !== "image/png") {
+    throw new Error("Profile avatar upload must be a PNG, JPG, or JPEG image.");
+  }
+
+  return image;
+}
+
 function validateMp3Upload(file: File, label: string) {
   const extension = fileExtension(file.name);
   const contentType = normalizedContentType(file.type);
@@ -214,51 +233,6 @@ function normalizeGoogleDriveUrl(value: string) {
   return direct.toString();
 }
 
-function imageDimensions(buffer: Buffer, contentType: string) {
-  if (contentType === "image/png" && buffer.length >= 24 && buffer.toString("ascii", 1, 4) === "PNG") {
-    return {
-      height: buffer.readUInt32BE(20),
-      width: buffer.readUInt32BE(16)
-    };
-  }
-
-  if (contentType === "image/gif" && buffer.length >= 10 && buffer.toString("ascii", 0, 3) === "GIF") {
-    return {
-      height: buffer.readUInt16LE(8),
-      width: buffer.readUInt16LE(6)
-    };
-  }
-
-  if (contentType === "image/jpeg" && buffer.length >= 4 && buffer[0] === 0xff && buffer[1] === 0xd8) {
-    let offset = 2;
-
-    while (offset + 9 < buffer.length) {
-      if (buffer[offset] !== 0xff) {
-        offset += 1;
-        continue;
-      }
-
-      const marker = buffer[offset + 1];
-      const length = buffer.readUInt16BE(offset + 2);
-
-      if (length < 2) {
-        return null;
-      }
-
-      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) {
-        return {
-          height: buffer.readUInt16BE(offset + 5),
-          width: buffer.readUInt16BE(offset + 7)
-        };
-      }
-
-      offset += 2 + length;
-    }
-  }
-
-  return null;
-}
-
 function id3Offset(buffer: Buffer) {
   if (buffer.length < 10 || buffer.toString("ascii", 0, 3) !== "ID3") {
     return 0;
@@ -297,18 +271,6 @@ function mp3BitrateKbps(buffer: Buffer) {
   }
 
   return null;
-}
-
-function assertSquareImageUpload(buffer: Buffer, contentType: string) {
-  const dimensions = imageDimensions(buffer, contentType);
-
-  if (!dimensions) {
-    return;
-  }
-
-  if (dimensions.width !== dimensions.height) {
-    throw new Error("Image upload must be square. Use artwork around 500 x 500.");
-  }
 }
 
 function assertMp3Upload(buffer: Buffer, require320Kbps: boolean, label: string) {
@@ -362,6 +324,35 @@ export function normalizeOptionalImageUrl(value: string | undefined, label = "Im
 
   if (!/\.(jpg|jpeg|png|webp|gif|avif)$/.test(pathname)) {
     throw new Error(`${label} must point to an image file. Use a square image, ideally 500 x 500.`);
+  }
+
+  return text;
+}
+
+export function normalizeOptionalBrandingImageUrl(value: string | undefined, label = "Branding image URL") {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error(`${label} must be 500 characters or fewer.`);
+  }
+
+  if (text.startsWith("/uploads/")) {
+    if (/^\/uploads\/branding-images\/[^/]+\.(jpg|jpeg|png|webp|gif|avif)$/i.test(text)) {
+      return text;
+    }
+
+    throw new Error(`${label} upload path must point to an uploaded branding image file.`);
+  }
+
+  const url = assertHttpUrl(text, label);
+  const pathname = url.pathname.toLowerCase();
+
+  if (!/\.(jpg|jpeg|png|webp|gif|avif)$/.test(pathname)) {
+    throw new Error(`${label} must point to a JPG, PNG, WebP, GIF, or AVIF image file.`);
   }
 
   return text;
@@ -424,6 +415,28 @@ export function normalizeOptionalChatAssetUrl(value: string | undefined, kind: "
   }
 
   return text;
+}
+
+export function normalizeOptionalProfileAvatarUrl(value: string | undefined) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error("Avatar URL must be 500 characters or fewer.");
+  }
+
+  if (text.startsWith("/uploads/")) {
+    if (/^\/uploads\/profile-avatars\/[^/]+\.(jpg|jpeg|png)$/i.test(text)) {
+      return text;
+    }
+
+    throw new Error("Avatar upload path must point to an uploaded PNG, JPG, or JPEG profile image.");
+  }
+
+  return assertHttpUrl(text, "Avatar URL").toString();
 }
 
 export function normalizeOptionalPreviewUrl(value: string | undefined) {
@@ -544,9 +557,22 @@ export async function saveOptionalImageUpload(file: File | null | undefined, kin
   const buffer = Buffer.from(await file.arrayBuffer());
   const image = validateImageUpload(file, buffer, "Image upload");
 
-  assertSquareImageUpload(buffer, image.contentType);
-
   return savePublicUpload(kind, file, maxImageBytes, "Image upload", image.extension, buffer);
+}
+
+export async function saveOptionalBrandingImageUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxImageBytes) {
+    throw new Error(`Branding image upload is too large. Maximum ${formatBytes(maxImageBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Branding image upload");
+
+  return savePublicUpload("branding-images", file, maxImageBytes, "Branding image upload", image.extension, buffer);
 }
 
 export async function saveOptionalStreamOfflineImageUpload(file: File | null | undefined) {
@@ -577,6 +603,21 @@ export async function saveOptionalChatAssetUpload(file: File | null | undefined,
   const image = validateImageUpload(file, buffer, "Chat image upload");
 
   return savePublicUpload(kind, file, maxChatImageBytes, "Chat image upload", image.extension, buffer);
+}
+
+export async function saveOptionalProfileAvatarUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxProfileAvatarBytes) {
+    throw new Error(`Profile avatar upload is too large. Maximum ${formatBytes(maxProfileAvatarBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateProfileAvatarUpload(file, buffer);
+
+  return savePublicUpload("profile-avatars", file, maxProfileAvatarBytes, "Profile avatar upload", image.extension, buffer);
 }
 
 export async function saveOptionalPreviewMp3(file: File | null | undefined) {

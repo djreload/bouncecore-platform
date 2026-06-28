@@ -3,7 +3,9 @@ import test from "node:test";
 import {
   canUseChatEffect,
   chatEffects,
+  chatEffectParticlePresets,
   getAvailableChatEffects,
+  getChatEffectById,
   validateChatEffectSelection
 } from "../src/lib/chat/chat-effects.ts";
 
@@ -70,4 +72,20 @@ test("unauthorized submitted effect is blocked", () => {
   assert.equal(canUseChatEffect(["viewer"], "neon"), false);
   assert.throws(() => validateChatEffectSelection(["viewer"], "neon"), /access/);
   assert.equal(validateChatEffectSelection(["viewer"], ""), null);
+});
+
+test("advanced chat particles use registered safe presets", () => {
+  const registeredPresets = new Set(chatEffectParticlePresets);
+  const particleEffects = chatEffects.filter((effect) => effect.particlePreset);
+
+  assert.ok(particleEffects.length >= 20);
+
+  for (const effect of particleEffects) {
+    assert.ok(registeredPresets.has(effect.particlePreset));
+  }
+
+  assert.equal(getChatEffectById("fire")?.particlePreset, "fire");
+  assert.equal(getChatEffectById("ice")?.particlePreset, "ice");
+  assert.equal(getChatEffectById("heartbeat")?.particlePreset, "hearts");
+  assert.equal(getChatEffectById("crown")?.particlePreset, "crowns");
 });

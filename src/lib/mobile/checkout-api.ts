@@ -1,15 +1,41 @@
 import { type CurrentUser } from "@/lib/auth/rbac";
-import { cancelTrackCheckout, completeTrackCheckout, startTrackCheckout } from "@/lib/music/track-checkout-service";
+import {
+  cancelTrackCartCheckout,
+  cancelTrackCheckout,
+  completeTrackCartCheckout,
+  completeTrackCheckout,
+  startTrackCartCheckout,
+  startTrackCheckout
+} from "@/lib/music/track-checkout-service";
 import { cancelStarsCheckout, completeStarsCheckout, startStarsCheckout } from "@/lib/rewards/stars-checkout-service";
-import { cancelShopCheckout, completeShopCheckout, startShopCheckout } from "@/lib/shop/checkout-service";
+import { cancelShopCheckout, completeShopCheckout, startShopCartCheckout, startShopCheckout } from "@/lib/shop/checkout-service";
 
 export type MobileCheckoutPayload = {
+  checkoutId?: string;
+  items?: {
+    quantity?: string;
+    variantId?: string;
+  }[];
   paypalOrderId?: string;
   purchaseId?: string;
   orderId?: string;
   packageId?: string;
+  quantities?: string[];
   quantity?: string;
+  shippingAddress?: {
+    city?: string;
+    country?: string;
+    county?: string;
+    email?: string;
+    line1?: string;
+    line2?: string;
+    name?: string;
+    phone?: string;
+    postcode?: string;
+  };
+  trackIds?: string[];
   trackId?: string;
+  variantIds?: string[];
   variantId?: string;
 };
 
@@ -18,10 +44,71 @@ function payloadString(payload: MobileCheckoutPayload, key: keyof MobileCheckout
   return typeof value === "string" ? value : "";
 }
 
+function payloadTrackIds(payload: MobileCheckoutPayload) {
+  if (Array.isArray(payload.trackIds)) {
+    return payload.trackIds.filter((trackId): trackId is string => typeof trackId === "string");
+  }
+
+  return [];
+}
+
+function payloadShopItems(payload: MobileCheckoutPayload) {
+  if (Array.isArray(payload.items)) {
+    return payload.items
+      .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      .map((item) => ({
+        quantity: typeof item.quantity === "string" ? item.quantity : "1",
+        variantId: typeof item.variantId === "string" ? item.variantId : ""
+      }))
+      .filter((item) => item.variantId);
+  }
+
+  if (Array.isArray(payload.variantIds)) {
+    const quantities = Array.isArray(payload.quantities) ? payload.quantities : [];
+
+    return payload.variantIds
+      .filter((variantId): variantId is string => typeof variantId === "string")
+      .map((variantId, index) => ({
+        quantity: typeof quantities[index] === "string" ? quantities[index] : "1",
+        variantId
+      }));
+  }
+
+  return [];
+}
+
+function payloadShippingAddress(payload: MobileCheckoutPayload) {
+  const shipping = payload.shippingAddress;
+
+  if (!shipping || typeof shipping !== "object" || Array.isArray(shipping)) {
+    return {};
+  }
+
+  return shipping;
+}
+
 export async function startMobileShopCheckout(user: CurrentUser, origin: string, payload: MobileCheckoutPayload) {
+  const items = payloadShopItems(payload);
+
+  if (items.length) {
+    const checkout = await startShopCartCheckout(user.id, {
+      items,
+      origin,
+      shippingAddress: payloadShippingAddress(payload)
+    });
+
+    return {
+      approvalUrl: checkout.approvalUrl,
+      orderId: checkout.orderId,
+      provider: "paypal",
+      status: "pending"
+    };
+  }
+
   const checkout = await startShopCheckout(user.id, {
     origin,
     quantity: payloadString(payload, "quantity") || "1",
+    shippingAddress: payloadShippingAddress(payload),
     variantId: payloadString(payload, "variantId")
   });
 
@@ -54,6 +141,22 @@ export async function cancelMobileShopCheckout(user: CurrentUser, payload: Mobil
 }
 
 export async function startMobileMusicCheckout(user: CurrentUser, origin: string, payload: MobileCheckoutPayload) {
+  const trackIds = payloadTrackIds(payload);
+
+  if (trackIds.length) {
+    const checkout = await startTrackCartCheckout(user.id, {
+      origin,
+      trackIds
+    });
+
+    return {
+      approvalUrl: checkout.approvalUrl,
+      checkoutId: checkout.checkoutId,
+      provider: "paypal",
+      status: "pending"
+    };
+  }
+
   const checkout = await startTrackCheckout(user.id, {
     origin,
     trackId: payloadString(payload, "trackId")
@@ -68,6 +171,19 @@ export async function startMobileMusicCheckout(user: CurrentUser, origin: string
 }
 
 export async function captureMobileMusicCheckout(user: CurrentUser, payload: MobileCheckoutPayload) {
+  const checkoutId = payloadString(payload, "checkoutId");
+
+  if (checkoutId) {
+    const checkout = await completeTrackCartCheckout(user.id, checkoutId, payloadString(payload, "paypalOrderId"));
+
+    return {
+      checkoutId: checkout.id,
+      paypalCaptureId: checkout.paypalCaptureId,
+      status: checkout.status,
+      totalPence: checkout.totalPence
+    };
+  }
+
   const purchase = await completeTrackCheckout(user.id, payloadString(payload, "purchaseId"), payloadString(payload, "paypalOrderId"));
 
   return {
@@ -79,6 +195,17 @@ export async function captureMobileMusicCheckout(user: CurrentUser, payload: Mob
 }
 
 export async function cancelMobileMusicCheckout(user: CurrentUser, payload: MobileCheckoutPayload) {
+  const checkoutId = payloadString(payload, "checkoutId");
+
+  if (checkoutId) {
+    const checkout = await cancelTrackCartCheckout(user.id, checkoutId, payloadString(payload, "paypalOrderId") || undefined);
+
+    return {
+      checkoutId: checkout?.id ?? null,
+      status: checkout?.status ?? "cancelled"
+    };
+  }
+
   const purchase = await cancelTrackCheckout(user.id, payloadString(payload, "purchaseId"), payloadString(payload, "paypalOrderId") || undefined);
 
   return {

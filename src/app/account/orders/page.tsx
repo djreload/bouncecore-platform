@@ -1,8 +1,10 @@
 import { Clock3, CreditCard, PackageCheck, ShoppingBag, Truck } from "lucide-react";
+import { CartStorageClearer } from "@/components/checkout/cart-storage-clearer";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { shopCartStorageKey } from "@/lib/cart/storage-keys";
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getAccountOrdersData } from "@/lib/shop/order-service";
 
@@ -42,6 +44,19 @@ function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function shippingLines(order: Awaited<ReturnType<typeof getAccountOrdersData>>["orders"][number]) {
+  const address = order.shippingAddress;
+
+  return [
+    address.name,
+    address.line1,
+    address.line2,
+    [address.city, address.county].filter(Boolean).join(", "),
+    address.postcode,
+    address.country
+  ].filter((line): line is string => Boolean(line));
+}
+
 export default async function AccountOrdersPage({ searchParams }: AccountOrdersPageProps) {
   const params = searchParams ? await searchParams : {};
   const user = await requireSignedInUser();
@@ -50,6 +65,7 @@ export default async function AccountOrdersPage({ searchParams }: AccountOrdersP
 
   return (
     <DashboardShell title="Orders" description="Your Bouncecore order history, PayPal payment status, and fulfilment progress.">
+      {checkoutComplete ? <CartStorageClearer storageKey={shopCartStorageKey} /> : null}
       <div className="grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Orders</Badge>
@@ -141,6 +157,16 @@ export default async function AccountOrdersPage({ searchParams }: AccountOrdersP
               <div className="mt-3 flex flex-wrap gap-2">
                 {order.paypalOrderId ? <Badge tone="muted">PayPal {order.paypalOrderId.slice(0, 10)}</Badge> : null}
                 {order.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+              </div>
+              <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <p className="font-black">Shipping address</p>
+                <div className="mt-2 space-y-1 text-bc-muted">
+                  {shippingLines(order).length ? (
+                    shippingLines(order).map((line) => <p key={line}>{line}</p>)
+                  ) : (
+                    <p>No shipping address captured.</p>
+                  )}
+                </div>
               </div>
             </article>
           ))}

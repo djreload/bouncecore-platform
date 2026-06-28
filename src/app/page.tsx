@@ -33,7 +33,7 @@ export default async function HomePage() {
             <div className="mt-7 flex flex-wrap gap-3">
               <ButtonLink href="/live" size="lg">
                 <Radio className="h-5 w-5" aria-hidden="true" />
-                View live shell
+                Watch live
               </ButtonLink>
               <ButtonLink href="/admin" variant="ghost" size="lg">
                 <Activity className="h-5 w-5" aria-hidden="true" />
@@ -84,18 +84,19 @@ export default async function HomePage() {
       <section className="bc-grid border-t border-bc-line bg-bc-void py-12">
         <div className="mx-auto grid max-w-7xl gap-6 px-4 lg:grid-cols-[1fr_380px]">
           <div>
-            <Badge tone="acid">Foundation modules</Badge>
-            <h2 className="mt-4 text-3xl font-black">One product shell, one navigation model, one account system.</h2>
+            <Badge tone="acid">Platform modules</Badge>
+            <h2 className="mt-4 text-3xl font-black">One account, live chat, stars, music, merch, and streamer tools.</h2>
             <p className="mt-3 max-w-3xl text-bc-muted">
-              The scaffold keeps public pages, account dashboards, role-specific workspaces, and admin tools inside
-              one Bouncecore experience. Stream-core code stays behind a provider boundary.
+              Bouncecore keeps public pages, account dashboards, role-specific workspaces, payments, uploads, and admin tools
+              inside one consistent experience.
             </p>
           </div>
           <div className="rounded-md border border-bc-line bg-bc-panel p-5">
             <Sparkles className="h-8 w-8 text-bc-acid" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-black">Next build target</h3>
+            <h3 className="mt-4 text-xl font-black">Site controls</h3>
             <p className="mt-2 text-sm text-bc-muted">
-              Stream-core wiring is next: connect the HTTP provider endpoint, ingest telemetry, realtime chat presence, and workers.
+              Admin-managed settings now control homepage copy, live-page links, announcements, public policy pages, theme tokens,
+              menus, and mobile app behaviour.
             </p>
           </div>
         </div>

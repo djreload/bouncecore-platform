@@ -1,8 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createChatGifMessage, createChatMessage, createChatStickerMessage, toggleChatMessageReaction } from "@/lib/chat/chat-service";
-import { createChatReport } from "@/lib/chat/moderation-service";
+import {
+  clearChatRoomMessages,
+  createChatGifMessage,
+  createChatMessage,
+  createChatStickerMessage,
+  moderateChatMessage,
+  toggleChatMessageReaction
+} from "@/lib/chat/chat-service";
+import { hasPermission, hasRole } from "@/lib/auth/rbac";
+import { createChatBan, createChatReport } from "@/lib/chat/moderation-service";
+import { createChatSheepThrow } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
 import type { PublicChatActionState } from "@/app/chat/state";
@@ -23,6 +32,7 @@ export async function publicChatAction(
 
   if (!user) {
     return {
+      intent,
       status: "error",
       message: "Sign in to send chat messages."
     };
@@ -30,6 +40,7 @@ export async function publicChatAction(
 
   if (!roomId) {
     return {
+      intent,
       status: "error",
       message: "Choose a chat room before sending a message."
     };
@@ -42,6 +53,33 @@ export async function publicChatAction(
           messageId: formString(formData, "messageId"),
           notes: formString(formData, "reportNotes"),
           reason: formString(formData, "reason")
+        },
+        user.id
+      );
+    } else if (intent === "clear-room") {
+      if (!hasRole(user, "admin") && !hasRole(user, "owner")) {
+        throw new Error("Only admins and owners can clear chat.");
+      }
+
+      await clearChatRoomMessages(roomId, user.id);
+    } else if (intent === "delete-message") {
+      if (!hasPermission(user, "moderation.use")) {
+        throw new Error("You do not have permission to remove chat messages.");
+      }
+
+      await moderateChatMessage(formString(formData, "messageId"), user.id);
+    } else if (intent === "ban-user") {
+      if (!hasPermission(user, "moderation.use")) {
+        throw new Error("You do not have permission to ban chat users.");
+      }
+
+      await createChatBan(
+        {
+          duration: formString(formData, "duration") || "24h",
+          notes: formString(formData, "banNotes"),
+          reason: formString(formData, "banReason") || "Live chat rule violation",
+          roomId,
+          userId: formString(formData, "targetUserId")
         },
         user.id
       );
@@ -59,13 +97,15 @@ export async function publicChatAction(
       await createChatStickerMessage(roomId, user.id, formString(formData, "assetId"));
     } else if (intent === "reaction") {
       await toggleChatMessageReaction(formString(formData, "messageId"), user.id, formString(formData, "reactionKey"));
+    } else if (intent === "sheep") {
+      await createChatSheepThrow(roomId, user.id, formString(formData, "messageId"));
     } else if (intent === "stars") {
       await createLiveChatStarSend(roomId, user.id, {
         amount: formString(formData, "amount"),
         note: formString(formData, "note")
       });
     } else {
-      await createChatMessage(roomId, body, user.id, formString(formData, "effectId"));
+      await createChatMessage(roomId, body, user.id, formString(formData, "effectId"), formString(formData, "replyToMessageId"));
     }
 
     revalidatePath("/chat");
@@ -73,32 +113,54 @@ export async function publicChatAction(
     revalidatePath("/account/rewards");
     revalidatePath("/admin/stars");
     revalidatePath("/admin/reports");
+    revalidatePath("/admin/bans");
+    revalidatePath("/admin/chatrooms");
     revalidatePath("/admin/audit-logs");
 
     return {
+      intent,
       status: "success",
       message:
         intent === "report"
           ? "Report sent to moderators."
+          : intent === "clear-room"
+            ? "Chat cleared."
+          : intent === "delete-message"
+            ? "Message removed from chat."
+            : intent === "ban-user"
+              ? "Chat ban created."
           : intent === "gif"
             ? "GIF sent."
             : intent === "asset"
               ? "Sticker sent."
               : intent === "reaction"
                 ? "Reaction updated."
+                : intent === "sheep"
+                  ? "Sheep thrown."
             : intent === "stars"
               ? "Stars sent to live chat."
               : "Message sent."
     };
   } catch (error) {
-    if (intent === "report") {
+    if (intent === "report" || intent === "clear-room" || intent === "delete-message" || intent === "ban-user") {
       return {
+        intent,
         status: "error",
-        message: error instanceof Error ? error.message : "Report was not sent."
+        message:
+          error instanceof Error
+            ? error.message
+            : intent === "clear-room"
+              ? "Chat was not cleared."
+            : intent === "delete-message"
+              ? "Message was not removed."
+              : intent === "ban-user"
+                ? "Chat ban was not created."
+                : "Report was not sent."
       };
     }
 
     return {
+      intent,
       status: "error",
       message:
         error instanceof Error
@@ -109,6 +171,8 @@ export async function publicChatAction(
               ? "Sticker was not sent."
               : intent === "reaction"
                 ? "Reaction was not saved."
+                : intent === "sheep"
+                  ? "Sheep was not thrown."
             : intent === "stars"
               ? "Stars were not sent."
             : "Message was not sent. Keep it between 1 and 500 characters."

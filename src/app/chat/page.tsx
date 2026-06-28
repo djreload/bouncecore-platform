@@ -1,8 +1,9 @@
 import { PublicShell } from "@/components/layout/public-shell";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
-import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
+import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatPresenceUserRow, PublicChatRoomRow } from "@/app/chat/state";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicChatData } from "@/lib/chat/chat-service";
+import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getStarWalletBalance } from "@/lib/stars/star-send-service";
 
@@ -21,11 +22,13 @@ function firstParam(value: string | string[] | undefined) {
 export default async function ChatPage({ searchParams }: ChatPageProps) {
   const params = searchParams ? await searchParams : {};
   const currentUser = await getCurrentUser();
-  const [{ rooms, selectedRoom, messages, assets }, roleDisplayLabels] = await Promise.all([
+  const [{ rooms, selectedRoom, messages, presenceUsers, assets }, roleDisplayLabels, sheepSettings] = await Promise.all([
     getPublicChatData(firstParam(params.room), currentUser?.id),
-    getRoleDisplayNameOverrides()
+    getRoleDisplayNameOverrides(),
+    getSheepThrowSettings()
   ]);
   const currentStarBalance = await getStarWalletBalance(currentUser?.id);
+  const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
   const roomRows: PublicChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -49,6 +52,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
   const messageRows: PublicChatMessageRow[] = messages.map((message) => ({
     id: message.id,
     roomId: message.roomId,
+    replyTo: message.replyTo,
     body: message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,
@@ -64,6 +68,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     createdAt: message.createdAt,
     deletedAt: message.deletedAt,
     authorDisplayName: message.authorDisplayName,
+    authorAvatarUrl: message.authorAvatarUrl,
     authorUserId: message.authorUserId,
     authorRoles: message.authorRoles,
     reactions: message.reactions
@@ -77,6 +82,14 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     imageUrl: asset.imageUrl,
     kind: asset.kind,
     isAnimated: asset.isAnimated
+  }));
+  const presenceRows: PublicChatPresenceUserRow[] = presenceUsers.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    roles: user.roles,
+    status: user.status,
+    lastActiveAt: user.lastActiveAt
   }));
 
   return (
@@ -94,9 +107,12 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
           currentStarBalance={currentStarBalance}
           assets={assetRows}
           messages={messageRows}
+          presenceUsers={presenceRows}
           roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}
           selectedRoom={selectedRoomRow}
+          sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
+          sheepSettings={sheepSettings}
         />
       </main>
     </PublicShell>

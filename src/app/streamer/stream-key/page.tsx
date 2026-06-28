@@ -1,6 +1,7 @@
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { StreamKeyPanel } from "@/app/streamer/stream-key/stream-key-panel";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { getConfiguredRtmpIngestUrl } from "@/lib/stream/stream-ingest-settings";
 import { getOwnActiveStreamKey } from "@/lib/stream/stream-key-service";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function StreamKeyPage() {
   const user = await requireUserPermission("stream.keys.manage.own");
   const streamKey = await getOwnActiveStreamKey(user.id);
-  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://bouncecore.example.com:1936/live/{streamKey}";
+  const ingestUrl = getConfiguredRtmpIngestUrl();
 
   return (
     <DashboardShell

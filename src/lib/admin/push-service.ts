@@ -5,6 +5,11 @@ import { roleDefinitions, type Role } from "@/lib/auth/rbac";
 import { roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { prisma } from "@/lib/db/prisma";
+import {
+  mergeNotificationPreferences,
+  notificationDeliveryPreferences
+} from "@/lib/account/notification-preferences-core";
+import { fcmDispatchConfigured } from "@/lib/mobile/fcm-push-service";
 import { secretEncryptionConfigured } from "@/lib/security/secret-crypto";
 
 export const adminPushTargets = ["all", "role", "user"] as const;
@@ -46,11 +51,13 @@ export type AdminPushData = {
   stats: {
     activeUsers: number;
     activeMobileDevices: number;
+    activeFcmDevices: number;
     blockedPushDeliveries: number;
     deliverableMobileDevices: number;
     deliveredPushDeliveries: number;
     failedPushDeliveries: number;
     pushEncryptionConfigured: boolean;
+    fcmDispatchConfigured: boolean;
     receiptPendingPushDeliveries: number;
     queuedPushDeliveries: number;
     sentPushDeliveries: number;
@@ -131,6 +138,7 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     unreadNotifications,
     sentToday,
     activeMobileDevices,
+    activeFcmDevices,
     deliverableMobileDevices,
     queuedPushDeliveries,
     blockedPushDeliveries,
@@ -185,6 +193,12 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     }),
     prisma.mobileDevice.count({
       where: {
+        revokedAt: null
+      }
+    }),
+    prisma.mobileDevice.count({
+      where: {
+        provider: "fcm",
         revokedAt: null
       }
     }),
@@ -281,12 +295,14 @@ export async function getAdminPushData(): Promise<AdminPushData> {
     })),
     stats: {
       activeUsers: activeUsers.length,
+      activeFcmDevices,
       activeMobileDevices,
       blockedPushDeliveries,
       deliverableMobileDevices,
       deliveredPushDeliveries,
       failedPushDeliveries,
       pushEncryptionConfigured: secretEncryptionConfigured(),
+      fcmDispatchConfigured: fcmDispatchConfigured(),
       receiptPendingPushDeliveries,
       queuedPushDeliveries,
       sentPushDeliveries,
@@ -357,6 +373,11 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
           provider: true,
           tokenCiphertext: true
         }
+      },
+      notificationPreference: {
+        select: {
+          value: true
+        }
       }
     }
   });
@@ -369,6 +390,7 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
   let pushDeliveryCount = 0;
   let queuedPushDeliveryCount = 0;
   let blockedPushDeliveryCount = 0;
+  let preferenceSkippedPushDeliveryCount = 0;
 
   await prisma.$transaction(async (tx) => {
     for (const recipient of recipients) {
@@ -380,24 +402,31 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
           userId: recipient.id
         }
       });
-      const pushDeliveries = recipient.mobileDevices.map((device) => {
-        const deliverable = encryptionReady && Boolean(device.tokenCiphertext);
+      const deliveryPreferences = notificationDeliveryPreferences(
+        mergeNotificationPreferences(recipient.notificationPreference?.value),
+        type
+      );
+      const pushDeliveries = deliveryPreferences.push
+        ? recipient.mobileDevices.map((device) => {
+            const deliverable = encryptionReady && Boolean(device.tokenCiphertext);
 
-        return {
-          errorCode: deliverable ? null : device.tokenCiphertext ? "missing_encryption_key" : "missing_encrypted_token",
-          errorMessage: deliverable
-            ? null
-            : device.tokenCiphertext
-              ? "PUSH_TOKEN_ENCRYPTION_KEY is required before queued pushes can be delivered."
-              : "Device was registered before encrypted token storage was configured.",
-          mobileDeviceId: device.id,
-          notificationId: notification.id,
-          platform: device.platform,
-          provider: device.provider,
-          status: deliverable ? "queued" : "blocked"
-        };
-      });
+            return {
+              errorCode: deliverable ? null : device.tokenCiphertext ? "missing_encryption_key" : "missing_encrypted_token",
+              errorMessage: deliverable
+                ? null
+                : device.tokenCiphertext
+                  ? "PUSH_TOKEN_ENCRYPTION_KEY is required before queued pushes can be delivered."
+                  : "Device was registered before encrypted token storage was configured.",
+              mobileDeviceId: device.id,
+              notificationId: notification.id,
+              platform: device.platform,
+              provider: device.provider,
+              status: deliverable ? "queued" : "blocked"
+            };
+          })
+        : [];
 
+      preferenceSkippedPushDeliveryCount += deliveryPreferences.push ? 0 : recipient.mobileDevices.length;
       pushDeliveryCount += pushDeliveries.length;
       queuedPushDeliveryCount += pushDeliveries.filter((delivery) => delivery.status === "queued").length;
       blockedPushDeliveryCount += pushDeliveries.filter((delivery) => delivery.status === "blocked").length;
@@ -417,6 +446,7 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
     severity: target === "user" ? "info" : "warning",
     metadata: {
       blockedPushDeliveryCount,
+      preferenceSkippedPushDeliveryCount,
       pushDeliveryCount,
       pushEncryptionConfigured: encryptionReady,
       queuedPushDeliveryCount,
@@ -430,6 +460,7 @@ export async function sendAdminNotification(actorId: string, input: AdminPushInp
 
   return {
     blockedPushDeliveryCount,
+    preferenceSkippedPushDeliveryCount,
     pushDeliveryCount,
     queuedPushDeliveryCount,
     recipientCount: recipients.length

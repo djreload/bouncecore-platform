@@ -7,10 +7,13 @@ import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat, getActiveChatBan } from "@/lib/chat/moderation-service";
 import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/chat-asset-service";
 import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
+import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-service";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
+const chatPresenceOnlineMs = 5 * 60 * 1000;
+const chatPresenceAwayMs = 30 * 60 * 1000;
 
 export type ChatRoomInput = {
   locked?: boolean;
@@ -35,6 +38,7 @@ export type ChatRoomSummary = {
 export type ChatMessageSummary = {
   id: string;
   roomId: string;
+  replyTo: ChatMessageReplySummary | null;
   body: string;
   kind: string;
   mediaUrl: string | null;
@@ -50,9 +54,19 @@ export type ChatMessageSummary = {
   createdAt: string;
   deletedAt: string | null;
   authorDisplayName: string;
+  authorAvatarUrl: string | null;
   authorUserId: string | null;
   authorRoles: Role[];
   reactions: ChatReactionSummary[];
+};
+
+export type ChatMessageReplySummary = {
+  id: string;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: string | null;
+  authorDisplayName: string;
 };
 
 export type ChatGifMessageInput = {
@@ -71,14 +85,25 @@ export type ChatReactionSummary = {
   reacted: boolean;
 };
 
+export type ChatPresenceUserSummary = {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  roles: Role[];
+  status: "online" | "away";
+  lastActiveAt: string;
+};
+
 export type PublicChatData = {
   rooms: ChatRoomSummary[];
   selectedRoom: ChatRoomSummary | null;
   messages: ChatMessageSummary[];
+  presenceUsers: ChatPresenceUserSummary[];
   assets: ChatStickerAssetSummary[];
 };
 
 type AuthorSummary = {
+  avatarUrl: string | null;
   displayName: string;
   roles: Role[];
 };
@@ -86,6 +111,15 @@ type AuthorSummary = {
 type ReactionSource = {
   reactionKey: string;
   userId: string;
+};
+
+type ReplySource = {
+  id: string;
+  userId: string | null;
+  body: string;
+  kind: string;
+  mediaAlt: string | null;
+  deletedAt: Date | null;
 };
 
 function chatHistoryCutoff() {
@@ -190,6 +224,11 @@ async function getAuthorSummaries(userIds: string[]) {
       }
     },
     include: {
+      profile: {
+        select: {
+          avatarUrl: true
+        }
+      },
       roles: {
         include: {
           role: true
@@ -202,6 +241,7 @@ async function getAuthorSummaries(userIds: string[]) {
     users.map((user) => [
       user.id,
       {
+        avatarUrl: user.profile?.avatarUrl ?? null,
         displayName: user.displayName,
         roles: normalizeRoles(user.roles.map((userRole) => userRole.role.name))
       }
@@ -243,6 +283,7 @@ function toMessageSummary(
     id: string;
     roomId: string;
     userId: string | null;
+    replyToMessage?: ReplySource | null;
     body: string;
     kind: string;
     mediaUrl: string | null;
@@ -265,10 +306,22 @@ function toMessageSummary(
   currentUserId?: string | null
 ): ChatMessageSummary {
   const author = message.userId ? authors.get(message.userId) : null;
+  const replyAuthor = message.replyToMessage?.userId ? authors.get(message.replyToMessage.userId) : null;
+  const replyTo = message.replyToMessage
+    ? {
+        id: message.replyToMessage.id,
+        body: message.replyToMessage.deletedAt ? "Message removed by moderation." : message.replyToMessage.body,
+        kind: message.replyToMessage.kind,
+        mediaAlt: message.replyToMessage.deletedAt ? null : message.replyToMessage.mediaAlt,
+        deletedAt: message.replyToMessage.deletedAt?.toISOString() ?? null,
+        authorDisplayName: replyAuthor?.displayName ?? "Guest"
+      }
+    : null;
 
   return {
     id: message.id,
     roomId: message.roomId,
+    replyTo,
     body: message.deletedAt ? "Message removed by moderation." : message.body,
     kind: message.kind,
     mediaUrl: message.deletedAt ? null : message.mediaUrl,
@@ -284,10 +337,40 @@ function toMessageSummary(
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
+    authorAvatarUrl: author?.avatarUrl ?? null,
     authorUserId: message.userId,
     authorRoles: author?.roles ?? [],
     reactions: message.deletedAt ? [] : summarizeReactions(message.reactions, currentUserId)
   };
+}
+
+function getMessageAuthorIds(messages: { userId: string | null; replyToMessage?: { userId: string | null } | null }[]) {
+  return messages.flatMap((message) => [message.userId, message.replyToMessage?.userId]).filter(Boolean) as string[];
+}
+
+async function validateReplyToMessage(roomId: string, replyToMessageId?: string | null) {
+  const normalizedReplyToMessageId = replyToMessageId?.trim();
+
+  if (!normalizedReplyToMessageId) {
+    return null;
+  }
+
+  const replyToMessage = await prisma.chatMessage.findFirst({
+    where: {
+      id: normalizedReplyToMessageId,
+      roomId,
+      deletedAt: null
+    },
+    select: {
+      id: true
+    }
+  });
+
+  if (!replyToMessage) {
+    throw new Error("The message you are replying to is no longer available.");
+  }
+
+  return replyToMessage.id;
 }
 
 async function getChatEffectUserRoles(userId: string) {
@@ -305,6 +388,119 @@ async function getChatEffectUserRoles(userId: string) {
   });
 
   return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
+}
+
+export async function getPublicChatPresence(_roomId: string, currentUserId?: string | null): Promise<ChatPresenceUserSummary[]> {
+  if (!_roomId) {
+    return [];
+  }
+
+  const now = new Date();
+  const awayCutoff = new Date(now.getTime() - chatPresenceAwayMs);
+  const onlineCutoff = new Date(now.getTime() - chatPresenceOnlineMs);
+  const activeSessions = await prisma.authSession.findMany({
+    where: {
+      revokedAt: null,
+      expiresAt: {
+        gt: now
+      },
+      updatedAt: {
+        gte: awayCutoff
+      },
+      user: {
+        status: "active",
+        emailVerifiedAt: {
+          not: null
+        }
+      }
+    },
+    orderBy: {
+      updatedAt: "desc"
+    },
+    include: {
+      user: {
+        include: {
+          profile: {
+            select: {
+              avatarUrl: true
+            }
+          },
+          roles: {
+            include: {
+              role: true
+            }
+          }
+        }
+      }
+    },
+    take: 300
+  });
+  const latestSessionByUser = new Map<string, (typeof activeSessions)[number]>();
+
+  for (const session of activeSessions) {
+    if (!latestSessionByUser.has(session.userId)) {
+      latestSessionByUser.set(session.userId, session);
+    }
+  }
+
+  const currentUser =
+    currentUserId && !latestSessionByUser.has(currentUserId)
+      ? await prisma.user.findFirst({
+          where: {
+            id: currentUserId,
+            status: "active",
+            emailVerifiedAt: {
+              not: null
+            }
+          },
+          include: {
+            profile: {
+              select: {
+                avatarUrl: true
+              }
+            },
+            roles: {
+              include: {
+                role: true
+              }
+            }
+          }
+        })
+      : null;
+
+  const users: ChatPresenceUserSummary[] = [...latestSessionByUser.values()].map((session) => {
+    const lastActiveAt = session.updatedAt;
+
+    return {
+      id: session.user.id,
+      displayName: session.user.displayName,
+      avatarUrl: session.user.profile?.avatarUrl ?? null,
+      roles: normalizeRoles(session.user.roles.map((userRole) => userRole.role.name)),
+      status: lastActiveAt >= onlineCutoff ? "online" : "away",
+      lastActiveAt: lastActiveAt.toISOString()
+    };
+  });
+
+  if (currentUser) {
+    users.push({
+      id: currentUser.id,
+      displayName: currentUser.displayName,
+      avatarUrl: currentUser.profile?.avatarUrl ?? null,
+      roles: normalizeRoles(currentUser.roles.map((userRole) => userRole.role.name)),
+      status: "online",
+      lastActiveAt: now.toISOString()
+    });
+  }
+
+  return users
+    .sort((first, second) => {
+      if (first.status !== second.status) {
+        return first.status === "online" ? -1 : 1;
+      }
+
+      return new Date(second.lastActiveAt).getTime() - new Date(first.lastActiveAt).getTime();
+    })
+    .slice(0, 50);
 }
 
 async function getRooms() {
@@ -344,6 +540,7 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
       rooms: roomSummaries,
       selectedRoom: null,
       messages: [],
+      presenceUsers: [],
       assets
     };
   }
@@ -365,6 +562,16 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
           reactionKey: true,
           userId: true
         }
+      },
+      replyToMessage: {
+        select: {
+          id: true,
+          userId: true,
+          body: true,
+          kind: true,
+          mediaAlt: true,
+          deletedAt: true
+        }
       }
     },
     orderBy: {
@@ -372,12 +579,14 @@ export async function getPublicChatData(roomSlug?: string, currentUserId?: strin
     },
     take: 40
   });
-  const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+  const authors = await getAuthorSummaries(getMessageAuthorIds(messages));
+  const presenceUsers = await getPublicChatPresence(selectedRoom.id, currentUserId);
 
   return {
     rooms: roomSummaries,
     selectedRoom: toRoomSummary(selectedRoom),
     messages: messages.reverse().map((message) => toMessageSummary(message, authors, currentUserId)),
+    presenceUsers,
     assets
   };
 }
@@ -415,6 +624,16 @@ export async function getPublicChatMessages(roomId: string, currentUserId?: stri
           reactionKey: true,
           userId: true
         }
+      },
+      replyToMessage: {
+        select: {
+          id: true,
+          userId: true,
+          body: true,
+          kind: true,
+          mediaAlt: true,
+          deletedAt: true
+        }
       }
     },
     orderBy: {
@@ -422,7 +641,7 @@ export async function getPublicChatMessages(roomId: string, currentUserId?: stri
     },
     take: 40
   });
-  const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+  const authors = await getAuthorSummaries(getMessageAuthorIds(messages));
 
   return messages.reverse().map((message) => toMessageSummary(message, authors, currentUserId));
 }
@@ -447,7 +666,7 @@ export async function getPublicChatRoom(roomId: string) {
 export async function getAdminChatroomsData() {
   await pruneExpiredChatHistory();
 
-  const [rooms, messages] = await Promise.all([
+  const [rooms, messages, sheepThrows] = await Promise.all([
     getRooms(),
     prisma.chatMessage.findMany({
       orderBy: {
@@ -463,9 +682,33 @@ export async function getAdminChatroomsData() {
         room: true
       },
       take: 75
+    }),
+    prisma.chatSheepThrow.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 50
     })
   ]);
   const authors = await getAuthorSummaries(messages.map((message) => message.userId).filter(Boolean) as string[]);
+  const sheepUserIds = [
+    ...new Set(sheepThrows.flatMap((sheepThrow) => [sheepThrow.throwerId, sheepThrow.targetUserId]).filter(Boolean) as string[])
+  ];
+  const sheepUsers = sheepUserIds.length
+    ? await prisma.user.findMany({
+        where: {
+          id: {
+            in: sheepUserIds
+          }
+        },
+        select: {
+          displayName: true,
+          id: true
+        }
+      })
+    : [];
+  const sheepUserById = new Map(sheepUsers.map((user) => [user.id, user.displayName]));
+  const roomById = new Map(rooms.map((room) => [room.id, room]));
 
   return {
     rooms: rooms.map(toRoomSummary),
@@ -473,7 +716,20 @@ export async function getAdminChatroomsData() {
       ...toMessageSummary(message, authors),
       roomName: message.room.name,
       roomSlug: message.room.slug
-    }))
+    })),
+    sheepThrows: sheepThrows.map((sheepThrow) => {
+      const room = roomById.get(sheepThrow.roomId);
+
+      return {
+        id: sheepThrow.id,
+        roomName: room?.name ?? "Unknown room",
+        roomSlug: room?.slug ?? "unknown",
+        throwerDisplayName: sheepUserById.get(sheepThrow.throwerId) ?? "Unknown user",
+        targetDisplayName: sheepThrow.targetDisplayName ?? (sheepThrow.targetUserId ? sheepUserById.get(sheepThrow.targetUserId) : null) ?? "Unknown user",
+        targetMessageId: sheepThrow.targetMessageId,
+        createdAt: sheepThrow.createdAt.toISOString()
+      };
+    })
   };
 }
 
@@ -586,7 +842,13 @@ export async function updateChatRoom(input: ChatRoomInput, actorId: string) {
   return room;
 }
 
-export async function createChatMessage(roomId: string, body: string, userId: string, effectId?: string | null) {
+export async function createChatMessage(
+  roomId: string,
+  body: string,
+  userId: string,
+  effectId?: string | null,
+  replyToMessageId?: string | null
+) {
   await pruneExpiredChatHistory();
 
   const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
@@ -595,28 +857,48 @@ export async function createChatMessage(roomId: string, body: string, userId: st
     throw new Error("Chat messages must be between 1 and 500 characters.");
   }
 
-  await prisma.chatRoom.findUniqueOrThrow({
+  const room = await prisma.chatRoom.findUniqueOrThrow({
     where: {
       id: roomId
     },
     select: {
-      id: true
+      id: true,
+      slug: true
     }
   });
   await assertUserCanPostInChat(userId, roomId);
   const userRoles = await getChatEffectUserRoles(userId);
   const validatedEffectId = validateChatEffectSelection(userRoles, effectId);
+  const validatedReplyToMessageId = await validateReplyToMessage(roomId, replyToMessageId);
 
   const message = await prisma.chatMessage.create({
     data: {
       roomId,
       userId,
+      replyToMessageId: validatedReplyToMessageId,
       body: normalizedBody,
       kind: "text",
       effectId: validatedEffectId
     }
   });
 
+  await queueChatMentionNotifications({
+    body: normalizedBody,
+    messageId: message.id,
+    roomSlug: room.slug,
+    senderUserId: userId
+  }).catch((error) =>
+    writeAuditLog({
+      action: "chat.mention_notifications.queue_failed",
+      actorId: userId,
+      metadata: {
+        error: error instanceof Error ? error.message : "Mention notification queue failed.",
+        roomId
+      },
+      severity: "warning",
+      target: `chat-message:${message.id}`
+    })
+  );
   await publishChatRoomChanged(roomId, message.id);
 
   return message;
@@ -878,4 +1160,40 @@ export async function moderateChatMessage(messageId: string, actorId: string) {
   await publishChatRoomChanged(message.roomId, message.id);
 
   return updated;
+}
+
+export async function clearChatRoomMessages(roomId: string, actorId: string) {
+  const room = await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: roomId
+    },
+    select: {
+      id: true,
+      slug: true
+    }
+  });
+  const clearedAt = new Date();
+  const result = await prisma.chatMessage.updateMany({
+    where: {
+      deletedAt: null,
+      roomId: room.id
+    },
+    data: {
+      deletedAt: clearedAt
+    }
+  });
+
+  await writeAuditLog({
+    actorId,
+    action: "chat.room.clear_messages",
+    target: `chat-room:${room.id}`,
+    severity: "warning",
+    metadata: {
+      clearedMessages: result.count,
+      roomSlug: room.slug
+    }
+  });
+  await publishChatRoomChanged(room.id);
+
+  return result.count;
 }

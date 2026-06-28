@@ -1,0 +1,9 @@
+ALTER TABLE "Order" ADD COLUMN "shippingName" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingEmail" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingPhone" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingLine1" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingLine2" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingCity" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingCounty" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingPostcode" TEXT;
+ALTER TABLE "Order" ADD COLUMN "shippingCountry" TEXT;

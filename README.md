@@ -47,6 +47,7 @@ src/stream-core/         Embedded stream-core HTTP service
 src/workers/             Background worker entrypoint
 prisma/                  Prisma schema, migrations, and seed data
 public/                  Public assets and upload mount point
+android-webview/         Native Android WebView wrapper and Gradle project
 deploy/                  Reverse-proxy and service support files
 docs/                    Architecture, install, backup, and operations docs
 scripts/                 Install, backup, restore, stream smoke, and utility scripts
@@ -178,6 +179,20 @@ Server: rtmps://bouncecore.example.com:1936/live
 Stream Key: value from the streamer dashboard
 ```
 
+Dual-DJ smoke testing can create temporary stream keys for a local user, publish two disposable FFmpeg streams, verify primary/secondary ingest state, stop the primary publisher, and verify secondary promotion:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/stream-dual-smoke-with-temp-keys.ps1 -UserEmail owner@example.com
+```
+
+To use two existing keys instead:
+
+```powershell
+$env:STREAM_TEST_KEY="bc_live_primary_key"
+$env:STREAM_TEST_KEY_2="bc_live_secondary_key"
+npm.cmd run stream:smoke:dual
+```
+
 ## Upload Limits
 
 The application and production proxy should allow at least 512MB request bodies. Current application limits are:
@@ -226,6 +241,7 @@ npm.cmd run stream:smoke -- -UseTranscoder
 
 - [CHANGELOG.md](CHANGELOG.md)
 - [docs/INSTALL_UBUNTU_DEBIAN.md](docs/INSTALL_UBUNTU_DEBIAN.md)
+- [docs/ANDROID_RELEASE.md](docs/ANDROID_RELEASE.md)
 - [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 - [docs/EMBEDDED_STREAM_CORE.md](docs/EMBEDDED_STREAM_CORE.md)
 - [docs/STREAM_CORE_BOUNDARY.md](docs/STREAM_CORE_BOUNDARY.md)

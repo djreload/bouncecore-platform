@@ -305,16 +305,20 @@ export async function sendMail(input: MailMessage): Promise<MailSendResult> {
   const session = new SmtpSession(config);
 
   await session.connect();
-  await session.startTlsIfNeeded();
-  await session.login();
-  const messageId = await session.send(input);
-  await session.quit();
 
-  return {
-    configured: true,
-    messageId,
-    sent: true
-  };
+  try {
+    await session.startTlsIfNeeded();
+    await session.login();
+    const messageId = await session.send(input);
+
+    return {
+      configured: true,
+      messageId,
+      sent: true
+    };
+  } finally {
+    await session.quit();
+  }
 }
 
 export function mailIsConfigured() {

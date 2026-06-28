@@ -1,14 +1,17 @@
 import { Download, Music, ShieldCheck } from "lucide-react";
+import { CartStorageClearer } from "@/components/checkout/cart-storage-clearer";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { musicCartStorageKey } from "@/lib/cart/storage-keys";
 import { getAccountDownloadsData } from "@/lib/music/music-service";
 
 export const dynamic = "force-dynamic";
 
 type AccountDownloadsPageProps = {
   searchParams?: Promise<{
+    checkout?: string | string[];
     download?: string | string[];
   }>;
 };
@@ -33,10 +36,12 @@ export default async function AccountDownloadsPage({ searchParams }: AccountDown
   const user = await requireSignedInUser();
   const params = searchParams ? await searchParams : {};
   const data = await getAccountDownloadsData(user.id);
+  const checkoutStatus = firstParam(params.checkout);
   const downloadStatus = firstParam(params.download);
 
   return (
     <DashboardShell title="Downloads" description="Owned music downloads, purchase licenses, and delivery history.">
+      {checkoutStatus === "music-success" ? <CartStorageClearer storageKey={musicCartStorageKey} /> : null}
       <div className="grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Owned</Badge>
@@ -63,6 +68,12 @@ export default async function AccountDownloadsPage({ searchParams }: AccountDown
       {downloadStatus === "missing" ? (
         <div className="mt-5 rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
           This purchase is owned, but no download URL is configured yet.
+        </div>
+      ) : null}
+
+      {checkoutStatus === "music-success" ? (
+        <div className="mt-5 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3 text-sm text-bc-acid">
+          Music checkout complete. Purchased tracks are available below.
         </div>
       ) : null}
 

@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
+import { writeAuditLog } from "@/lib/auth/audit";
+import {
+  queueStreamLiveNotifications,
+  type MobileEventNotificationQueueResult
+} from "@/lib/mobile/event-notification-service";
 import { getDefaultStreamProfile } from "@/lib/stream/stream-profile-service";
 import { getProviderSnapshot, type StreamProviderSnapshot } from "@/lib/stream/stream-channel-service";
 
@@ -17,6 +22,7 @@ export type StreamSessionSyncResult = {
   channelId: string;
   eventTypes: string[];
   ingestConnected: boolean;
+  liveNotification: MobileEventNotificationQueueResult | { error: string } | null;
   openSessionId: string | null;
   playbackUrl: string | null;
   providerStatus: string;
@@ -84,7 +90,7 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
   const payload = syncPayload(snapshot);
   const now = new Date();
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "StreamChannel" WHERE id = ${channel.id} FOR UPDATE`;
 
     const openSession = await tx.streamSession.findFirst({
@@ -174,6 +180,7 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
       channelId: channel.id,
       eventTypes,
       ingestConnected: active,
+      liveNotification: null,
       openSessionId,
       playbackUrl: snapshot.playbackUrl ?? channel.playbackUrl,
       providerStatus: snapshot.status,
@@ -183,4 +190,40 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
       viewerCount: snapshot.viewerCount
     };
   });
+
+  if (!result.sessionStarted || !result.openSessionId) {
+    return result;
+  }
+
+  try {
+    return {
+      ...result,
+      liveNotification: await queueStreamLiveNotifications({
+        channelId: result.channelId,
+        channelTitle: channel.title,
+        sessionId: result.openSessionId
+      })
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Stream live notification queue failed.";
+
+    await writeAuditLog({
+      action: "mobile.push.stream_live.queue_failed",
+      actorId: null,
+      metadata: {
+        channelId: result.channelId,
+        error: message,
+        sessionId: result.openSessionId
+      },
+      severity: "warning",
+      target: `stream-session:${result.openSessionId}`
+    });
+
+    return {
+      ...result,
+      liveNotification: {
+        error: message
+      }
+    };
+  }
 }

@@ -24,7 +24,7 @@ export default async function AdminPage() {
   return (
     <AdminShell
       title="Dashboard"
-      description="Organised admin foundation for users, streaming, chat, marketplace, shop, payments, rewards, mobile, design, and settings."
+      description="Operational control room for users, streaming, chat, marketplace, shop, payments, rewards, mobile, design, and settings."
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {panels.map((panel) => {

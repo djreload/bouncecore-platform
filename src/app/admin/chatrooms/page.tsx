@@ -1,15 +1,20 @@
 import { AdminChatroomsPanel } from "@/app/admin/chatrooms/chatrooms-panel";
-import type { AdminChatMessageRow, AdminChatRoomRow } from "@/app/admin/chatrooms/state";
+import type { AdminChatMessageRow, AdminChatRoomRow, AdminChatSheepThrowRow } from "@/app/admin/chatrooms/state";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAdminChatroomsData } from "@/lib/chat/chat-service";
+import { getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminChatroomsPage() {
   await requireUserPermission("moderation.use");
-  const [{ rooms, messages }, roleDisplayLabels] = await Promise.all([getAdminChatroomsData(), getRoleDisplayNameOverrides()]);
+  const [{ rooms, messages, sheepThrows }, roleDisplayLabels, sheepSettings] = await Promise.all([
+    getAdminChatroomsData(),
+    getRoleDisplayNameOverrides(),
+    getSheepThrowSettings()
+  ]);
   const roomRows: AdminChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -34,6 +39,15 @@ export default async function AdminChatroomsPage() {
     authorDisplayName: message.authorDisplayName,
     authorRoles: message.authorRoles
   }));
+  const sheepThrowRows: AdminChatSheepThrowRow[] = sheepThrows.map((sheepThrow) => ({
+    id: sheepThrow.id,
+    roomName: sheepThrow.roomName,
+    roomSlug: sheepThrow.roomSlug,
+    throwerDisplayName: sheepThrow.throwerDisplayName,
+    targetDisplayName: sheepThrow.targetDisplayName,
+    targetMessageId: sheepThrow.targetMessageId,
+    createdAt: sheepThrow.createdAt
+  }));
 
   return (
     <AdminShell
@@ -41,7 +55,13 @@ export default async function AdminChatroomsPage() {
       title="Chatrooms"
       description="Native room setup and moderation for public chat, live chat, VIP spaces, and creator rooms."
     >
-      <AdminChatroomsPanel messages={messageRows} roleDisplayLabels={roleDisplayLabels} rooms={roomRows} />
+      <AdminChatroomsPanel
+        messages={messageRows}
+        roleDisplayLabels={roleDisplayLabels}
+        rooms={roomRows}
+        sheepSettings={sheepSettings}
+        sheepThrows={sheepThrowRows}
+      />
     </AdminShell>
   );
 }

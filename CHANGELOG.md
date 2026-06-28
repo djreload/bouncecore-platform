@@ -30,6 +30,8 @@ All notable project changes are tracked here. Dates use UTC.
 - Added optional MediaMTX RTMP/RTMPS/HLS gateway profile with Bouncecore stream-key validation.
 - Added optional FFmpeg adaptive HLS transcoder profile with 240p, 480p, and 720p variants plus HLS origin service.
 - Added browser adaptive HLS playback using HLS.js and automatic variant switching when a master manifest is available.
+- Added dual-DJ stream ingest support with primary video/audio, muted picture-in-picture secondary playback, and automatic secondary promotion when the primary publisher disconnects.
+- Added dual-DJ stream smoke scripts that publish two disposable FFmpeg streams, validate primary/secondary ingest state, and verify promotion after primary disconnect.
 - Added offline stream image handling and live/offline state updates without requiring a browser reload.
 - Added worker-backed stream-provider sync, stream sessions, stream events, manual admin sync, and readiness checks.
 - Added database-backed stream profiles for low bitrate through high-HD stream configurations.
@@ -56,6 +58,8 @@ All notable project changes are tracked here. Dates use UTC.
 - Fixed mobile live layout overflow and chat panel overhang issues.
 - Fixed upload body-size failures caused by app/proxy limits not matching media requirements.
 - Fixed producer track save failures caused by upload validation and request-size limits.
+- Fixed producer artwork, sample MP3, and download MP3 uploads by uploading media through a dedicated producer upload API before saving track metadata.
+- Fixed uploaded artwork and MP3 playback returning 404 in production by adding a runtime `/uploads/...` file-serving route with byte-range support.
 - Fixed local Streamlabs/OBS connection behavior by supporting separate RTMP/RTMPS server URL and stream key values.
 - Fixed live page social/menu placement issues on mobile.
 - Fixed app example configuration and docs so public repo material does not include real deployment hostnames.

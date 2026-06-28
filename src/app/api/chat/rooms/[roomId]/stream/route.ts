@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { subscribeToChatRoomChanges } from "@/lib/chat/chat-realtime";
-import { getPublicChatMessages, getPublicChatRoom, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
+import {
+  getPublicChatMessages,
+  getPublicChatPresence,
+  getPublicChatRoom,
+  type ChatMessageSummary,
+  type ChatPresenceUserSummary,
+  type ChatRoomSummary
+} from "@/lib/chat/chat-service";
 import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +36,7 @@ function messageSignature(messages: ChatMessageSummary[]) {
   const latestMessage = messages.at(-1);
   const reactionSignature = messages
     .map((message) =>
-      `${message.id}:${message.reactions.map((reaction) => `${reaction.key}-${reaction.count}-${reaction.reacted ? "1" : "0"}`).join(",")}`
+      `${message.id}:${message.authorAvatarUrl ?? ""}:${message.reactions.map((reaction) => `${reaction.key}-${reaction.count}-${reaction.reacted ? "1" : "0"}`).join(",")}`
     )
     .join("|");
 
@@ -38,6 +45,10 @@ function messageSignature(messages: ChatMessageSummary[]) {
 
 function roomSignature(room: ChatRoomSummary | null) {
   return `${room?.id ?? "missing"}:${room?.lockedAt ?? "unlocked"}:${room?.slowModeSeconds ?? 0}`;
+}
+
+function presenceSignature(presenceUsers: ChatPresenceUserSummary[]) {
+  return presenceUsers.map((user) => `${user.id}:${user.status}:${user.avatarUrl ?? ""}`).join("|");
 }
 
 function waitForNextPoll(signal: AbortSignal, timeoutMs: number) {
@@ -121,9 +132,14 @@ export async function GET(request: Request, context: RouteContext) {
 
   let initialMessages: ChatMessageSummary[];
   let initialRoom: ChatRoomSummary | null;
+  let initialPresenceUsers: ChatPresenceUserSummary[];
 
   try {
-    [initialMessages, initialRoom] = await Promise.all([getPublicChatMessages(roomId, currentUser?.id), getPublicChatRoom(roomId)]);
+    [initialMessages, initialRoom, initialPresenceUsers] = await Promise.all([
+      getPublicChatMessages(roomId, currentUser?.id),
+      getPublicChatRoom(roomId),
+      getPublicChatPresence(roomId, currentUser?.id)
+    ]);
   } catch {
     return NextResponse.json({ error: "Chat stream is not available right now." }, { status: 404 });
   }
@@ -134,6 +150,7 @@ export async function GET(request: Request, context: RouteContext) {
     start(controller) {
       let lastSignature = messageSignature(initialMessages);
       let lastRoomSignature = roomSignature(initialRoom);
+      let lastPresenceSignature = presenceSignature(initialPresenceUsers);
       let lastHeartbeatAt = Date.now();
       const refreshSignal = createRefreshSignal(request.signal);
 
@@ -153,6 +170,7 @@ export async function GET(request: Request, context: RouteContext) {
 
       enqueue(encodeServerEvent("messages", { messages: initialMessages }));
       enqueue(encodeServerEvent("room", { room: initialRoom }));
+      enqueue(encodeServerEvent("presence", { presenceUsers: initialPresenceUsers }));
 
       async function pumpMessages() {
         const unsubscribe = await subscribeToChatRoomChanges(roomId, refreshSignal.notify).catch(() => null);
@@ -170,9 +188,14 @@ export async function GET(request: Request, context: RouteContext) {
           }
 
           try {
-            const [messages, room] = await Promise.all([getPublicChatMessages(roomId, currentUser?.id), getPublicChatRoom(roomId)]);
+            const [messages, room, presenceUsers] = await Promise.all([
+              getPublicChatMessages(roomId, currentUser?.id),
+              getPublicChatRoom(roomId),
+              getPublicChatPresence(roomId, currentUser?.id)
+            ]);
             const nextSignature = messageSignature(messages);
             const nextRoomSignature = roomSignature(room);
+            const nextPresenceSignature = presenceSignature(presenceUsers);
 
             if (nextRoomSignature !== lastRoomSignature) {
               if (!enqueue(encodeServerEvent("room", { room }))) {
@@ -180,6 +203,15 @@ export async function GET(request: Request, context: RouteContext) {
               }
 
               lastRoomSignature = nextRoomSignature;
+              lastHeartbeatAt = Date.now();
+            }
+
+            if (nextPresenceSignature !== lastPresenceSignature) {
+              if (!enqueue(encodeServerEvent("presence", { presenceUsers }))) {
+                break;
+              }
+
+              lastPresenceSignature = nextPresenceSignature;
               lastHeartbeatAt = Date.now();
             }
 

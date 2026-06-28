@@ -44,6 +44,8 @@ export type ProducerTrackRow = {
   licenseType: string;
   licenseSummary: string | null;
   status: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ProducerWorkspaceData = {
@@ -107,6 +109,7 @@ export type PublicMusicTrack = ProducerTrackRow & {
   producerName: string;
   producerSlug: string;
   producerBio: string | null;
+  successfulDownloads: number;
 };
 
 export type PublicProducerProfile = {
@@ -281,6 +284,12 @@ function parseBpm(value: string | undefined) {
   return bpm;
 }
 
+function assertApprovedTrackHasDelivery(status: DigitalTrackStatus, downloadUrl: string | null) {
+  if (status === "approved" && !downloadUrl) {
+    throw new Error("Approved tracks need a download MP3 or Google Drive delivery link before they can go live.");
+  }
+}
+
 function toTrackRow(track: {
   id: string;
   title: string;
@@ -295,6 +304,8 @@ function toTrackRow(track: {
   licenseType: string;
   licenseSummary: string | null;
   status: string;
+  createdAt: Date;
+  updatedAt: Date;
 }): ProducerTrackRow {
   return {
     id: track.id,
@@ -309,7 +320,9 @@ function toTrackRow(track: {
     downloadUrl: track.downloadUrl,
     licenseType: track.licenseType,
     licenseSummary: track.licenseSummary,
-    status: track.status
+    status: track.status,
+    createdAt: track.createdAt.toISOString(),
+    updatedAt: track.updatedAt.toISOString()
   };
 }
 
@@ -327,17 +340,24 @@ function toPublicTrack(track: {
   licenseType: string;
   licenseSummary: string | null;
   status: string;
+  createdAt: Date;
+  updatedAt: Date;
   producer: {
     name: string;
     slug: string;
     bio: string | null;
+    userId: string;
   };
+  purchases?: {
+    downloadCount: number;
+  }[];
 }): PublicMusicTrack {
   return {
     ...toTrackRow(track),
     producerName: track.producer.name,
     producerSlug: track.producer.slug,
-    producerBio: track.producer.bio
+    producerBio: track.producer.bio,
+    successfulDownloads: track.purchases?.reduce((total, purchase) => total + purchase.downloadCount, 0) ?? 0
   };
 }
 
@@ -640,10 +660,14 @@ async function normalizeTrackInput(input: DigitalTrackInput) {
     throw new Error("Track title must be at least 2 characters.");
   }
 
+  const downloadUrl = await normalizeDownloadUrl(input.downloadUrl);
+
+  assertApprovedTrackHasDelivery(input.status, downloadUrl);
+
   return {
     artworkUrl: normalizeOptionalImageUrl(input.artworkUrl, "Track artwork URL"),
     bpm: parseBpm(input.bpm),
-    downloadUrl: await normalizeDownloadUrl(input.downloadUrl),
+    downloadUrl,
     genre: normalizedText(input.genre, 60),
     licenseSummary: normalizedText(input.licenseSummary, 1200),
     licenseType: normalizedLicenseType(input.licenseType),
@@ -768,15 +792,25 @@ export async function getPublicMusicTracks(): Promise<PublicMusicTrack[]> {
     where: {
       status: "approved"
     },
-    orderBy: {
-      title: "asc"
-    },
+    orderBy: [{ createdAt: "asc" }, { title: "asc" }],
     include: {
+      purchases: {
+        where: {
+          downloadCount: {
+            gt: 0
+          },
+          status: "paid"
+        },
+        select: {
+          downloadCount: true
+        }
+      },
       producer: {
         select: {
           bio: true,
           name: true,
-          slug: true
+          slug: true,
+          userId: true
         }
       }
     },
@@ -798,6 +832,23 @@ export async function getPurchasedMusicTrackIds(userId: string) {
   });
 
   return new Set(purchases.map((purchase) => purchase.trackId));
+}
+
+export async function getOwnProducerTrackIds(userId: string) {
+  const profile = await prisma.producerProfile.findUnique({
+    where: {
+      userId
+    },
+    select: {
+      tracks: {
+        select: {
+          id: true
+        }
+      }
+    }
+  });
+
+  return new Set((profile?.tracks ?? []).map((track) => track.id));
 }
 
 function toAccountDownloadRow(purchase: {
@@ -1060,8 +1111,19 @@ export async function getPublicProducerProfiles(): Promise<PublicProducerProfile
         where: {
           status: "approved"
         },
-        orderBy: {
-          title: "asc"
+        orderBy: [{ createdAt: "asc" }, { title: "asc" }],
+        include: {
+          purchases: {
+            where: {
+              downloadCount: {
+                gt: 0
+              },
+              status: "paid"
+            },
+            select: {
+              downloadCount: true
+            }
+          }
         },
         take: 6
       }
@@ -1081,7 +1143,8 @@ export async function getPublicProducerProfiles(): Promise<PublicProducerProfile
         producer: {
           bio: profile.bio,
           name: profile.name,
-          slug: profile.slug
+          slug: profile.slug,
+          userId: profile.userId
         }
       })
     )
@@ -1098,8 +1161,19 @@ export async function getPublicProducerProfileBySlug(slug: string): Promise<Publ
         where: {
           status: "approved"
         },
-        orderBy: {
-          title: "asc"
+        orderBy: [{ createdAt: "asc" }, { title: "asc" }],
+        include: {
+          purchases: {
+            where: {
+              downloadCount: {
+                gt: 0
+              },
+              status: "paid"
+            },
+            select: {
+              downloadCount: true
+            }
+          }
         }
       }
     }
@@ -1121,7 +1195,8 @@ export async function getPublicProducerProfileBySlug(slug: string): Promise<Publ
         producer: {
           bio: profile.bio,
           name: profile.name,
-          slug: profile.slug
+          slug: profile.slug,
+          userId: profile.userId
         }
       })
     )

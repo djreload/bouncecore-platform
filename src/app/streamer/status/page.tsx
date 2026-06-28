@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { obsServerUrlFromIngestUrl } from "@/lib/stream/ingest-url";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
+import { getConfiguredRtmpIngestUrl } from "@/lib/stream/stream-ingest-settings";
 import { getOwnActiveStreamKey } from "@/lib/stream/stream-key-service";
 
 export const dynamic = "force-dynamic";
@@ -30,8 +31,8 @@ function formatDate(value: string | null) {
 export default async function StreamerStatusPage() {
   const user = await requireUserPermission("stream.dashboard");
   const [liveState, streamKey] = await Promise.all([getPublicLiveState(), getOwnActiveStreamKey(user.id)]);
-  const ingestUrl = process.env.RTMP_INGEST_URL ?? "rtmps://bouncecore.example.com:1936/live/{streamKey}";
-  const obsServerUrl = obsServerUrlFromIngestUrl(ingestUrl);
+  const ingestUrl = getConfiguredRtmpIngestUrl();
+  const obsServerUrl = ingestUrl ? obsServerUrlFromIngestUrl(ingestUrl) : null;
 
   return (
     <DashboardShell
@@ -92,7 +93,7 @@ export default async function StreamerStatusPage() {
               <Signal className="h-4 w-4 text-bc-electric" aria-hidden="true" />
               <h4 className="font-semibold">OBS server URL</h4>
             </div>
-            <p className="mt-3 break-all text-sm text-bc-muted">{obsServerUrl}</p>
+            <p className="mt-3 break-all text-sm text-bc-muted">{obsServerUrl ?? "RTMPS ingest URL is not configured."}</p>
           </article>
           <article className="rounded-md border border-bc-line bg-bc-ink p-4">
             <div className="flex items-center gap-2">

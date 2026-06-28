@@ -5,8 +5,19 @@ import { getAdminShopData } from "@/lib/shop/shop-service";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminProductsPage() {
+type AdminProductsPageProps = {
+  searchParams?: Promise<{
+    repair?: string;
+  }>;
+};
+
+function repairFilter(value: string | undefined) {
+  return value === "missing-images" || value === "missing-variants" ? value : null;
+}
+
+export default async function AdminProductsPage({ searchParams }: AdminProductsPageProps) {
   await requireUserPermission("shop.manage");
+  const params = searchParams ? await searchParams : {};
   const data = await getAdminShopData();
 
   return (
@@ -14,7 +25,7 @@ export default async function AdminProductsPage() {
       title="Products"
       description="Manage merch shop products, variants, pricing, stock, and public listing state."
     >
-      <AdminProductsPanel products={data.products} stats={data.stats} />
+      <AdminProductsPanel products={data.products} repairFilter={repairFilter(params.repair)} stats={data.stats} />
     </AdminShell>
   );
 }

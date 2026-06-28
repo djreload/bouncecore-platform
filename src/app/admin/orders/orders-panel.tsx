@@ -39,6 +39,19 @@ function statusTone(status: string) {
   return "cyan" as const;
 }
 
+function shippingLines(order: OrdersData["orders"][number]) {
+  const address = order.shippingAddress;
+
+  return [
+    address.name,
+    address.line1,
+    address.line2,
+    [address.city, address.county].filter(Boolean).join(", "),
+    address.postcode,
+    address.country
+  ].filter((line): line is string => Boolean(line));
+}
+
 export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProps) {
   const [state, formAction, pending] = useActionState<AdminOrdersActionState, FormData>(
     adminOrdersAction,
@@ -151,6 +164,25 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
                 {!order.items.length ? (
                   <p className="text-sm text-bc-muted">Legacy order without line item detail.</p>
                 ) : null}
+              </div>
+
+              <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-black">Shipping address</p>
+                    <div className="mt-2 space-y-1 text-bc-muted">
+                      {shippingLines(order).length ? (
+                        shippingLines(order).map((line) => <p key={line}>{line}</p>)
+                      ) : (
+                        <p>No shipping address captured.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right text-xs text-bc-muted">
+                    {order.shippingAddress.email ? <p>{order.shippingAddress.email}</p> : null}
+                    {order.shippingAddress.phone ? <p className="mt-1">{order.shippingAddress.phone}</p> : null}
+                  </div>
+                </div>
               </div>
 
               <form action={formAction} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">

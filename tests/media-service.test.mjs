@@ -10,6 +10,10 @@ const png1x1 = Buffer.from(
   "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c6360000002000100ffff03000006000557bfab4d0000000049454e44ae426082",
   "hex"
 );
+const png2x1 = Buffer.from(
+  "89504e470d0a1a0a0000000d4948445200000002000000010806000000000000000000000049454e44ae426082",
+  "hex"
+);
 
 function mp3Frame(bitrateIndex) {
   const frame = Buffer.alloc(128);
@@ -56,6 +60,27 @@ test("image uploads accept generic MIME when extension and content are valid", a
   }
 });
 
+test("branding image uploads use the branding upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const image = new File([png1x1], "logo.png", {
+      type: "image/png"
+    });
+    const uploadPath = await mediaService.saveOptionalBrandingImageUpload(image);
+
+    assert.match(uploadPath, /^\/uploads\/branding-images\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("preview MP3 uploads accept common browser MP3 MIME aliases", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
   const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
@@ -68,6 +93,101 @@ test("preview MP3 uploads accept common browser MP3 MIME aliases", async () => {
 
     assert.match(uploadPath, /^\/uploads\/music-previews\/.+\.mp3$/);
     assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("track artwork uploads accept non-square images for object-cover display", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const image = new File([png2x1], "wide-cover.png", {
+      type: "image/png"
+    });
+    const uploadPath = await mediaService.saveOptionalImageUpload(image, "track-artwork");
+
+    assert.match(uploadPath, /^\/uploads\/track-artwork\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("profile avatar uploads store PNG and JPEG files only", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const avatar = new File([png1x1], "profile.png", {
+      type: "image/png"
+    });
+    const uploadPath = await mediaService.saveOptionalProfileAvatarUpload(avatar);
+
+    assert.match(uploadPath, /^\/uploads\/profile-avatars\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    await assert.rejects(
+      () =>
+        mediaService.saveOptionalProfileAvatarUpload(
+          new File([png1x1], "profile.webp", {
+            type: "image/webp"
+          })
+        ),
+      /PNG, JPG, or JPEG/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("profile avatar URLs allow uploaded avatar paths", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    assert.equal(
+      mediaService.normalizeOptionalProfileAvatarUrl("/uploads/profile-avatars/avatar.jpg"),
+      "/uploads/profile-avatars/avatar.jpg"
+    );
+    assert.throws(
+      () => mediaService.normalizeOptionalProfileAvatarUrl("/uploads/profile-avatars/avatar.gif"),
+      /PNG, JPG, or JPEG/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("branding image URLs only allow branding upload paths", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    assert.equal(
+      mediaService.normalizeOptionalBrandingImageUrl("/uploads/branding-images/logo.webp", "Logo URL"),
+      "/uploads/branding-images/logo.webp"
+    );
+    assert.throws(
+      () => mediaService.normalizeOptionalBrandingImageUrl("/uploads/product-images/logo.webp", "Logo URL"),
+      /branding image file/
+    );
   } finally {
     restore();
     await rm(tempDir, {

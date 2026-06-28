@@ -2,15 +2,17 @@
 
 import Image from "next/image";
 import { useActionState } from "react";
-import { Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Timer } from "lucide-react";
+import { Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import type { SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
 import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
   type AdminChatRoomRow,
+  type AdminChatSheepThrowRow,
   type AdminChatroomsActionState
 } from "@/app/admin/chatrooms/state";
 import { chatRoomTypeOptions } from "@/lib/chat/chat-types";
@@ -18,7 +20,9 @@ import { chatRoomTypeOptions } from "@/lib/chat/chat-types";
 type AdminChatroomsPanelProps = {
   rooms: AdminChatRoomRow[];
   messages: AdminChatMessageRow[];
+  sheepThrows: AdminChatSheepThrowRow[];
   roleDisplayLabels: RoleDisplayNameMap;
+  sheepSettings: SheepThrowSettings;
 };
 
 function formatDate(value: string) {
@@ -61,7 +65,7 @@ function slowModeLabel(seconds: number) {
   return slowModeOptions.find((option) => option.value === seconds)?.label ?? `${seconds} seconds`;
 }
 
-export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: AdminChatroomsPanelProps) {
+export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatroomsActionState, FormData>(
     adminChatroomsAction,
     initialAdminChatroomsActionState
@@ -70,7 +74,7 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Rooms</Badge>
           <p className="mt-4 text-3xl font-black">{rooms.length}</p>
@@ -85,6 +89,11 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
           <Badge tone="pink">Moderated</Badge>
           <p className="mt-4 text-3xl font-black">{messages.length - visibleMessages}</p>
           <p className="mt-2 text-sm text-bc-muted">Recent messages hidden by moderators.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone="amber">Sheep throws</Badge>
+          <p className="mt-4 text-3xl font-black">{sheepThrows.length}</p>
+          <p className="mt-2 text-sm text-bc-muted">Recent targeted chat throw activity.</p>
         </article>
       </div>
 
@@ -147,6 +156,180 @@ export function AdminChatroomsPanel({ rooms, messages, roleDisplayLabels }: Admi
             Create
           </Button>
         </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="acid">Chat fun</Badge>
+            <h3 className="mt-4 text-2xl font-black">Sheep throw overlay</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              Let supporters trigger the sheep overlay from chat. The cooldown is enforced per user and the overlay queue is targeted.
+            </p>
+          </div>
+          <Badge tone={sheepSettings.enabled ? "acid" : "muted"}>{sheepSettings.enabled ? "Enabled" : "Disabled"}</Badge>
+        </div>
+        <form action={formAction} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_repeat(5,minmax(140px,1fr))_auto]">
+          <input name="intent" type="hidden" value="sheep-settings" />
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-enabled">
+              Status
+            </label>
+            <select
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={sheepSettings.enabled ? "true" : "false"}
+              id="sheep-enabled"
+              name="enabled"
+            >
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+            <p className="mt-1 text-xs text-bc-muted">Turns the sheep throw chat action and site overlay on or off.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cooldown">
+              Cooldown minutes
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.cooldownSeconds / 60)}
+              id="sheep-cooldown"
+              min={0}
+              max={1440}
+              name="cooldownMinutes"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Default is 5 minutes. Use 0 to remove the cooldown.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cost">
+              Star cost
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.costStars)}
+              id="sheep-cost"
+              min={0}
+              max={1000000}
+              name="costStars"
+              step={1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Stars deducted from the supporter who throws. Use 0 for free.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-overlay-duration">
+              Overlay seconds
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.overlayDurationMs / 1000)}
+              id="sheep-overlay-duration"
+              min={1.8}
+              max={10}
+              name="overlayDurationSeconds"
+              step={0.1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">How long each targeted sheep throw stays on screen.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-poll-speed">
+              Poll seconds
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.pollMs / 1000)}
+              id="sheep-poll-speed"
+              min={1}
+              max={10}
+              name="pollSeconds"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">How often viewers check for sheep throws targeted at them.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-max-events">
+              Queue depth
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(sheepSettings.maxRecentEvents)}
+              id="sheep-max-events"
+              min={4}
+              max={50}
+              name="maxRecentEvents"
+              step={1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Maximum recent targeted throws to queue after a viewer reconnects.</p>
+          </div>
+          <div className="flex items-end">
+            <Button disabled={pending} type="submit" variant="dark">
+              <Save className="h-4 w-4" aria-hidden="true" />
+              Save
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-bc-line p-4">
+          <div>
+            <h3 className="text-xl font-black">Recent sheep throws</h3>
+            <p className="mt-1 text-sm text-bc-muted">Targeted supporter throws, useful for moderation and support checks.</p>
+          </div>
+          <Badge tone={sheepSettings.enabled ? "amber" : "muted"}>{sheepSettings.enabled ? "Active" : "Disabled"}</Badge>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left text-sm">
+            <thead className="text-bc-muted">
+              <tr>
+                <th className="px-4 py-3 font-semibold">Throw</th>
+                <th className="px-4 py-3 font-semibold">Room</th>
+                <th className="px-4 py-3 font-semibold">Target message</th>
+                <th className="px-4 py-3 font-semibold">Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sheepThrows.map((sheepThrow) => (
+                <tr className="border-t border-bc-line" key={sheepThrow.id}>
+                  <td className="px-4 py-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-bc-amber" aria-hidden="true" />
+                      <span className="font-semibold">{sheepThrow.throwerDisplayName}</span>
+                      <span className="text-bc-muted">at</span>
+                      <span className="font-semibold">{sheepThrow.targetDisplayName}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <p className="font-semibold">{sheepThrow.roomName}</p>
+                    <p className="mt-1 text-xs text-bc-muted">#{sheepThrow.roomSlug}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {sheepThrow.targetMessageId ? (
+                      <code className="rounded border border-bc-line bg-bc-ink px-2 py-1 text-xs text-bc-muted">
+                        {sheepThrow.targetMessageId}
+                      </code>
+                    ) : (
+                      <span className="text-bc-muted">No target message</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-bc-muted">{formatDate(sheepThrow.createdAt)}</td>
+                </tr>
+              ))}
+              {!sheepThrows.length ? (
+                <tr className="border-t border-bc-line">
+                  <td className="px-4 py-8 text-center text-bc-muted" colSpan={4}>
+                    No sheep throws have been recorded yet.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <div className="grid gap-4">

@@ -3,6 +3,7 @@ import { normalizeRoles } from "@/lib/auth/role-normalize";
 import type { Role } from "@/lib/auth/rbac";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { prisma } from "@/lib/db/prisma";
+import { normalizeOptionalProfileAvatarUrl } from "@/lib/media/media-service";
 
 export type AccountProfileInput = {
   avatarUrl?: string;
@@ -44,6 +45,7 @@ export type AccountOverviewData = {
 };
 
 export type AccountNotificationRow = {
+  actionUrl: string | null;
   id: string;
   body: string | null;
   createdAt: string;
@@ -219,7 +221,7 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
         userId
       },
       update: {
-        avatarUrl: normalizedUrl(input.avatarUrl, 300),
+        avatarUrl: normalizeOptionalProfileAvatarUrl(input.avatarUrl),
         bio: normalizedText(input.bio, 600),
         isPublic: input.isPublic,
         location: normalizedText(input.location, 80),
@@ -227,7 +229,7 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
         websiteUrl: normalizedUrl(input.websiteUrl, 300)
       },
       create: {
-        avatarUrl: normalizedUrl(input.avatarUrl, 300),
+        avatarUrl: normalizeOptionalProfileAvatarUrl(input.avatarUrl),
         bio: normalizedText(input.bio, 600),
         isPublic: input.isPublic,
         location: normalizedText(input.location, 80),
@@ -312,6 +314,7 @@ export async function getAccountOverviewData(userId: string): Promise<AccountOve
 }
 
 function toNotificationRow(notification: {
+  actionUrl: string | null;
   id: string;
   body: string | null;
   createdAt: Date;
@@ -320,6 +323,7 @@ function toNotificationRow(notification: {
   type: string;
 }): AccountNotificationRow {
   return {
+    actionUrl: notification.actionUrl,
     body: notification.body,
     createdAt: notification.createdAt.toISOString(),
     id: notification.id,
@@ -378,6 +382,26 @@ export async function markAllAccountNotificationsRead(userId: string) {
       readAt: new Date()
     }
   });
+}
+
+export async function clearAccountNotifications(userId: string) {
+  const result = await prisma.notification.deleteMany({
+    where: {
+      userId
+    }
+  });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "account.notifications.clear",
+    metadata: {
+      deletedNotifications: result.count
+    },
+    severity: "warning",
+    target: `user:${userId}`
+  });
+
+  return result;
 }
 
 export async function getAccountSettingsData(userId: string): Promise<AccountSettingsData> {

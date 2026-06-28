@@ -39,7 +39,9 @@ const fireworkBursts = [
 ];
 
 function formatTime(value: string) {
-  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+  return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(
+    new Date(value)
+  );
 }
 
 function alertCssVars(vars: Record<string, string | number>) {

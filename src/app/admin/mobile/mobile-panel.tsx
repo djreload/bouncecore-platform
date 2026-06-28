@@ -1,19 +1,23 @@
 "use client";
 
 import { useActionState } from "react";
-import { Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
+import { BadgeDollarSign, BellRing, Download, Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
 import { adminMobileAction } from "@/app/admin/mobile/actions";
 import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import type { AdminMobileConfigData, MobileFeatureKey } from "@/lib/admin/mobile-service";
 
 type AdminMobilePanelProps = {
   data: AdminMobileConfigData;
+  repairFilter?: AdminMobileRepairFilter | null;
 };
 
-const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads"] as const satisfies readonly MobileFeatureKey[];
+type AdminMobileRepairFilter = "update-url";
+
+const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads", "push"] as const satisfies readonly MobileFeatureKey[];
 const mobileThemeModes = ["dark", "light"] as const;
+const appOpenInterstitialFrequencies = ["every_open", "once_per_session", "disabled"] as const;
 
 function formatDate(value: string | null) {
   return value ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "Not saved";
@@ -27,11 +31,24 @@ function featureLabel(value: string) {
   return value.replaceAll("-", " ").replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
-export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
+function frequencyLabel(value: string) {
+  return featureLabel(value.replaceAll("_", " "));
+}
+
+function repairLabel() {
+  return {
+    detail:
+      "Review the Android update URL and save a valid HTTPS APK or release page URL. Invalid saved URLs are hidden from the public mobile config.",
+    title: "Android update URL"
+  };
+}
+
+export function AdminMobilePanel({ data, repairFilter = null }: AdminMobilePanelProps) {
   const [state, formAction, pending] = useActionState<AdminMobileActionState, FormData>(
     adminMobileAction,
     initialAdminMobileActionState
   );
+  const activeRepair = repairFilter === "update-url" ? repairLabel() : null;
 
   return (
     <div className="space-y-5">
@@ -59,6 +76,21 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
           <p className="mt-2 text-sm text-bc-muted">{formatDate(data.stats.updatedAt)}</p>
         </article>
       </div>
+
+      {activeRepair ? (
+        <section className="rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge tone="acid">Repair focus</Badge>
+              <h3 className="mt-2 text-xl font-black">{activeRepair.title}</h3>
+              <p className="mt-1 max-w-3xl text-sm text-bc-muted">{activeRepair.detail}</p>
+            </div>
+            <ButtonLink href="/admin/mobile" size="sm" variant="ghost">
+              Clear focus
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -174,6 +206,257 @@ export function AdminMobilePanel({ data }: AdminMobilePanelProps) {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <BellRing className="h-5 w-5 text-bc-pink" aria-hidden="true" />
+                <h4 className="font-black">Android push</h4>
+              </div>
+              <Badge tone={data.config.push.enabled ? "acid" : "muted"}>
+                {data.config.push.enabled ? "enabled" : "disabled"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-bc-muted">
+              These public Firebase Android values let the native app request an FCM token and register it after the user logs in.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-project-id">
+                  Firebase project ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.projectId ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-project-id"
+                  name="firebaseProjectId"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-sender-id">
+                  Sender ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.messagingSenderId ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-sender-id"
+                  name="firebaseMessagingSenderId"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-app-id">
+                  Android app ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.appId ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-app-id"
+                  name="firebaseAndroidAppId"
+                  placeholder="1:000000000000:android:abc123"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-firebase-api-key">
+                  Android API key
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.push.firebaseAndroid.apiKey ?? ""}
+                  disabled={pending}
+                  id="mobile-firebase-api-key"
+                  name="firebaseAndroidApiKey"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <BadgeDollarSign className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+                <h4 className="font-black">LevelPlay ads</h4>
+              </div>
+              <Badge tone={data.config.ads.enabled ? "acid" : "muted"}>
+                {data.config.ads.enabled ? "enabled" : "disabled"}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-bc-muted">
+              These public native app values are returned by the mobile config endpoint and consumed by the Android wrapper.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-levelplay-app-key">
+                  App key
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.levelPlay.appKey ?? ""}
+                  disabled={pending}
+                  id="mobile-levelplay-app-key"
+                  name="levelPlayAppKey"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-levelplay-banner-id">
+                  Banner ad unit ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.levelPlay.bannerAdUnitId ?? ""}
+                  disabled={pending}
+                  id="mobile-levelplay-banner-id"
+                  name="levelPlayBannerAdUnitId"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-levelplay-interstitial-id">
+                  Interstitial ad unit ID
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.levelPlay.interstitialAdUnitId ?? ""}
+                  disabled={pending}
+                  id="mobile-levelplay-interstitial-id"
+                  name="levelPlayInterstitialAdUnitId"
+                />
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input
+                  defaultChecked={data.config.ads.behavior.bannerEnabled}
+                  disabled={pending}
+                  name="levelPlayBannerEnabled"
+                  type="checkbox"
+                />
+                Show banner ads
+              </label>
+              <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input
+                  defaultChecked={data.config.ads.behavior.appOpenInterstitialEnabled}
+                  disabled={pending}
+                  name="levelPlayAppOpenInterstitialEnabled"
+                  type="checkbox"
+                />
+                Show app-open interstitials
+              </label>
+              <div>
+                <label
+                  className="text-xs font-semibold uppercase text-bc-muted"
+                  htmlFor="mobile-levelplay-app-open-frequency"
+                >
+                  App-open frequency
+                </label>
+                <select
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.ads.behavior.appOpenInterstitialFrequency}
+                  disabled={pending}
+                  id="mobile-levelplay-app-open-frequency"
+                  name="levelPlayAppOpenInterstitialFrequency"
+                >
+                  {appOpenInterstitialFrequencies.map((frequency) => (
+                    <option key={frequency} value={frequency}>
+                      {frequencyLabel(frequency)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <label className="mt-4 flex items-center gap-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+              <input
+                defaultChecked={data.config.ads.levelPlay.testSuiteEnabled}
+                disabled={pending}
+                name="levelPlayTestSuiteEnabled"
+                type="checkbox"
+              />
+              Launch LevelPlay test suite on app start
+            </label>
+          </div>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-bc-electric" aria-hidden="true" />
+                <h4 className="font-black">Android app updates</h4>
+              </div>
+              <Badge tone={data.config.version.minimumSupportedVersionCode > 1 ? "amber" : "acid"}>
+                min build {data.config.version.minimumSupportedVersionCode}
+              </Badge>
+            </div>
+            <p className="mt-2 text-sm text-bc-muted">
+              The native Android wrapper blocks outdated APKs when their build number is below the minimum supported build.
+            </p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-4">
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-min-version">
+                  Minimum build
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.minimumSupportedVersionCode}
+                  disabled={pending}
+                  id="mobile-android-min-version"
+                  min={1}
+                  name="androidMinimumVersionCode"
+                  type="number"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-latest-version">
+                  Latest build
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.latestVersionCode ?? ""}
+                  disabled={pending}
+                  id="mobile-android-latest-version"
+                  min={1}
+                  name="androidLatestVersionCode"
+                  type="number"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-latest-name">
+                  Latest version name
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.latestVersionName ?? ""}
+                  disabled={pending}
+                  id="mobile-android-latest-name"
+                  name="androidLatestVersionName"
+                  placeholder="1.0.0"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-update-url">
+                  Update URL
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                  defaultValue={data.config.version.updateUrl ?? ""}
+                  disabled={pending}
+                  id="mobile-android-update-url"
+                  name="androidUpdateUrl"
+                  placeholder="Paste HTTPS APK update URL"
+                  type="url"
+                />
+              </div>
+            </div>
+            <label className="mt-4 block text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-update-message">
+              Required update message
+            </label>
+            <textarea
+              className="mt-2 min-h-20 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+              defaultValue={data.config.version.updateMessage}
+              disabled={pending}
+              id="mobile-android-update-message"
+              name="androidUpdateMessage"
+            />
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">

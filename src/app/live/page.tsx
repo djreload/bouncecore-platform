@@ -13,13 +13,14 @@ import {
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
 import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
-import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatRoomRow } from "@/app/chat/state";
+import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatPresenceUserRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
+import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getPublicSiteSettings, type LiveSocialLink } from "@/lib/admin/site-settings-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
@@ -102,18 +103,20 @@ function LiveSocialLinks({ links }: { links: LiveSocialLink[] }) {
 
 export default async function LivePage() {
   const currentUser = await getCurrentUser();
-  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings] = await Promise.all([
+  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings, sheepSettings] = await Promise.all([
     getPublicLiveState(),
     getPublicChatData("live", currentUser?.id),
     getRoleDisplayNameOverrides(),
     getPublicUpcomingStreamSchedules(),
-    getPublicSiteSettings()
+    getPublicSiteSettings(),
+    getSheepThrowSettings()
   ]);
   const [starSupport, currentStarBalance] = await Promise.all([
     getLiveStarSupportData(),
     getStarWalletBalance(currentUser?.id)
   ]);
-  const { channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
+  const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
+  const { activeIngests, channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -137,6 +140,7 @@ export default async function LivePage() {
   const messageRows: PublicChatMessageRow[] = chatData.messages.map((message) => ({
     id: message.id,
     roomId: message.roomId,
+    replyTo: message.replyTo,
     body: message.body,
     kind: message.kind,
     mediaUrl: message.mediaUrl,
@@ -152,6 +156,7 @@ export default async function LivePage() {
     createdAt: message.createdAt,
     deletedAt: message.deletedAt,
     authorDisplayName: message.authorDisplayName,
+    authorAvatarUrl: message.authorAvatarUrl,
     authorUserId: message.authorUserId,
     authorRoles: message.authorRoles,
     reactions: message.reactions
@@ -166,116 +171,108 @@ export default async function LivePage() {
     kind: asset.kind,
     isAnimated: asset.isAnimated
   }));
+  const presenceRows: PublicChatPresenceUserRow[] = chatData.presenceUsers.map((user) => ({
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    roles: user.roles,
+    status: user.status,
+    lastActiveAt: user.lastActiveAt
+  }));
 
   return (
-    <PublicShell siteSettings={siteSettings}>
-      <main className="w-full px-0 py-0 lg:px-5 lg:py-4 xl:px-6">
-        <div className="mx-auto max-w-[1800px]">
-          <div className="mb-4 hidden flex-wrap items-end justify-between gap-4 lg:flex">
-            <div>
-              <p className="text-sm text-bc-muted">Home / Live</p>
-              <h1 className="mt-1 text-3xl font-black sm:text-4xl">Bouncecore Live</h1>
-              <p className="mt-2 max-w-3xl text-bc-muted">
-                Watch the stream, join the live room, and send stars without leaving the player.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
-              <Badge tone="cyan">{viewerCount.toLocaleString("en-GB")} watching</Badge>
-            </div>
-          </div>
-
-          <section className="grid items-start gap-0 lg:gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(360px,410px)] 2xl:grid-cols-[minmax(0,1fr)_450px]">
-            <div className="min-w-0">
-              <div className="sticky top-[65px] z-20 lg:static lg:z-auto">
-                <LivePlaybackPlayer
-                  healthStatus={health.status}
-                  offlineImageUrl={offlineImageUrl}
-                  playbackUrl={playbackUrl}
-                  status={status}
-                  streamProfile={channel?.streamProfile ?? null}
-                  title={channel?.title ?? "Bouncecore Live"}
-                  viewerCount={viewerCount}
-                />
-              </div>
-              <div className="hidden lg:block">
-                <LiveSocialLinks links={siteSettings.liveSocialLinks} />
-              </div>
-            </div>
-
-            <aside className="relative z-30 -mt-[36vw] min-w-0 px-3 pb-3 sm:-mt-56 sm:px-4 md:-mt-64 lg:sticky lg:top-24 lg:mt-0 lg:h-[calc(100vh-7rem)] lg:px-0 lg:pb-0">
-              <ChatRoomPanel
-                className="overflow-visible border-white/15 bg-bc-panel/70 shadow-2xl shadow-black/35 backdrop-blur-md lg:flex lg:h-full lg:flex-col lg:overflow-hidden lg:border-bc-line lg:bg-bc-panel lg:shadow-none lg:backdrop-blur-none"
-                compact
-                mobileLiveMode
-                currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
-                currentStarBalance={currentStarBalance}
-                assets={assetRows}
-                messagesClassName="max-h-[34dvh] p-3 lg:min-h-0 lg:flex-1 lg:max-h-none lg:p-4"
-                messages={messageRows}
-                roleDisplayLabels={roleDisplayLabels}
-                rooms={roomRows}
-                selectedRoom={selectedRoomRow}
-                showRoomLinks={false}
+    <PublicShell hideFooterOnMobile siteSettings={siteSettings}>
+      <main className="h-[calc(100dvh-65px)] min-h-0 w-full overflow-hidden px-0 py-0 lg:-mt-[65px] lg:h-auto lg:overflow-visible lg:px-4 xl:px-5">
+        <section className="mx-auto flex h-full min-h-0 w-full max-w-[1920px] flex-col overflow-hidden lg:block lg:h-auto lg:min-h-[100dvh] lg:overflow-visible">
+          <div className="min-w-0 shrink-0 transition-[margin-right] duration-300 ease-out lg:mr-[calc(340px+var(--bc-live-presence-rail-width,224px)+16px)] lg:pb-4 lg:pt-[81px] xl:mr-[calc(360px+var(--bc-live-presence-rail-width,224px)+20px)] 2xl:mr-[calc(380px+var(--bc-live-presence-rail-width,224px)+20px)]">
+            <div className="relative z-20 shrink-0 lg:static lg:z-auto">
+              <LivePlaybackPlayer
+                offlineImageUrl={offlineImageUrl}
+                activeIngests={activeIngests}
+                playbackUrl={playbackUrl}
+                status={status}
+                title={channel?.title ?? "Bouncecore Live"}
               />
-              <div className="lg:hidden">
-                <LiveSocialLinks links={siteSettings.liveSocialLinks} />
+            </div>
+            <div className="hidden lg:block">
+              <LiveSocialLinks links={siteSettings.liveSocialLinks} />
+            </div>
+
+            <section className="mt-4 hidden gap-4 lg:grid lg:grid-cols-2">
+              <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+                <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
+                <h2 className="mt-4 text-xl font-black">Stream status</h2>
+                <p className="mt-2 text-sm text-bc-muted">
+                  {viewerCount.toLocaleString("en-GB")} viewers on {channel ? `/${channel.slug}` : "the primary live channel"}.
+                </p>
               </div>
-            </aside>
-          </section>
+              <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+                <Badge tone="cyan">{health.status.toUpperCase()}</Badge>
+                <h2 className="mt-4 text-xl font-black">Stream health</h2>
+                <p className="mt-2 text-sm text-bc-muted">
+                  Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
+                </p>
+              </div>
+            </section>
 
-        <section className="mt-4 hidden gap-4 lg:grid lg:grid-cols-2">
-          <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-            <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
-            <h2 className="mt-4 text-xl font-black">Stream status</h2>
-            <p className="mt-2 text-sm text-bc-muted">
-              {viewerCount.toLocaleString("en-GB")} viewers on {channel ? `/${channel.slug}` : "the primary live channel"}.
-            </p>
+            <section className="mt-4 hidden gap-4 lg:grid lg:grid-cols-[minmax(0,420px)_1fr]">
+              <StarSupportLeaderboard initialData={starSupport} />
+              <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <Badge tone="pink">Schedule</Badge>
+                  <CalendarClock className="h-5 w-5 text-bc-pink" aria-hidden="true" />
+                </div>
+                <h2 className="mt-4 text-xl font-black">Upcoming sets</h2>
+                <div className="mt-4 space-y-3">
+                  {schedules.map((schedule) => (
+                    <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={schedule.id}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge tone={scheduleTone(schedule.status)}>{schedule.status}</Badge>
+                        <Badge tone="muted">/{schedule.channelSlug}</Badge>
+                      </div>
+                      <h3 className="mt-3 font-semibold">{schedule.title}</h3>
+                      <p className="mt-1 text-xs text-bc-muted">
+                        {formatScheduleDate(schedule.startsAt)} to {formatScheduleDate(schedule.endsAt)}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
+                        <span className="text-xs text-bc-muted">{schedule.hostDisplayName ?? "Host TBC"}</span>
+                        {schedule.hostRoles.map((role) => (
+                          <Badge key={role} tone={roleBadgeTone(role)}>
+                            {roleDisplayName(role, roleDisplayLabels)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
+                  {!schedules.length ? <p className="text-sm text-bc-muted">No upcoming stream slots have been scheduled yet.</p> : null}
+                </div>
+              </div>
+            </section>
           </div>
-          <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-            <Badge tone="cyan">{health.status.toUpperCase()}</Badge>
-            <h2 className="mt-4 text-xl font-black">Stream health</h2>
-            <p className="mt-2 text-sm text-bc-muted">
-              Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
-            </p>
-          </div>
-        </section>
 
-        <section className="mt-4 hidden gap-4 lg:grid lg:grid-cols-[minmax(0,420px)_1fr]">
-          <StarSupportLeaderboard initialData={starSupport} />
-          <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-            <div className="flex items-center justify-between gap-3">
-              <Badge tone="pink">Schedule</Badge>
-              <CalendarClock className="h-5 w-5 text-bc-pink" aria-hidden="true" />
-            </div>
-            <h2 className="mt-4 text-xl font-black">Upcoming sets</h2>
-            <div className="mt-4 space-y-3">
-              {schedules.map((schedule) => (
-                <article className="rounded-md border border-bc-line bg-bc-ink p-3" key={schedule.id}>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone={scheduleTone(schedule.status)}>{schedule.status}</Badge>
-                    <Badge tone="muted">/{schedule.channelSlug}</Badge>
-                  </div>
-                  <h3 className="mt-3 font-semibold">{schedule.title}</h3>
-                  <p className="mt-1 text-xs text-bc-muted">
-                    {formatScheduleDate(schedule.startsAt)} to {formatScheduleDate(schedule.endsAt)}
-                  </p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
-                    <span className="text-xs text-bc-muted">{schedule.hostDisplayName ?? "Host TBC"}</span>
-                    {schedule.hostRoles.map((role) => (
-                      <Badge key={role} tone={roleBadgeTone(role)}>
-                        {roleDisplayName(role, roleDisplayLabels)}
-                      </Badge>
-                    ))}
-                  </div>
-                </article>
-              ))}
-              {!schedules.length ? <p className="text-sm text-bc-muted">No upcoming stream slots have been scheduled yet.</p> : null}
-            </div>
-          </div>
+          <aside className="relative z-30 flex min-h-0 min-w-0 flex-1 overflow-hidden px-0 pb-0 lg:fixed lg:right-0 lg:top-[65px] lg:h-[calc(100dvh-65px)] lg:w-[340px] lg:overflow-visible lg:px-0 xl:w-[360px] 2xl:w-[380px]">
+            <ChatRoomPanel
+              className="flex h-full min-h-0 flex-col overflow-hidden rounded-none border-x-0 border-b-0 border-white/15 bg-bc-panel/75 shadow-none backdrop-blur-md lg:border-y-0 lg:border-r-0 lg:border-bc-line lg:bg-[#050712]/95 lg:backdrop-blur-none"
+              compact
+              hideHeader
+              mobileLiveMode
+              currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
+              currentStarBalance={currentStarBalance}
+              assets={assetRows}
+              messagesClassName="min-h-0 flex-1 max-h-none p-2 lg:p-3"
+              messages={messageRows}
+              presenceUsers={presenceRows}
+              roleDisplayLabels={roleDisplayLabels}
+              rooms={roomRows}
+              selectedRoom={selectedRoomRow}
+              sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
+              sheepSettings={sheepSettings}
+              showPresenceRail
+              showRoomLinks={false}
+            />
+          </aside>
         </section>
-        </div>
       </main>
     </PublicShell>
   );

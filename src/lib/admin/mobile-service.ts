@@ -1,22 +1,46 @@
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import {
+  defaultMobileVersionPolicy,
+  mergeMobileVersionPolicy,
+  normalizeMobileVersionPolicyInput,
+  type MobileVersionPolicy
+} from "@/lib/mobile/version-policy";
 
 const mobileConfigSettingKey = "mobile.config";
 
-export const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads"] as const;
+export const mobileFeatureKeys = ["live", "chat", "shop", "music", "rewards", "ads", "push"] as const;
 export const mobileThemeModes = ["dark", "light"] as const;
+export const mobileAppOpenInterstitialFrequencies = ["every_open", "once_per_session", "disabled"] as const;
 
 export type MobileFeatureKey = (typeof mobileFeatureKeys)[number];
 export type MobileThemeMode = (typeof mobileThemeModes)[number];
+export type MobileAppOpenInterstitialFrequency = (typeof mobileAppOpenInterstitialFrequencies)[number];
 
 export type MobileConfigInput = {
   accent: string;
   announcementBody?: string;
   announcementTitle?: string;
   appName: string;
+  androidLatestVersionCode?: string;
+  androidLatestVersionName?: string;
+  androidMinimumVersionCode?: string;
+  androidUpdateMessage?: string;
+  androidUpdateUrl?: string;
   environmentLabel?: string;
+  firebaseAndroidApiKey?: string;
+  firebaseAndroidAppId?: string;
+  firebaseMessagingSenderId?: string;
+  firebaseProjectId?: string;
   features: Record<MobileFeatureKey, boolean>;
+  levelPlayAppOpenInterstitialEnabled: boolean;
+  levelPlayAppOpenInterstitialFrequency: string;
+  levelPlayAppKey?: string;
+  levelPlayBannerAdUnitId?: string;
+  levelPlayBannerEnabled: boolean;
+  levelPlayInterstitialAdUnitId?: string;
+  levelPlayTestSuiteEnabled: boolean;
   maintenanceEnabled: boolean;
   maintenanceMessage?: string;
   supportEmail?: string;
@@ -30,17 +54,43 @@ export type MobileConfig = {
   } | null;
   apiVersion: "mobile-v1";
   appName: string;
+  ads: {
+    enabled: boolean;
+    behavior: {
+      appOpenInterstitialEnabled: boolean;
+      appOpenInterstitialFrequency: MobileAppOpenInterstitialFrequency;
+      bannerEnabled: boolean;
+    };
+    levelPlay: {
+      appKey: string | null;
+      bannerAdUnitId: string | null;
+      interstitialAdUnitId: string | null;
+      testSuiteEnabled: boolean;
+    };
+    provider: "levelplay";
+  };
   environment: string;
   features: Record<MobileFeatureKey, boolean>;
   maintenance: {
     enabled: boolean;
     message: string | null;
   };
+  push: {
+    enabled: boolean;
+    firebaseAndroid: {
+      apiKey: string | null;
+      appId: string | null;
+      messagingSenderId: string | null;
+      projectId: string | null;
+    };
+    provider: "fcm";
+  };
   supportEmail: string | null;
   theme: {
     accent: string;
     mode: MobileThemeMode;
   };
+  version: MobileVersionPolicy;
 };
 
 export type AdminMobileConfigData = {
@@ -64,6 +114,7 @@ const defaultFeatures: Record<MobileFeatureKey, boolean> = {
   chat: true,
   live: true,
   music: true,
+  push: false,
   rewards: true,
   shop: true
 };
@@ -71,19 +122,45 @@ const defaultFeatures: Record<MobileFeatureKey, boolean> = {
 function defaultMobileConfig(): MobileConfig {
   return {
     announcement: null,
+    ads: {
+      enabled: false,
+      behavior: {
+        appOpenInterstitialEnabled: true,
+        appOpenInterstitialFrequency: "every_open",
+        bannerEnabled: true
+      },
+      levelPlay: {
+        appKey: null,
+        bannerAdUnitId: null,
+        interstitialAdUnitId: null,
+        testSuiteEnabled: false
+      },
+      provider: "levelplay"
+    },
     apiVersion: "mobile-v1",
     appName: "Bouncecore",
     environment: process.env.NODE_ENV ?? "development",
-    features: defaultFeatures,
+    features: { ...defaultFeatures },
     maintenance: {
       enabled: false,
       message: null
+    },
+    push: {
+      enabled: false,
+      firebaseAndroid: {
+        apiKey: null,
+        appId: null,
+        messagingSenderId: null,
+        projectId: null
+      },
+      provider: "fcm"
     },
     supportEmail: null,
     theme: {
       accent: "electric-cyan",
       mode: "dark"
-    }
+    },
+    version: defaultMobileVersionPolicy()
   };
 }
 
@@ -93,6 +170,10 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function isThemeMode(value: string): value is MobileThemeMode {
   return mobileThemeModes.includes(value as MobileThemeMode);
+}
+
+function isAppOpenInterstitialFrequency(value: string): value is MobileAppOpenInterstitialFrequency {
+  return mobileAppOpenInterstitialFrequencies.includes(value as MobileAppOpenInterstitialFrequency);
 }
 
 function normalizedText(value: string | undefined, maxLength: number) {
@@ -143,6 +224,34 @@ function normalizedAccent(value: string | undefined) {
   return accent;
 }
 
+function normalizedAdIdentifier(value: string | undefined, maxLength: number, label: string) {
+  const text = normalizedText(value, maxLength);
+
+  if (!text) {
+    return null;
+  }
+
+  if (!/^[a-zA-Z0-9._:-]+$/.test(text)) {
+    throw new Error(`${label} can only contain letters, numbers, dot, underscore, colon, or dash.`);
+  }
+
+  return text;
+}
+
+function normalizedFirebaseIdentifier(value: string | undefined, maxLength: number, label: string) {
+  const text = normalizedText(value, maxLength);
+
+  if (!text) {
+    return null;
+  }
+
+  if (!/^[a-zA-Z0-9._:-]+$/.test(text)) {
+    throw new Error(`${label} can only contain letters, numbers, dot, underscore, colon, or dash.`);
+  }
+
+  return text;
+}
+
 function mergeMobileConfig(value: unknown): MobileConfig {
   const config = defaultMobileConfig();
 
@@ -152,6 +261,82 @@ function mergeMobileConfig(value: unknown): MobileConfig {
 
   if (typeof value.appName === "string" && value.appName.trim()) {
     config.appName = value.appName.trim().slice(0, 80);
+  }
+
+  if (isObject(value.ads)) {
+    if (typeof value.ads.enabled === "boolean") {
+      config.ads.enabled = value.ads.enabled;
+    }
+
+    if (value.ads.provider === "levelplay") {
+      config.ads.provider = "levelplay";
+    }
+
+    if (isObject(value.ads.behavior)) {
+      if (typeof value.ads.behavior.bannerEnabled === "boolean") {
+        config.ads.behavior.bannerEnabled = value.ads.behavior.bannerEnabled;
+      }
+
+      if (typeof value.ads.behavior.appOpenInterstitialEnabled === "boolean") {
+        config.ads.behavior.appOpenInterstitialEnabled = value.ads.behavior.appOpenInterstitialEnabled;
+      }
+
+      if (
+        typeof value.ads.behavior.appOpenInterstitialFrequency === "string" &&
+        isAppOpenInterstitialFrequency(value.ads.behavior.appOpenInterstitialFrequency)
+      ) {
+        config.ads.behavior.appOpenInterstitialFrequency = value.ads.behavior.appOpenInterstitialFrequency;
+      }
+    }
+
+    if (isObject(value.ads.levelPlay)) {
+      if (typeof value.ads.levelPlay.appKey === "string" && value.ads.levelPlay.appKey.trim()) {
+        config.ads.levelPlay.appKey = value.ads.levelPlay.appKey.trim().slice(0, 80);
+      }
+
+      if (typeof value.ads.levelPlay.bannerAdUnitId === "string" && value.ads.levelPlay.bannerAdUnitId.trim()) {
+        config.ads.levelPlay.bannerAdUnitId = value.ads.levelPlay.bannerAdUnitId.trim().slice(0, 80);
+      }
+
+      if (typeof value.ads.levelPlay.interstitialAdUnitId === "string" && value.ads.levelPlay.interstitialAdUnitId.trim()) {
+        config.ads.levelPlay.interstitialAdUnitId = value.ads.levelPlay.interstitialAdUnitId.trim().slice(0, 80);
+      }
+
+      if (typeof value.ads.levelPlay.testSuiteEnabled === "boolean") {
+        config.ads.levelPlay.testSuiteEnabled = value.ads.levelPlay.testSuiteEnabled;
+      }
+    }
+  }
+
+  if (isObject(value.push)) {
+    if (typeof value.push.enabled === "boolean") {
+      config.push.enabled = value.push.enabled;
+    }
+
+    if (value.push.provider === "fcm") {
+      config.push.provider = "fcm";
+    }
+
+    if (isObject(value.push.firebaseAndroid)) {
+      if (typeof value.push.firebaseAndroid.apiKey === "string" && value.push.firebaseAndroid.apiKey.trim()) {
+        config.push.firebaseAndroid.apiKey = value.push.firebaseAndroid.apiKey.trim().slice(0, 120);
+      }
+
+      if (typeof value.push.firebaseAndroid.appId === "string" && value.push.firebaseAndroid.appId.trim()) {
+        config.push.firebaseAndroid.appId = value.push.firebaseAndroid.appId.trim().slice(0, 120);
+      }
+
+      if (
+        typeof value.push.firebaseAndroid.messagingSenderId === "string" &&
+        value.push.firebaseAndroid.messagingSenderId.trim()
+      ) {
+        config.push.firebaseAndroid.messagingSenderId = value.push.firebaseAndroid.messagingSenderId.trim().slice(0, 80);
+      }
+
+      if (typeof value.push.firebaseAndroid.projectId === "string" && value.push.firebaseAndroid.projectId.trim()) {
+        config.push.firebaseAndroid.projectId = value.push.firebaseAndroid.projectId.trim().slice(0, 80);
+      }
+    }
   }
 
   if (typeof value.environment === "string" && value.environment.trim()) {
@@ -190,6 +375,8 @@ function mergeMobileConfig(value: unknown): MobileConfig {
     }
   }
 
+  config.version = mergeMobileVersionPolicy(value.version);
+
   if (isObject(value.announcement) && typeof value.announcement.title === "string" && value.announcement.title.trim()) {
     config.announcement = {
       body:
@@ -205,17 +392,68 @@ function mergeMobileConfig(value: unknown): MobileConfig {
 
 function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
   const mode = input.themeMode.trim();
+  const appOpenInterstitialFrequency = input.levelPlayAppOpenInterstitialFrequency.trim();
 
   if (!isThemeMode(mode)) {
     throw new Error("Theme mode must be dark or light.");
   }
 
+  if (!isAppOpenInterstitialFrequency(appOpenInterstitialFrequency)) {
+    throw new Error("App-open interstitial frequency is invalid.");
+  }
+
   const maintenanceMessage = normalizedText(input.maintenanceMessage, 200);
   const announcementTitle = normalizedText(input.announcementTitle, 120);
   const announcementBody = normalizedText(input.announcementBody, 300);
+  const version = normalizeMobileVersionPolicyInput(input);
+  const features = mobileFeatureKeys.reduce<Record<MobileFeatureKey, boolean>>(
+    (featureFlags, key) => ({
+      ...featureFlags,
+      [key]: Boolean(input.features[key])
+    }),
+    { ...defaultFeatures }
+  );
+  const levelPlayAppKey = normalizedAdIdentifier(input.levelPlayAppKey, 80, "LevelPlay app key");
+  const levelPlayBannerAdUnitId = normalizedAdIdentifier(input.levelPlayBannerAdUnitId, 80, "LevelPlay banner ad unit ID");
+  const levelPlayInterstitialAdUnitId = normalizedAdIdentifier(
+    input.levelPlayInterstitialAdUnitId,
+    80,
+    "LevelPlay interstitial ad unit ID"
+  );
+  const firebaseAndroidApiKey = normalizedFirebaseIdentifier(input.firebaseAndroidApiKey, 120, "Firebase Android API key");
+  const firebaseAndroidAppId = normalizedFirebaseIdentifier(input.firebaseAndroidAppId, 120, "Firebase Android app ID");
+  const firebaseMessagingSenderId = normalizedFirebaseIdentifier(
+    input.firebaseMessagingSenderId,
+    80,
+    "Firebase messaging sender ID"
+  );
+  const firebaseProjectId = normalizedFirebaseIdentifier(input.firebaseProjectId, 80, "Firebase project ID");
+  const bannerEnabled = input.levelPlayBannerEnabled;
+  const appOpenInterstitialEnabled =
+    input.levelPlayAppOpenInterstitialEnabled && appOpenInterstitialFrequency !== "disabled";
 
   if (announcementBody && !announcementTitle) {
     throw new Error("Announcement title is required when announcement body is set.");
+  }
+
+  if (features.ads && !levelPlayAppKey) {
+    throw new Error("LevelPlay app key is required when mobile ads are enabled.");
+  }
+
+  if (features.ads && bannerEnabled && !levelPlayBannerAdUnitId) {
+    throw new Error("LevelPlay banner ad unit ID is required when banner ads are enabled.");
+  }
+
+  if (features.ads && appOpenInterstitialEnabled && !levelPlayInterstitialAdUnitId) {
+    throw new Error("LevelPlay interstitial ad unit ID is required when app-open interstitials are enabled.");
+  }
+
+  if (features.ads && !bannerEnabled && !appOpenInterstitialEnabled) {
+    throw new Error("Enable at least one mobile ad placement or turn off the Ads feature flag.");
+  }
+
+  if (features.push && (!firebaseAndroidApiKey || !firebaseAndroidAppId || !firebaseMessagingSenderId || !firebaseProjectId)) {
+    throw new Error("Firebase Android API key, app ID, sender ID, and project ID are required when mobile push is enabled.");
   }
 
   return {
@@ -227,25 +465,45 @@ function normalizeMobileConfigInput(input: MobileConfigInput): MobileConfig {
       : null,
     apiVersion: "mobile-v1",
     appName: normalizedRequiredText(input.appName, 80, "App name"),
+    ads: {
+      enabled: features.ads,
+      behavior: {
+        appOpenInterstitialEnabled,
+        appOpenInterstitialFrequency,
+        bannerEnabled
+      },
+      levelPlay: {
+        appKey: levelPlayAppKey,
+        bannerAdUnitId: levelPlayBannerAdUnitId,
+        interstitialAdUnitId: levelPlayInterstitialAdUnitId,
+        testSuiteEnabled: input.levelPlayTestSuiteEnabled
+      },
+      provider: "levelplay"
+    },
     environment: normalizedText(input.environmentLabel, 40) ?? process.env.NODE_ENV ?? "development",
-    features: mobileFeatureKeys.reduce<Record<MobileFeatureKey, boolean>>(
-      (features, key) => ({
-        ...features,
-        [key]: Boolean(input.features[key])
-      }),
-      { ...defaultFeatures }
-    ),
+    features,
     maintenance: {
       enabled: input.maintenanceEnabled,
       message:
         maintenanceMessage ??
         (input.maintenanceEnabled ? "The mobile app is temporarily under maintenance." : null)
     },
+    push: {
+      enabled: features.push,
+      firebaseAndroid: {
+        apiKey: firebaseAndroidApiKey,
+        appId: firebaseAndroidAppId,
+        messagingSenderId: firebaseMessagingSenderId,
+        projectId: firebaseProjectId
+      },
+      provider: "fcm"
+    },
     supportEmail: normalizedEmail(input.supportEmail),
     theme: {
       accent: normalizedAccent(input.accent),
       mode
-    }
+    },
+    version
   };
 }
 
@@ -267,14 +525,17 @@ export async function getPublicMobileConfig() {
   const { config } = await readMobileConfigSetting();
 
   return {
+    ads: config.ads,
     announcement: config.announcement,
     apiVersion: config.apiVersion,
     app: config.appName,
     environment: config.environment,
     features: config.features,
     maintenance: config.maintenance,
+    push: config.push,
     supportEmail: config.supportEmail,
-    theme: config.theme
+    theme: config.theme,
+    version: config.version
   };
 }
 
@@ -306,6 +567,36 @@ export async function getAdminMobileConfigData(): Promise<AdminMobileConfigData>
         label: "Announcement",
         status: config.announcement ? "warning" : "ready",
         value: config.announcement ? "active" : "none"
+      },
+      {
+        detail: config.ads.enabled
+          ? `Banner ads are ${config.ads.behavior.bannerEnabled ? "enabled" : "disabled"} and app-open interstitials are ${
+              config.ads.behavior.appOpenInterstitialEnabled ? config.ads.behavior.appOpenInterstitialFrequency : "disabled"
+            }.`
+          : "Mobile ads are disabled in the public app configuration.",
+        label: "LevelPlay ads",
+        status: config.ads.enabled ? "ready" : "warning",
+        value: config.ads.enabled ? "enabled" : "disabled"
+      },
+      {
+        detail: config.push.enabled
+          ? "Firebase Android settings are returned to native app clients for device token registration."
+          : "Native Android push token registration is disabled in the public app configuration.",
+        label: "Android push",
+        status: config.push.enabled ? "ready" : "warning",
+        value: config.push.enabled ? "enabled" : "disabled"
+      },
+      {
+        detail:
+          config.version.minimumSupportedVersionCode > 1
+            ? `Android clients below build ${config.version.minimumSupportedVersionCode} are blocked until updated.`
+            : "No forced Android update is currently configured.",
+        label: "Android updates",
+        status: config.version.minimumSupportedVersionCode > 1 ? "warning" : "ready",
+        value:
+          config.version.latestVersionCode !== null
+            ? `latest ${config.version.latestVersionCode}`
+            : `minimum ${config.version.minimumSupportedVersionCode}`
       }
     ],
     config,
@@ -320,6 +611,9 @@ export async function getAdminMobileConfigData(): Promise<AdminMobileConfigData>
 
 export async function updateMobileConfig(input: MobileConfigInput, actorId: string) {
   const config = normalizeMobileConfigInput(input);
+  const levelPlayConfigured = Boolean(config.ads.levelPlay.appKey) &&
+    (!config.ads.behavior.bannerEnabled || Boolean(config.ads.levelPlay.bannerAdUnitId)) &&
+    (!config.ads.behavior.appOpenInterstitialEnabled || Boolean(config.ads.levelPlay.interstitialAdUnitId));
 
   await prisma.appSetting.upsert({
     where: {
@@ -345,8 +639,13 @@ export async function updateMobileConfig(input: MobileConfigInput, actorId: stri
     severity: config.maintenance.enabled ? "warning" : "info",
     metadata: {
       appName: config.appName,
+      adsEnabled: config.ads.enabled,
+      adBehavior: config.ads.behavior,
       enabledFeatures: mobileFeatureKeys.filter((key) => config.features[key]),
+      levelPlayConfigured,
       maintenanceEnabled: config.maintenance.enabled,
+      minimumAndroidVersionCode: config.version.minimumSupportedVersionCode,
+      pushEnabled: config.push.enabled,
       themeMode: config.theme.mode
     }
   });

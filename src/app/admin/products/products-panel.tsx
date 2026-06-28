@@ -6,11 +6,14 @@ import { Archive, Boxes, Image as ImageIcon, PackagePlus, Plus, Save, ShoppingBa
 import { adminProductsAction } from "@/app/admin/products/actions";
 import { initialAdminProductsActionState, type AdminProductsActionState } from "@/app/admin/products/state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import type { ProductRow, ProductVariantRow, ShopStats } from "@/lib/shop/shop-service";
+
+type AdminProductsRepairFilter = "missing-images" | "missing-variants";
 
 type AdminProductsPanelProps = {
   products: ProductRow[];
+  repairFilter?: AdminProductsRepairFilter | null;
   stats: ShopStats;
 };
 
@@ -34,6 +37,28 @@ function statusTone(status: string) {
   }
 
   return "amber" as const;
+}
+
+function repairLabel(filter: AdminProductsRepairFilter) {
+  if (filter === "missing-images") {
+    return {
+      detail: "Showing active shop products that need a product image.",
+      title: "Missing product images"
+    };
+  }
+
+  return {
+    detail: "Showing active shop products that need at least one checkout variant.",
+    title: "Missing variants"
+  };
+}
+
+function matchesRepairFilter(product: ProductRow, filter: AdminProductsRepairFilter) {
+  if (filter === "missing-images") {
+    return product.status === "active" && !product.imageUrl;
+  }
+
+  return product.status === "active" && product.variantCount === 0;
 }
 
 function ProductFields({ pending, product }: { pending: boolean; product?: ProductRow }) {
@@ -224,11 +249,13 @@ function VariantFields({
   );
 }
 
-export function AdminProductsPanel({ products, stats }: AdminProductsPanelProps) {
+export function AdminProductsPanel({ products, repairFilter = null, stats }: AdminProductsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminProductsActionState, FormData>(
     adminProductsAction,
     initialAdminProductsActionState
   );
+  const visibleProducts = repairFilter ? products.filter((product) => matchesRepairFilter(product, repairFilter)) : products;
+  const activeRepair = repairFilter ? repairLabel(repairFilter) : null;
 
   return (
     <div className="space-y-5">
@@ -280,6 +307,23 @@ export function AdminProductsPanel({ products, stats }: AdminProductsPanelProps)
         ) : null}
       </section>
 
+      {activeRepair ? (
+        <section className="rounded-md border border-bc-acid/35 bg-bc-acid/10 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <Badge tone="acid">Repair filter</Badge>
+              <h3 className="mt-2 text-xl font-black">{activeRepair.title}</h3>
+              <p className="mt-1 text-sm text-bc-muted">
+                {activeRepair.detail} Showing {visibleProducts.length.toLocaleString("en-GB")} of {products.length.toLocaleString("en-GB")} products.
+              </p>
+            </div>
+            <ButtonLink href="/admin/products" size="sm" variant="ghost">
+              Clear filter
+            </ButtonLink>
+          </div>
+        </section>
+      ) : null}
+
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <Badge tone="cyan">New product</Badge>
         <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-3" encType="multipart/form-data">
@@ -295,7 +339,7 @@ export function AdminProductsPanel({ products, stats }: AdminProductsPanelProps)
       </section>
 
       <div className="grid gap-4">
-        {products.map((product) => (
+        {visibleProducts.map((product) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={product.id}>
             <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -387,11 +431,13 @@ export function AdminProductsPanel({ products, stats }: AdminProductsPanelProps)
           </article>
         ))}
 
-        {!products.length ? (
+        {!visibleProducts.length ? (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5">
             <ShoppingBag className="h-7 w-7 text-bc-pink" aria-hidden="true" />
-            <h3 className="mt-4 text-xl font-black">No products yet</h3>
-            <p className="mt-2 text-sm text-bc-muted">Create the first product record to start building the shop catalogue.</p>
+            <h3 className="mt-4 text-xl font-black">{activeRepair ? "No products match this repair filter" : "No products yet"}</h3>
+            <p className="mt-2 text-sm text-bc-muted">
+              {activeRepair ? "This repair category is currently clean." : "Create the first product record to start building the shop catalogue."}
+            </p>
           </article>
         ) : null}
       </div>

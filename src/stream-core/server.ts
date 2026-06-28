@@ -3,22 +3,25 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { resolveTranscoderSourceUrlTemplate } from "../lib/stream/transcoder-source";
+import { mediaGatewayPathOnline } from "../lib/stream/media-gateway-state";
+import {
+  createActiveIngestId,
+  removeActiveIngestState,
+  sortActiveIngests,
+  toPublicActiveIngests,
+  upsertActiveIngestState,
+  type ActiveIngestState,
+  type ActiveIngestStreamProfile
+} from "../lib/stream/active-ingest-state";
 
 type StreamStatus = "offline" | "starting" | "live" | "degraded";
 type HealthStatus = "healthy" | "warning" | "critical" | "unknown";
 
-type StreamProfileConfig = {
-  audioBitrateKbps: number;
-  fps: number;
-  key: string;
-  keyframeSeconds: number;
-  label: string;
-  videoBitrateKbps: number;
-  videoHeight: number;
-  videoWidth: number;
-};
+type StreamProfileConfig = ActiveIngestStreamProfile;
+type ActiveIngest = ActiveIngestState;
 
 type StreamCoreState = {
+  activeIngests: ActiveIngest[];
   bitrateKbps: number | null;
   channelId: string | null;
   channelSlug: string | null;
@@ -64,6 +67,7 @@ type StreamKeyValidationResponse =
 
 const defaultPort = 8088;
 const defaultOfflineAfterSeconds = 30;
+const defaultMaxActiveIngests = 2;
 
 function envValue(key: string) {
   return process.env[key]?.trim() ?? "";
@@ -83,13 +87,16 @@ const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envVa
 const transcoderEnabled = envValue("TRANSCODER_ENABLED").toLowerCase() === "true";
 const transcoderPlaybackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") : "";
 const mediaGatewayPlaybackUrl = transcoderPlaybackUrl || envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
+const mediaGatewayApiUrl = envValue("MEDIA_GATEWAY_API_URL").replace(/\/+$/, "");
 const transcoderSourceUrlTemplate =
   envValue("STREAM_CORE_TRANSCODER_SOURCE_URL") || envValue("TRANSCODER_INPUT_URL") || "rtmp://media-gateway:1935/{path}";
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
 const publicPlaybackUrl = transcoderPlaybackUrl || envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
+const maxActiveIngests = configuredNumber("STREAM_CORE_MAX_ACTIVE_INGESTS", defaultMaxActiveIngests);
 
 let state: StreamCoreState = {
+  activeIngests: [],
   bitrateKbps: null,
   channelId: null,
   channelSlug: null,
@@ -357,7 +364,7 @@ function streamKeyFromPath(path: string | null) {
   );
 }
 
-function mediaGatewayHlsUrl(path: string | null) {
+function mediaGatewayHlsUrl(path: string | null, includeSensitivePath = false) {
   if (!mediaGatewayPlaybackUrl) {
     return null;
   }
@@ -368,7 +375,7 @@ function mediaGatewayHlsUrl(path: string | null) {
 
   const safePath = (path ?? "live")
     .split("/")
-    .filter((segment) => segment && !segment.startsWith("bc_live_"))
+    .filter((segment) => segment && (includeSensitivePath || !segment.startsWith("bc_live_")))
     .map((segment) => encodeURIComponent(segment))
     .join("/");
 
@@ -380,7 +387,165 @@ function currentTranscoderSourceUrl() {
     return null;
   }
 
-  return resolveTranscoderSourceUrlTemplate(transcoderSourceUrlTemplate, state.ingestPath || "live");
+  return resolveTranscoderSourceUrlTemplate(transcoderSourceUrlTemplate, primaryIngest()?.ingestPath || state.ingestPath || "live");
+}
+
+function ingestId(path: string, fingerprint: string | null) {
+  return createActiveIngestId(path, fingerprint);
+}
+
+function sortedActiveIngests(now = new Date()) {
+  return sortActiveIngests(state.activeIngests, {
+    maxActiveIngests,
+    now,
+    offlineAfterSeconds
+  });
+}
+
+function primaryIngest() {
+  return sortedActiveIngests()[0] ?? null;
+}
+
+function publicPlaybackUrlForIngest(ingest: ActiveIngest, index: number) {
+  if (index === 0 && publicPlaybackUrl) {
+    return publicPlaybackUrl;
+  }
+
+  return ingest.playbackUrl;
+}
+
+function publicActiveIngests(now = new Date()) {
+  return toPublicActiveIngests(sortedActiveIngests(now), publicPlaybackUrlForIngest);
+}
+
+function syncLegacyStateFromActiveIngests(now = new Date()) {
+  const primary = sortedActiveIngests(now)[0] ?? null;
+
+  if (!primary) {
+    state.bitrateKbps = null;
+    state.droppedFrames = null;
+    state.ingestConnected = false;
+    state.status = "offline";
+    return;
+  }
+
+  state.bitrateKbps = primary.bitrateKbps;
+  state.channelId = primary.channelId;
+  state.channelSlug = primary.channelSlug;
+  state.channelTitle = primary.channelTitle;
+  state.droppedFrames = primary.droppedFrames;
+  state.ingestConnected = true;
+  state.ingestPath = primary.ingestPath;
+  state.lastIngestAt = primary.lastIngestAt;
+  state.playbackUrl = publicPlaybackUrlForIngest(primary, 0) ?? state.playbackUrl;
+  state.status = primary.status === "offline" ? "live" : primary.status;
+  state.streamKeyFingerprint = primary.streamKeyFingerprint;
+  state.streamProfile = primary.streamProfile;
+  state.viewerCount = primary.viewerCount;
+}
+
+function activeIngestFromValidatedStream(
+  result: Extract<StreamKeyValidationResponse, { valid: true }>,
+  path: string,
+  playbackUrl: string | null,
+  now: string,
+  existing?: ActiveIngest
+): ActiveIngest {
+  const streamProfile = toStreamProfile(result.profile) ?? toStreamProfile(result.channel?.streamProfile) ?? existing?.streamProfile ?? null;
+
+  return {
+    bitrateKbps: existing?.bitrateKbps ?? null,
+    channelId: result.channel?.id ?? existing?.channelId ?? null,
+    channelSlug: result.channel?.slug ?? existing?.channelSlug ?? null,
+    channelTitle: result.channel?.title ?? existing?.channelTitle ?? null,
+    directPlaybackUrl: playbackUrl,
+    droppedFrames: existing?.droppedFrames ?? null,
+    id: ingestId(path, result.key.fingerprint),
+    ingestPath: path,
+    lastIngestAt: now,
+    playbackUrl,
+    presenterName: result.user?.displayName ?? existing?.presenterName ?? null,
+    startedAt: existing?.startedAt ?? now,
+    status: "live",
+    streamKeyFingerprint: result.key.fingerprint,
+    streamProfile,
+    viewerCount: existing?.viewerCount ?? 0
+  };
+}
+
+function upsertActiveIngest(
+  result: Extract<StreamKeyValidationResponse, { valid: true }>,
+  path: string,
+  playbackUrl: string | null,
+  now: string
+) {
+  const id = ingestId(path, result.key.fingerprint);
+  const existing = state.activeIngests.find((ingest) => ingest.id === id);
+  const updated = activeIngestFromValidatedStream(result, path, playbackUrl, now, existing);
+  const resultState = upsertActiveIngestState(state.activeIngests, updated, {
+    maxActiveIngests,
+    now: new Date(now),
+    offlineAfterSeconds
+  });
+
+  if (!resultState.accepted) {
+    state.activeIngests = resultState.activeIngests;
+    syncLegacyStateFromActiveIngests(new Date(now));
+    return null;
+  }
+
+  state.activeIngests = resultState.activeIngests;
+  syncLegacyStateFromActiveIngests(new Date(now));
+
+  return updated;
+}
+
+function removeActiveIngest(path: string | null, fingerprint?: string | null) {
+  const result = removeActiveIngestState(state.activeIngests, { path, fingerprint }, {
+    maxActiveIngests,
+    now: new Date(),
+    offlineAfterSeconds
+  });
+
+  state.activeIngests = result.activeIngests;
+  syncLegacyStateFromActiveIngests();
+
+  return result.removed;
+}
+
+function toActiveIngest(value: unknown): ActiveIngest | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const ingestPath = toStringValue(value.ingestPath ?? value.ingest_path);
+  const startedAt = toStringValue(value.startedAt ?? value.started_at);
+  const lastIngestAt = toStringValue(value.lastIngestAt ?? value.last_ingest_at);
+
+  if (!ingestPath || !startedAt || !lastIngestAt) {
+    return null;
+  }
+
+  const streamKeyFingerprint = toStringValue(value.streamKeyFingerprint ?? value.stream_key_fingerprint);
+
+  return {
+    bitrateKbps: toNumber(value.bitrateKbps ?? value.bitrate_kbps),
+    channelId: toStringValue(value.channelId ?? value.channel_id),
+    channelSlug: toStringValue(value.channelSlug ?? value.channel_slug),
+    channelTitle: toStringValue(value.channelTitle ?? value.channel_title),
+    directPlaybackUrl: toStringValue(value.directPlaybackUrl ?? value.direct_playback_url),
+    droppedFrames: toNumber(value.droppedFrames ?? value.dropped_frames),
+    id: toStringValue(value.id) ?? ingestId(ingestPath, streamKeyFingerprint),
+    ingestPath,
+    lastIngestAt,
+    playbackUrl: toStringValue(value.playbackUrl ?? value.playback_url),
+    presenterName: toStringValue(value.presenterName ?? value.presenter_name),
+    startedAt,
+    status: toStatus(value.status) ?? "live",
+    streamKeyFingerprint,
+    streamProfile: toStreamProfile(value.streamProfile ?? value.stream_profile),
+    viewerCount: toNumber(value.viewerCount ?? value.viewer_count) ?? 0
+  };
 }
 
 function toMediaGatewayAction(value: unknown) {
@@ -417,14 +582,19 @@ function toEvent(value: unknown) {
 
 function derivedState() {
   const now = new Date();
-  const lastIngestAt = state.lastIngestAt ? new Date(state.lastIngestAt) : null;
+  const activeIngests = publicActiveIngests(now);
+  const primary = sortedActiveIngests(now)[0] ?? null;
+  const lastIngestAt = primary?.lastIngestAt ? new Date(primary.lastIngestAt) : state.lastIngestAt ? new Date(state.lastIngestAt) : null;
   const stale =
+    !mediaGatewayApiUrl &&
+    !activeIngests.length &&
     state.ingestConnected &&
     lastIngestAt &&
     Number.isFinite(lastIngestAt.getTime()) &&
     now.getTime() - lastIngestAt.getTime() > offlineAfterSeconds * 1000;
-  const ingestConnected = state.ingestConnected && !stale;
-  const status: StreamStatus = ingestConnected ? state.status === "offline" ? "live" : state.status : "offline";
+  const ingestConnected = activeIngests.length > 0 || (state.ingestConnected && !stale);
+  const status: StreamStatus = ingestConnected ? primary?.status ?? (state.status === "offline" ? "live" : state.status) : "offline";
+  const playbackUrl = primary ? publicPlaybackUrlForIngest(primary, 0) : state.playbackUrl;
   const healthStatus: HealthStatus = ingestConnected
     ? state.status === "degraded"
       ? "warning"
@@ -444,14 +614,18 @@ function derivedState() {
       : null,
     stream: {
       status,
-      streamKeyFingerprint: state.streamKeyFingerprint
+      streamKeyFingerprint: primary?.streamKeyFingerprint ?? state.streamKeyFingerprint
     },
     playback: {
-      url: state.playbackUrl
+      activeIngests,
+      primary: activeIngests[0] ?? null,
+      secondary: activeIngests[1] ?? null,
+      url: playbackUrl
     },
-    playbackUrl: state.playbackUrl,
-    profile: state.streamProfile,
-    streamProfile: state.streamProfile,
+    activeIngests,
+    playbackUrl,
+    profile: primary?.streamProfile ?? state.streamProfile,
+    streamProfile: primary?.streamProfile ?? state.streamProfile,
     viewerCount: state.viewerCount,
     health: {
       bitrateKbps: state.bitrateKbps ?? undefined,
@@ -461,6 +635,94 @@ function derivedState() {
       status: healthStatus
     }
   };
+}
+
+async function refreshMediaGatewayState() {
+  if (!mediaGatewayApiUrl || (!state.activeIngests.length && (!state.ingestPath || !state.ingestConnected))) {
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500);
+
+  try {
+    const response = await fetch(`${mediaGatewayApiUrl}/v3/paths/list?itemsPerPage=100`, {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json();
+    const now = new Date().toISOString();
+    const activeIngests = sortedActiveIngests(new Date(now));
+
+    if (activeIngests.length) {
+      const nextActiveIngests = activeIngests
+        .map((ingest) => {
+          const online = mediaGatewayPathOnline(payload, ingest.ingestPath);
+
+          if (online === true) {
+            return {
+              ...ingest,
+              lastIngestAt: now,
+              status: ingest.status === "offline" ? "live" : ingest.status
+            };
+          }
+
+          if (online === false) {
+            return null;
+          }
+
+          return ingest;
+        })
+        .filter((ingest): ingest is ActiveIngest => Boolean(ingest));
+
+      state.activeIngests = nextActiveIngests;
+      state.checkedAt = now;
+      syncLegacyStateFromActiveIngests(new Date(now));
+      await persistState();
+      return;
+    }
+
+    if (!state.ingestPath) {
+      return;
+    }
+
+    const online = mediaGatewayPathOnline(payload, state.ingestPath);
+
+    if (online === true) {
+      state.checkedAt = now;
+      state.lastIngestAt = now;
+      state.ingestConnected = true;
+      state.status = state.status === "offline" ? "live" : state.status;
+      await persistState();
+      return;
+    }
+
+    if (online === false) {
+      state.checkedAt = now;
+      state.lastIngestAt = now;
+      state.ingestConnected = false;
+      state.status = "offline";
+      state.bitrateKbps = null;
+      await persistState();
+    }
+  } catch {
+    return;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function refreshedState() {
+  await refreshMediaGatewayState();
+
+  return derivedState();
 }
 
 async function loadState() {
@@ -473,8 +735,13 @@ async function loadState() {
     const parsed = JSON.parse(raw);
 
     if (isObject(parsed)) {
+      const activeIngests = Array.isArray(parsed.activeIngests)
+        ? parsed.activeIngests.map(toActiveIngest).filter((ingest): ingest is ActiveIngest => Boolean(ingest))
+        : [];
+
       state = {
         ...state,
+        activeIngests,
         bitrateKbps: toNumber(parsed.bitrateKbps),
         channelId: toStringValue(parsed.channelId),
         channelSlug: toStringValue(parsed.channelSlug),
@@ -490,6 +757,30 @@ async function loadState() {
         streamProfile: toStreamProfile(parsed.streamProfile),
         viewerCount: toNumber(parsed.viewerCount) ?? 0
       };
+
+      if (!state.activeIngests.length && state.ingestConnected && state.ingestPath && state.lastIngestAt) {
+        state.activeIngests = [
+          {
+            bitrateKbps: state.bitrateKbps,
+            channelId: state.channelId,
+            channelSlug: state.channelSlug,
+            channelTitle: state.channelTitle,
+            directPlaybackUrl: state.playbackUrl,
+            droppedFrames: state.droppedFrames,
+            id: ingestId(state.ingestPath, state.streamKeyFingerprint),
+            ingestPath: state.ingestPath,
+            lastIngestAt: state.lastIngestAt,
+            playbackUrl: state.playbackUrl,
+            presenterName: null,
+            startedAt: state.lastIngestAt,
+            status: state.status === "offline" ? "live" : state.status,
+            streamKeyFingerprint: state.streamKeyFingerprint,
+            streamProfile: state.streamProfile,
+            viewerCount: state.viewerCount
+          }
+        ];
+        syncLegacyStateFromActiveIngests();
+      }
     }
   } catch {
     return;
@@ -703,16 +994,28 @@ async function handleMediaGatewayAuth(request: IncomingMessage, response: Server
   }
 
   const now = new Date().toISOString();
-  const playbackUrl = mediaGatewayHlsUrl(path);
+  const ingestPath = path ?? "live";
+  const playbackUrl = mediaGatewayHlsUrl(ingestPath, true);
+  const activeIngest = upsertActiveIngest(result, ingestPath, playbackUrl, now);
 
-  applyValidatedStreamKey(result);
+  if (!activeIngest) {
+    json(response, 409, {
+      error: "too_many_publishers",
+      maxActiveIngests,
+      valid: false
+    });
+    return;
+  }
+
   state.checkedAt = now;
   state.ingestConnected = true;
-  state.ingestPath = path ?? "live";
+  state.ingestPath = activeIngest.ingestPath;
   state.lastIngestAt = now;
   state.status = "live";
 
-  if (playbackUrl) {
+  if (publicPlaybackUrl) {
+    state.playbackUrl = publicPlaybackUrl;
+  } else if (playbackUrl) {
     state.playbackUrl = playbackUrl;
   }
 
@@ -721,7 +1024,8 @@ async function handleMediaGatewayAuth(request: IncomingMessage, response: Server
   json(response, 200, {
     channel: result.channel ?? null,
     ok: true,
-    playbackUrl: state.playbackUrl,
+    activeIngest,
+    playbackUrl: publicPlaybackUrlForIngest(activeIngest, sortedActiveIngests(new Date(now)).findIndex((ingest) => ingest.id === activeIngest.id)),
     profile: result.profile ?? result.channel?.streamProfile ?? null,
     streamKeyFingerprint: result.key.fingerprint,
     valid: true
@@ -749,7 +1053,9 @@ async function handleIngest(request: IncomingMessage, response: ServerResponse, 
 
   const event = toEvent(body.event ?? body.type);
   const rawKey = extractStreamKey(body, url, request);
+  const path = toStringValue(body.path ?? body.ingestPath ?? body.ingest_path) ?? state.ingestPath ?? "live";
   const now = new Date().toISOString();
+  let validatedResult: Extract<StreamKeyValidationResponse, { valid: true }> | null = null;
 
   if (rawKey) {
     const result = await validateStreamKey(rawKey);
@@ -762,21 +1068,52 @@ async function handleIngest(request: IncomingMessage, response: ServerResponse, 
       return;
     }
 
-    applyValidatedStreamKey(result);
+    validatedResult = result;
   }
 
   updateTelemetry(body);
   state.checkedAt = now;
 
   if (event === "connected" || event === "heartbeat") {
-    state.ingestConnected = true;
-    state.lastIngestAt = now;
-    state.status = toStatus(body.status) ?? "live";
+    if (validatedResult) {
+      const activeIngest = upsertActiveIngest(validatedResult, path, mediaGatewayHlsUrl(path, true), now);
+
+      if (!activeIngest) {
+        json(response, 409, {
+          error: "too_many_publishers",
+          maxActiveIngests,
+          valid: false
+        });
+        return;
+      }
+    } else if (state.activeIngests.length) {
+      state.activeIngests = state.activeIngests.map((ingest) =>
+        ingest.ingestPath === path || ingest.id === primaryIngest()?.id
+          ? {
+              ...ingest,
+              bitrateKbps: state.bitrateKbps,
+              droppedFrames: state.droppedFrames,
+              lastIngestAt: now,
+              status: toStatus(body.status) ?? "live",
+              viewerCount: state.viewerCount
+            }
+          : ingest
+      );
+      syncLegacyStateFromActiveIngests(new Date(now));
+    } else {
+      state.ingestConnected = true;
+      state.lastIngestAt = now;
+      state.status = toStatus(body.status) ?? "live";
+    }
   } else if (event === "disconnected") {
-    state.ingestConnected = false;
-    state.lastIngestAt = now;
-    state.status = "offline";
-    state.bitrateKbps = null;
+    const removed = removeActiveIngest(path, validatedResult?.key.fingerprint ?? null);
+
+    if (!removed && !state.activeIngests.length) {
+      state.ingestConnected = false;
+      state.lastIngestAt = now;
+      state.status = "offline";
+      state.bitrateKbps = null;
+    }
   } else {
     json(response, 400, {
       error: "invalid_event"
@@ -785,7 +1122,7 @@ async function handleIngest(request: IncomingMessage, response: ServerResponse, 
   }
 
   await persistState();
-  json(response, 200, derivedState());
+  json(response, 200, await refreshedState());
 }
 
 async function handleStatusMutation(request: IncomingMessage, response: ServerResponse) {
@@ -813,8 +1150,12 @@ async function handleStatusMutation(request: IncomingMessage, response: ServerRe
   state.checkedAt = new Date().toISOString();
   state.lastIngestAt = state.ingestConnected ? state.checkedAt : state.lastIngestAt;
 
+  if (!state.ingestConnected || state.status === "offline") {
+    state.activeIngests = [];
+  }
+
   await persistState();
-  json(response, 200, derivedState());
+  json(response, 200, await refreshedState());
 }
 
 async function route(request: IncomingMessage, response: ServerResponse) {
@@ -835,7 +1176,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
           return;
         }
 
-        json(response, 200, derivedState());
+        json(response, 200, await refreshedState());
         return;
       }
 
@@ -854,7 +1195,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       }
 
       json(response, 200, {
-        playbackUrl: derivedState().playbackUrl
+        playbackUrl: (await refreshedState()).playbackUrl
       });
       return;
     }
@@ -869,7 +1210,7 @@ async function route(request: IncomingMessage, response: ServerResponse) {
         return;
       }
 
-      if (!derivedState().health.ingestConnected) {
+      if (!(await refreshedState()).health.ingestConnected) {
         noContent(response);
         return;
       }

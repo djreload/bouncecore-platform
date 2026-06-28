@@ -1,13 +1,16 @@
 import { Activity, ShieldCheck } from "lucide-react";
+import { ClearAuditLogsForm } from "@/app/admin/audit-logs/clear-audit-logs-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { clearAuditLogsConfirmationText } from "@/lib/admin/maintenance-core";
 import { getAdminAuditLogs } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { hasPermission } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
 function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(date);
 }
 
 function severityTone(severity: string) {
@@ -23,8 +26,9 @@ function severityTone(severity: string) {
 }
 
 export default async function AdminAuditLogsPage() {
-  await requireUserPermission("audit.view");
+  const actor = await requireUserPermission("audit.view");
   const auditLogs = await getAdminAuditLogs();
+  const canClearAuditLogs = hasPermission(actor, "settings.manage");
 
   return (
     <AdminShell
@@ -41,7 +45,12 @@ export default async function AdminAuditLogsPage() {
               <p className="mt-1 text-sm text-bc-muted">Showing the latest {auditLogs.length} audit records.</p>
             </div>
           </div>
-          <Badge tone="acid">Database-backed</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="acid">Database-backed</Badge>
+            {canClearAuditLogs ? (
+              <ClearAuditLogsForm confirmationText={clearAuditLogsConfirmationText} disabled={!auditLogs.length} />
+            ) : null}
+          </div>
         </div>
 
         <div className="overflow-x-auto">

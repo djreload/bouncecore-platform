@@ -1,4 +1,7 @@
+import { Home } from "lucide-react";
+import { LogoutButton } from "@/components/auth/logout-button";
 import { GroupedNav } from "@/components/navigation/grouped-nav";
+import { ButtonLink } from "@/components/ui/button";
 import { accountFeatureNavigation, accountNavigation, producerNavigation, streamerNavigation } from "@/config/navigation";
 import { filterNavigationByRoles, type Role } from "@/lib/auth/rbac";
 import { requireAnyRole, requireSignedInUser } from "@/lib/auth/guards";
@@ -33,6 +36,13 @@ export async function DashboardShell({ children, title, description, mode = "acc
           <div className="mb-5">
             <p className="text-xs font-semibold uppercase text-bc-electric">Bouncecore account</p>
             <h1 className="mt-1 text-xl font-black">{mode === "account" ? "Dashboard" : title}</h1>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-2">
+            <ButtonLink className="w-full" href="/" size="sm" variant="ghost">
+              <Home className="h-4 w-4" aria-hidden="true" />
+              Home
+            </ButtonLink>
+            <LogoutButton />
           </div>
           <GroupedNav items={visibleNavigation} />
         </aside>

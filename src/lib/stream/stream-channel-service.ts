@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeOptionalStreamOfflineImageUrl } from "@/lib/media/media-service";
-import { getStreamProvider, type StreamHealth, type StreamStatus } from "@/lib/stream/stream-provider";
+import { getStreamProvider, type StreamHealth, type StreamPlaybackSource, type StreamStatus } from "@/lib/stream/stream-provider";
 import {
   ensureDefaultStreamProfiles,
   getDefaultStreamProfile,
@@ -35,6 +35,7 @@ export type StreamChannelSummary = {
 };
 
 export type StreamProviderSnapshot = {
+  activeIngests: StreamPlaybackSource[];
   status: StreamStatus;
   playbackUrl: string | null;
   viewerCount: number;
@@ -50,6 +51,7 @@ export type PublicLiveState = {
     offlineImageUrl: string | null;
     streamProfile: StreamProfileSummary | null;
   } | null;
+  activeIngests: StreamPlaybackSource[];
   provider: StreamProviderSnapshot;
   status: string;
   playbackUrl: string | null;
@@ -126,7 +128,8 @@ async function assertStreamProfileId(profileId?: string) {
 
 export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
   const provider = getStreamProvider();
-  const [status, playbackUrl, viewerCount, health] = await Promise.all([
+  const [activeIngests, status, playbackUrl, viewerCount, health] = await Promise.all([
+    provider.getActiveIngests(),
     provider.getStreamStatus(),
     provider.getPlaybackUrl(),
     provider.getViewerCount(),
@@ -134,6 +137,7 @@ export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
   ]);
 
   return {
+    activeIngests,
     status,
     playbackUrl,
     viewerCount,
@@ -390,6 +394,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
     const status = provider.status !== "offline" ? provider.status : channel?.status ?? provider.status;
 
     return {
+      activeIngests: provider.activeIngests,
       channel: channel
         ? {
             slug: channel.slug,
@@ -409,6 +414,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
     };
   } catch {
     return {
+      activeIngests: provider.activeIngests,
       channel: null,
       provider,
       status: provider.status,

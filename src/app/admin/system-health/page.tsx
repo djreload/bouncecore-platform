@@ -1,6 +1,7 @@
-import { Activity, CheckCircle2, Clock, Server, TriangleAlert, XCircle } from "lucide-react";
+import { Activity, CheckCircle2, Clock, DatabaseZap, ExternalLink, Server, TriangleAlert, XCircle } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { getAdminSystemHealthData } from "@/lib/admin/system-health";
 import { requireUserPermission } from "@/lib/auth/guards";
 
@@ -64,9 +65,9 @@ export default async function AdminSystemHealthPage() {
           <Badge tone="pink">Checks</Badge>
           <div className="mt-4 flex items-center gap-3">
             <Server className="h-5 w-5 text-bc-pink" aria-hidden="true" />
-            <p className="text-3xl font-black">{health.checks.length}</p>
+            <p className="text-3xl font-black">{health.checks.length + health.dataQuality.length}</p>
           </div>
-          <p className="mt-2 text-sm text-bc-muted">Runtime and integration checks.</p>
+          <p className="mt-2 text-sm text-bc-muted">Runtime, integration, and data checks.</p>
         </article>
       </div>
 
@@ -86,6 +87,36 @@ export default async function AdminSystemHealthPage() {
                 <Badge tone={statusTone(check.status)}>{check.value}</Badge>
               </div>
               <p className="mt-3 text-sm text-bc-muted">{check.detail}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-md border border-bc-line bg-bc-panel">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
+          <div>
+            <h3 className="text-xl font-black">Data quality</h3>
+            <p className="mt-1 text-sm text-bc-muted">Production records that can break checkout, downloads, mobile config, or public presentation.</p>
+          </div>
+          <DatabaseZap className="h-6 w-6 text-bc-electric" aria-hidden="true" />
+        </div>
+        <div className="grid gap-3 p-4 lg:grid-cols-2">
+          {health.dataQuality.map((check) => (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={check.label}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <StatusIcon status={check.status} />
+                  <h4 className="font-semibold">{check.label}</h4>
+                </div>
+                <Badge tone={statusTone(check.status)}>{check.value}</Badge>
+              </div>
+              <p className="mt-3 text-sm text-bc-muted">{check.detail}</p>
+              {check.href ? (
+                <ButtonLink className="mt-4" href={check.href} size="sm" variant="ghost">
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  Repair
+                </ButtonLink>
+              ) : null}
             </article>
           ))}
         </div>

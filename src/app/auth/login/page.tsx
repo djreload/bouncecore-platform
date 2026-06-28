@@ -2,6 +2,7 @@ import { PublicShell } from "@/components/layout/public-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { privacyPolicyHref } from "@/lib/privacy/privacy-config";
 
 const errorMessages: Record<string, string> = {
   "email-unverified": "Verify your email before logging in.",
@@ -56,6 +57,13 @@ export default async function LoginPage({
               Forgot password?
             </Link>
           </div>
+          <p className="mt-3 text-xs leading-5 text-bc-muted">
+            Sign-in uses secure session cookies. See the{" "}
+            <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
+              Privacy Policy
+            </Link>
+            .
+          </p>
           <div className="mt-5 flex flex-wrap gap-2">
             <Badge tone="muted">HTTP-only session cookie</Badge>
             <Badge tone="muted">Audit-ready</Badge>

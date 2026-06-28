@@ -26,6 +26,16 @@ export type AdminChatMessageRow = {
   authorRoles: Role[];
 };
 
+export type AdminChatSheepThrowRow = {
+  id: string;
+  roomName: string;
+  roomSlug: string;
+  throwerDisplayName: string;
+  targetDisplayName: string;
+  targetMessageId: string | null;
+  createdAt: string;
+};
+
 export type AdminChatroomsActionState = {
   status: "idle" | "success" | "error";
   message?: string;

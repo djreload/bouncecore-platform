@@ -6,7 +6,11 @@ import { requireSignedInUser } from "@/lib/auth/guards";
 import {
   createOrUpdateRewardSegment,
   createOrUpdateRewardWheel,
+  deleteRewardSegment,
+  deleteRewardWheel,
   ensureDefaultRewardWheel,
+  moveRewardSegment,
+  spreadRewardWheelSegments,
   type RewardSegmentInput,
   type RewardWheelInput
 } from "@/lib/rewards/prize-service";
@@ -35,6 +39,7 @@ function segmentInput(formData: FormData): RewardSegmentInput {
     prizeType: formString(formData, "prizeType"),
     prizeValue: formString(formData, "prizeValue"),
     segmentId: formString(formData, "segmentId"),
+    sortOrder: formString(formData, "sortOrder"),
     starAmount: formString(formData, "starAmount"),
     status: formString(formData, "status"),
     weight: formString(formData, "weight"),
@@ -77,6 +82,18 @@ export async function adminSpinWheelsAction(
     }
 
     if (intent === "wheel") {
+      const wheelAction = formString(formData, "wheelAction") || "save";
+
+      if (wheelAction === "delete") {
+        await deleteRewardWheel({ wheelId: formString(formData, "wheelId") }, actor.id);
+        revalidateRewardsViews();
+
+        return {
+          message: "Reward wheel deleted.",
+          status: "success"
+        };
+      }
+
       await createOrUpdateRewardWheel(wheelInput(formData), actor.id);
       revalidateRewardsViews();
 
@@ -86,12 +103,49 @@ export async function adminSpinWheelsAction(
       };
     }
 
-    if (intent === "segment") {
-      await createOrUpdateRewardSegment(segmentInput(formData), actor.id);
+    if (intent === "spread-segments") {
+      await spreadRewardWheelSegments({ wheelId: formString(formData, "wheelId") }, actor.id);
       revalidateRewardsViews();
 
       return {
-        message: "Reward wheel segment saved.",
+        message: "Reward wheel slices spread out.",
+        status: "success"
+      };
+    }
+
+    if (intent === "segment") {
+      const segmentAction = formString(formData, "segmentAction") || "save";
+
+      if (segmentAction === "move-up" || segmentAction === "move-down") {
+        await moveRewardSegment(
+          {
+            direction: segmentAction === "move-up" ? "up" : "down",
+            segmentId: formString(formData, "segmentId"),
+            wheelId: formString(formData, "wheelId")
+          },
+          actor.id
+        );
+      } else if (segmentAction === "delete") {
+        await deleteRewardSegment(
+          {
+            segmentId: formString(formData, "segmentId"),
+            wheelId: formString(formData, "wheelId")
+          },
+          actor.id
+        );
+      } else {
+        await createOrUpdateRewardSegment(segmentInput(formData), actor.id);
+      }
+
+      revalidateRewardsViews();
+
+      return {
+        message:
+          segmentAction === "save"
+            ? "Reward wheel segment saved."
+            : segmentAction === "delete"
+              ? "Reward wheel segment deleted."
+              : "Reward wheel segment order updated.",
         status: "success"
       };
     }

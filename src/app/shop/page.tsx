@@ -1,11 +1,11 @@
 /* eslint-disable @next/next/no-img-element */
-import { Boxes, CreditCard, LogIn, PackageCheck, ShoppingBag, Tags } from "lucide-react";
+import { Boxes, CreditCard, PackageCheck, ShoppingBag, Tags } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
-import { Button, ButtonLink } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPayPalCheckoutReadiness, getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
+import { ShopCartButton, ShopCartProvider, type ShopCartVariant } from "./shop-cart-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,10 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
   },
   "paypal-not-ready": {
     message: "PayPal shop checkout needs client ID and server secret configuration before purchases can start.",
+    tone: "pink"
+  },
+  "paypal-api-error": {
+    message: "PayPal rejected the shop checkout request. Check sandbox/live mode and API credentials, then try again.",
     tone: "pink"
   }
 };
@@ -65,10 +69,27 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   const totalStock = products.reduce((total, product) => total + product.totalStock, 0);
   const checkoutReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
+  const cartVariants: ShopCartVariant[] = products.flatMap((product) =>
+    product.variants.map((variant) => ({
+      id: variant.id,
+      imageUrl: product.imageUrl,
+      pricePence: variant.pricePence,
+      productName: product.name,
+      sku: variant.sku,
+      stock: variant.stock,
+      variantName: variant.name
+    }))
+  );
 
   return (
     <PublicShell>
-      <main className="mx-auto max-w-7xl px-4 py-10">
+      <ShopCartProvider
+        checkoutReady={checkoutReadiness.ready}
+        checkoutReason={checkoutReadiness.reason}
+        signedIn={Boolean(currentUser)}
+        variants={cartVariants}
+      >
+        <main className="mx-auto max-w-7xl px-4 py-10">
         <section className="rounded-md border border-bc-line bg-bc-panel p-6">
           <Badge tone="pink">Merch shop</Badge>
           <h1 className="mt-4 text-4xl font-black">Shop</h1>
@@ -131,34 +152,7 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
                       </div>
                     </div>
                     <div className="mt-3">
-                      {!currentUser ? (
-                        <ButtonLink href="/auth/login?error=auth-required" size="sm" variant="ghost">
-                          <LogIn className="h-4 w-4" aria-hidden="true" />
-                          Login to checkout
-                        </ButtonLink>
-                      ) : (
-                        <form action="/shop/checkout" className="grid gap-3 sm:grid-cols-[96px_1fr]" method="post">
-                          <input name="variantId" type="hidden" value={variant.id} />
-                          <label className="sr-only" htmlFor={`quantity-${variant.id}`}>
-                            Quantity
-                          </label>
-                          <input
-                            className="min-h-9 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
-                            defaultValue={1}
-                            disabled={!checkoutReadiness.ready || variant.stock < 1}
-                            id={`quantity-${variant.id}`}
-                            max={Math.min(variant.stock, 10)}
-                            min={1}
-                            name="quantity"
-                            step={1}
-                            type="number"
-                          />
-                          <Button disabled={!checkoutReadiness.ready || variant.stock < 1} size="sm" type="submit" variant="primary">
-                            <CreditCard className="h-4 w-4" aria-hidden="true" />
-                            PayPal checkout
-                          </Button>
-                        </form>
-                      )}
+                      <ShopCartButton disabled={variant.stock < 1} size="sm" variantId={variant.id} />
                     </div>
                   </div>
                 ))}
@@ -200,7 +194,8 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
             </p>
           </article>
         </section>
-      </main>
+        </main>
+      </ShopCartProvider>
     </PublicShell>
   );
 }

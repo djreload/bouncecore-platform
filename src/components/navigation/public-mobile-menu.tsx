@@ -4,19 +4,38 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { useState } from "react";
+import { LogoutButton } from "@/components/auth/logout-button";
+import { BrandMark } from "@/components/branding/brand-mark";
+import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { icons } from "@/components/navigation/icons";
 import { publicNavigation, type NavigationItem } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 
 type PublicMobileMenuProps = {
+  isSignedIn: boolean;
   items: NavigationItem[];
+  logoUrl?: string | null;
   siteName: string;
 };
 
-export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
+function navigationForAuth(items: NavigationItem[], signedIn: boolean) {
+  return items.filter((item) => {
+    if (!signedIn && item.href.startsWith("/account")) {
+      return false;
+    }
+
+    if (signedIn && (item.href.startsWith("/auth/login") || item.href.startsWith("/auth/register"))) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: PublicMobileMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const visibleItems = items.length ? items : publicNavigation;
+  const visibleItems = navigationForAuth(items.length ? items : publicNavigation, isSignedIn);
 
   function closeMenu() {
     setOpen(false);
@@ -45,9 +64,12 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
           <aside className="fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
             <div className="shrink-0 border-b border-bc-line bg-bc-ink p-4">
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
-                  <h2 className="truncate text-xl font-black">{siteName}</h2>
+                <div className="flex min-w-0 items-center gap-3">
+                  <BrandMark className="h-9 w-9" iconClassName="h-4 w-4" logoUrl={logoUrl} siteName={siteName} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase text-bc-pink">Menu</p>
+                    <h2 className="truncate text-xl font-black">{siteName}</h2>
+                  </div>
                 </div>
                 <button
                   aria-label="Close site menu"
@@ -90,22 +112,29 @@ export function PublicMobileMenu({ items, siteName }: PublicMobileMenuProps) {
             </nav>
 
             <div className="grid shrink-0 gap-2 border-t border-bc-line bg-bc-ink p-4">
-              <Link
-                className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 text-sm font-semibold text-white"
-                href="/auth/login"
-                onClick={closeMenu}
-              >
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-                Login
-              </Link>
-              <Link
-                className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-bc-pink px-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,43,214,0.28)]"
-                href="/auth/register"
-                onClick={closeMenu}
-              >
-                <UserPlus className="h-4 w-4" aria-hidden="true" />
-                Register
-              </Link>
+              <HeaderAjaxCart compact />
+              {isSignedIn ? (
+                <LogoutButton label="Logout" size="md" />
+              ) : (
+                <>
+                  <Link
+                    className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 text-sm font-semibold text-white"
+                    href="/auth/login"
+                    onClick={closeMenu}
+                  >
+                    <LogIn className="h-4 w-4" aria-hidden="true" />
+                    Login
+                  </Link>
+                  <Link
+                    className="bc-focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-bc-pink px-3 text-sm font-semibold text-white shadow-[0_0_28px_rgba(255,43,214,0.28)]"
+                    href="/auth/register"
+                    onClick={closeMenu}
+                  >
+                    <UserPlus className="h-4 w-4" aria-hidden="true" />
+                    Register
+                  </Link>
+                </>
+              )}
             </div>
           </aside>
         </div>

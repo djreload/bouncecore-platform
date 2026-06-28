@@ -1,10 +1,14 @@
+import Link from "next/link";
 import { CreditCard, Gift, ShoppingBag, Sparkles, Star, Trophy } from "lucide-react";
+import { RewardWheelPanel } from "@/app/account/rewards/reward-wheel-panel";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { getPayPalIntegrationData, getPayPalStarsReadiness } from "@/lib/payments/paypal-service";
+import { getAccountRewardWheelsData } from "@/lib/rewards/prize-service";
 import { getAccountRewardsData, starPackages } from "@/lib/rewards/stars-service";
+import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +33,10 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
   },
   "paypal-not-ready": {
     message: "PayPal stars checkout needs client ID and server secret configuration before purchases can start.",
+    tone: "pink"
+  },
+  "paypal-api-error": {
+    message: "PayPal rejected the stars checkout request. Check sandbox/live mode and API credentials, then try again.",
     tone: "pink"
   },
   success: {
@@ -80,13 +88,25 @@ function statusTone(status: string) {
 export default async function AccountRewardsPage({ searchParams }: AccountRewardsPageProps) {
   const params = searchParams ? await searchParams : {};
   const user = await requireSignedInUser();
-  const [data, paypal] = await Promise.all([getAccountRewardsData(user.id), getPayPalIntegrationData()]);
+  const [data, paypal, wheelData] = await Promise.all([
+    getAccountRewardsData(user.id),
+    getPayPalIntegrationData(),
+    getAccountRewardWheelsData(user.id)
+  ]);
   const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
 
   return (
-    <DashboardShell title="Stars" description="Buy stars through PayPal, send them in live chat, and compete on live stream support leaderboards.">
-      <div className="grid gap-4 md:grid-cols-4">
+    <DashboardShell title="Rewards" description="Spin reward wheels, manage stars, and review your support history.">
+      {checkoutMessage ? (
+        <div className={`mb-5 rounded-md border p-3 text-sm ${messageClass(checkoutMessage.tone)}`}>
+          {checkoutMessage.message}
+        </div>
+      ) : null}
+
+      <RewardWheelPanel data={wheelData} />
+
+      <div className="mt-5 grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Stars</Badge>
           <p className="mt-4 text-3xl font-black">{data.wallet.balance.toLocaleString("en-GB")}</p>
@@ -108,12 +128,6 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
           <p className="mt-2 text-sm text-bc-muted">{data.purchaseStats.purchasedStars.toLocaleString("en-GB")} stars bought.</p>
         </article>
       </div>
-
-      {checkoutMessage ? (
-        <div className={`mt-5 rounded-md border p-3 text-sm ${messageClass(checkoutMessage.tone)}`}>
-          {checkoutMessage.message}
-        </div>
-      ) : null}
 
       <section className="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
@@ -168,6 +182,16 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
                     <CreditCard className="h-4 w-4" aria-hidden="true" />
                     PayPal checkout
                   </Button>
+                  <p className="mt-2 text-xs leading-5 text-bc-muted">
+                    Uses PayPal and stores purchase references.{" "}
+                    <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
+                      Privacy
+                    </Link>{" "}
+                    /{" "}
+                    <Link className="font-semibold text-bc-electric hover:text-white" href={termsHref}>
+                      Terms
+                    </Link>
+                  </p>
                 </form>
               ))}
             </div>

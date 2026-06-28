@@ -170,6 +170,14 @@ export const editablePublicPageDefinitions = [
     icon: "user",
     key: "account",
     tone: "cyan"
+  },
+  {
+    defaultDescription: "Public help desk for account, stream, chat, shop, music, and mobile support requests.",
+    defaultTitle: "Support",
+    href: "/support",
+    icon: "message",
+    key: "support",
+    tone: "pink"
   }
 ] as const satisfies Array<{
   defaultDescription: string;

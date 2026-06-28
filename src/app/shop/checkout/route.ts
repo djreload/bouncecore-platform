@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { appOrigin, appUrl } from "@/lib/http/app-url";
-import { startShopCheckout } from "@/lib/shop/checkout-service";
+import { paypalCheckoutErrorParam } from "@/lib/payments/paypal-checkout-errors";
+import { startShopCartCheckout } from "@/lib/shop/checkout-service";
 
 function shopRedirect(request: NextRequest, checkout: string) {
   return NextResponse.redirect(appUrl(request, "/shop", { checkout }), 303);
+}
+
+function formString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === "string" ? value : "";
 }
 
 export async function POST(request: NextRequest) {
@@ -16,19 +22,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
-    const variantId = formData.get("variantId");
-    const quantity = formData.get("quantity");
-    const checkout = await startShopCheckout(user.id, {
+    const variantIds = formData.getAll("variantId").filter((variantId): variantId is string => typeof variantId === "string");
+    const quantities = formData.getAll("quantity").filter((quantity): quantity is string => typeof quantity === "string");
+    const checkout = await startShopCartCheckout(user.id, {
+      items: variantIds.map((variantId, index) => ({
+        quantity: quantities[index] ?? "1",
+        variantId
+      })),
       origin: appOrigin(request),
-      quantity: typeof quantity === "string" ? quantity : "",
-      variantId: typeof variantId === "string" ? variantId : ""
+      shippingAddress: {
+        city: formString(formData, "shippingCity"),
+        country: formString(formData, "shippingCountry"),
+        county: formString(formData, "shippingCounty"),
+        email: formString(formData, "shippingEmail"),
+        line1: formString(formData, "shippingLine1"),
+        line2: formString(formData, "shippingLine2"),
+        name: formString(formData, "shippingName"),
+        phone: formString(formData, "shippingPhone"),
+        postcode: formString(formData, "shippingPostcode")
+      }
     });
 
     return NextResponse.redirect(checkout.approvalUrl, 303);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "";
-    const checkout = message.includes("PayPal") ? "paypal-not-ready" : "error";
-
-    return shopRedirect(request, checkout);
+    return shopRedirect(request, paypalCheckoutErrorParam(error));
   }
 }

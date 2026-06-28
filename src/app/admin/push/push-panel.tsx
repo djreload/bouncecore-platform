@@ -59,12 +59,17 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Mobile devices</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.activeMobileDevices}</p>
-          <p className="mt-2 text-sm text-bc-muted">Active push registrations.</p>
+          <p className="mt-2 text-sm text-bc-muted">{data.stats.activeFcmDevices} Android FCM registrations.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={data.stats.pushEncryptionConfigured ? "acid" : "amber"}>Push key</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.pushEncryptionConfigured ? "Ready" : "Missing"}</p>
           <p className="mt-2 text-sm text-bc-muted">{data.stats.deliverableMobileDevices} encrypted device tokens.</p>
+        </article>
+        <article className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <Badge tone={data.stats.fcmDispatchConfigured ? "acid" : "amber"}>FCM server</Badge>
+          <p className="mt-4 text-3xl font-black">{data.stats.fcmDispatchConfigured ? "Ready" : "Missing"}</p>
+          <p className="mt-2 text-sm text-bc-muted">Required for native Android push delivery.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Queued</Badge>
@@ -165,7 +170,9 @@ export function AdminPushPanel({ data }: AdminPushPanelProps) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h4 className="font-black">Mobile delivery queue</h4>
-              <p className="mt-1 text-sm text-bc-muted">Processes up to 50 queued rows per run. Check Expo receipts after pushes have been accepted.</p>
+              <p className="mt-1 text-sm text-bc-muted">
+                Processes up to 50 queued rows per run. Android FCM sends directly; Expo receipts can be checked after Expo accepts pushes.
+              </p>
             </div>
             <div className="flex flex-wrap gap-3">
               <form action={queueFormAction}>

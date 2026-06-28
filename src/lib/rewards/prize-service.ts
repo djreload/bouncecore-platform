@@ -2,6 +2,13 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
 import type { Role } from "@/lib/auth/rbac";
 import { prisma } from "@/lib/db/prisma";
+import {
+  getRewardWheelCooldownState,
+  getRewardWheelSpinCostState,
+  getRewardWheelTotalWeight,
+  pickWeightedRewardSegment,
+  rewardWheelResultStatus
+} from "@/lib/rewards/reward-wheel-core";
 
 export const rewardWheelStatuses = ["draft", "active", "paused", "archived"] as const;
 export const rewardSegmentStatuses = ["active", "disabled"] as const;
@@ -28,9 +35,29 @@ export type RewardSegmentInput = {
   prizeType: string;
   prizeValue?: string;
   segmentId?: string;
+  sortOrder: string;
   starAmount: string;
   status: string;
   weight: string;
+  wheelId: string;
+};
+
+export type RewardSegmentMoveInput = {
+  direction: "down" | "up";
+  segmentId: string;
+  wheelId: string;
+};
+
+export type RewardWheelSegmentSpreadInput = {
+  wheelId: string;
+};
+
+export type RewardWheelDeleteInput = {
+  wheelId: string;
+};
+
+export type RewardSegmentDeleteInput = {
+  segmentId: string;
   wheelId: string;
 };
 
@@ -53,6 +80,19 @@ export type PrizeClaimStatusInput = {
 
 export type AdminSpinWheelsData = {
   claimsPending: number;
+  shopProducts: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    status: string;
+    variants: Array<{
+      id: string;
+      name: string;
+      pricePence: number;
+      sku: string;
+      stock: number;
+    }>;
+  }>;
   stats: {
     activeSegments: number;
     activeWheels: number;
@@ -72,6 +112,7 @@ export type AdminSpinWheelsData = {
       label: string;
       prizeType: string;
       prizeValue: string | null;
+      sortOrder: number;
       starAmount: number;
       status: string;
       weight: number;
@@ -132,6 +173,67 @@ export type AdminPrizeClaimsData = {
   }>;
 };
 
+export type AccountRewardWheelsData = {
+  recentClaims: AccountPrizeClaimRow[];
+  walletBalance: number;
+  wheels: AccountRewardWheelRow[];
+};
+
+export type AccountRewardWheelRow = {
+  canSpin: boolean;
+  cooldownMinutes: number;
+  cooldownRemainingSeconds: number;
+  cooldownRetryAt: string | null;
+  costStars: number;
+  description: string | null;
+  id: string;
+  name: string;
+  segments: Array<{
+    id: string;
+    label: string;
+    oddsPercent: number;
+    prizeType: string;
+    starAmount: number;
+    weight: number;
+  }>;
+  slug: string;
+  totalWeight: number;
+  unavailableReason: string | null;
+};
+
+export type AccountPrizeClaimRow = {
+  createdAt: string;
+  description: string | null;
+  id: string;
+  prizeType: string;
+  segmentLabel: string | null;
+  starAmount: number;
+  status: string;
+  title: string;
+  wheelName: string | null;
+};
+
+export type RewardWheelSpinResult = {
+  claimId: string;
+  message: string;
+  prizeType: string;
+  segmentId: string;
+  segmentLabel: string;
+  status: string;
+  walletBalance: number;
+  wheelId: string;
+  wheelName: string;
+};
+
+export class RewardWheelSpinError extends Error {
+  constructor(
+    message: string,
+    public readonly code: "cooldown" | "insufficient-stars" | "invalid-wheel" | "no-segments"
+  ) {
+    super(message);
+  }
+}
+
 function normalizedText(value: string | undefined, maxLength: number) {
   const text = value?.trim() ?? "";
 
@@ -164,6 +266,16 @@ function parseInteger(value: string, label: string, min: number, max: number) {
   }
 
   return number;
+}
+
+function parseOptionalInteger(value: string | undefined, label: string, min: number, max: number) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  return parseInteger(text, label, min, max);
 }
 
 function normalizeSlug(value: string, fallback: string) {
@@ -230,7 +342,7 @@ function statusStats<T extends string>(items: Array<{ status: string }>, keys: r
 }
 
 export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
-  const [wheels, claimsPending] = await Promise.all([
+  const [wheels, claimsPending, shopProducts] = await Promise.all([
     prisma.rewardSpinWheel.findMany({
       include: {
         segments: {
@@ -243,13 +355,13 @@ export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
           },
           orderBy: [
             {
-              status: "asc"
+              sortOrder: "asc"
             },
             {
-              weight: "desc"
+              createdAt: "asc"
             },
             {
-              label: "asc"
+              id: "asc"
             }
           ]
         }
@@ -264,12 +376,52 @@ export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
           in: ["pending", "approved"]
         }
       }
+    }),
+    prisma.product.findMany({
+      where: {
+        status: {
+          not: "archived"
+        }
+      },
+      include: {
+        variants: {
+          orderBy: [
+            {
+              name: "asc"
+            },
+            {
+              sku: "asc"
+            }
+          ]
+        }
+      },
+      orderBy: [
+        {
+          name: "asc"
+        },
+        {
+          slug: "asc"
+        }
+      ]
     })
   ]);
   const segments = wheels.flatMap((wheel) => wheel.segments);
 
   return {
     claimsPending,
+    shopProducts: shopProducts.map((product) => ({
+      id: product.id,
+      name: product.name,
+      slug: product.slug,
+      status: product.status,
+      variants: product.variants.map((variant) => ({
+        id: variant.id,
+        name: variant.name,
+        pricePence: variant.pricePence,
+        sku: variant.sku,
+        stock: variant.stock
+      }))
+    })),
     stats: {
       activeSegments: segments.filter((segment) => segment.status === "active").length,
       activeWheels: wheels.filter((wheel) => wheel.status === "active").length,
@@ -289,13 +441,14 @@ export async function getAdminSpinWheelsData(): Promise<AdminSpinWheelsData> {
         label: segment.label,
         prizeType: segment.prizeType,
         prizeValue: segment.prizeValue,
+        sortOrder: segment.sortOrder,
         starAmount: segment.starAmount,
         status: segment.status,
         weight: segment.weight
       })),
       slug: wheel.slug,
       status: wheel.status,
-      totalWeight: wheel.segments.reduce((total, segment) => total + (segment.status === "active" ? segment.weight : 0), 0)
+      totalWeight: getRewardWheelTotalWeight(wheel.segments)
     }))
   };
 }
@@ -340,6 +493,47 @@ export async function createOrUpdateRewardWheel(input: RewardWheelInput, actorId
   return wheel;
 }
 
+export async function deleteRewardWheel(input: RewardWheelDeleteInput, actorId: string) {
+  if (!input.wheelId) {
+    throw new Error("Missing reward wheel.");
+  }
+
+  const wheel = await prisma.rewardSpinWheel.findUniqueOrThrow({
+    where: {
+      id: input.wheelId
+    },
+    include: {
+      _count: {
+        select: {
+          prizeClaims: true,
+          segments: true
+        }
+      }
+    }
+  });
+
+  await prisma.rewardSpinWheel.delete({
+    where: {
+      id: wheel.id
+    }
+  });
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel.delete",
+    target: `reward-wheel:${wheel.id}`,
+    severity: "warning",
+    metadata: {
+      claimCount: wheel._count.prizeClaims,
+      segmentCount: wheel._count.segments,
+      slug: wheel.slug,
+      status: wheel.status
+    }
+  });
+
+  return wheel;
+}
+
 export async function ensureDefaultRewardWheel(actorId: string) {
   const wheel = await prisma.rewardSpinWheel.upsert({
     where: {
@@ -352,7 +546,7 @@ export async function ensureDefaultRewardWheel(actorId: string) {
     create: {
       cooldownMinutes: 1440,
       costStars: 0,
-      description: "Starter supporter rewards wheel. Keep in draft until prize rules are approved.",
+      description: "Starter supporter rewards wheel. Spin to reveal a saved prize result.",
       name: "Supporter Wheel",
       slug: "supporter-wheel",
       status: "draft",
@@ -362,6 +556,7 @@ export async function ensureDefaultRewardWheel(actorId: string) {
             label: "Sticker pack",
             prizeType: "merch",
             prizeValue: "sticker-pack",
+            sortOrder: 10,
             starAmount: 0,
             weight: 25
           },
@@ -369,11 +564,13 @@ export async function ensureDefaultRewardWheel(actorId: string) {
             label: "VIP shoutout",
             prizeType: "vip",
             prizeValue: "shoutout",
+            sortOrder: 20,
             weight: 10
           },
           {
             label: "Try again",
             prizeType: "none",
+            sortOrder: 30,
             weight: 65
           }
         ]
@@ -401,11 +598,34 @@ export async function createOrUpdateRewardSegment(input: RewardSegmentInput, act
   assertPrizeType(prizeType);
 
   const starAmount = parseInteger(input.starAmount, "Prize quantity", 0, 1000000);
+  const submittedSortOrder = parseOptionalInteger(input.sortOrder, "Wheel order", 0, 100000);
+  let sortOrder = submittedSortOrder;
+
+  if (sortOrder === null) {
+    sortOrder = input.segmentId
+      ? (await prisma.rewardSpinWheelSegment.findUnique({
+          select: {
+            sortOrder: true
+          },
+          where: {
+            id: input.segmentId
+          }
+        }))?.sortOrder ?? 0
+      : ((await prisma.rewardSpinWheelSegment.aggregate({
+          _max: {
+            sortOrder: true
+          },
+          where: {
+            wheelId: input.wheelId
+          }
+        }))._max.sortOrder ?? -10) + 10;
+  }
 
   const data = {
     label: normalizedRequiredText(input.label, 120, "Segment label"),
     prizeType,
     prizeValue: normalizedText(input.prizeValue, 240),
+    sortOrder,
     starAmount,
     status,
     weight: parseInteger(input.weight, "Weight", 1, 100000)
@@ -437,6 +657,199 @@ export async function createOrUpdateRewardSegment(input: RewardSegmentInput, act
   });
 
   return segment;
+}
+
+export async function deleteRewardSegment(input: RewardSegmentDeleteInput, actorId: string) {
+  if (!input.segmentId || !input.wheelId) {
+    throw new Error("Missing reward wheel segment.");
+  }
+
+  const segment = await prisma.rewardSpinWheelSegment.findFirstOrThrow({
+    where: {
+      id: input.segmentId,
+      wheelId: input.wheelId
+    },
+    include: {
+      _count: {
+        select: {
+          prizeClaims: true
+        }
+      }
+    }
+  });
+
+  await prisma.rewardSpinWheelSegment.delete({
+    where: {
+      id: segment.id
+    }
+  });
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel_segment.delete",
+    target: `reward-wheel-segment:${segment.id}`,
+    severity: "warning",
+    metadata: {
+      claimCount: segment._count.prizeClaims,
+      label: segment.label,
+      prizeType: segment.prizeType,
+      wheelId: segment.wheelId
+    }
+  });
+
+  return segment;
+}
+
+export async function moveRewardSegment(input: RewardSegmentMoveInput, actorId: string) {
+  const segments = await prisma.rewardSpinWheelSegment.findMany({
+    orderBy: [
+      {
+        sortOrder: "asc"
+      },
+      {
+        createdAt: "asc"
+      },
+      {
+        id: "asc"
+      }
+    ],
+    where: {
+      wheelId: input.wheelId
+    }
+  });
+  const currentIndex = segments.findIndex((segment) => segment.id === input.segmentId);
+  const targetIndex = input.direction === "up" ? currentIndex - 1 : currentIndex + 1;
+
+  if (currentIndex < 0) {
+    throw new Error("Reward wheel segment was not found.");
+  }
+
+  const segment = segments[currentIndex];
+  const neighbour = segments[targetIndex];
+
+  if (!neighbour) {
+    return segment;
+  }
+
+  const reorderedSegments = [...segments];
+  reorderedSegments[currentIndex] = neighbour;
+  reorderedSegments[targetIndex] = segment;
+
+  await prisma.$transaction(
+    reorderedSegments.map((orderedSegment, index) =>
+      prisma.rewardSpinWheelSegment.update({
+        data: {
+          sortOrder: index * 10
+        },
+        where: {
+          id: orderedSegment.id
+        }
+      })
+    )
+  );
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel_segment.move",
+    target: `reward-wheel-segment:${segment.id}`,
+    severity: "info",
+    metadata: {
+      direction: input.direction,
+      wheelId: segment.wheelId
+    }
+  });
+
+  return segment;
+}
+
+function rewardSegmentSpreadKey(segment: { label: string; prizeType: string }) {
+  return `${segment.prizeType}:${segment.label.trim().toLowerCase().replace(/\s+/g, " ")}`;
+}
+
+export async function spreadRewardWheelSegments(input: RewardWheelSegmentSpreadInput, actorId: string) {
+  const segments = await prisma.rewardSpinWheelSegment.findMany({
+    orderBy: [
+      {
+        sortOrder: "asc"
+      },
+      {
+        createdAt: "asc"
+      },
+      {
+        id: "asc"
+      }
+    ],
+    where: {
+      wheelId: input.wheelId
+    }
+  });
+
+  if (segments.length <= 2) {
+    return segments;
+  }
+
+  const buckets = new Map<string, typeof segments>();
+
+  for (const segment of segments) {
+    const key = rewardSegmentSpreadKey(segment);
+    buckets.set(key, [...(buckets.get(key) ?? []), segment]);
+  }
+
+  const reorderedSegments: typeof segments = [];
+  let lastKey = "";
+
+  while (reorderedSegments.length < segments.length) {
+    const candidates = [...buckets.entries()]
+      .filter(([, bucket]) => bucket.length > 0)
+      .sort((left, right) => {
+        const keyPenaltyLeft = left[0] === lastKey ? 1 : 0;
+        const keyPenaltyRight = right[0] === lastKey ? 1 : 0;
+
+        if (keyPenaltyLeft !== keyPenaltyRight) {
+          return keyPenaltyLeft - keyPenaltyRight;
+        }
+
+        return right[1].length - left[1].length || (left[1][0]?.sortOrder ?? 0) - (right[1][0]?.sortOrder ?? 0);
+      });
+    const selected = candidates[0];
+
+    if (!selected) {
+      break;
+    }
+
+    const [key, bucket] = selected;
+    const nextSegment = bucket.shift();
+
+    if (nextSegment) {
+      reorderedSegments.push(nextSegment);
+      lastKey = key;
+    }
+  }
+
+  await prisma.$transaction(
+    reorderedSegments.map((segment, index) =>
+      prisma.rewardSpinWheelSegment.update({
+        data: {
+          sortOrder: index * 10
+        },
+        where: {
+          id: segment.id
+        }
+      })
+    )
+  );
+
+  await writeAuditLog({
+    actorId,
+    action: "rewards.wheel_segment.spread",
+    target: `reward-wheel:${input.wheelId}`,
+    severity: "info",
+    metadata: {
+      segmentCount: reorderedSegments.length
+    }
+  });
+
+  return reorderedSegments;
 }
 
 export async function getAdminPrizeClaimsData(): Promise<AdminPrizeClaimsData> {
@@ -547,6 +960,313 @@ export async function getAdminPrizeClaimsData(): Promise<AdminPrizeClaimsData> {
       status: user.status
     })),
     wheels
+  };
+}
+
+export async function getAccountRewardWheelsData(userId: string): Promise<AccountRewardWheelsData> {
+  const [wallet, wheels, claims] = await Promise.all([
+    prisma.starWallet.upsert({
+      where: {
+        userId
+      },
+      update: {},
+      create: {
+        balance: 0,
+        userId
+      }
+    }),
+    prisma.rewardSpinWheel.findMany({
+      where: {
+        status: "active"
+      },
+      include: {
+        segments: {
+          where: {
+            status: "active"
+          },
+          orderBy: [
+            {
+              sortOrder: "asc"
+            },
+            {
+              createdAt: "asc"
+            },
+            {
+              id: "asc"
+            }
+          ]
+        }
+      },
+      orderBy: [
+        {
+          createdAt: "asc"
+        },
+        {
+          name: "asc"
+        }
+      ]
+    }),
+    prisma.prizeClaim.findMany({
+      where: {
+        userId,
+        wheelId: {
+          not: null
+        }
+      },
+      include: {
+        segment: true,
+        wheel: {
+          select: {
+            name: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 20
+    })
+  ]);
+  const latestClaimByWheelId = new Map<string, Date>();
+
+  for (const claim of claims) {
+    if (claim.wheelId && !latestClaimByWheelId.has(claim.wheelId)) {
+      latestClaimByWheelId.set(claim.wheelId, claim.createdAt);
+    }
+  }
+
+  return {
+    recentClaims: claims.map((claim) => ({
+      createdAt: claim.createdAt.toISOString(),
+      description: claim.description,
+      id: claim.id,
+      prizeType: claim.prizeType,
+      segmentLabel: claim.segment?.label ?? null,
+      starAmount: claim.starAmount,
+      status: claim.status,
+      title: claim.title,
+      wheelName: claim.wheel?.name ?? null
+    })),
+    walletBalance: wallet.balance,
+    wheels: wheels.map((wheel) => {
+      const totalWeight = getRewardWheelTotalWeight(wheel.segments);
+      const cooldown = getRewardWheelCooldownState({
+        cooldownMinutes: wheel.cooldownMinutes,
+        lastSpinAt: latestClaimByWheelId.get(wheel.id) ?? null
+      });
+      const costState = getRewardWheelSpinCostState({
+        costStars: wheel.costStars,
+        walletBalance: wallet.balance
+      });
+      const hasSegments = totalWeight > 0;
+      const unavailableReason = !hasSegments
+        ? "This wheel needs active prize segments."
+        : !costState.canAfford
+          ? `You need ${costState.missingStars.toLocaleString("en-GB")} more stars to spin this wheel.`
+          : !cooldown.available
+            ? `Available again ${cooldown.retryAt ? new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(cooldown.retryAt) : "soon"}.`
+            : null;
+
+      return {
+        canSpin: hasSegments && costState.canAfford && cooldown.available,
+        cooldownMinutes: wheel.cooldownMinutes,
+        cooldownRemainingSeconds: cooldown.remainingSeconds,
+        cooldownRetryAt: cooldown.retryAt?.toISOString() ?? null,
+        costStars: wheel.costStars,
+        description: wheel.description,
+        id: wheel.id,
+        name: wheel.name,
+        segments: wheel.segments.map((segment) => ({
+          id: segment.id,
+          label: segment.label,
+          oddsPercent: totalWeight > 0 ? Math.round((segment.weight / totalWeight) * 1000) / 10 : 0,
+          prizeType: segment.prizeType,
+          starAmount: segment.starAmount,
+          weight: segment.weight
+        })),
+        slug: wheel.slug,
+        totalWeight,
+        unavailableReason
+      };
+    })
+  };
+}
+
+export async function spinRewardWheel(userId: string, wheelId: string): Promise<RewardWheelSpinResult> {
+  const now = new Date();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const wheel = await tx.rewardSpinWheel.findFirst({
+      where: {
+        id: wheelId,
+        status: "active"
+      },
+      include: {
+        segments: {
+          where: {
+            status: "active"
+          },
+          orderBy: [
+            {
+              sortOrder: "asc"
+            },
+            {
+              createdAt: "asc"
+            },
+            {
+              id: "asc"
+            }
+          ]
+        }
+      }
+    });
+
+    if (!wheel) {
+      throw new RewardWheelSpinError("That reward wheel is not available.", "invalid-wheel");
+    }
+
+    const totalWeight = getRewardWheelTotalWeight(wheel.segments);
+
+    if (totalWeight <= 0) {
+      throw new RewardWheelSpinError("That reward wheel has no active prize segments.", "no-segments");
+    }
+
+    const latestClaim = await tx.prizeClaim.findFirst({
+      where: {
+        userId,
+        wheelId: wheel.id
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+    const cooldown = getRewardWheelCooldownState({
+      cooldownMinutes: wheel.cooldownMinutes,
+      lastSpinAt: latestClaim?.createdAt ?? null,
+      now
+    });
+
+    if (!cooldown.available) {
+      throw new RewardWheelSpinError("This reward wheel is still cooling down.", "cooldown");
+    }
+
+    const wallet = await tx.starWallet.upsert({
+      where: {
+        userId
+      },
+      update: {},
+      create: {
+        balance: 0,
+        userId
+      }
+    });
+
+    const costState = getRewardWheelSpinCostState({
+      costStars: wheel.costStars,
+      walletBalance: wallet.balance
+    });
+
+    if (!costState.canAfford) {
+      throw new RewardWheelSpinError("You do not have enough stars to spin this wheel.", "insufficient-stars");
+    }
+
+    const winningSegment = pickWeightedRewardSegment(wheel.segments);
+    const status = rewardWheelResultStatus(winningSegment.prizeType);
+    let walletBalance = wallet.balance;
+
+    if (wheel.costStars > 0) {
+      const debit = await tx.starWallet.updateMany({
+        where: {
+          balance: {
+            gte: wheel.costStars
+          },
+          userId
+        },
+        data: {
+          balance: {
+            decrement: wheel.costStars
+          }
+        }
+      });
+
+      if (debit.count !== 1) {
+        throw new RewardWheelSpinError("You do not have enough stars to spin this wheel.", "insufficient-stars");
+      }
+
+      const debitedWallet = await tx.starWallet.findUniqueOrThrow({
+        where: {
+          userId
+        }
+      });
+      walletBalance = debitedWallet.balance;
+    }
+
+    const claim = await tx.prizeClaim.create({
+      data: {
+        description:
+          winningSegment.prizeType === "none"
+            ? "Reward wheel spin result. No prize fulfilment is required."
+            : "Reward wheel spin result. Admin fulfilment may be required.",
+        prizeType: winningSegment.prizeType,
+        prizeValue: winningSegment.prizeValue,
+        segmentId: winningSegment.id,
+        starAmount: winningSegment.starAmount,
+        status,
+        title: winningSegment.label,
+        userId,
+        wheelId: wheel.id
+      }
+    });
+
+    await tx.notification.create({
+      data: {
+        actionUrl: `/account/rewards#reward-claim-${claim.id}`,
+        body:
+          status === "fulfilled"
+            ? `Your ${wheel.name} spin landed on ${winningSegment.label}.`
+            : `Your ${wheel.name} spin landed on ${winningSegment.label}. Admin review is pending.`,
+        title: "Reward wheel result",
+        type: "rewards.wheel_spin",
+        userId
+      }
+    });
+
+    return {
+      claim,
+      segment: winningSegment,
+      status,
+      walletBalance,
+      wheel
+    };
+  });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "rewards.wheel.spin",
+    target: `reward-wheel:${result.wheel.id}`,
+    severity: result.status === "pending" ? "warning" : "info",
+    metadata: {
+      claimId: result.claim.id,
+      costStars: result.wheel.costStars,
+      prizeType: result.segment.prizeType,
+      segmentId: result.segment.id,
+      userId
+    }
+  });
+
+  return {
+    claimId: result.claim.id,
+    message:
+      result.status === "fulfilled"
+        ? `Wheel stopped on ${result.segment.label}.`
+        : `Wheel stopped on ${result.segment.label}. Your prize claim is pending admin fulfilment.`,
+    prizeType: result.segment.prizeType,
+    segmentId: result.segment.id,
+    segmentLabel: result.segment.label,
+    status: result.status,
+    walletBalance: result.walletBalance,
+    wheelId: result.wheel.id,
+    wheelName: result.wheel.name
   };
 }
 

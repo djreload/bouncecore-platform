@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminIntegrationsData, type IntegrationStatus } from "@/lib/admin/integrations-service";
+import { AdminEmailTestForm } from "@/app/admin/integrations/email-test-form";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,7 @@ function groupIcon(id: string) {
 }
 
 export default async function AdminIntegrationsPage() {
-  await requireUserPermission("admin.access");
-  const data = await getAdminIntegrationsData();
+  const [user, data] = await Promise.all([requireUserPermission("admin.access"), getAdminIntegrationsData()]);
 
   return (
     <AdminShell
@@ -129,6 +129,8 @@ export default async function AdminIntegrationsPage() {
                     </div>
                   ) : null}
                 </div>
+
+                {group.id === "mail" ? <AdminEmailTestForm defaultRecipientEmail={user.email} /> : null}
               </article>
             );
           })}
