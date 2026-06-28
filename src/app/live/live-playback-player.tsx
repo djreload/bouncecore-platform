@@ -88,6 +88,10 @@ function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
   return sources.filter((source): source is StreamPlaybackSource => Boolean(source)).slice(0, 2);
 }
 
+function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
+  return source?.presenterName ?? source?.title ?? fallback;
+}
+
 function HlsVideo({
   ariaLabel,
   className,
@@ -209,6 +213,7 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
   const secondaryPlaybackUrl =
     secondarySource?.playbackUrl && secondarySource.playbackUrl !== primaryPlaybackUrl ? secondarySource.playbackUrl : null;
   const canAttemptPlayback = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
+  const hasSecondaryPlayback = Boolean(canAttemptPlayback && secondaryPlaybackUrl && liveState.activeIngests.length > 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -230,9 +235,12 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
         }
 
         setLiveState((current) => ({
-          activeIngests: normalizeActiveIngests(payload.activeIngests).length
-            ? normalizeActiveIngests(payload.activeIngests)
-            : current.activeIngests,
+          activeIngests:
+            typeof payload.status === "string" && payload.status === "offline"
+              ? []
+              : normalizeActiveIngests(payload.activeIngests).length
+                ? normalizeActiveIngests(payload.activeIngests)
+                : current.activeIngests,
           title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
           status: typeof payload.status === "string" ? payload.status : current.status,
           playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
@@ -258,7 +266,12 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
   }, []);
 
   return (
-    <section className="bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x">
+    <section
+      className={cn(
+        "bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x",
+        hasSecondaryPlayback ? "ring-1 ring-bc-pink/45" : null
+      )}
+    >
       {canAttemptPlayback && primaryPlaybackUrl ? (
         <HlsVideo
           ariaLabel={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
@@ -275,25 +288,37 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
         </div>
       )}
 
-      {canAttemptPlayback && secondaryPlaybackUrl ? (
-        <div className="absolute bottom-3 right-3 z-20 w-[34%] min-w-32 overflow-hidden rounded-md border border-bc-electric/60 bg-black shadow-[0_14px_44px_rgba(0,0,0,0.62)]">
+      {hasSecondaryPlayback && primarySource ? (
+        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-pink/70 bg-black/70 px-3 py-2 text-left shadow-lg shadow-black/40 backdrop-blur">
+          <p className="text-[11px] font-black uppercase tracking-wide text-bc-pink">1st DJ stream</p>
+          <p className="max-w-52 truncate text-sm font-black text-white">{sourceLabel(primarySource, "Main DJ")}</p>
+        </div>
+      ) : null}
+
+      {hasSecondaryPlayback && secondaryPlaybackUrl ? (
+        <div className="absolute bottom-4 right-4 z-30 w-[min(34rem,36%)] min-w-[18rem] overflow-hidden rounded-md border-4 border-[#22c55e] bg-black shadow-[0_18px_54px_rgba(0,0,0,0.72)] max-sm:bottom-3 max-sm:right-3 max-sm:w-[45%] max-sm:min-w-[10rem]">
           <div className="relative aspect-video bg-black">
             <HlsVideo
               ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
-              className="absolute inset-0 h-full w-full bg-black object-cover"
+              className="absolute inset-0 h-full w-full bg-black object-contain"
               muted
               playbackUrl={secondaryPlaybackUrl}
             />
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-2 border-t border-bc-line bg-bc-ink/92 px-2 py-1 text-[11px] font-black uppercase text-white">
-            <span className="truncate">{secondarySource?.presenterName ?? secondarySource?.title ?? "Next DJ"}</span>
-            <span className="shrink-0 rounded bg-bc-electric/15 px-1.5 py-0.5 text-bc-electric">Muted</span>
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 bg-gradient-to-b from-black/85 via-black/35 to-transparent p-3 max-sm:p-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#22c55e] max-sm:text-[9px]">2nd DJ stream</p>
+                <p className="truncate text-base font-black text-white max-sm:text-xs">{sourceLabel(secondarySource, "Next DJ")}</p>
+              </div>
+              <span className="shrink-0 rounded border border-[#22c55e]/60 bg-black/70 px-2 py-1 text-[10px] font-black uppercase text-[#22c55e] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[8px]">
+                Muted
+              </span>
+            </div>
           </div>
         </div>
       ) : null}
 
-      {canAttemptPlayback && liveState.activeIngests.length > 1 ? (
-        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
+      {hasSecondaryPlayback ? (
+        <div className="absolute right-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
           {liveState.activeIngests.length} DJs connected
         </div>
       ) : null}

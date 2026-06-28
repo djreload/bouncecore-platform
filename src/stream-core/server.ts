@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { resolveTranscoderSourceUrlTemplate } from "../lib/stream/transcoder-source";
 import { mediaGatewayPathOnline } from "../lib/stream/media-gateway-state";
+import { mediaGatewayHlsUrlFromTemplate, resolveStreamCorePlaybackUrls } from "../lib/stream/stream-core-playback-url";
 import {
   createActiveIngestId,
   removeActiveIngestState,
@@ -85,13 +86,19 @@ const internalToken = envValue("STREAM_CORE_INTERNAL_TOKEN");
 const keyValidationUrl = envValue("STREAM_CORE_KEY_VALIDATION_URL");
 const keyValidationToken = envValue("STREAM_CORE_KEY_VALIDATION_TOKEN") || envValue("INTERNAL_TASK_TOKEN");
 const transcoderEnabled = envValue("TRANSCODER_ENABLED").toLowerCase() === "true";
-const transcoderPlaybackUrl = transcoderEnabled ? envValue("TRANSCODER_HLS_PUBLIC_URL") : "";
-const mediaGatewayPlaybackUrl = transcoderPlaybackUrl || envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL");
+const playbackUrls = resolveStreamCorePlaybackUrls({
+  mediaGatewayPublicHlsUrl: envValue("MEDIA_GATEWAY_PUBLIC_HLS_URL"),
+  publicPlaybackUrl: envValue("PUBLIC_PLAYBACK_URL"),
+  streamCorePublicPlaybackUrl: envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL"),
+  transcoderEnabled,
+  transcoderHlsPublicUrl: envValue("TRANSCODER_HLS_PUBLIC_URL")
+});
+const mediaGatewayPlaybackUrl = playbackUrls.directMediaGatewayPlaybackUrl;
 const mediaGatewayApiUrl = envValue("MEDIA_GATEWAY_API_URL").replace(/\/+$/, "");
 const transcoderSourceUrlTemplate =
   envValue("STREAM_CORE_TRANSCODER_SOURCE_URL") || envValue("TRANSCODER_INPUT_URL") || "rtmp://media-gateway:1935/{path}";
 const stateFile = envValue("STREAM_CORE_STATE_FILE");
-const publicPlaybackUrl = transcoderPlaybackUrl || envValue("STREAM_CORE_PUBLIC_PLAYBACK_URL") || envValue("PUBLIC_PLAYBACK_URL") || null;
+const publicPlaybackUrl = playbackUrls.primaryPublicPlaybackUrl;
 const offlineAfterSeconds = configuredNumber("STREAM_CORE_OFFLINE_AFTER_SECONDS", defaultOfflineAfterSeconds);
 const maxActiveIngests = configuredNumber("STREAM_CORE_MAX_ACTIVE_INGESTS", defaultMaxActiveIngests);
 
@@ -365,21 +372,7 @@ function streamKeyFromPath(path: string | null) {
 }
 
 function mediaGatewayHlsUrl(path: string | null, includeSensitivePath = false) {
-  if (!mediaGatewayPlaybackUrl) {
-    return null;
-  }
-
-  if (!mediaGatewayPlaybackUrl.includes("{path}")) {
-    return mediaGatewayPlaybackUrl;
-  }
-
-  const safePath = (path ?? "live")
-    .split("/")
-    .filter((segment) => segment && (includeSensitivePath || !segment.startsWith("bc_live_")))
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-
-  return mediaGatewayPlaybackUrl.replace("{path}", safePath || "live");
+  return mediaGatewayHlsUrlFromTemplate(mediaGatewayPlaybackUrl, path, includeSensitivePath);
 }
 
 function currentTranscoderSourceUrl() {
