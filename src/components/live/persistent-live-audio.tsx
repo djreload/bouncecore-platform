@@ -3,7 +3,7 @@
 import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type LiveAudioState = {
   playbackUrl: string | null;
@@ -17,6 +17,7 @@ type LiveStatusPayload = {
 
 const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
+const liveVideoSlotSelector = "[data-live-primary-video-slot]";
 
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
@@ -63,7 +64,8 @@ export function requestPersistentLiveAudio() {
 
 export function PersistentLiveAudio() {
   const pathname = usePathname();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const parkingRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [liveState, setLiveState] = useState<LiveAudioState>({
     playbackUrl: null,
@@ -71,7 +73,51 @@ export function PersistentLiveAudio() {
   });
   const [userEnabled, setUserEnabled] = useState(false);
   const canPlay = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
-  const onLivePage = pathname === "/live" || pathname.startsWith("/live?");
+
+  const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (video.parentElement !== host) {
+      host.appendChild(video);
+    }
+
+    video.controls = docked;
+    video.setAttribute("aria-label", "Primary live stream");
+    video.style.backgroundColor = "#000000";
+    video.style.objectFit = "contain";
+    video.style.pointerEvents = docked ? "auto" : "none";
+    video.style.position = docked ? "absolute" : "fixed";
+    video.style.inset = docked ? "0" : "auto";
+    video.style.left = docked ? "0" : "-9999px";
+    video.style.top = docked ? "0" : "0";
+    video.style.width = docked ? "100%" : "1px";
+    video.style.height = docked ? "100%" : "1px";
+    video.style.opacity = docked ? "1" : "0";
+    video.style.zIndex = docked ? "1" : "-1";
+  }, []);
+
+  const parkVideo = useCallback(() => {
+    const parking = parkingRef.current;
+
+    if (parking) {
+      placeVideo(parking, false);
+    }
+  }, [placeVideo]);
+
+  const updateVideoPlacement = useCallback(() => {
+    const parking = parkingRef.current;
+
+    if (!parking) {
+      return;
+    }
+
+    const slot = document.querySelector<HTMLElement>(liveVideoSlotSelector);
+    placeVideo(slot ?? parking, Boolean(slot));
+  }, [placeVideo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +132,93 @@ export function PersistentLiveAudio() {
       window.clearTimeout(timer);
     };
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    function enableAudio() {
+      setUserEnabled(true);
+      storeAudioEnabled(true);
+    }
+
+    video.autoplay = true;
+    video.muted = false;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.addEventListener("play", enableAudio);
+
+    updateVideoPlacement();
+
+    let frame = 0;
+    const schedulePlacementUpdate = () => {
+      if (frame) {
+        return;
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateVideoPlacement();
+      });
+    };
+    const throttledObserver = new MutationObserver(schedulePlacementUpdate);
+    throttledObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+
+      throttledObserver.disconnect();
+      video.removeEventListener("play", enableAudio);
+    };
+  }, [updateVideoPlacement]);
+
+  useEffect(() => {
+    updateVideoPlacement();
+  }, [pathname, updateVideoPlacement]);
+
+  useEffect(() => {
+    function sameSiteNavigationAwayFromLive(event: Event) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      const anchor = target.closest("a[href]");
+
+      if (!(anchor instanceof HTMLAnchorElement) || !anchor.href) {
+        return false;
+      }
+
+      try {
+        const url = new URL(anchor.href);
+
+        return url.origin === window.location.origin && url.pathname !== "/live";
+      } catch {
+        return false;
+      }
+    }
+
+    function parkBeforeNavigation(event: Event) {
+      if (sameSiteNavigationAwayFromLive(event)) {
+        parkVideo();
+      }
+    }
+
+    document.addEventListener("pointerdown", parkBeforeNavigation, { capture: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", parkBeforeNavigation, { capture: true });
+    };
+  }, [parkVideo]);
 
   useEffect(() => {
     let cancelled = false;
@@ -120,23 +253,25 @@ export function PersistentLiveAudio() {
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const video = videoRef.current;
     const playbackUrl = liveState.playbackUrl;
     let cancelled = false;
 
     hlsRef.current?.destroy();
     hlsRef.current = null;
 
-    if (!audio) {
+    if (!video) {
       return () => {
         cancelled = true;
       };
     }
 
-    audio.removeAttribute("src");
-    audio.load();
+    video.removeAttribute("src");
+    video.load();
 
     if (!playbackUrl || !canPlay) {
+      video.pause();
+
       return () => {
         cancelled = true;
       };
@@ -166,7 +301,7 @@ export function PersistentLiveAudio() {
 
         hls.destroy();
       });
-      hls.attachMedia(audio);
+      hls.attachMedia(video);
       hls.loadSource(playbackUrl);
 
       return () => {
@@ -175,7 +310,7 @@ export function PersistentLiveAudio() {
       };
     }
 
-    audio.src = playbackUrl;
+    video.src = playbackUrl;
 
     return () => {
       cancelled = true;
@@ -183,19 +318,21 @@ export function PersistentLiveAudio() {
   }, [canPlay, liveState.playbackUrl]);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const video = videoRef.current;
 
-    if (!audio) {
+    if (!video) {
       return;
     }
 
-    if (!canPlay || !userEnabled || onLivePage) {
-      audio.pause();
+    if (!canPlay) {
+      video.pause();
       return;
     }
 
-    void audio.play().catch(() => undefined);
-  }, [canPlay, onLivePage, userEnabled]);
+    if (userEnabled) {
+      void video.play().catch(() => undefined);
+    }
+  }, [canPlay, userEnabled]);
 
   useEffect(() => {
     function enableAudio() {
@@ -212,45 +349,9 @@ export function PersistentLiveAudio() {
     };
   }, []);
 
-  useEffect(() => {
-    function eventLeavesLivePage(event: Event) {
-      const target = event.target;
-
-      if (!(target instanceof Element)) {
-        return false;
-      }
-
-      const anchor = target.closest("a[href]");
-
-      if (!(anchor instanceof HTMLAnchorElement) || !anchor.href) {
-        return false;
-      }
-
-      try {
-        const url = new URL(anchor.href);
-
-        return url.origin === window.location.origin && url.pathname !== "/live";
-      } catch {
-        return false;
-      }
-    }
-
-    function primeBackgroundAudio(event: Event) {
-      const audio = audioRef.current;
-
-      if (!audio || !canPlay || !userEnabled || !onLivePage || !eventLeavesLivePage(event)) {
-        return;
-      }
-
-      void audio.play().catch(() => undefined);
-    }
-
-    document.addEventListener("pointerdown", primeBackgroundAudio, { capture: true });
-
-    return () => {
-      document.removeEventListener("pointerdown", primeBackgroundAudio, { capture: true });
-    };
-  }, [canPlay, onLivePage, userEnabled]);
-
-  return <audio aria-hidden="true" data-persistent-live-audio ref={audioRef} preload="auto" />;
+  return (
+    <div aria-hidden="true" data-persistent-live-parking ref={parkingRef}>
+      <video data-persistent-live-video ref={videoRef} />
+    </div>
+  );
 }

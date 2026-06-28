@@ -5,7 +5,6 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { requestPersistentLiveAudio } from "@/components/live/persistent-live-audio";
 import { cn } from "@/lib/utils";
 import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 
@@ -287,13 +286,11 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
       )}
     >
       {canAttemptPlayback && primaryPlaybackUrl ? (
-        <HlsVideo
-          ariaLabel={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
-          className="absolute inset-0 h-full w-full bg-black object-contain"
-          controls
-          muted={false}
-          onPlaybackStarted={requestPersistentLiveAudio}
-          playbackUrl={primaryPlaybackUrl}
+        <div
+          aria-label={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
+          className="absolute inset-0 bg-black"
+          data-live-primary-video-slot="true"
+          role="region"
         />
       ) : (
         <div className="absolute inset-0">
