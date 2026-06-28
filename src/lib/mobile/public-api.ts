@@ -76,6 +76,7 @@ export function getMobileEndpoints(): MobileEndpoint[] {
     { key: "account.orders", href: "/api/mobile/v1/account/orders" },
     { key: "account.downloads", href: "/api/mobile/v1/account/downloads" },
     { key: "account.rewards", href: "/api/mobile/v1/account/rewards" },
+    { key: "account.rewards.spin", href: "/api/mobile/v1/account/rewards/spin" },
     { key: "live", href: "/api/mobile/v1/live" },
     { key: "chat", href: "/api/mobile/v1/chat" },
     { key: "chat.gifs", href: "/api/mobile/v1/chat/gifs?q=rave" },

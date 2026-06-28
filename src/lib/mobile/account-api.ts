@@ -13,6 +13,8 @@ import {
 import type { CurrentUser } from "@/lib/auth/rbac";
 import { getCurrentUserFromRequest } from "@/lib/auth/session";
 import { getAccountDownloadsData, getOwnedTrackDownload } from "@/lib/music/music-service";
+import { buildMobileRewardsAccountPayload } from "@/lib/mobile/account-rewards-payload-core";
+import { getAccountRewardWheelsData, spinRewardWheel } from "@/lib/rewards/prize-service";
 import { getAccountRewardsData } from "@/lib/rewards/stars-service";
 import { getAccountOrdersData } from "@/lib/shop/order-service";
 
@@ -159,13 +161,24 @@ export async function getMobileDownloadDeliveryPayload(user: CurrentUser, purcha
 }
 
 export async function getMobileRewardsAccountPayload(user: CurrentUser) {
-  const data = await getAccountRewardsData(user.id);
+  const [starsData, wheelData] = await Promise.all([getAccountRewardsData(user.id), getAccountRewardWheelsData(user.id)]);
+
+  return buildMobileRewardsAccountPayload(starsData, wheelData);
+}
+
+export async function spinMobileRewardWheelPayload(user: CurrentUser, input: unknown) {
+  const body = input && typeof input === "object" && !Array.isArray(input) ? (input as Record<string, unknown>) : {};
+  const wheelId = typeof body.wheelId === "string" ? body.wheelId.trim() : "";
+
+  if (!wheelId) {
+    throw new Error("Choose a reward wheel to spin.");
+  }
+
+  const result = await spinRewardWheel(user.id, wheelId);
 
   return {
-    ...data,
-    wallet: {
-      balance: data.wallet.balance,
-      updatedAt: data.wallet.updatedAt.toISOString()
-    }
+    ok: true,
+    result,
+    rewards: await getMobileRewardsAccountPayload(user)
   };
 }
