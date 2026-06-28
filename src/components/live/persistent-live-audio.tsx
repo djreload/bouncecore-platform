@@ -53,6 +53,14 @@ function storeAudioEnabled(enabled: boolean) {
   }
 }
 
+function setAudiblePreference(enabled: boolean, video?: HTMLVideoElement | null) {
+  if (video) {
+    video.muted = !enabled;
+  }
+
+  storeAudioEnabled(enabled);
+}
+
 export function requestPersistentLiveAudio() {
   if (typeof window === "undefined") {
     return;
@@ -171,16 +179,27 @@ export function PersistentLiveAudio() {
 
     const activeVideo = video;
 
-    function enableAudio() {
+    function rememberAudiblePlayback() {
+      if (activeVideo.muted || activeVideo.volume <= 0) {
+        return;
+      }
+
       setUserEnabled(true);
-      storeAudioEnabled(true);
+      setAudiblePreference(true, activeVideo);
+    }
+
+    function enableAudioFromUserGesture() {
+      setUserEnabled(true);
+      setAudiblePreference(true, activeVideo);
     }
 
     activeVideo.autoplay = true;
-    activeVideo.muted = false;
+    activeVideo.muted = !userEnabledRef.current;
     activeVideo.playsInline = true;
     activeVideo.preload = "auto";
-    activeVideo.addEventListener("play", enableAudio);
+    activeVideo.addEventListener("pointerdown", enableAudioFromUserGesture);
+    activeVideo.addEventListener("keydown", enableAudioFromUserGesture);
+    activeVideo.addEventListener("volumechange", rememberAudiblePlayback);
     activeVideo.addEventListener("ended", recoverLivePlayback);
 
     function recoverLivePlayback() {
@@ -190,10 +209,8 @@ export function PersistentLiveAudio() {
 
       hlsRef.current?.startLoad(-1);
       seekToLiveEdge(activeVideo);
-
-      if (userEnabledRef.current) {
-        void activeVideo.play().catch(() => undefined);
-      }
+      activeVideo.muted = !userEnabledRef.current;
+      void activeVideo.play().catch(() => undefined);
     }
 
     updateVideoPlacement();
@@ -221,7 +238,9 @@ export function PersistentLiveAudio() {
       }
 
       throttledObserver.disconnect();
-      activeVideo.removeEventListener("play", enableAudio);
+      activeVideo.removeEventListener("pointerdown", enableAudioFromUserGesture);
+      activeVideo.removeEventListener("keydown", enableAudioFromUserGesture);
+      activeVideo.removeEventListener("volumechange", rememberAudiblePlayback);
       activeVideo.removeEventListener("ended", recoverLivePlayback);
     };
   }, [updateVideoPlacement]);
@@ -309,12 +328,21 @@ export function PersistentLiveAudio() {
         startLevel: -1
       });
       hlsRef.current = hls;
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (cancelled) {
+          return;
+        }
+
+        video.muted = !userEnabledRef.current;
+        void video.play().catch(() => undefined);
+      });
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
-        if (!data.details.live || cancelled || !userEnabledRef.current || !video.paused) {
+        if (!data.details.live || cancelled || !video.paused) {
           return;
         }
 
         seekToLiveEdge(video);
+        video.muted = !userEnabledRef.current;
         void video.play().catch(() => undefined);
       });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
@@ -362,15 +390,18 @@ export function PersistentLiveAudio() {
       return;
     }
 
-    if (userEnabled) {
-      void video.play().catch(() => undefined);
-    }
+    video.muted = !userEnabled;
+    void video.play().catch(() => undefined);
   }, [canPlay, userEnabled]);
 
   useEffect(() => {
     function enableAudio() {
       setUserEnabled(true);
-      storeAudioEnabled(true);
+      setAudiblePreference(true, videoRef.current);
+
+      if (canPlayRef.current) {
+        void videoRef.current?.play().catch(() => undefined);
+      }
     }
 
     window.addEventListener(liveAudioEnableEvent, enableAudio);
