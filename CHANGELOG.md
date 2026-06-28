@@ -30,6 +30,8 @@ All notable project changes are tracked here. Dates use UTC.
 - Added optional MediaMTX RTMP/RTMPS/HLS gateway profile with Bouncecore stream-key validation.
 - Added optional FFmpeg adaptive HLS transcoder profile with 240p, 480p, and 720p variants plus HLS origin service.
 - Added browser adaptive HLS playback using HLS.js and automatic variant switching when a master manifest is available.
+- Added dual-DJ stream ingest support with primary video/audio, muted picture-in-picture secondary playback, and automatic secondary promotion when the primary publisher disconnects.
+- Added dual-DJ stream smoke scripts that publish two disposable FFmpeg streams, validate primary/secondary ingest state, and verify promotion after primary disconnect.
 - Added offline stream image handling and live/offline state updates without requiring a browser reload.
 - Added worker-backed stream-provider sync, stream sessions, stream events, manual admin sync, and readiness checks.
 - Added database-backed stream profiles for low bitrate through high-HD stream configurations.

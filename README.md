@@ -179,6 +179,20 @@ Server: rtmps://bouncecore.example.com:1936/live
 Stream Key: value from the streamer dashboard
 ```
 
+Dual-DJ smoke testing can create temporary stream keys for a local user, publish two disposable FFmpeg streams, verify primary/secondary ingest state, stop the primary publisher, and verify secondary promotion:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/stream-dual-smoke-with-temp-keys.ps1 -UserEmail owner@example.com
+```
+
+To use two existing keys instead:
+
+```powershell
+$env:STREAM_TEST_KEY="bc_live_primary_key"
+$env:STREAM_TEST_KEY_2="bc_live_secondary_key"
+npm.cmd run stream:smoke:dual
+```
+
 ## Upload Limits
 
 The application and production proxy should allow at least 512MB request bodies. Current application limits are:

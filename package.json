@@ -19,7 +19,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "docker:build": "docker build -t bouncecore-platform:staging .",
     "stream:smoke": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-test.ps1",
-    "stream:smoke:temp-key": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-with-temp-key.ps1"
+    "stream:smoke:temp-key": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-with-temp-key.ps1",
+    "stream:smoke:dual": "powershell -ExecutionPolicy Bypass -File scripts/stream-dual-smoke-test.ps1",
+    "stream:smoke:dual-temp-keys": "powershell -ExecutionPolicy Bypass -File scripts/stream-dual-smoke-with-temp-keys.ps1"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
