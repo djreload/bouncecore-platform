@@ -1,17 +1,16 @@
 import { NextResponse } from "next/server";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
+import { publicLiveStateToStatusPayload } from "@/lib/stream/live-status-snapshot";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
   const liveState = await getPublicLiveState();
 
-  return NextResponse.json({
-    status: liveState.status,
-    health: liveState.health,
-    activeIngests: liveState.activeIngests,
-    offlineImageUrl: liveState.offlineImageUrl,
-    playbackUrl: liveState.playbackUrl,
-    viewerCount: liveState.viewerCount,
-    channel: liveState.channel,
-    provider: liveState.provider
+  return NextResponse.json(publicLiveStateToStatusPayload(liveState), {
+    headers: {
+      "Cache-Control": "no-store"
+    }
   });
 }

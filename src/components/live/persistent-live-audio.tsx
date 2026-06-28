@@ -4,16 +4,7 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-
-type LiveAudioState = {
-  playbackUrl: string | null;
-  status: string;
-};
-
-type LiveStatusPayload = {
-  playbackUrl?: unknown;
-  status?: unknown;
-};
+import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
 
 const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
@@ -29,13 +20,6 @@ function isLikelyHls(playbackUrl: string | null) {
   } catch {
     return playbackUrl.toLowerCase().includes(".m3u8");
   }
-}
-
-function normalizePayload(payload: LiveStatusPayload, current: LiveAudioState): LiveAudioState {
-  return {
-    playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
-    status: typeof payload.status === "string" ? payload.status : current.status
-  };
 }
 
 function storedAudioEnabled() {
@@ -62,17 +46,37 @@ export function requestPersistentLiveAudio() {
   window.dispatchEvent(new Event(liveAudioEnableEvent));
 }
 
+const initialLiveStatus: LiveStatusPayload = {
+  activeIngests: [],
+  channel: null,
+  health: {
+    checkedAt: new Date(0).toISOString(),
+    ingestConnected: false,
+    status: "unknown"
+  },
+  offlineImageUrl: null,
+  playbackUrl: null,
+  status: "checking",
+  viewerCount: 0
+};
+
+function getPrimaryPlaybackUrl(liveState: LiveStatusPayload) {
+  const primaryIngest =
+    liveState.activeIngests.find((ingest) => ingest.role === "primary" && ingest.playbackUrl) ??
+    liveState.activeIngests.find((ingest) => ingest.playbackUrl);
+
+  return primaryIngest?.playbackUrl ?? liveState.playbackUrl;
+}
+
 export function PersistentLiveAudio() {
   const pathname = usePathname();
   const parkingRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [liveState, setLiveState] = useState<LiveAudioState>({
-    playbackUrl: null,
-    status: "checking"
-  });
+  const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
   const [userEnabled, setUserEnabled] = useState(false);
-  const canPlay = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
+  const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
+  const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
 
   const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
     const video = videoRef.current;
@@ -220,41 +224,11 @@ export function PersistentLiveAudio() {
     };
   }, [parkVideo]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshStatus() {
-      try {
-        const response = await fetch("/internal/stream/status", {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as LiveStatusPayload;
-
-        if (!cancelled) {
-          setLiveState((current) => normalizePayload(payload, current));
-        }
-      } catch {
-        // Keep the last known stream state if polling fails.
-      }
-    }
-
-    void refreshStatus();
-    const interval = window.setInterval(refreshStatus, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
-  }, []);
+  useEffect(() => subscribeToLiveStatus(setLiveState), []);
 
   useEffect(() => {
     const video = videoRef.current;
-    const playbackUrl = liveState.playbackUrl;
+    const playbackUrl = primaryPlaybackUrl;
     let cancelled = false;
 
     hlsRef.current?.destroy();
@@ -315,7 +289,7 @@ export function PersistentLiveAudio() {
     return () => {
       cancelled = true;
     };
-  }, [canPlay, liveState.playbackUrl]);
+  }, [canPlay, primaryPlaybackUrl]);
 
   useEffect(() => {
     const video = videoRef.current;

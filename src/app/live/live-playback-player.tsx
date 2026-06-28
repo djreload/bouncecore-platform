@@ -5,6 +5,7 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { subscribeToLiveStatus } from "@/components/live/live-status-client";
 import { cn } from "@/lib/utils";
 import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 
@@ -24,21 +25,6 @@ type LivePlaybackState = {
   offlineImageUrl: string | null;
 };
 
-type LiveStatusPayload = {
-  activeIngests?: unknown;
-  status?: unknown;
-  playbackUrl?: unknown;
-  offlineImageUrl?: unknown;
-  viewerCount?: unknown;
-  health?: {
-    status?: unknown;
-  };
-  channel?: {
-    title?: unknown;
-    streamProfile?: unknown;
-  } | null;
-};
-
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
     return false;
@@ -49,43 +35,6 @@ function isLikelyHls(playbackUrl: string | null) {
   } catch {
     return playbackUrl.toLowerCase().includes(".m3u8");
   }
-}
-
-function stringOrNull(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  const sources: Array<StreamPlaybackSource | null> = value.map((item, index) => {
-    if (!item || typeof item !== "object") {
-      return null;
-    }
-
-    const source = item as Record<string, unknown>;
-    const id = stringOrNull(source.id);
-
-    if (!id) {
-      return null;
-    }
-
-    return {
-      id,
-      lastIngestAt: stringOrNull(source.lastIngestAt) ?? new Date().toISOString(),
-      playbackUrl: stringOrNull(source.playbackUrl),
-      presenterName: stringOrNull(source.presenterName),
-      role: source.role === "secondary" ? "secondary" : "primary",
-      startedAt: stringOrNull(source.startedAt) ?? new Date().toISOString(),
-      status: source.status === "starting" || source.status === "degraded" || source.status === "offline" ? source.status : "live",
-      streamKeyFingerprint: stringOrNull(source.streamKeyFingerprint),
-      title: stringOrNull(source.title) ?? (index === 0 ? "Primary DJ" : "Connecting DJ")
-    };
-  });
-
-  return sources.filter((source): source is StreamPlaybackSource => Boolean(source)).slice(0, 2);
 }
 
 function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
@@ -229,53 +178,15 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
   const hasSecondaryPlayback = Boolean(canAttemptPlayback && secondaryPlaybackUrl && liveState.activeIngests.length > 1);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function refreshStatus() {
-      try {
-        const response = await fetch("/internal/stream/status", {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as LiveStatusPayload;
-
-        if (cancelled) {
-          return;
-        }
-
-        setLiveState((current) => ({
-          activeIngests:
-            typeof payload.status === "string" && payload.status === "offline"
-              ? []
-              : normalizeActiveIngests(payload.activeIngests).length
-                ? normalizeActiveIngests(payload.activeIngests)
-                : current.activeIngests,
-          title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
-          status: typeof payload.status === "string" ? payload.status : current.status,
-          playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
-          offlineImageUrl:
-            typeof payload.offlineImageUrl === "string"
-              ? payload.offlineImageUrl
-              : payload.offlineImageUrl === null
-                ? null
-                : current.offlineImageUrl
-        }));
-      } catch {
-        // Keep the last known state if the transient status poll fails.
-      }
-    }
-
-    void refreshStatus();
-    const interval = window.setInterval(refreshStatus, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
+    return subscribeToLiveStatus((payload) => {
+      setLiveState((current) => ({
+        activeIngests: payload.status === "offline" ? [] : payload.activeIngests,
+        title: payload.channel?.title ?? current.title,
+        status: payload.status,
+        playbackUrl: payload.playbackUrl,
+        offlineImageUrl: payload.offlineImageUrl
+      }));
+    });
   }, []);
 
   return (
