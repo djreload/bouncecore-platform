@@ -10,7 +10,7 @@
     "stream-core": "tsx src/stream-core/server.ts",
     "worker": "tsx src/workers/main.ts",
     "lint": "eslint .",
-    "test": "node tests/run-tests.mjs",
+    "test": "tsx tests/run-tests.mjs",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "db:validate": "prisma validate",

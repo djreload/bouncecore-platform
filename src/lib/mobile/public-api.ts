@@ -1,5 +1,6 @@
 import { getPublicChatData, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
-import { getPublicMusicTracks, type PublicMusicTrack } from "@/lib/music/music-service";
+import { getPublicMusicTracks } from "@/lib/music/music-service";
+import { buildMobileMusicPayload } from "@/lib/mobile/music-payload-core";
 import { starPackages } from "@/lib/rewards/stars-service";
 import { getPublicShopProducts, type ProductRow } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
@@ -26,27 +27,6 @@ function publicProduct(product: ProductRow) {
       pricePence: variant.pricePence,
       stock: variant.stock
     }))
-  };
-}
-
-function publicTrack(track: PublicMusicTrack) {
-  return {
-    id: track.id,
-    slug: track.slug,
-    title: track.title,
-    genre: track.genre,
-    bpm: track.bpm,
-    musicalKey: track.musicalKey,
-    artworkUrl: track.artworkUrl,
-    previewUrl: track.previewUrl,
-    licenseType: track.licenseType,
-    licenseSummary: track.licenseSummary,
-    pricePence: track.pricePence,
-    producer: {
-      name: track.producerName,
-      slug: track.producerSlug,
-      bio: track.producerBio
-    }
   };
 }
 
@@ -174,18 +154,8 @@ export async function getMobileShopPayload() {
 
 export async function getMobileMusicPayload() {
   const tracks = await getPublicMusicTracks();
-  const genres = new Set(tracks.flatMap((track) => (track.genre ? [track.genre] : [])));
 
-  return {
-    tracks: tracks.map(publicTrack),
-    stats: {
-      tracks: tracks.length,
-      genres: genres.size,
-      averagePricePence: tracks.length
-        ? Math.round(tracks.reduce((total, track) => total + track.pricePence, 0) / tracks.length)
-        : 0
-    }
-  };
+  return buildMobileMusicPayload(tracks);
 }
 
 export async function getMobileRewardsPayload() {
