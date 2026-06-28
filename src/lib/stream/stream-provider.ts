@@ -10,6 +10,18 @@ export type StreamHealth = {
   checkedAt: string;
 };
 
+export type StreamPlaybackSource = {
+  id: string;
+  lastIngestAt: string;
+  playbackUrl: string | null;
+  presenterName: string | null;
+  role: "primary" | "secondary";
+  startedAt: string;
+  status: StreamStatus;
+  streamKeyFingerprint: string | null;
+  title: string | null;
+};
+
 export type StreamKeyResult = {
   keyId: string;
   rawKey?: string;
@@ -24,6 +36,7 @@ export type StreamProviderSettings = {
 };
 
 export type StreamProvider = {
+  getActiveIngests(): Promise<StreamPlaybackSource[]>;
   getStreamStatus(): Promise<StreamStatus>;
   getPlaybackUrl(): Promise<string | null>;
   getViewerCount(): Promise<number>;
@@ -105,6 +118,7 @@ function firstValue(...values: unknown[]) {
 }
 
 type StreamCoreSnapshot = {
+  activeIngests: StreamPlaybackSource[];
   error?: string;
   health: StreamHealth;
   playbackUrl: string | null;
@@ -116,6 +130,7 @@ type StreamCoreSnapshot = {
 
 function defaultSnapshot(provider: StreamCoreSnapshot["provider"], error?: string): StreamCoreSnapshot {
   return {
+    activeIngests: [],
     error,
     health: {
       checkedAt: new Date().toISOString(),
@@ -130,6 +145,34 @@ function defaultSnapshot(provider: StreamCoreSnapshot["provider"], error?: strin
   };
 }
 
+function toPlaybackRole(value: unknown): StreamPlaybackSource["role"] {
+  return value === "secondary" ? "secondary" : "primary";
+}
+
+function toPlaybackSource(value: unknown, index: number): StreamPlaybackSource | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const id = toOptionalString(value.id);
+
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    lastIngestAt: toCheckedAt(firstValue(value.lastIngestAt, value.last_ingest_at)),
+    playbackUrl: toOptionalString(firstValue(value.playbackUrl, value.playback_url)),
+    presenterName: toOptionalString(firstValue(value.presenterName, value.presenter_name)),
+    role: toPlaybackRole(firstValue(value.role, index === 0 ? "primary" : "secondary")),
+    startedAt: toCheckedAt(firstValue(value.startedAt, value.started_at)),
+    status: toStatus(value.status),
+    streamKeyFingerprint: toOptionalString(firstValue(value.streamKeyFingerprint, value.stream_key_fingerprint)),
+    title: toOptionalString(value.title)
+  };
+}
+
 function parseSnapshot(value: unknown): StreamCoreSnapshot {
   if (!isObject(value)) {
     return defaultSnapshot("stream-core", "Stream core returned an invalid response.");
@@ -138,6 +181,15 @@ function parseSnapshot(value: unknown): StreamCoreSnapshot {
   const stream = isObject(value.stream) ? value.stream : {};
   const playback = isObject(value.playback) ? value.playback : {};
   const healthValue = isObject(value.health) ? value.health : {};
+  const rawActiveIngests = Array.isArray(value.activeIngests)
+    ? value.activeIngests
+    : Array.isArray(playback.activeIngests)
+      ? playback.activeIngests
+      : [];
+  const activeIngests = rawActiveIngests
+    .map((ingest, index) => toPlaybackSource(ingest, index))
+    .filter((ingest): ingest is StreamPlaybackSource => Boolean(ingest))
+    .slice(0, 2);
   const status = toStatus(firstValue(value.status, stream.status));
   const playbackUrl =
     toOptionalString(firstValue(value.playbackUrl, value.playback_url, playback.url, stream.playbackUrl)) ||
@@ -147,6 +199,7 @@ function parseSnapshot(value: unknown): StreamCoreSnapshot {
   const healthStatus = toHealthStatus(firstValue(healthValue.status, value.healthStatus, value.health_status));
 
   return {
+    activeIngests,
     health: {
       bitrateKbps: toNumber(firstValue(healthValue.bitrateKbps, healthValue.bitrate_kbps, value.bitrateKbps)),
       checkedAt: toCheckedAt(firstValue(healthValue.checkedAt, healthValue.checked_at, value.checkedAt)),
@@ -189,6 +242,10 @@ class MisconfiguredStreamProvider implements StreamProvider {
     private readonly mode: string,
     private readonly reason: string
   ) {}
+
+  async getActiveIngests(): Promise<StreamPlaybackSource[]> {
+    return [];
+  }
 
   async getStreamStatus(): Promise<StreamStatus> {
     return "degraded";
@@ -240,6 +297,10 @@ class MisconfiguredStreamProvider implements StreamProvider {
 }
 
 export class MockStreamProvider extends LocalStreamKeyFactory implements StreamProvider {
+  async getActiveIngests(): Promise<StreamPlaybackSource[]> {
+    return [];
+  }
+
   async getStreamStatus(): Promise<StreamStatus> {
     return "offline";
   }
@@ -297,6 +358,12 @@ export class StreamCoreHttpProvider extends LocalStreamKeyFactory implements Str
     private readonly token: string | null
   ) {
     super();
+  }
+
+  async getActiveIngests(): Promise<StreamPlaybackSource[]> {
+    const snapshot = await this.readSnapshot();
+
+    return snapshot.activeIngests;
   }
 
   async getStreamStatus(): Promise<StreamStatus> {

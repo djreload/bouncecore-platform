@@ -116,7 +116,7 @@ export default async function LivePage() {
     getStarWalletBalance(currentUser?.id)
   ]);
   const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
-  const { channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
+  const { activeIngests, channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -188,6 +188,7 @@ export default async function LivePage() {
             <div className="relative z-20 shrink-0 lg:static lg:z-auto">
               <LivePlaybackPlayer
                 offlineImageUrl={offlineImageUrl}
+                activeIngests={activeIngests}
                 playbackUrl={playbackUrl}
                 status={status}
                 title={channel?.title ?? "Bouncecore Live"}

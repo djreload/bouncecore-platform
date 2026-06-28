@@ -100,6 +100,7 @@ export async function getMobileLivePayload() {
   const live = await getPublicLiveState();
 
   return {
+    activeIngests: live.activeIngests,
     channel: live.channel,
     health: live.health,
     offlineImageUrl: live.offlineImageUrl,

@@ -27,5 +27,6 @@ import "./reward-wheel-core.test.mjs";
 import "./sheep-throw-settings.test.mjs";
 import "./star-packages.test.mjs";
 import "./support-request.test.mjs";
+import "./tenor-service.test.mjs";
 import "./transcoder-source.test.mjs";
 import "./worker-heartbeat.test.mjs";

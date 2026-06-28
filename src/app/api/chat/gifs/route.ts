@@ -11,15 +11,16 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const query = url.searchParams.get("q") ?? "";
+  const position = url.searchParams.get("pos") ?? "";
 
   if (!query.trim()) {
-    return NextResponse.json({ gifs: [] });
+    return NextResponse.json({ gifs: [], next: null });
   }
 
   try {
-    const gifs = await searchTenorGifs(query);
+    const result = await searchTenorGifs(query, position);
 
-    return NextResponse.json({ gifs });
+    return NextResponse.json(result);
   } catch {
     return NextResponse.json({ error: "GIF search is not available right now." }, { status: 503 });
   }

@@ -4,9 +4,12 @@
 import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { Radio, WifiOff } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
+import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 
 type LivePlaybackPlayerProps = {
+  activeIngests?: StreamPlaybackSource[];
   title: string;
   status: string;
   playbackUrl: string | null;
@@ -14,6 +17,7 @@ type LivePlaybackPlayerProps = {
 };
 
 type LivePlaybackState = {
+  activeIngests: StreamPlaybackSource[];
   title: string;
   status: string;
   playbackUrl: string | null;
@@ -21,6 +25,7 @@ type LivePlaybackState = {
 };
 
 type LiveStatusPayload = {
+  activeIngests?: unknown;
   status?: unknown;
   playbackUrl?: unknown;
   offlineImageUrl?: unknown;
@@ -46,21 +51,164 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
-export function LivePlaybackPlayer({
-  title,
-  status,
-  playbackUrl,
-  offlineImageUrl
-}: LivePlaybackPlayerProps) {
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const sources: Array<StreamPlaybackSource | null> = value.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    const source = item as Record<string, unknown>;
+    const id = stringOrNull(source.id);
+
+    if (!id) {
+      return null;
+    }
+
+    return {
+      id,
+      lastIngestAt: stringOrNull(source.lastIngestAt) ?? new Date().toISOString(),
+      playbackUrl: stringOrNull(source.playbackUrl),
+      presenterName: stringOrNull(source.presenterName),
+      role: source.role === "secondary" ? "secondary" : "primary",
+      startedAt: stringOrNull(source.startedAt) ?? new Date().toISOString(),
+      status: source.status === "starting" || source.status === "degraded" || source.status === "offline" ? source.status : "live",
+      streamKeyFingerprint: stringOrNull(source.streamKeyFingerprint),
+      title: stringOrNull(source.title) ?? (index === 0 ? "Primary DJ" : "Connecting DJ")
+    };
+  });
+
+  return sources.filter((source): source is StreamPlaybackSource => Boolean(source)).slice(0, 2);
+}
+
+function HlsVideo({
+  ariaLabel,
+  className,
+  controls,
+  muted,
+  playbackUrl
+}: {
+  ariaLabel: string;
+  className?: string;
+  controls?: boolean;
+  muted: boolean;
+  playbackUrl: string;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    let cancelled = false;
+
+    if (!video) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+    video.removeAttribute("src");
+    video.load();
+
+    const hlsPlayback = isLikelyHls(playbackUrl);
+
+    if (hlsPlayback && Hls.isSupported()) {
+      const hls = new Hls({
+        abrEwmaDefaultEstimate: 3_000_000,
+        capLevelToPlayerSize: true,
+        enableWorker: true,
+        lowLatencyMode: true,
+        startLevel: -1
+      });
+      hlsRef.current = hls;
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!cancelled) {
+          void video.play().catch(() => undefined);
+        }
+      });
+
+      hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
+        if (cancelled || !data.fatal) {
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hls.startLoad();
+          return;
+        }
+
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          return;
+        }
+
+        hls.destroy();
+      });
+
+      hls.attachMedia(video);
+      hls.loadSource(playbackUrl);
+
+      return () => {
+        cancelled = true;
+        hls.destroy();
+      };
+    }
+
+    video.src = playbackUrl;
+    void video.play().catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [playbackUrl]);
+
+  return (
+    <video
+      aria-label={ariaLabel}
+      autoPlay
+      className={className}
+      controls={controls}
+      muted={muted}
+      playsInline
+      preload="metadata"
+      ref={videoRef}
+    />
+  );
+}
+
+export function LivePlaybackPlayer({ activeIngests = [], title, status, playbackUrl, offlineImageUrl }: LivePlaybackPlayerProps) {
   const [liveState, setLiveState] = useState<LivePlaybackState>({
+    activeIngests,
     title,
     status,
     playbackUrl,
     offlineImageUrl
   });
-  const canAttemptPlayback = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
+  const primarySource = useMemo(
+    () => liveState.activeIngests.find((source) => source.role === "primary" && source.playbackUrl) ?? liveState.activeIngests[0] ?? null,
+    [liveState.activeIngests]
+  );
+  const secondarySource = useMemo(
+    () =>
+      liveState.activeIngests.find((source) => source.role === "secondary" && source.playbackUrl) ??
+      liveState.activeIngests.find((source) => source.id !== primarySource?.id && source.playbackUrl) ??
+      null,
+    [liveState.activeIngests, primarySource?.id]
+  );
+  const primaryPlaybackUrl = primarySource?.playbackUrl ?? liveState.playbackUrl;
+  const secondaryPlaybackUrl =
+    secondarySource?.playbackUrl && secondarySource.playbackUrl !== primaryPlaybackUrl ? secondarySource.playbackUrl : null;
+  const canAttemptPlayback = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +230,9 @@ export function LivePlaybackPlayer({
         }
 
         setLiveState((current) => ({
+          activeIngests: normalizeActiveIngests(payload.activeIngests).length
+            ? normalizeActiveIngests(payload.activeIngests)
+            : current.activeIngests,
           title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
           status: typeof payload.status === "string" ? payload.status : current.status,
           playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
@@ -106,105 +257,15 @@ export function LivePlaybackPlayer({
     };
   }, []);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    let cancelled = false;
-    const currentPlaybackUrl = liveState.playbackUrl;
-
-    if (!video) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    hlsRef.current?.destroy();
-    hlsRef.current = null;
-    video.removeAttribute("src");
-    video.load();
-
-    if (!canAttemptPlayback || !currentPlaybackUrl) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const hlsPlayback = isLikelyHls(currentPlaybackUrl);
-
-    if (hlsPlayback && Hls.isSupported()) {
-      const hls = new Hls({
-        abrEwmaDefaultEstimate: 3_000_000,
-        capLevelToPlayerSize: true,
-        enableWorker: true,
-        startLevel: -1
-      });
-      hlsRef.current = hls;
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (cancelled) {
-          return;
-        }
-
-        void video.play().catch(() => undefined);
-      });
-
-      hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
-        if (cancelled) {
-          return;
-        }
-
-        if (!data.fatal) {
-          return;
-        }
-
-        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          hls.startLoad();
-          return;
-        }
-
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-          hls.recoverMediaError();
-          return;
-        }
-
-        hls.destroy();
-      });
-
-      hls.attachMedia(video);
-      hls.loadSource(currentPlaybackUrl);
-
-      return () => {
-        cancelled = true;
-        hls.destroy();
-      };
-    }
-
-    if (hlsPlayback && video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = currentPlaybackUrl;
-      void video.play().catch(() => undefined);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    video.src = currentPlaybackUrl;
-    void video.play().catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [canAttemptPlayback, liveState.playbackUrl]);
-
   return (
     <section className="bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x">
-      {canAttemptPlayback ? (
-        <video
-          autoPlay
-          ref={videoRef}
+      {canAttemptPlayback && primaryPlaybackUrl ? (
+        <HlsVideo
+          ariaLabel={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
           className="absolute inset-0 h-full w-full bg-black object-contain"
           controls
-          muted
-          playsInline
-          preload="metadata"
+          muted={false}
+          playbackUrl={primaryPlaybackUrl}
         />
       ) : (
         <div className="absolute inset-0">
@@ -214,13 +275,37 @@ export function LivePlaybackPlayer({
         </div>
       )}
 
+      {canAttemptPlayback && secondaryPlaybackUrl ? (
+        <div className="absolute bottom-3 right-3 z-20 w-[34%] min-w-32 overflow-hidden rounded-md border border-bc-electric/60 bg-black shadow-[0_14px_44px_rgba(0,0,0,0.62)]">
+          <div className="relative aspect-video bg-black">
+            <HlsVideo
+              ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
+              className="absolute inset-0 h-full w-full bg-black object-cover"
+              muted
+              playbackUrl={secondaryPlaybackUrl}
+            />
+          </div>
+          <div className="flex min-w-0 items-center justify-between gap-2 border-t border-bc-line bg-bc-ink/92 px-2 py-1 text-[11px] font-black uppercase text-white">
+            <span className="truncate">{secondarySource?.presenterName ?? secondarySource?.title ?? "Next DJ"}</span>
+            <span className="shrink-0 rounded bg-bc-electric/15 px-1.5 py-0.5 text-bc-electric">Muted</span>
+          </div>
+        </div>
+      ) : null}
+
+      {canAttemptPlayback && liveState.activeIngests.length > 1 ? (
+        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
+          {liveState.activeIngests.length} DJs connected
+        </div>
+      ) : null}
+
       {!canAttemptPlayback ? (
         <div
-          className={`absolute inset-0 grid place-items-center px-6 text-center ${
+          className={cn(
+            "absolute inset-0 grid place-items-center px-6 text-center",
             liveState.offlineImageUrl
               ? "bg-black/45"
               : "bg-[radial-gradient(circle_at_center,rgba(0,213,255,0.16),transparent_42%),linear-gradient(135deg,rgba(255,43,214,0.10),transparent_45%),#070914]"
-          }`}
+          )}
         >
           <div className="max-w-xl">
             {liveState.playbackUrl ? (

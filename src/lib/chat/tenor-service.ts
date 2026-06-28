@@ -17,6 +17,7 @@ type TenorResponseObject = {
 };
 
 type TenorSearchResponse = {
+  next?: string;
   results?: TenorResponseObject[];
 };
 
@@ -27,6 +28,11 @@ export type ChatGifResult = {
   previewUrl: string;
   width: number | null;
   height: number | null;
+};
+
+export type ChatGifSearchResult = {
+  gifs: ChatGifResult[];
+  next: string | null;
 };
 
 function tenorApiKey() {
@@ -70,27 +76,35 @@ function toGifResult(result: TenorResponseObject): ChatGifResult | null {
   };
 }
 
-export async function searchTenorGifs(query: string) {
+export async function searchTenorGifs(query: string, position?: string | null): Promise<ChatGifSearchResult> {
   const key = tenorApiKey();
   const normalizedQuery = query.trim().slice(0, 80);
+  const normalizedPosition = position?.trim().slice(0, 160) ?? "";
 
   if (!key) {
     throw new Error("Tenor API key is not configured.");
   }
 
   if (!normalizedQuery) {
-    return [];
+    return {
+      gifs: [],
+      next: null
+    };
   }
 
   const url = new URL(`${tenorBaseUrl}/search`);
   url.searchParams.set("key", key);
   url.searchParams.set("client_key", tenorClientKey);
   url.searchParams.set("q", normalizedQuery);
-  url.searchParams.set("limit", "12");
+  url.searchParams.set("limit", "24");
   url.searchParams.set("media_filter", "gif,tinygif");
   url.searchParams.set("contentfilter", "medium");
   url.searchParams.set("country", "GB");
   url.searchParams.set("locale", "en_GB");
+
+  if (normalizedPosition) {
+    url.searchParams.set("pos", normalizedPosition);
+  }
 
   const response = await fetch(url, {
     cache: "no-store"
@@ -102,7 +116,10 @@ export async function searchTenorGifs(query: string) {
 
   const payload = (await response.json()) as TenorSearchResponse;
 
-  return (payload.results ?? []).map(toGifResult).filter((result): result is ChatGifResult => Boolean(result));
+  return {
+    gifs: (payload.results ?? []).map(toGifResult).filter((result): result is ChatGifResult => Boolean(result)),
+    next: payload.next?.trim() || null
+  };
 }
 
 export async function registerTenorShare(gifId: string, query: string) {

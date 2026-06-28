@@ -2,7 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useActionState, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  type UIEvent
+} from "react";
 import {
   AtSign,
   Ban,
@@ -316,6 +327,7 @@ export function ChatRoomPanel({
   const [presenceRailOpen, setPresenceRailOpen] = useState(true);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
+  const [gifNextPosition, setGifNextPosition] = useState<string | null>(null);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
   const [composerBody, setComposerBody] = useState("");
@@ -330,6 +342,7 @@ export function ChatRoomPanel({
   const [sheepCooldownRemaining, setSheepCooldownRemaining] = useState(sheepRemainingCooldownSeconds);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const gifResultsViewportRef = useRef<HTMLDivElement>(null);
   const selectedRoomId = selectedRoom?.id;
   const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
@@ -405,6 +418,13 @@ export function ChatRoomPanel({
       .slice(0, 6);
   }, [mentionQuery, mentionSuggestions]);
   const activeReplyTarget = replyTarget && visibleMessages.some((message) => message.id === replyTarget.id) ? replyTarget : null;
+
+  const closeComposerPanels = useCallback(() => {
+    setComposerToolsOpen(false);
+    setGifPanelOpen(false);
+    setAssetPanelOpen(false);
+    setStarsPanelOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!showPresenceRail) {
@@ -577,7 +597,7 @@ export function ChatRoomPanel({
     const resetTimer = window.setTimeout(() => {
       setComposerBody("");
       setOpenMessageActionsId(null);
-      setComposerToolsOpen(false);
+      closeComposerPanels();
       setReplyTarget(null);
       setMentionQuery(null);
     }, 0);
@@ -598,7 +618,16 @@ export function ChatRoomPanel({
         window.clearTimeout(syncTimer);
       }
     };
-  }, [loadLatestMessages, sheepSettings.cooldownSeconds, sheepSettings.costStars, state.intent, state.message, state.status, selectedRoomId]);
+  }, [
+    closeComposerPanels,
+    loadLatestMessages,
+    sheepSettings.cooldownSeconds,
+    sheepSettings.costStars,
+    state.intent,
+    state.message,
+    state.status,
+    selectedRoomId
+  ]);
 
   useEffect(() => {
     scrollToLatestMessage();
@@ -733,12 +762,10 @@ export function ChatRoomPanel({
     window.setTimeout(keepComposerVisible, 320);
   }
 
-  async function searchGifs(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function loadGifs(query: string, position: string | null, append: boolean) {
+    const normalizedQuery = query.trim();
 
-    const query = gifQuery.trim();
-
-    if (!query) {
+    if (!normalizedQuery) {
       setGifError("Enter a GIF search term.");
       return;
     }
@@ -747,22 +774,59 @@ export function ChatRoomPanel({
     setGifError(null);
 
     try {
-      const response = await fetch(`/api/chat/gifs?q=${encodeURIComponent(query)}`, {
+      const params = new URLSearchParams({
+        q: normalizedQuery
+      });
+
+      if (position) {
+        params.set("pos", position);
+      }
+
+      const response = await fetch(`/api/chat/gifs?${params.toString()}`, {
         cache: "no-store"
       });
-      const payload = (await response.json()) as { gifs?: GifResult[]; error?: string };
+      const payload = (await response.json()) as { gifs?: GifResult[]; next?: string | null; error?: string };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "GIF search failed.");
       }
 
-      setGifResults(payload.gifs ?? []);
-      setGifError(payload.gifs?.length ? null : "No GIFs found.");
+      const nextGifs = payload.gifs ?? [];
+
+      setGifResults((current) => (append ? [...current, ...nextGifs] : nextGifs));
+      setGifNextPosition(payload.next ?? null);
+      setGifError(nextGifs.length || append ? null : "No GIFs found.");
+
+      if (!append) {
+        gifResultsViewportRef.current?.scrollTo({ top: 0 });
+      }
     } catch (error) {
-      setGifResults([]);
+      if (!append) {
+        setGifResults([]);
+      }
       setGifError(error instanceof Error ? error.message : "GIF search failed.");
     } finally {
       setGifLoading(false);
+    }
+  }
+
+  async function searchGifs(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setGifNextPosition(null);
+    await loadGifs(gifQuery, null, false);
+  }
+
+  function handleGifResultsScroll(event: UIEvent<HTMLDivElement>) {
+    if (!gifNextPosition || gifLoading) {
+      return;
+    }
+
+    const element = event.currentTarget;
+    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+
+    if (remaining < 180) {
+      void loadGifs(gifQuery, gifNextPosition, true);
     }
   }
 
@@ -1020,9 +1084,11 @@ export function ChatRoomPanel({
                   <div className="mt-3 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
-                      <span className="text-xl font-black text-bc-acid">
-                        {(message.starAmount ?? 0).toLocaleString("en-GB")} stars
-                      </span>
+                      <ChatEffectText
+                        body={`${(message.starAmount ?? 0).toLocaleString("en-GB")} stars`}
+                        className="!mt-0 text-xl font-black text-bc-acid"
+                        effectId="legend"
+                      />
                       <Badge tone="acid">Stream support</Badge>
                     </div>
                     {message.starNote ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.starNote}</p> : null}
@@ -1359,7 +1425,12 @@ export function ChatRoomPanel({
                     className={cn("h-8 min-h-8 w-8 shrink-0 px-0 text-[0px]", mobileLiveMode && "lg:h-8 lg:w-8 lg:px-0")}
                     disabled={roomLockedForUser && !currentUserCanClearChat}
                     onClick={() => {
-                      setComposerToolsOpen((open) => !open);
+                      if (composerToolsOpen || gifPanelOpen || assetPanelOpen || starsPanelOpen) {
+                        closeComposerPanels();
+                        return;
+                      }
+
+                      setComposerToolsOpen(true);
                     }}
                     type="button"
                     variant={composerToolsOpen ? "dark" : "ghost"}
@@ -1541,43 +1612,62 @@ export function ChatRoomPanel({
 
                 {gifResults.length ? (
                   <div
-                    className={`mt-3 grid gap-2 ${
-                      compact ? "grid-cols-[repeat(auto-fit,minmax(120px,1fr))]" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
-                    }`}
+                    className="mt-3 max-h-[22rem] overflow-y-auto pr-1"
+                    onScroll={handleGifResultsScroll}
+                    ref={gifResultsViewportRef}
                   >
-                    {gifResults.map((gif) => {
-                      const resultSize = imageSize(gif.width, gif.height);
+                    <div
+                      className={`grid gap-2 ${
+                        compact ? "grid-cols-[repeat(auto-fit,minmax(120px,1fr))]" : "grid-cols-2 sm:grid-cols-3 md:grid-cols-4"
+                      }`}
+                    >
+                      {gifResults.map((gif, index) => {
+                        const resultSize = imageSize(gif.width, gif.height);
 
-                      return (
-                        <form action={formAction} key={gif.id}>
-                          <input name="intent" type="hidden" value="gif" />
-                          <input name="roomId" type="hidden" value={selectedRoom.id} />
-                          <input name="gifId" type="hidden" value={gif.id} />
-                          <input name="gifUrl" type="hidden" value={gif.url} />
-                          <input name="gifPreviewUrl" type="hidden" value={gif.previewUrl} />
-                          <input name="gifAlt" type="hidden" value={gif.title} />
-                          <input name="gifWidth" type="hidden" value={gif.width ?? ""} />
-                          <input name="gifHeight" type="hidden" value={gif.height ?? ""} />
-                          <input name="gifQuery" type="hidden" value={gifQuery.trim()} />
-                          <button
-                            className="bc-focus-ring group relative aspect-square w-full overflow-hidden rounded-md border border-bc-line bg-bc-panel"
-                            disabled={pending || roomLockedForUser}
-                            title={gif.title}
-                            type="submit"
-                          >
-                            <Image
-                              alt={gif.title}
-                              className="h-full w-full object-cover transition group-hover:scale-105"
-                              height={resultSize.height}
-                              sizes={compact ? "160px" : "220px"}
-                              src={gif.previewUrl}
-                              unoptimized
-                              width={resultSize.width}
-                            />
-                          </button>
-                        </form>
-                      );
-                    })}
+                        return (
+                          <form action={formAction} key={`${gif.id}-${index}`}>
+                            <input name="intent" type="hidden" value="gif" />
+                            <input name="roomId" type="hidden" value={selectedRoom.id} />
+                            <input name="gifId" type="hidden" value={gif.id} />
+                            <input name="gifUrl" type="hidden" value={gif.url} />
+                            <input name="gifPreviewUrl" type="hidden" value={gif.previewUrl} />
+                            <input name="gifAlt" type="hidden" value={gif.title} />
+                            <input name="gifWidth" type="hidden" value={gif.width ?? ""} />
+                            <input name="gifHeight" type="hidden" value={gif.height ?? ""} />
+                            <input name="gifQuery" type="hidden" value={gifQuery.trim()} />
+                            <button
+                              className="bc-focus-ring group relative aspect-square w-full overflow-hidden rounded-md border border-bc-line bg-bc-panel"
+                              disabled={pending || roomLockedForUser}
+                              title={gif.title}
+                              type="submit"
+                            >
+                              <Image
+                                alt={gif.title}
+                                className="h-full w-full object-cover transition group-hover:scale-105"
+                                height={resultSize.height}
+                                sizes={compact ? "160px" : "220px"}
+                                src={gif.previewUrl}
+                                unoptimized
+                                width={resultSize.width}
+                              />
+                            </button>
+                          </form>
+                        );
+                      })}
+                    </div>
+                    {gifNextPosition ? (
+                      <div className="sticky bottom-0 mt-2 border-t border-bc-line bg-bc-ink/95 py-2 backdrop-blur">
+                        <Button
+                          className="w-full"
+                          disabled={gifLoading}
+                          onClick={() => void loadGifs(gifQuery, gifNextPosition, true)}
+                          type="button"
+                          variant="ghost"
+                        >
+                          {gifLoading ? "Loading..." : "Load more GIFs"}
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </section>
