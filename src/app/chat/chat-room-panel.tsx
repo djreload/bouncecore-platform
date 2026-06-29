@@ -1046,13 +1046,36 @@ export function ChatRoomPanel({
                         authorInitial(message.authorDisplayName)
                       )}
                     </span>
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
-                      {message.authorRoles.map((role) => (
-                        <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
-                          {roleDisplayName(role, roleDisplayLabels)}
-                        </Badge>
-                      ))}
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
+                        {message.authorRoles.map((role) => (
+                          <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
+                            {roleDisplayName(role, roleDisplayLabels)}
+                          </Badge>
+                        ))}
+                      </div>
+                      {visibleReactionSummaries.length ? (
+                        <div
+                          aria-label="Message reactions"
+                          className={cn("mt-1 flex min-h-4 flex-wrap items-center gap-2", mobileLiveMode && "mt-0.5 gap-1.5")}
+                        >
+                          {visibleReactionSummaries.map(({ option, summary }) => (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-0.5 text-[11px] font-black leading-none text-bc-muted",
+                                summary.reacted && "text-bc-electric",
+                                mobileLiveMode && "text-[10px]"
+                              )}
+                              key={summary.key}
+                              title={`${option.label}: ${summary.count.toLocaleString("en-GB")}`}
+                            >
+                              <span aria-hidden="true">{option.icon}</span>
+                              <span>{summary.count.toLocaleString("en-GB")}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -1076,33 +1099,6 @@ export function ChatRoomPanel({
                     ) : null}
                   </div>
                 </div>
-
-                {visibleReactionSummaries.length ? (
-                  <div
-                    aria-label="Message reactions"
-                    className={cn(
-                      "mt-2 flex min-h-6 flex-wrap items-center gap-1.5 rounded-md border border-bc-line/70 bg-bc-panel/45 px-2 py-1",
-                      mobileLiveMode && "mt-1.5 min-h-5 gap-1 border-white/10 bg-black/25 px-1.5 py-0.5"
-                    )}
-                  >
-                    {visibleReactionSummaries.map(({ option, summary }) => (
-                      <span
-                        className={cn(
-                          "inline-flex h-5 items-center gap-1 rounded-full border px-1.5 text-[11px] font-black leading-none",
-                          summary.reacted
-                            ? "border-bc-electric/65 bg-bc-electric/15 text-white"
-                            : "border-bc-line bg-bc-ink/80 text-bc-muted",
-                          mobileLiveMode && "h-4 px-1 text-[10px]"
-                        )}
-                        key={summary.key}
-                        title={`${option.label}: ${summary.count.toLocaleString("en-GB")}`}
-                      >
-                        <span aria-hidden="true">{option.icon}</span>
-                        <span>{summary.count.toLocaleString("en-GB")}</span>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
 
                 {message.replyTo ? (
                   <div className="mt-2 rounded-md border-l-2 border-bc-electric/70 bg-bc-panel/70 px-2 py-1.5 text-xs">

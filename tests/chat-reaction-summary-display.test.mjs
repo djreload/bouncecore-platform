@@ -9,4 +9,6 @@ test("chat message cards render visible reaction summaries", () => {
   assert.match(content, /const visibleReactionSummaries = message\.reactions/);
   assert.match(content, /aria-label="Message reactions"/);
   assert.match(content, /summary\.count\.toLocaleString\("en-GB"\)/);
+  assert.match(content, /summary\.reacted && "text-bc-electric"/);
+  assert.doesNotMatch(content, /bg-bc-panel\/45/);
 });
