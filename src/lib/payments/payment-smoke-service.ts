@@ -3,8 +3,10 @@ import {
   paymentSmokeModeBlockReason,
   paymentSmokeScenarioLabels,
   paymentSmokeShippingFields,
+  paymentSmokeVerification,
   type PaymentSmokeField,
-  type PaymentSmokeScenarioId
+  type PaymentSmokeScenarioId,
+  type PaymentSmokeVerification
 } from "@/lib/payments/payment-smoke-core";
 import {
   getPayPalCheckoutReadiness,
@@ -30,7 +32,22 @@ export type PaymentSmokeScenario = {
 
 export type PaymentSmokeData = {
   mode: string;
+  recentResults: PaymentSmokeRecentResult[];
   scenarios: PaymentSmokeScenario[];
+};
+
+export type PaymentSmokeRecentResult = {
+  amountPence: number;
+  createdAt: string;
+  id: string;
+  paypalCaptureId: string | null;
+  paypalOrderId: string | null;
+  resultHref: string;
+  scenarioId: PaymentSmokeScenarioId;
+  status: string;
+  targetLabel: string;
+  title: string;
+  verification: PaymentSmokeVerification;
 };
 
 function formatTarget(productName: string, variantName: string) {
@@ -65,8 +82,12 @@ function scenarioReady(modeBlock: string | null, readiness: { ready: boolean; re
   };
 }
 
+function resultSort(a: PaymentSmokeRecentResult, b: PaymentSmokeRecentResult) {
+  return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+}
+
 export async function getPaymentSmokeData(userId: string): Promise<PaymentSmokeData> {
-  const [paypal, user, musicTrack, shopVariant] = await Promise.all([
+  const [paypal, user, musicTrack, shopVariant, starPurchases, musicPurchases, shopOrders] = await Promise.all([
     getPayPalIntegrationData(),
     prisma.user.findUniqueOrThrow({
       select: {
@@ -153,6 +174,57 @@ export async function getPaymentSmokeData(userId: string): Promise<PaymentSmokeD
           gt: 0
         }
       }
+    }),
+    prisma.starPurchase.findMany({
+      orderBy: {
+        createdAt: "desc"
+      },
+      select: {
+        createdAt: true,
+        id: true,
+        packageLabel: true,
+        paypalCaptureId: true,
+        paypalOrderId: true,
+        stars: true,
+        status: true,
+        totalPence: true
+      },
+      take: 5,
+      where: {
+        userId
+      }
+    }),
+    prisma.digitalTrackPurchase.findMany({
+      include: {
+        track: {
+          select: {
+            downloadUrl: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 5,
+      where: {
+        buyerId: userId
+      }
+    }),
+    prisma.order.findMany({
+      include: {
+        items: {
+          orderBy: {
+            id: "asc"
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 5,
+      where: {
+        userId
+      }
     })
   ]);
   const modeBlock = paymentSmokeModeBlockReason(paypal.settings.mode);
@@ -163,9 +235,71 @@ export async function getPaymentSmokeData(userId: string): Promise<PaymentSmokeD
   const starsState = scenarioReady(modeBlock, starsReadiness, starPackage ? null : "No stars package is configured.");
   const musicState = scenarioReady(modeBlock, musicReadiness, musicTrack ? null : "No approved paid music track is available for this admin user to buy.");
   const shopState = scenarioReady(modeBlock, shopReadiness, shopVariant ? null : "No active in-stock paid shop variant is available.");
+  const recentResults: PaymentSmokeRecentResult[] = [
+    ...starPurchases.map((purchase) => ({
+      amountPence: purchase.totalPence,
+      createdAt: purchase.createdAt.toISOString(),
+      id: purchase.id,
+      paypalCaptureId: purchase.paypalCaptureId,
+      paypalOrderId: purchase.paypalOrderId,
+      resultHref: "/account/rewards",
+      scenarioId: "stars" as const,
+      status: purchase.status,
+      targetLabel: `${purchase.packageLabel} / ${purchase.stars.toLocaleString("en-GB")} stars`,
+      title: paymentSmokeScenarioLabels.stars,
+      verification: paymentSmokeVerification({
+        paypalCaptureId: purchase.paypalCaptureId,
+        scenarioId: "stars",
+        status: purchase.status
+      })
+    })),
+    ...musicPurchases.map((purchase) => {
+      const deliveryAvailable = Boolean(purchase.downloadUrl ?? purchase.track.downloadUrl);
+
+      return {
+        amountPence: purchase.pricePence,
+        createdAt: purchase.createdAt.toISOString(),
+        id: purchase.id,
+        paypalCaptureId: purchase.paypalCaptureId,
+        paypalOrderId: purchase.paypalOrderId,
+        resultHref: "/account/downloads",
+        scenarioId: "music" as const,
+        status: purchase.status,
+        targetLabel: `${purchase.trackTitle} by ${purchase.producerName}`,
+        title: paymentSmokeScenarioLabels.music,
+        verification: paymentSmokeVerification({
+          deliveryAvailable,
+          paypalCaptureId: purchase.paypalCaptureId,
+          scenarioId: "music",
+          status: purchase.status
+        })
+      };
+    }),
+    ...shopOrders.map((order) => ({
+      amountPence: order.totalPence,
+      createdAt: order.createdAt.toISOString(),
+      id: order.id,
+      paypalCaptureId: order.paypalCaptureId,
+      paypalOrderId: order.paypalOrderId,
+      resultHref: "/account/orders",
+      scenarioId: "shop" as const,
+      status: order.status,
+      targetLabel:
+        order.items.length === 1
+          ? `${order.items[0].productName} / ${order.items[0].variantName}`
+          : `${order.items.length} shop item${order.items.length === 1 ? "" : "s"}`,
+      title: paymentSmokeScenarioLabels.shop,
+      verification: paymentSmokeVerification({
+        paypalCaptureId: order.paypalCaptureId,
+        scenarioId: "shop",
+        status: order.status
+      })
+    }))
+  ].sort(resultSort).slice(0, 12);
 
   return {
     mode: paypal.settings.mode,
+    recentResults,
     scenarios: [
       {
         action: "/account/rewards/stars/checkout",

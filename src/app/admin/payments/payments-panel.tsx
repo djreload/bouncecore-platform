@@ -88,6 +88,18 @@ function riskTone(level: string) {
   return "acid" as const;
 }
 
+function smokeVerificationTone(state: string) {
+  if (state === "verified") {
+    return "acid" as const;
+  }
+
+  if (state === "pending") {
+    return "amber" as const;
+  }
+
+  return "pink" as const;
+}
+
 function checkoutTypeLabel(type: string) {
   switch (type) {
     case "music-cart":
@@ -363,6 +375,52 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webho
               )}
             </article>
           ))}
+        </div>
+
+        <div className="mt-5 rounded-md border border-bc-line bg-bc-ink">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
+            <div>
+              <h4 className="font-black">Recent checkout verifier</h4>
+              <p className="mt-1 text-sm text-bc-muted">
+                Shows recent checkouts for this admin user and whether the local capture/update path completed.
+              </p>
+            </div>
+            <Badge tone="muted">{smoke.recentResults.length} shown</Badge>
+          </div>
+          <div className="grid gap-3 p-4">
+            {smoke.recentResults.map((result) => (
+              <article className="rounded-md border border-bc-line bg-bc-panel p-3" key={`${result.scenarioId}:${result.id}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone={smokeVerificationTone(result.verification.state)}>{result.verification.label}</Badge>
+                      <Badge tone="muted">{result.status}</Badge>
+                      {result.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                    </div>
+                    <h5 className="mt-3 font-black">{result.title}</h5>
+                    <p className="mt-1 text-sm text-bc-muted">{result.targetLabel}</p>
+                    <p className="mt-2 text-xs leading-5 text-bc-muted">{result.verification.detail}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-black">{formatMoney(result.amountPence)}</p>
+                    <p className="mt-1 text-xs text-bc-muted">{formatDateTime(result.createdAt)}</p>
+                    {result.paypalOrderId ? <p className="mt-1 text-xs text-bc-muted">PayPal {result.paypalOrderId.slice(0, 10)}</p> : null}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <ButtonLink href={result.resultHref} size="sm" variant="ghost">
+                    Result page
+                  </ButtonLink>
+                  {result.paypalCaptureId ? <Badge tone="muted">Capture {result.paypalCaptureId.slice(0, 10)}</Badge> : null}
+                </div>
+              </article>
+            ))}
+            {!smoke.recentResults.length ? (
+              <div className="rounded-md border border-bc-line bg-bc-panel p-4 text-sm text-bc-muted">
+                No recent stars, music, or shop checkout records exist for this admin user yet.
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
 
