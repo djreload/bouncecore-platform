@@ -53,6 +53,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
   return (
     <div
       className={`${hideFooterOnMobile ? "h-dvh overflow-hidden lg:h-auto lg:min-h-screen lg:overflow-visible" : "min-h-screen"} bg-bc-void text-white`}
+      data-bc-public-shell
       style={themeStyle}
     >
       <header className="sticky top-0 z-40 border-b border-bc-line/80 bg-bc-void/90 backdrop-blur">

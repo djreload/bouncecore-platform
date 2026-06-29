@@ -152,7 +152,7 @@ select {
   animation: bc-sheep-motion-blur 1.15s ease-out both;
 }
 
-html.bc-sheep-impact-wobble body {
+html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-overlay]) {
   animation: bc-sheep-impact-wobble 650ms cubic-bezier(0.12, 0.8, 0.18, 1) both;
   transform-origin: 50% 50%;
 }
@@ -1550,7 +1550,7 @@ html.bc-sheep-impact-wobble body {
   .bc-giveaway-winner-toast,
   .bc-music-top-five,
   .bc-sheep-motion-blur,
-  html.bc-sheep-impact-wobble body {
+  html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-overlay]) {
     animation: none !important;
     filter: none !important;
     transform: none !important;

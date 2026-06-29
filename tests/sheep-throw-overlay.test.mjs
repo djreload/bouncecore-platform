@@ -8,6 +8,16 @@ test("sheep throw impact targets exact viewport center", () => {
 
   assert.match(content, /const targetX = width \* 0\.5;/);
   assert.match(content, /const targetY = height \* 0\.5;/);
+  assert.match(content, /data-sheep-throw-overlay/);
   assert.doesNotMatch(content, /const targetX = width \* \(0\./);
   assert.doesNotMatch(content, /const targetY = height \* \(0\./);
+});
+
+test("sheep throw impact wobble does not transform body or overlay", () => {
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+  const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");
+
+  assert.match(shell, /data-bc-public-shell/);
+  assert.match(css, /html\.bc-sheep-impact-wobble \[data-bc-public-shell\] > :not\(\[data-sheep-throw-overlay\]\)/);
+  assert.doesNotMatch(css, /html\.bc-sheep-impact-wobble body/);
 });

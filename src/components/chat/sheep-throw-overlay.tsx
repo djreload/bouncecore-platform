@@ -355,7 +355,7 @@ export function SheepThrowOverlay() {
   }
 
   return (
-    <div aria-live="polite" className="pointer-events-none fixed inset-0 z-[72] overflow-hidden">
+    <div aria-live="polite" className="pointer-events-none fixed inset-0 z-[72] overflow-hidden" data-sheep-throw-overlay>
       {incomingBlur ? <div className="bc-sheep-motion-blur absolute inset-0" aria-hidden="true" /> : null}
       <canvas className="absolute inset-0 h-full w-full" ref={canvasRef} />
       <div className="absolute inset-x-3 top-[18dvh] flex justify-center">
