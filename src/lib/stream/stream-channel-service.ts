@@ -11,6 +11,7 @@ import {
 } from "@/lib/stream/stream-profile-service";
 import { getAdminRestreamSettings } from "@/lib/stream/restream-settings-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
+import { getLiveViewerPresenceCount } from "@/lib/presence/live-viewer-presence";
 
 export type StreamChannelInput = {
   channelId?: string;
@@ -383,7 +384,11 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
 }
 
 export async function getPublicLiveState(): Promise<PublicLiveState> {
-  const [provider, defaultProfile] = await Promise.all([getProviderSnapshot(), getDefaultStreamProfile()]);
+  const [provider, defaultProfile, liveViewerCount] = await Promise.all([
+    getProviderSnapshot(),
+    getDefaultStreamProfile(),
+    getLiveViewerPresenceCount()
+  ]);
 
   try {
     const channel = await prisma.streamChannel.findFirst({
@@ -395,6 +400,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       }
     });
     const status = provider.status !== "offline" ? provider.status : channel?.status ?? provider.status;
+    const viewerCount = status === "offline" ? 0 : Math.max(provider.viewerCount, liveViewerCount);
 
     return {
       activeIngests: provider.activeIngests,
@@ -412,10 +418,12 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       status,
       playbackUrl: channel?.playbackUrl ?? provider.playbackUrl,
       offlineImageUrl: channel?.offlineImageUrl ?? null,
-      viewerCount: provider.viewerCount,
+      viewerCount,
       health: provider.health
     };
   } catch {
+    const viewerCount = provider.status === "offline" ? 0 : Math.max(provider.viewerCount, liveViewerCount);
+
     return {
       activeIngests: provider.activeIngests,
       channel: null,
@@ -423,7 +431,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       status: provider.status,
       playbackUrl: provider.playbackUrl,
       offlineImageUrl: null,
-      viewerCount: provider.viewerCount,
+      viewerCount,
       health: provider.health
     };
   }

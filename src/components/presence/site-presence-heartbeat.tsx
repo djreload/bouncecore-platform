@@ -2,9 +2,49 @@
 
 import { useEffect, useRef } from "react";
 
-const minimumHeartbeatGapMs = 30_000;
+const minimumHeartbeatGapMs = 15_000;
+const liveViewerHeartbeatIntervalMs = 15_000;
 const activityFreshnessMs = 5 * 60 * 1000;
+const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
+const visitorStorageKey = "bouncecore.presence.visitorId";
 const activityEvents = ["keydown", "pointerdown", "scroll", "touchstart"] as const;
+
+function createVisitorId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 18)}`;
+}
+
+function getPresenceVisitorId() {
+  try {
+    const existing = window.localStorage.getItem(visitorStorageKey);
+
+    if (existing) {
+      return existing;
+    }
+
+    const next = createVisitorId();
+
+    window.localStorage.setItem(visitorStorageKey, next);
+    return next;
+  } catch {
+    return createVisitorId();
+  }
+}
+
+function persistentAudioEnabled() {
+  try {
+    return window.localStorage.getItem(liveAudioEnabledStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function isLiveViewerActive() {
+  return window.location.pathname === "/live" || window.location.pathname.startsWith("/live/") || persistentAudioEnabled();
+}
 
 export function SitePresenceHeartbeat() {
   const lastSentAtRef = useRef(0);
@@ -36,7 +76,17 @@ export function SitePresenceHeartbeat() {
       lastSentAtRef.current = now;
 
       try {
+        const liveViewer = isLiveViewerActive();
+
         await fetch("/api/presence/heartbeat", {
+          body: JSON.stringify({
+            liveViewer,
+            path: liveViewer ? "/live" : window.location.pathname,
+            visitorId: getPresenceVisitorId()
+          }),
+          headers: {
+            "Content-Type": "application/json"
+          },
           method: "POST",
           cache: "no-store",
           credentials: "same-origin",
@@ -76,6 +126,11 @@ export function SitePresenceHeartbeat() {
 
     lastActivityAtRef.current = Date.now();
     void sendHeartbeat(true);
+    const liveViewerInterval = window.setInterval(() => {
+      if (isLiveViewerActive()) {
+        void sendHeartbeat(true);
+      }
+    }, liveViewerHeartbeatIntervalMs);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
@@ -96,6 +151,7 @@ export function SitePresenceHeartbeat() {
     return () => {
       active = false;
       clearQueuedHeartbeat();
+      window.clearInterval(liveViewerInterval);
       activityEvents.forEach((eventName) => {
         window.removeEventListener(eventName, recordActivity);
       });

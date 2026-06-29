@@ -119,8 +119,8 @@ export function SheepThrowOverlay() {
       const seed = hashText(sheepThrow.id);
       const fromLeft = seed % 2 === 0;
       const progress = easeOutBack(Math.min(1, elapsed / approachMs));
-      const targetX = width * (0.48 + ((seed % 13) - 6) * 0.006);
-      const targetY = height * (0.46 + ((seed % 11) - 5) * 0.006);
+      const targetX = width * 0.5;
+      const targetY = height * 0.5;
       const startX = fromLeft ? -width * 0.12 : width * 1.12;
       const startY = height * (0.72 + (seed % 8) * 0.015);
       const x = startX + (targetX - startX) * progress;
