@@ -73,7 +73,6 @@ const productionReadinessRepairLinks: Record<string, string> = {
   "Mobile config source": "/admin/mobile",
   "Mobile update URL": "/admin/mobile?repair=update-url",
   "Queue backlog": "/admin/push",
-  "Stream provider": "/admin/stream",
   "RTMPS ingest": "/admin/stream",
   "RTMP ingest URL": "/admin/stream",
   "Stream key validation URL": "/admin/stream",
@@ -692,7 +691,6 @@ export async function getAdminSystemHealthData() {
       id: "streaming",
       title: "Streaming",
       items: [
-        checkFromSource(checkSources, "Stream provider"),
         checkFromSource(checkSources, "RTMPS ingest"),
         checkFromSource(checkSources, "RTMP ingest URL"),
         checkFromSource(checkSources, "Stream key validation URL"),

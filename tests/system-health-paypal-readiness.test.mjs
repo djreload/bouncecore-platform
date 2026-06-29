@@ -64,6 +64,7 @@ test("production readiness repair links route common blockers to their admin sur
   assert.equal(productionReadinessRepairHref("PayPal client ID"), "/admin/payments");
   assert.equal(productionReadinessRepairHref("RTMPS ingest"), "/admin/stream");
   assert.equal(productionReadinessRepairHref("Mobile android push"), "/admin/mobile");
+  assert.equal(productionReadinessRepairHref("Stream provider"), undefined);
   assert.equal(productionReadinessRepairHref("Unknown check"), undefined);
 });
 
