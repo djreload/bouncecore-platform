@@ -26,6 +26,7 @@ COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src ./src
+COPY --from=build /app/scripts ./scripts
 RUN mkdir -p ./public/uploads /data ./.next/cache/images \
   && chown -R nextjs:nodejs ./public/uploads /data ./.next/cache
 USER nextjs
