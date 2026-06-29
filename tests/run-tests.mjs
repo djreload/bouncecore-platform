@@ -3,6 +3,7 @@ import "./active-ingest-state.test.mjs";
 import "./chat-effects.test.mjs";
 import "./chat-mention-notifications.test.mjs";
 import "./chat-mentions.test.mjs";
+import "./chat-reaction-summary-display.test.mjs";
 import "./chat-sheep-throw-notifications.test.mjs";
 import "./cart-events.test.mjs";
 import "./email-address.test.mjs";

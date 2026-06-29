@@ -987,6 +987,15 @@ export function ChatRoomPanel({
             );
             const messageActionsOpen = openMessageActionsId === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
+            const visibleReactionSummaries = message.reactions
+              .filter((reaction) => reaction.count > 0)
+              .map((summary) => ({
+                option: chatReactionOptions.find((option) => option.key === summary.key),
+                summary
+              }))
+              .filter((reaction): reaction is { option: (typeof chatReactionOptions)[number]; summary: (typeof message.reactions)[number] } =>
+                Boolean(reaction.option)
+              );
 
             if (message.kind === "sheep") {
               return (
@@ -1067,6 +1076,33 @@ export function ChatRoomPanel({
                     ) : null}
                   </div>
                 </div>
+
+                {visibleReactionSummaries.length ? (
+                  <div
+                    aria-label="Message reactions"
+                    className={cn(
+                      "mt-2 flex min-h-6 flex-wrap items-center gap-1.5 rounded-md border border-bc-line/70 bg-bc-panel/45 px-2 py-1",
+                      mobileLiveMode && "mt-1.5 min-h-5 gap-1 border-white/10 bg-black/25 px-1.5 py-0.5"
+                    )}
+                  >
+                    {visibleReactionSummaries.map(({ option, summary }) => (
+                      <span
+                        className={cn(
+                          "inline-flex h-5 items-center gap-1 rounded-full border px-1.5 text-[11px] font-black leading-none",
+                          summary.reacted
+                            ? "border-bc-electric/65 bg-bc-electric/15 text-white"
+                            : "border-bc-line bg-bc-ink/80 text-bc-muted",
+                          mobileLiveMode && "h-4 px-1 text-[10px]"
+                        )}
+                        key={summary.key}
+                        title={`${option.label}: ${summary.count.toLocaleString("en-GB")}`}
+                      >
+                        <span aria-hidden="true">{option.icon}</span>
+                        <span>{summary.count.toLocaleString("en-GB")}</span>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 {message.replyTo ? (
                   <div className="mt-2 rounded-md border-l-2 border-bc-electric/70 bg-bc-panel/70 px-2 py-1.5 text-xs">
