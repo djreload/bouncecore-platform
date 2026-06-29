@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { paypalIntegrationHealthChecks } from "../src/lib/admin/system-health.ts";
+import { paypalIntegrationHealthChecks, productionReadinessStatus } from "../src/lib/admin/system-health.ts";
 
 test("system health uses PayPal integration readiness instead of raw env-only checks", () => {
   const checks = paypalIntegrationHealthChecks({
@@ -47,4 +47,10 @@ test("system health uses PayPal integration readiness instead of raw env-only ch
       value: "Missing"
     }
   ]);
+});
+
+test("production readiness status rolls up the highest severity item", () => {
+  assert.equal(productionReadinessStatus([{ status: "healthy" }, { status: "healthy" }]), "healthy");
+  assert.equal(productionReadinessStatus([{ status: "healthy" }, { status: "warning" }]), "warning");
+  assert.equal(productionReadinessStatus([{ status: "warning" }, { status: "critical" }]), "critical");
 });

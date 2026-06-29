@@ -2,19 +2,28 @@ import { cpus, freemem, totalmem, uptime } from "node:os";
 import { prisma } from "@/lib/db/prisma";
 import { mailIsConfigured } from "@/lib/mail/smtp-service";
 import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
+import { getAdminSiteSettingsData } from "@/lib/admin/site-settings-service";
 import { getPayPalIntegrationData, type PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getProviderSnapshot } from "@/lib/stream/stream-channel-service";
 import { getHlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getLatestWorkerHeartbeat, getWorkerHeartbeatStatus } from "@/lib/workers/worker-heartbeat";
 
-type HealthStatus = "healthy" | "warning" | "critical";
+export type HealthStatus = "healthy" | "warning" | "critical";
 
-type HealthCheck = {
+export type HealthCheck = {
   label: string;
   status: HealthStatus;
   value: string;
   detail: string;
   href?: string;
+};
+
+export type ProductionReadinessGroup = {
+  description: string;
+  id: string;
+  items: HealthCheck[];
+  status: HealthStatus;
+  title: string;
 };
 
 function formatBytes(bytes: number) {
@@ -52,6 +61,49 @@ export function paypalIntegrationHealthChecks(paypal: PayPalIntegrationData): He
     status: check.status === "ready" ? "healthy" : "warning",
     value: check.value
   }));
+}
+
+export function productionReadinessStatus(items: Array<{ status: HealthStatus }>): HealthStatus {
+  if (items.some((item) => item.status === "critical")) {
+    return "critical";
+  }
+
+  if (items.some((item) => item.status === "warning")) {
+    return "warning";
+  }
+
+  return "healthy";
+}
+
+function productionReadinessGroup({
+  description,
+  id,
+  items,
+  title
+}: {
+  description: string;
+  id: string;
+  items: HealthCheck[];
+  title: string;
+}): ProductionReadinessGroup {
+  return {
+    description,
+    id,
+    items,
+    status: productionReadinessStatus(items),
+    title
+  };
+}
+
+function checkFromSource(checks: HealthCheck[], label: string): HealthCheck {
+  return (
+    checks.find((check) => check.label === label) ?? {
+      detail: `${label} check was not available.`,
+      label,
+      status: "warning",
+      value: "Missing"
+    }
+  );
 }
 
 function smtpHealthCheck(): HealthCheck {
@@ -195,7 +247,8 @@ export async function getAdminSystemHealthData() {
     streamChannelsMissingOfflineImage,
     mobileConfigSetting,
     paypalIntegration,
-    mobileConfigData
+    mobileConfigData,
+    siteSettingsData
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -314,7 +367,8 @@ export async function getAdminSystemHealthData() {
       }
     }),
     getPayPalIntegrationData(),
-    getAdminMobileConfigData()
+    getAdminMobileConfigData(),
+    getAdminSiteSettingsData()
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
@@ -348,6 +402,12 @@ export async function getAdminSystemHealthData() {
   const mobileChecks = mobileConfigData.checks.map((check): HealthCheck => ({
     detail: check.detail,
     label: `Mobile ${check.label.toLowerCase()}`,
+    status: check.status === "ready" ? "healthy" : "warning",
+    value: check.value
+  }));
+  const siteSettingsChecks = siteSettingsData.checks.map((check): HealthCheck => ({
+    detail: check.detail,
+    label: `Site ${check.label.toLowerCase()}`,
     status: check.status === "ready" ? "healthy" : "warning",
     value: check.value
   }));
@@ -514,7 +574,94 @@ export async function getAdminSystemHealthData() {
       value: mobileUpdateUrlInvalid ? "Repair needed" : "Clean"
     }
   ];
-  const allChecks = [...checks, ...dataQuality];
+  const checkSources = [...checks, ...dataQuality, ...siteSettingsChecks];
+  const productionReadiness: ProductionReadinessGroup[] = [
+    productionReadinessGroup({
+      description: "PayPal credentials, checkout surfaces, webhook processing, and customer delivery integrity.",
+      id: "payments",
+      title: "Payments",
+      items: [
+        checkFromSource(checkSources, "Payment rail"),
+        checkFromSource(checkSources, "PayPal client ID"),
+        checkFromSource(checkSources, "PayPal client secret"),
+        checkFromSource(checkSources, "PayPal webhook ID"),
+        checkFromSource(checkSources, "PayPal webhooks"),
+        checkFromSource(checkSources, "Paid track delivery"),
+        checkFromSource(checkSources, "Paid purchase delivery")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Account verification, password reset, sender identity, and public support contact readiness.",
+      id: "email-support",
+      title: "Email and support",
+      items: [
+        checkFromSource(checkSources, "Brevo SMTP"),
+        checkFromSource(checkSources, "Site support email"),
+        checkFromSource(checkSources, "Site config source")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Mobile FCM configuration, encrypted device tokens, worker dispatch, and queue backlog.",
+      id: "push-mobile",
+      title: "Push and mobile",
+      items: [
+        checkFromSource(checkSources, "Push token encryption"),
+        checkFromSource(checkSources, "Mobile android push"),
+        checkFromSource(checkSources, "Mobile config source"),
+        checkFromSource(checkSources, "Mobile update URL"),
+        checkFromSource(checkSources, "Queue backlog")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "RTMPS ingest, stream-key validation, playback manifest, and adaptive/direct HLS readiness.",
+      id: "streaming",
+      title: "Streaming",
+      items: [
+        checkFromSource(checkSources, "Stream provider"),
+        checkFromSource(checkSources, "RTMPS ingest"),
+        checkFromSource(checkSources, "RTMP ingest URL"),
+        checkFromSource(checkSources, "Stream key validation URL"),
+        checkFromSource(checkSources, "Playback URL"),
+        checkFromSource(checkSources, "Playback manifest")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Public catalogue images, track artwork, stickers, product variants, and offline stream presentation.",
+      id: "uploads-content",
+      title: "Uploads and content",
+      items: [
+        checkFromSource(checkSources, "Track artwork"),
+        checkFromSource(checkSources, "Product images"),
+        checkFromSource(checkSources, "Product variants"),
+        checkFromSource(checkSources, "Sticker packs"),
+        checkFromSource(checkSources, "Offline stream images")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Privacy policy, cookie/terms pages, branding, live links, and consent-facing public configuration.",
+      id: "legal-privacy",
+      title: "Legal and privacy",
+      items: [
+        checkFromSource(checkSources, "Site legal pages"),
+        checkFromSource(checkSources, "Site branding"),
+        checkFromSource(checkSources, "Site live social links"),
+        checkFromSource(checkSources, "Site support email")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Runtime, database, worker heartbeat, internal task security, and public URL configuration.",
+      id: "operations",
+      title: "Operations",
+      items: [
+        checkFromSource(checkSources, "App runtime"),
+        checkFromSource(checkSources, "Database"),
+        checkFromSource(checkSources, "Worker heartbeat"),
+        checkFromSource(checkSources, "Public app URL"),
+        checkFromSource(checkSources, "Internal task token")
+      ]
+    })
+  ];
+  const allChecks = [...checks, ...dataQuality, ...siteSettingsChecks];
   const criticalChecks = allChecks.filter((check) => check.status === "critical").length;
   const warningChecks = allChecks.filter((check) => check.status === "warning").length;
 
@@ -523,6 +670,7 @@ export async function getAdminSystemHealthData() {
     overallStatus: criticalChecks ? "critical" : warningChecks ? "warning" : "healthy",
     checks,
     dataQuality,
+    productionReadiness,
     metrics: [
       {
         label: "Active sessions",
