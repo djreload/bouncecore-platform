@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   assertMaintenanceConfirmation,
+  cancelStaleCheckoutsConfirmationText,
   clearAuditLogsConfirmationText,
   clearNotificationInboxConfirmationText,
   clearNotificationLogsConfirmationText,
@@ -13,6 +14,7 @@ test("maintenance clear confirmations expose stable required phrases", () => {
   assert.equal(clearNotificationInboxConfirmationText, "CLEAR NOTIFICATIONS");
   assert.equal(clearNotificationLogsConfirmationText, "CLEAR NOTIFICATION LOGS");
   assert.equal(clearSupportInboxConfirmationText, "CLEAR SUPPORT INBOX");
+  assert.equal(cancelStaleCheckoutsConfirmationText, "CANCEL STALE CHECKOUTS");
 });
 
 test("maintenance clear confirmations reject missing or mismatched input", () => {

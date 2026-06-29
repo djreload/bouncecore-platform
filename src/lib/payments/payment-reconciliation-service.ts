@@ -1,4 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
+import { assertMaintenanceConfirmation } from "@/lib/admin/maintenance-core";
+import {
+  cancelStaleCheckoutsConfirmationText,
+  normalizeStalePendingCleanupHours
+} from "@/lib/payments/payment-reconciliation-core";
 
 export type PaymentReconciliationRiskLevel = "healthy" | "warning" | "critical";
 
@@ -73,6 +78,16 @@ export function paymentReconciliationRisk({
 export function paymentReconciliationStaleCutoff(now = new Date(), minutes = stalePendingPaymentMinutes) {
   return new Date(now.getTime() - minutes * 60 * 1000);
 }
+
+export type CancelStalePendingCheckoutsResult = {
+  cutoff: string;
+  musicBasketPurchasesCancelled: number;
+  musicBasketsCancelled: number;
+  musicPurchasesCancelled: number;
+  shopOrdersCancelled: number;
+  starPurchasesCancelled: number;
+  totalCancelled: number;
+};
 
 function toStaleRow(
   row:
@@ -349,4 +364,114 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
     staleAfterMinutes: stalePendingPaymentMinutes,
     stats
   };
+}
+
+export async function cancelStalePendingCheckouts(actorId: string, input: { confirmation: string; olderThanHours?: string | number }) {
+  assertMaintenanceConfirmation(input.confirmation, cancelStaleCheckoutsConfirmationText);
+
+  const olderThanHours = normalizeStalePendingCleanupHours(input.olderThanHours);
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - olderThanHours * 60 * 60 * 1000);
+  const result = await prisma.$transaction(async (tx): Promise<CancelStalePendingCheckoutsResult> => {
+    const musicBasketPurchases = await tx.digitalTrackPurchase.updateMany({
+      data: {
+        cancelledAt: now,
+        status: "cancelled"
+      },
+      where: {
+        checkoutId: {
+          not: null
+        },
+        checkout: {
+          createdAt: {
+            lt: cutoff
+          },
+          status: "pending"
+        },
+        status: "pending"
+      }
+    });
+    const musicBaskets = await tx.musicCheckout.updateMany({
+      data: {
+        cancelledAt: now,
+        status: "cancelled"
+      },
+      where: {
+        createdAt: {
+          lt: cutoff
+        },
+        status: "pending"
+      }
+    });
+    const musicPurchases = await tx.digitalTrackPurchase.updateMany({
+      data: {
+        cancelledAt: now,
+        status: "cancelled"
+      },
+      where: {
+        checkoutId: null,
+        createdAt: {
+          lt: cutoff
+        },
+        status: "pending"
+      }
+    });
+    const shopOrders = await tx.order.updateMany({
+      data: {
+        cancelledAt: now,
+        status: "cancelled"
+      },
+      where: {
+        createdAt: {
+          lt: cutoff
+        },
+        status: "pending"
+      }
+    });
+    const starPurchases = await tx.starPurchase.updateMany({
+      data: {
+        cancelledAt: now,
+        status: "cancelled"
+      },
+      where: {
+        createdAt: {
+          lt: cutoff
+        },
+        status: "pending"
+      }
+    });
+    const totalCancelled =
+      musicBasketPurchases.count + musicBaskets.count + musicPurchases.count + shopOrders.count + starPurchases.count;
+
+    await tx.auditLog.create({
+      data: {
+        action: "payments.stale_pending.cancel",
+        actorId,
+        metadata: {
+          cutoff: cutoff.toISOString(),
+          musicBasketPurchasesCancelled: musicBasketPurchases.count,
+          musicBasketsCancelled: musicBaskets.count,
+          musicPurchasesCancelled: musicPurchases.count,
+          olderThanHours,
+          shopOrdersCancelled: shopOrders.count,
+          starPurchasesCancelled: starPurchases.count,
+          totalCancelled
+        },
+        severity: totalCancelled > 0 ? "warning" : "info",
+        target: "payments:stale-pending"
+      }
+    });
+
+    return {
+      cutoff: cutoff.toISOString(),
+      musicBasketPurchasesCancelled: musicBasketPurchases.count,
+      musicBasketsCancelled: musicBaskets.count,
+      musicPurchasesCancelled: musicPurchases.count,
+      shopOrdersCancelled: shopOrders.count,
+      starPurchasesCancelled: starPurchases.count,
+      totalCancelled
+    };
+  });
+
+  return result;
 }

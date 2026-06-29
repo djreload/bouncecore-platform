@@ -9,6 +9,7 @@ import {
   type PayPalMode,
   type PayPalSettingsInput
 } from "@/lib/payments/paypal-service";
+import { cancelStalePendingCheckouts } from "@/lib/payments/payment-reconciliation-service";
 import { createProducerPayoutBatch, syncProducerPayoutBatch } from "@/lib/payments/producer-payout-service";
 import type { AdminPaymentsActionState } from "@/app/admin/payments/state";
 
@@ -109,6 +110,25 @@ export async function adminPaymentsAction(
       return {
         status: "success",
         message: `PayPal payout batch synced with status ${batch.status}.`
+      };
+    }
+
+    if (intent === "stale-pending-cancel") {
+      const result = await cancelStalePendingCheckouts(actor.id, {
+        confirmation: formString(formData, "confirmation"),
+        olderThanHours: formString(formData, "olderThanHours")
+      });
+
+      revalidatePaymentViews();
+      revalidatePath("/admin/orders");
+      revalidatePath("/admin/stars");
+      revalidatePath("/admin/tracks");
+
+      return {
+        status: "success",
+        message: `${result.totalCancelled.toLocaleString("en-GB")} stale pending checkout record${
+          result.totalCancelled === 1 ? "" : "s"
+        } cancelled.`
       };
     }
 

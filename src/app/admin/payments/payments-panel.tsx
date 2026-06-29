@@ -6,6 +6,7 @@ import { adminPaymentsAction } from "@/app/admin/payments/actions";
 import { initialAdminPaymentsActionState, type AdminPaymentsActionState } from "@/app/admin/payments/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cancelStaleCheckoutsConfirmationText, stalePendingCleanupDefaultHours } from "@/lib/payments/payment-reconciliation-core";
 import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import type { PayPalWebhookEventSummary } from "@/lib/payments/paypal-webhook-service";
@@ -88,6 +89,15 @@ function checkoutTypeLabel(type: string) {
     default:
       return type;
   }
+}
+
+function stalePendingTotal(reconciliation: PaymentReconciliationData) {
+  return (
+    reconciliation.stats.staleMusicCheckouts +
+    reconciliation.stats.staleMusicPurchases +
+    reconciliation.stats.staleShopOrders +
+    reconciliation.stats.staleStarPurchases
+  );
 }
 
 export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvents }: AdminPaymentsPanelProps) {
@@ -354,6 +364,64 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
             ) : null}
           </div>
         </div>
+
+        <form action={formAction} className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
+          <input name="intent" type="hidden" value="stale-pending-cancel" />
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Badge tone="pink">Manual cleanup</Badge>
+              <h4 className="mt-3 font-black">Cancel abandoned pending checkouts</h4>
+              <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+                Cancels local pending stars, shop, and music checkout records older than the selected age. Use this after checking PayPal
+                webhooks and only for records that are clearly abandoned.
+              </p>
+            </div>
+            <Badge tone={stalePendingTotal(reconciliation) ? "amber" : "acid"}>
+              {stalePendingTotal(reconciliation).toLocaleString("en-GB")} stale
+            </Badge>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-[180px_minmax(220px,1fr)_auto]">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="stale-cleanup-hours">
+                Older than hours
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={stalePendingCleanupDefaultHours}
+                disabled={pending}
+                id="stale-cleanup-hours"
+                max={168}
+                min={1}
+                name="olderThanHours"
+                required
+                type="number"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="stale-cleanup-confirmation">
+                Confirmation
+              </label>
+              <input
+                autoComplete="off"
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                disabled={pending}
+                id="stale-cleanup-confirmation"
+                name="confirmation"
+                placeholder={cancelStaleCheckoutsConfirmationText}
+                required
+              />
+              <p className="mt-1 text-xs text-bc-muted">
+                Type <span className="font-semibold text-white">{cancelStaleCheckoutsConfirmationText}</span> exactly.
+              </p>
+            </div>
+            <div className="flex items-end">
+              <Button disabled={pending} type="submit" variant="pink">
+                <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+                Cancel stale
+              </Button>
+            </div>
+          </div>
+        </form>
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
