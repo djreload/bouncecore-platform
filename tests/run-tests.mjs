@@ -28,6 +28,7 @@ import "./mobile-event-notifications.test.mjs";
 import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
+import "./payment-reconciliation.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
 import "./privacy-consent.test.mjs";
 import "./restream-settings.test.mjs";

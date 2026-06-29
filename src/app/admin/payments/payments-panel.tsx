@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
-import { AlertTriangle, BadgeCheck, CreditCard, KeyRound, RefreshCw, Save, Send, WalletCards, Webhook } from "lucide-react";
+import { AlertTriangle, BadgeCheck, CreditCard, KeyRound, Radar, RefreshCw, Save, Send, WalletCards, Webhook } from "lucide-react";
 import { adminPaymentsAction } from "@/app/admin/payments/actions";
 import { initialAdminPaymentsActionState, type AdminPaymentsActionState } from "@/app/admin/payments/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import type { PayPalWebhookEventSummary } from "@/lib/payments/paypal-webhook-service";
 import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
@@ -13,6 +14,7 @@ import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-se
 type AdminPaymentsPanelProps = {
   data: PayPalIntegrationData;
   payouts: AdminProducerPayoutsData;
+  reconciliation: PaymentReconciliationData;
   webhookEvents: PayPalWebhookEventSummary[];
 };
 
@@ -61,7 +63,34 @@ function webhookStatusTone(status: string) {
   return "amber" as const;
 }
 
-export function AdminPaymentsPanel({ data, payouts, webhookEvents }: AdminPaymentsPanelProps) {
+function riskTone(level: string) {
+  if (level === "critical") {
+    return "pink" as const;
+  }
+
+  if (level === "warning") {
+    return "amber" as const;
+  }
+
+  return "acid" as const;
+}
+
+function checkoutTypeLabel(type: string) {
+  switch (type) {
+    case "music-cart":
+      return "Music basket";
+    case "music":
+      return "Music";
+    case "shop":
+      return "Shop";
+    case "stars":
+      return "Stars";
+    default:
+      return type;
+  }
+}
+
+export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvents }: AdminPaymentsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminPaymentsActionState, FormData>(
     adminPaymentsAction,
     initialAdminPaymentsActionState
@@ -262,6 +291,69 @@ export function AdminPaymentsPanel({ data, payouts, webhookEvents }: AdminPaymen
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="amber">Reconciliation</Badge>
+            <h3 className="mt-4 text-xl font-black">Payment risk ledger</h3>
+            <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+              Cross-checks pending PayPal records, webhook processing, delivery URLs, and capture references across stars, music, and
+              shop checkout.
+            </p>
+          </div>
+          <Radar className="h-7 w-7 text-amber-300" aria-hidden="true" />
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          {reconciliation.risks.map((item) => (
+            <a className="rounded-md border border-bc-line bg-bc-ink p-4 transition hover:border-bc-electric" href={item.href} key={item.label}>
+              <Badge tone={riskTone(item.level)}>{item.level}</Badge>
+              <p className="mt-3 text-2xl font-black">{item.value}</p>
+              <p className="mt-2 text-sm font-semibold">{item.label}</p>
+              <p className="mt-2 text-xs text-bc-muted">{item.detail}</p>
+            </a>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-md border border-bc-line bg-bc-ink">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
+            <div>
+              <h4 className="font-black">Oldest stale pending checkouts</h4>
+              <p className="mt-1 text-sm text-bc-muted">
+                Pending records older than {reconciliation.staleAfterMinutes} minutes. These usually mean abandoned approval,
+                blocked capture, or missed webhook/return completion.
+              </p>
+            </div>
+            <Badge tone="muted">Checked {formatDateTime(reconciliation.checkedAt)}</Badge>
+          </div>
+          <div className="grid gap-3 p-4">
+            {reconciliation.recentStalePending.map((item) => (
+              <a className="rounded-md border border-bc-line bg-bc-panel p-3 transition hover:border-bc-electric" href={item.href} key={`${item.type}:${item.id}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge tone="amber">{checkoutTypeLabel(item.type)}</Badge>
+                      <Badge tone="muted">{item.status}</Badge>
+                      {item.paypalOrderId ? <Badge tone="cyan">PayPal {item.paypalOrderId.slice(0, 10)}</Badge> : null}
+                    </div>
+                    <p className="mt-3 font-black">{item.label}</p>
+                    <p className="mt-1 text-xs text-bc-muted">
+                      {item.customerName} / {item.customerEmail} / {formatDateTime(item.createdAt)}
+                    </p>
+                  </div>
+                  <p className="font-black">{formatMoney(item.amountPence)}</p>
+                </div>
+              </a>
+            ))}
+            {!reconciliation.recentStalePending.length ? (
+              <div className="rounded-md border border-bc-line bg-bc-panel p-4 text-sm text-bc-muted">
+                No stale pending PayPal checkout records are currently visible.
+              </div>
+            ) : null}
+          </div>
+        </div>
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
