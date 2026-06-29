@@ -114,3 +114,39 @@ test("production readiness issues flatten and prioritize critical launch blocker
     ]
   );
 });
+
+test("production readiness issues de-duplicate repeated labels across groups", () => {
+  const issues = productionReadinessIssues([
+    {
+      description: "Email",
+      id: "email",
+      status: "warning",
+      title: "Email",
+      items: [
+        {
+          detail: "Missing support email",
+          label: "Site support email",
+          status: "warning",
+          value: "missing"
+        }
+      ]
+    },
+    {
+      description: "Legal",
+      id: "legal",
+      status: "warning",
+      title: "Legal",
+      items: [
+        {
+          detail: "Missing support email",
+          label: "Site support email",
+          status: "warning",
+          value: "missing"
+        }
+      ]
+    }
+  ]);
+
+  assert.equal(issues.length, 1);
+  assert.equal(issues[0].groupTitle, "Email");
+});

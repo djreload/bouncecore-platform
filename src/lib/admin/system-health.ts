@@ -122,7 +122,7 @@ export function productionReadinessIssues(groups: ProductionReadinessGroup[]): P
     healthy: 2
   };
 
-  return groups
+  const sortedIssues = groups
     .flatMap((group) =>
       group.items
         .filter((item) => item.status !== "healthy")
@@ -138,6 +138,16 @@ export function productionReadinessIssues(groups: ProductionReadinessGroup[]): P
         left.groupTitle.localeCompare(right.groupTitle) ||
         left.label.localeCompare(right.label)
     );
+  const seenLabels = new Set<string>();
+
+  return sortedIssues.filter((issue) => {
+    if (seenLabels.has(issue.label)) {
+      return false;
+    }
+
+    seenLabels.add(issue.label);
+    return true;
+  });
 }
 
 function productionReadinessGroup({
