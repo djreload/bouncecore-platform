@@ -9,6 +9,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { repairPaidMusicDeliveryConfirmationText } from "@/lib/music/music-delivery-recovery-core";
 import { cancelStaleCheckoutsConfirmationText, stalePendingCleanupDefaultHours } from "@/lib/payments/payment-reconciliation-core";
 import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
+import type { PaymentSmokeData } from "@/lib/payments/payment-smoke-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { paypalWebhookDetailHref } from "@/lib/payments/paypal-webhook-detail-core";
 import {
@@ -24,6 +25,7 @@ type AdminPaymentsPanelProps = {
   data: PayPalIntegrationData;
   payouts: AdminProducerPayoutsData;
   reconciliation: PaymentReconciliationData;
+  smoke: PaymentSmokeData;
   webhookEvents: PayPalWebhookEventSummary[];
   webhookFilters: PayPalWebhookFilters;
 };
@@ -110,7 +112,7 @@ function stalePendingTotal(reconciliation: PaymentReconciliationData) {
   );
 }
 
-export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvents, webhookFilters }: AdminPaymentsPanelProps) {
+export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webhookEvents, webhookFilters }: AdminPaymentsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminPaymentsActionState, FormData>(
     adminPaymentsAction,
     initialAdminPaymentsActionState
@@ -312,6 +314,56 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
             ))}
           </div>
         </article>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="cyan">Smoke tests</Badge>
+            <h3 className="mt-4 text-xl font-black">PayPal checkout proof</h3>
+            <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+              Starts real PayPal sandbox orders through the same stars, music, and shop checkout routes used by customers. Complete
+              PayPal approval in the opened tab, then check the linked result page.
+            </p>
+          </div>
+          <Badge tone={smoke.mode === "sandbox" ? "acid" : "amber"}>{smoke.mode}</Badge>
+        </div>
+
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {smoke.scenarios.map((scenario) => (
+            <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={scenario.id}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <Badge tone={scenario.ready ? "acid" : "amber"}>{scenario.ready ? "Ready" : "Blocked"}</Badge>
+                  <h4 className="mt-3 font-black">{scenario.title}</h4>
+                </div>
+                {scenario.amountPence !== null ? <Badge tone="cyan">{formatMoney(scenario.amountPence)}</Badge> : null}
+              </div>
+              <p className="mt-3 text-sm text-bc-muted">{scenario.description}</p>
+              {scenario.targetLabel ? <p className="mt-3 text-sm font-semibold text-white">{scenario.targetLabel}</p> : null}
+              <p className="mt-2 text-xs leading-5 text-bc-muted">{scenario.expectedResult}</p>
+
+              {scenario.ready ? (
+                <form action={scenario.action} className="mt-4 flex flex-wrap gap-2" method="post" target="_blank">
+                  {scenario.fields.map((field) => (
+                    <input key={`${scenario.id}:${field.name}`} name={field.name} type="hidden" value={field.value} />
+                  ))}
+                  <Button size="sm" type="submit" variant="primary">
+                    <CreditCard className="h-4 w-4" aria-hidden="true" />
+                    Start checkout
+                  </Button>
+                  <ButtonLink href={scenario.resultHref} size="sm" variant="ghost">
+                    Result page
+                  </ButtonLink>
+                </form>
+              ) : (
+                <div className="mt-4 rounded-md border border-amber-300/30 bg-amber-300/10 p-3 text-sm text-amber-100">
+                  {scenario.reason}
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">

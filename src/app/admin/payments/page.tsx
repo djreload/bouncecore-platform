@@ -3,6 +3,7 @@ import { AdminPaymentsPanel } from "@/app/admin/payments/payments-panel";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getPaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
+import { getPaymentSmokeData } from "@/lib/payments/payment-smoke-service";
 import { normalizePayPalWebhookFilters } from "@/lib/payments/paypal-webhook-filter-core";
 import { getRecentPayPalWebhookEvents } from "@/lib/payments/paypal-webhook-service";
 import { getAdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
@@ -18,7 +19,7 @@ function firstSearchParam(value: string | string[] | undefined) {
 }
 
 export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsPageProps) {
-  await requireUserPermission("payments.manage");
+  const user = await requireUserPermission("payments.manage");
   const params = await searchParams;
   const webhookFilters = normalizePayPalWebhookFilters({
     eventType: firstSearchParam(params.webhookEventType),
@@ -26,11 +27,12 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
     query: firstSearchParam(params.webhookQuery),
     status: firstSearchParam(params.webhookStatus)
   });
-  const [data, payouts, webhookEvents, reconciliation] = await Promise.all([
+  const [data, payouts, webhookEvents, reconciliation, smoke] = await Promise.all([
     getPayPalIntegrationData(),
     getAdminProducerPayoutsData(),
     getRecentPayPalWebhookEvents(webhookFilters),
-    getPaymentReconciliationData()
+    getPaymentReconciliationData(),
+    getPaymentSmokeData(user.id)
   ]);
 
   return (
@@ -42,6 +44,7 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
         data={data}
         payouts={payouts}
         reconciliation={reconciliation}
+        smoke={smoke}
         webhookEvents={webhookEvents}
         webhookFilters={webhookFilters}
       />

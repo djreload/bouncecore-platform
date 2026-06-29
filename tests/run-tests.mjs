@@ -30,6 +30,7 @@ import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./payment-reconciliation.test.mjs";
+import "./payment-smoke-core.test.mjs";
 import "./paypal-webhook-detail-core.test.mjs";
 import "./paypal-webhook-filter-core.test.mjs";
 import "./paypal-webhook-retry-core.test.mjs";
