@@ -36,6 +36,7 @@ import "./sheep-throw-overlay.test.mjs";
 import "./star-packages.test.mjs";
 import "./stream-core-playback-url.test.mjs";
 import "./support-request.test.mjs";
+import "./system-health-paypal-readiness.test.mjs";
 import "./tenor-service.test.mjs";
 import "./transcoder-source.test.mjs";
 import "./worker-heartbeat.test.mjs";

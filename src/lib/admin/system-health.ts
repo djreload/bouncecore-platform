@@ -1,5 +1,8 @@
 import { cpus, freemem, totalmem, uptime } from "node:os";
 import { prisma } from "@/lib/db/prisma";
+import { mailIsConfigured } from "@/lib/mail/smtp-service";
+import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
+import { getPayPalIntegrationData, type PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getProviderSnapshot } from "@/lib/stream/stream-channel-service";
 import { getHlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getLatestWorkerHeartbeat, getWorkerHeartbeatStatus } from "@/lib/workers/worker-heartbeat";
@@ -39,6 +42,28 @@ function envCheck(label: string, key: string): HealthCheck {
     status: configured ? "healthy" : "warning",
     value: configured ? "Configured" : "Missing",
     detail: key
+  };
+}
+
+export function paypalIntegrationHealthChecks(paypal: PayPalIntegrationData): HealthCheck[] {
+  return paypal.checks.map((check) => ({
+    detail: check.detail,
+    label: check.label,
+    status: check.status === "ready" ? "healthy" : "warning",
+    value: check.value
+  }));
+}
+
+function smtpHealthCheck(): HealthCheck {
+  const configured = mailIsConfigured();
+
+  return {
+    detail: configured
+      ? "Brevo/SMTP credentials are present for account verification, password reset, and system email."
+      : "Configure BREVO_SMTP_USER, BREVO_SMTP_KEY, and MAIL_FROM before production email can send.",
+    label: "Brevo SMTP",
+    status: configured ? "healthy" : "warning",
+    value: configured ? "Configured" : "Missing"
   };
 }
 
@@ -168,7 +193,9 @@ export async function getAdminSystemHealthData() {
     activeProductsWithoutVariants,
     activeStickerPacksWithoutStickers,
     streamChannelsMissingOfflineImage,
-    mobileConfigSetting
+    mobileConfigSetting,
+    paypalIntegration,
+    mobileConfigData
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -285,7 +312,9 @@ export async function getAdminSystemHealthData() {
       select: {
         value: true
       }
-    })
+    }),
+    getPayPalIntegrationData(),
+    getAdminMobileConfigData()
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
@@ -316,6 +345,12 @@ export async function getAdminSystemHealthData() {
     "details" in streamResult.health && typeof streamResult.health.details === "string"
       ? streamResult.health.details
       : `Ingest connected: ${streamResult.health.ingestConnected ? "yes" : "no"}. Checked ${streamResult.health.checkedAt}`;
+  const mobileChecks = mobileConfigData.checks.map((check): HealthCheck => ({
+    detail: check.detail,
+    label: `Mobile ${check.label.toLowerCase()}`,
+    status: check.status === "ready" ? "healthy" : "warning",
+    value: check.value
+  }));
   const checks: HealthCheck[] = [
     {
       label: "App runtime",
@@ -338,11 +373,11 @@ export async function getAdminSystemHealthData() {
     },
     envCheck("Public app URL", "NEXT_PUBLIC_APP_URL"),
     envCheck("Internal task token", "INTERNAL_TASK_TOKEN"),
+    smtpHealthCheck(),
     envCheck("Tenor GIF API", "TENOR_API_KEY"),
     envCheck("Push token encryption", "PUSH_TOKEN_ENCRYPTION_KEY"),
-    envCheck("PayPal client ID", "PAYPAL_CLIENT_ID"),
-    envCheck("PayPal client secret", "PAYPAL_CLIENT_SECRET"),
-    envCheck("PayPal webhook ID", "PAYPAL_WEBHOOK_ID"),
+    ...paypalIntegrationHealthChecks(paypalIntegration),
+    ...mobileChecks,
     envCheck("RTMP ingest URL", "RTMP_INGEST_URL"),
     {
       detail: rtmpsEnabled
