@@ -6,6 +6,7 @@ import { adminPaymentsAction } from "@/app/admin/payments/actions";
 import { initialAdminPaymentsActionState, type AdminPaymentsActionState } from "@/app/admin/payments/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { repairPaidMusicDeliveryConfirmationText } from "@/lib/music/music-delivery-recovery-core";
 import { cancelStaleCheckoutsConfirmationText, stalePendingCleanupDefaultHours } from "@/lib/payments/payment-reconciliation-core";
 import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
@@ -326,7 +327,7 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
           <Radar className="h-7 w-7 text-amber-300" aria-hidden="true" />
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           {reconciliation.risks.map((item) => (
             <a className="rounded-md border border-bc-line bg-bc-ink p-4 transition hover:border-bc-electric" href={item.href} key={item.label}>
               <Badge tone={riskTone(item.level)}>{item.level}</Badge>
@@ -428,6 +429,53 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
               <Button disabled={pending} type="submit" variant="pink">
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
                 Cancel stale
+              </Button>
+            </div>
+          </div>
+        </form>
+
+        <form action={formAction} className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
+          <input name="intent" type="hidden" value="music-delivery-repair" />
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Badge tone="cyan">Delivery repair</Badge>
+              <h4 className="mt-3 font-black">Backfill paid music delivery snapshots</h4>
+              <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+                Copies the current track download and license data onto paid purchases missing their stored delivery snapshot. Purchases
+                where the track itself has no delivery URL must be fixed on the tracks page first.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={reconciliation.stats.paidMusicPurchasesMissingSnapshotDelivery ? "amber" : "acid"}>
+                {reconciliation.stats.paidMusicPurchasesMissingSnapshotDelivery.toLocaleString("en-GB")} repairable
+              </Badge>
+              <Badge tone={reconciliation.stats.paidMusicPurchasesMissingDelivery ? "pink" : "muted"}>
+                {reconciliation.stats.paidMusicPurchasesMissingDelivery.toLocaleString("en-GB")} missing track URL
+              </Badge>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(220px,1fr)_auto]">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="music-delivery-repair-confirmation">
+                Confirmation
+              </label>
+              <input
+                autoComplete="off"
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                disabled={pending}
+                id="music-delivery-repair-confirmation"
+                name="confirmation"
+                placeholder={repairPaidMusicDeliveryConfirmationText}
+                required
+              />
+              <p className="mt-1 text-xs text-bc-muted">
+                Type <span className="font-semibold text-white">{repairPaidMusicDeliveryConfirmationText}</span> exactly.
+              </p>
+            </div>
+            <div className="flex items-end">
+              <Button disabled={pending || !reconciliation.stats.paidMusicPurchasesMissingSnapshotDelivery} type="submit" variant="primary">
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Repair delivery
               </Button>
             </div>
           </div>

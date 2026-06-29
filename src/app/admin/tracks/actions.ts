@@ -8,6 +8,8 @@ import {
   updateAdminTrack,
   type AdminTrackInput
 } from "@/lib/music/admin-music-service";
+import { paidMusicDeliveryRecoveryMessage } from "@/lib/music/music-delivery-recovery-core";
+import { repairPaidMusicPurchaseDelivery } from "@/lib/music/music-delivery-recovery-service";
 import { digitalTrackStatusOptions, type DigitalTrackStatus } from "@/lib/music/music-service";
 import { saveOptionalDownloadMp3, saveOptionalImageUpload, saveOptionalPreviewMp3 } from "@/lib/media/media-service";
 import type { AdminTracksActionState } from "@/app/admin/tracks/state";
@@ -57,7 +59,9 @@ async function trackInput(formData: FormData): Promise<AdminTrackInput> {
 
 function revalidateMusicViews() {
   revalidatePath("/admin/tracks");
+  revalidatePath("/admin/payments");
   revalidatePath("/admin/producer-approvals");
+  revalidatePath("/admin/system-health");
   revalidatePath("/admin/audit-logs");
   revalidatePath("/music");
   revalidatePath("/producers");
@@ -87,11 +91,18 @@ export async function adminTracksAction(
 
     if (intent === "update-track") {
       const track = await updateAdminTrack(actor.id, await trackInput(formData));
+      const deliveryRepair = await repairPaidMusicPurchaseDelivery(actor.id, {
+        requireConfirmation: false,
+        trackId: track.id,
+        writeAuditWhenEmpty: false
+      });
       revalidateMusicViews();
 
       return {
         status: "success",
-        message: `Track ${track.title} updated.`
+        message: `Track ${track.title} updated.${
+          deliveryRepair.repairedPurchases > 0 ? ` ${paidMusicDeliveryRecoveryMessage(deliveryRepair)}` : ""
+        }`
       };
     }
 

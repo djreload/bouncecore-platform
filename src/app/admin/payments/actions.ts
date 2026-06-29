@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { paidMusicDeliveryRecoveryMessage } from "@/lib/music/music-delivery-recovery-core";
+import { repairPaidMusicPurchaseDelivery } from "@/lib/music/music-delivery-recovery-service";
 import {
   paypalModeOptions,
   updatePayPalSettings,
@@ -130,6 +132,21 @@ export async function adminPaymentsAction(
         message: `${result.totalCancelled.toLocaleString("en-GB")} stale pending checkout record${
           result.totalCancelled === 1 ? "" : "s"
         } cancelled.`
+      };
+    }
+
+    if (intent === "music-delivery-repair") {
+      const result = await repairPaidMusicPurchaseDelivery(actor.id, {
+        confirmation: formString(formData, "confirmation")
+      });
+
+      revalidatePaymentViews();
+      revalidatePath("/admin/tracks");
+      revalidatePath("/account/downloads");
+
+      return {
+        status: "success",
+        message: paidMusicDeliveryRecoveryMessage(result)
       };
     }
 

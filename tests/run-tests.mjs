@@ -19,6 +19,7 @@ import "./maintenance-core.test.mjs";
 import "./media-service.test.mjs";
 import "./media-gateway-state.test.mjs";
 import "./mobile-account-rewards-payload.test.mjs";
+import "./music-delivery-recovery-core.test.mjs";
 import "./music-checkout-errors.test.mjs";
 import "./music-ranking.test.mjs";
 import "./mobile-music-payload.test.mjs";

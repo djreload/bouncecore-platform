@@ -36,6 +36,7 @@ export type PaymentReconciliationData = {
   stats: {
     failedWebhooks24h: number;
     paidMusicPurchasesMissingDelivery: number;
+    paidMusicPurchasesMissingSnapshotDelivery: number;
     paidOrdersMissingCapture: number;
     staleMusicCheckouts: number;
     staleMusicPurchases: number;
@@ -177,6 +178,7 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
     failedWebhooks24h,
     staleReceivedWebhooks,
     paidMusicPurchasesMissingDelivery,
+    paidMusicPurchasesMissingSnapshotDelivery,
     paidOrdersMissingCapture,
     starRows,
     shopRows,
@@ -217,6 +219,26 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
         OR: [{ downloadUrl: null }, { downloadUrl: "" }],
         track: {
           OR: [{ downloadUrl: null }, { downloadUrl: "" }]
+        }
+      }
+    }),
+    prisma.digitalTrackPurchase.count({
+      where: {
+        status: "paid",
+        OR: [{ downloadUrl: null }, { downloadUrl: "" }],
+        track: {
+          AND: [
+            {
+              downloadUrl: {
+                not: null
+              }
+            },
+            {
+              downloadUrl: {
+                not: ""
+              }
+            }
+          ]
         }
       }
     }),
@@ -294,6 +316,7 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
   const stats = {
     failedWebhooks24h,
     paidMusicPurchasesMissingDelivery,
+    paidMusicPurchasesMissingSnapshotDelivery,
     paidOrdersMissingCapture,
     staleMusicCheckouts,
     staleMusicPurchases,
@@ -348,6 +371,15 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
         healthyDetail: "All paid music purchases resolve to a delivery URL.",
         href: "/admin/tracks?repair=missing-delivery",
         label: "Paid music delivery",
+        plural: "purchases",
+        singular: "purchase"
+      }),
+      paymentReconciliationRisk({
+        count: paidMusicPurchasesMissingSnapshotDelivery,
+        detail: "Paid music purchases can fall back to current track delivery, but their stored delivery snapshots need backfilling for stable customer access.",
+        healthyDetail: "Paid music purchases have stored delivery snapshots where current track delivery exists.",
+        href: "/admin/payments",
+        label: "Music delivery snapshots",
         plural: "purchases",
         singular: "purchase"
       }),
