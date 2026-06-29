@@ -26,6 +26,11 @@ export type ProductionReadinessGroup = {
   title: string;
 };
 
+export type ProductionReadinessIssue = HealthCheck & {
+  groupId: string;
+  groupTitle: string;
+};
+
 function formatBytes(bytes: number) {
   const gib = bytes / 1024 / 1024 / 1024;
 
@@ -54,6 +59,42 @@ function envCheck(label: string, key: string): HealthCheck {
   };
 }
 
+const productionReadinessRepairLinks: Record<string, string> = {
+  "Payment rail": "/admin/payments",
+  "PayPal client ID": "/admin/payments",
+  "PayPal client secret": "/admin/payments",
+  "PayPal webhook ID": "/admin/payments",
+  "PayPal webhooks": "/admin/payments",
+  "Brevo SMTP": "/admin/integrations",
+  "Site support email": "/admin/settings",
+  "Site config source": "/admin/settings",
+  "Push token encryption": "/admin/push",
+  "Mobile android push": "/admin/mobile",
+  "Mobile config source": "/admin/mobile",
+  "Mobile update URL": "/admin/mobile?repair=update-url",
+  "Queue backlog": "/admin/push",
+  "Stream provider": "/admin/stream",
+  "RTMPS ingest": "/admin/stream",
+  "RTMP ingest URL": "/admin/stream",
+  "Stream key validation URL": "/admin/stream",
+  "Playback URL": "/admin/stream",
+  "Playback manifest": "/admin/stream",
+  "Track artwork": "/admin/tracks?repair=missing-artwork",
+  "Product images": "/admin/products?repair=missing-images",
+  "Product variants": "/admin/products?repair=missing-variants",
+  "Sticker packs": "/admin/chat-assets?repair=empty-packs",
+  "Offline stream images": "/admin/stream?repair=missing-offline-image",
+  "Site legal pages": "/admin/settings",
+  "Site branding": "/admin/settings",
+  "Site live social links": "/admin/settings",
+  "Public app URL": "/admin/integrations",
+  "Internal task token": "/admin/integrations"
+};
+
+export function productionReadinessRepairHref(label: string) {
+  return productionReadinessRepairLinks[label];
+}
+
 export function paypalIntegrationHealthChecks(paypal: PayPalIntegrationData): HealthCheck[] {
   return paypal.checks.map((check) => ({
     detail: check.detail,
@@ -73,6 +114,31 @@ export function productionReadinessStatus(items: Array<{ status: HealthStatus }>
   }
 
   return "healthy";
+}
+
+export function productionReadinessIssues(groups: ProductionReadinessGroup[]): ProductionReadinessIssue[] {
+  const severityRank: Record<HealthStatus, number> = {
+    critical: 0,
+    warning: 1,
+    healthy: 2
+  };
+
+  return groups
+    .flatMap((group) =>
+      group.items
+        .filter((item) => item.status !== "healthy")
+        .map((item) => ({
+          ...item,
+          groupId: group.id,
+          groupTitle: group.title
+        }))
+    )
+    .sort(
+      (left, right) =>
+        severityRank[left.status] - severityRank[right.status] ||
+        left.groupTitle.localeCompare(right.groupTitle) ||
+        left.label.localeCompare(right.label)
+    );
 }
 
 function productionReadinessGroup({
@@ -96,14 +162,23 @@ function productionReadinessGroup({
 }
 
 function checkFromSource(checks: HealthCheck[], label: string): HealthCheck {
-  return (
-    checks.find((check) => check.label === label) ?? {
-      detail: `${label} check was not available.`,
-      label,
-      status: "warning",
-      value: "Missing"
-    }
-  );
+  const check = checks.find((sourceCheck) => sourceCheck.label === label);
+  const href = productionReadinessRepairHref(label);
+
+  if (check) {
+    return {
+      ...check,
+      href: check.href ?? href
+    };
+  }
+
+  return {
+    detail: `${label} check was not available.`,
+    href,
+    label,
+    status: "warning",
+    value: "Missing"
+  };
 }
 
 function smtpHealthCheck(): HealthCheck {
@@ -664,6 +739,7 @@ export async function getAdminSystemHealthData() {
   const allChecks = [...checks, ...dataQuality, ...siteSettingsChecks];
   const criticalChecks = allChecks.filter((check) => check.status === "critical").length;
   const warningChecks = allChecks.filter((check) => check.status === "warning").length;
+  const productionIssues = productionReadinessIssues(productionReadiness);
 
   return {
     checkedAt: new Date().toISOString(),
@@ -671,6 +747,7 @@ export async function getAdminSystemHealthData() {
     checks,
     dataQuality,
     productionReadiness,
+    productionIssues,
     metrics: [
       {
         label: "Active sessions",
