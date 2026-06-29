@@ -8,6 +8,7 @@ import {
 } from "@/lib/checkout/checkout-confirmation-service";
 import { prisma } from "@/lib/db/prisma";
 import { getPayPalSettings } from "@/lib/payments/paypal-service";
+import { canRetryPayPalWebhookStatus } from "@/lib/payments/paypal-webhook-retry-core";
 import {
   notifyProducerPayoutItemStatus,
   notifyProducerPayoutItemsForBatchStatus
@@ -52,6 +53,14 @@ type PayPalCaptureDetails = {
 
 type ReconciliationResult = {
   action: string;
+  target?: string;
+};
+
+export type PayPalWebhookRetryResult = {
+  eventId: string;
+  paypalEventId: string;
+  previousStatus: string;
+  processingStatus: string;
   target?: string;
 };
 
@@ -1026,6 +1035,110 @@ export async function ingestPayPalWebhook(request: Request) {
     event,
     headers
   });
+}
+
+export async function retryPayPalWebhookEvent(actorId: string, eventId: string): Promise<PayPalWebhookRetryResult> {
+  const webhookEvent = await prisma.payPalWebhookEvent.findUnique({
+    where: {
+      id: eventId
+    }
+  });
+
+  if (!webhookEvent) {
+    throw new Error("PayPal webhook event was not found.");
+  }
+
+  if (webhookEvent.verificationStatus !== "verified") {
+    throw new Error("Only verified PayPal webhook events can be retried.");
+  }
+
+  if (!canRetryPayPalWebhookStatus(webhookEvent.processingStatus)) {
+    throw new Error("Only failed or stuck PayPal webhook events can be retried.");
+  }
+
+  const previousStatus = webhookEvent.processingStatus;
+  const event = asRecord(webhookEvent.payload);
+
+  await prisma.payPalWebhookEvent.update({
+    data: {
+      errorMessage: null,
+      processingStatus: "retrying"
+    },
+    where: {
+      id: webhookEvent.id
+    }
+  });
+
+  let reconciliation: ReconciliationResult;
+
+  try {
+    reconciliation = await reconcilePayPalWebhookEvent(event);
+
+    await prisma.payPalWebhookEvent.update({
+      data: {
+        errorMessage: null,
+        processedAt: new Date(),
+        processingStatus: reconciliation.action
+      },
+      where: {
+        id: webhookEvent.id
+      }
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "PayPal webhook retry failed.";
+
+    await prisma.payPalWebhookEvent.update({
+      data: {
+        errorMessage,
+        processedAt: new Date(),
+        processingStatus: "failed"
+      },
+      where: {
+        id: webhookEvent.id
+      }
+    });
+
+    await writeAuditLog({
+      action: "payments.paypal.webhook.retry_failed",
+      actorId,
+      metadata: {
+        errorMessage,
+        eventType: webhookEvent.eventType,
+        paypalEventId: webhookEvent.paypalEventId,
+        previousStatus,
+        transmissionId: webhookEvent.transmissionId
+      },
+      severity: "critical",
+      target: `paypal-webhook:${webhookEvent.paypalEventId}`
+    });
+
+    throw new Error(errorMessage);
+  }
+
+  await writeAuditLog({
+    action: "payments.paypal.webhook.retry",
+    actorId,
+    metadata: {
+      eventType: webhookEvent.eventType,
+      paypalEventId: webhookEvent.paypalEventId,
+      previousStatus,
+      processingStatus: reconciliation.action,
+      resourceId: webhookEvent.resourceId,
+      resourceType: webhookEvent.resourceType,
+      target: reconciliation.target,
+      transmissionId: webhookEvent.transmissionId
+    },
+    severity: "warning",
+    target: `paypal-webhook:${webhookEvent.paypalEventId}`
+  });
+
+  return {
+    eventId: webhookEvent.id,
+    paypalEventId: webhookEvent.paypalEventId,
+    previousStatus,
+    processingStatus: reconciliation.action,
+    target: reconciliation.target
+  };
 }
 
 export async function getRecentPayPalWebhookEvents(limit = 8): Promise<PayPalWebhookEventSummary[]> {

@@ -11,6 +11,7 @@ import {
 } from "@/lib/payments/paypal-service";
 import { cancelStalePendingCheckouts } from "@/lib/payments/payment-reconciliation-service";
 import { createProducerPayoutBatch, syncProducerPayoutBatch } from "@/lib/payments/producer-payout-service";
+import { retryPayPalWebhookEvent } from "@/lib/payments/paypal-webhook-service";
 import type { AdminPaymentsActionState } from "@/app/admin/payments/state";
 
 function formString(formData: FormData, key: string) {
@@ -129,6 +130,22 @@ export async function adminPaymentsAction(
         message: `${result.totalCancelled.toLocaleString("en-GB")} stale pending checkout record${
           result.totalCancelled === 1 ? "" : "s"
         } cancelled.`
+      };
+    }
+
+    if (intent === "paypal-webhook-retry") {
+      const webhookEventId = formString(formData, "webhookEventId");
+
+      if (!webhookEventId) {
+        throw new Error("Missing PayPal webhook event.");
+      }
+
+      const result = await retryPayPalWebhookEvent(actor.id, webhookEventId);
+      revalidatePaymentViews();
+
+      return {
+        status: "success",
+        message: `PayPal webhook ${result.paypalEventId} retried: ${result.previousStatus} -> ${result.processingStatus}.`
       };
     }
 
