@@ -5,10 +5,11 @@ import { AlertTriangle, BadgeCheck, CreditCard, KeyRound, Radar, RefreshCw, Save
 import { adminPaymentsAction } from "@/app/admin/payments/actions";
 import { initialAdminPaymentsActionState, type AdminPaymentsActionState } from "@/app/admin/payments/state";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { cancelStaleCheckoutsConfirmationText, stalePendingCleanupDefaultHours } from "@/lib/payments/payment-reconciliation-core";
 import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
+import { paypalWebhookDetailHref } from "@/lib/payments/paypal-webhook-detail-core";
 import { canRetryPayPalWebhookStatus } from "@/lib/payments/paypal-webhook-retry-core";
 import type { PayPalWebhookEventSummary } from "@/lib/payments/paypal-webhook-service";
 import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
@@ -451,6 +452,9 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
                 </div>
                 <div className="grid justify-items-end gap-2">
                   <p className="text-right text-xs text-bc-muted">{formatDateTime(event.createdAt)}</p>
+                  <ButtonLink href={paypalWebhookDetailHref(event.id)} size="sm" variant="ghost">
+                    Details
+                  </ButtonLink>
                   {canRetryPayPalWebhookStatus(event.processingStatus) ? (
                     <form action={formAction}>
                       <input name="intent" type="hidden" value="paypal-webhook-retry" />

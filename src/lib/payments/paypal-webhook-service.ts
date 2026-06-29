@@ -8,6 +8,7 @@ import {
 } from "@/lib/checkout/checkout-confirmation-service";
 import { prisma } from "@/lib/db/prisma";
 import { getPayPalSettings } from "@/lib/payments/paypal-service";
+import { paypalWebhookPayloadPreview } from "@/lib/payments/paypal-webhook-detail-core";
 import { canRetryPayPalWebhookStatus } from "@/lib/payments/paypal-webhook-retry-core";
 import {
   notifyProducerPayoutItemStatus,
@@ -62,6 +63,34 @@ export type PayPalWebhookRetryResult = {
   previousStatus: string;
   processingStatus: string;
   target?: string;
+};
+
+export type PayPalWebhookLinkedRecord = {
+  amountPence?: number;
+  createdAt: string;
+  href: string;
+  id: string;
+  label: string;
+  reference?: string | null;
+  status: string;
+  type: string;
+};
+
+export type PayPalWebhookAuditTrailItem = {
+  action: string;
+  actorName: string | null;
+  createdAt: string;
+  id: string;
+  metadataPreview: string;
+  severity: string;
+};
+
+export type PayPalWebhookEventDetail = PayPalWebhookEventSummary & {
+  auditTrail: PayPalWebhookAuditTrailItem[];
+  linkedRecords: PayPalWebhookLinkedRecord[];
+  payloadPreview: string;
+  processedAt: string | null;
+  retryable: boolean;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -121,6 +150,73 @@ function captureDetails(event: Record<string, unknown>): PayPalCaptureDetails {
     paypalOrderId: stringValue(relatedIds.order_id) ?? stringValue(resource.order_id),
     payerEmail: stringValue(payer.email_address)
   };
+}
+
+function eventLookupKeys(event: Record<string, unknown>) {
+  const eventType = stringValue(event.event_type) ?? "";
+  const resource = asRecord(event.resource);
+  const batchHeader = asRecord(resource.batch_header);
+  const payoutItem = asRecord(resource.payout_item);
+  const details = captureDetails(event);
+
+  return {
+    captureIds: uniqueStrings([details.captureId]),
+    localIds: details.localIds,
+    paypalOrderIds: uniqueStrings([details.paypalOrderId]),
+    payoutBatchIds: eventType.startsWith("PAYMENT.PAYOUTSBATCH.")
+      ? uniqueStrings([stringValue(resource.payout_batch_id), stringValue(batchHeader.payout_batch_id), stringValue(resource.id)])
+      : [],
+    payoutItemIds: eventType.startsWith("PAYMENT.PAYOUTS-ITEM.")
+      ? uniqueStrings([stringValue(resource.payout_item_id), stringValue(resource.id)])
+      : [],
+    senderItemIds: eventType.startsWith("PAYMENT.PAYOUTS-ITEM.")
+      ? uniqueStrings([stringValue(payoutItem.sender_item_id), stringValue(resource.sender_item_id)])
+      : []
+  };
+}
+
+function paymentRecordWhere(keys: ReturnType<typeof eventLookupKeys>) {
+  const where: Array<{
+    id?: {
+      in: string[];
+    };
+    paypalCaptureId?: {
+      in: string[];
+    };
+    paypalOrderId?: {
+      in: string[];
+    };
+  }> = [];
+
+  if (keys.paypalOrderIds.length) {
+    where.push({
+      paypalOrderId: {
+        in: keys.paypalOrderIds
+      }
+    });
+  }
+
+  if (keys.captureIds.length) {
+    where.push({
+      paypalCaptureId: {
+        in: keys.captureIds
+      }
+    });
+  }
+
+  if (keys.localIds.length) {
+    where.push({
+      id: {
+        in: keys.localIds
+      }
+    });
+  }
+
+  return where;
+}
+
+function linkedRecordSort(a: PayPalWebhookLinkedRecord, b: PayPalWebhookLinkedRecord) {
+  return Date.parse(b.createdAt) - Date.parse(a.createdAt);
 }
 
 function payoutBatchStatus(eventType: string) {
@@ -1035,6 +1131,278 @@ export async function ingestPayPalWebhook(request: Request) {
     event,
     headers
   });
+}
+
+async function getPayPalWebhookLinkedRecords(event: Record<string, unknown>): Promise<PayPalWebhookLinkedRecord[]> {
+  const keys = eventLookupKeys(event);
+  const paymentWhere = paymentRecordWhere(keys);
+  const [orders, musicCheckouts, trackPurchases, starPurchases, payoutBatches, payoutItems] = await Promise.all([
+    paymentWhere.length
+      ? prisma.order.findMany({
+          select: {
+            createdAt: true,
+            id: true,
+            paypalCaptureId: true,
+            paypalOrderId: true,
+            status: true,
+            totalPence: true
+          },
+          take: 8,
+          where: {
+            OR: paymentWhere
+          }
+        })
+      : Promise.resolve([]),
+    paymentWhere.length
+      ? prisma.musicCheckout.findMany({
+          select: {
+            createdAt: true,
+            id: true,
+            paypalCaptureId: true,
+            paypalOrderId: true,
+            status: true,
+            totalPence: true
+          },
+          take: 8,
+          where: {
+            OR: paymentWhere
+          }
+        })
+      : Promise.resolve([]),
+    paymentWhere.length
+      ? prisma.digitalTrackPurchase.findMany({
+          select: {
+            createdAt: true,
+            id: true,
+            paypalCaptureId: true,
+            paypalOrderId: true,
+            pricePence: true,
+            status: true,
+            trackTitle: true
+          },
+          take: 8,
+          where: {
+            OR: paymentWhere
+          }
+        })
+      : Promise.resolve([]),
+    paymentWhere.length
+      ? prisma.starPurchase.findMany({
+          select: {
+            createdAt: true,
+            id: true,
+            packageLabel: true,
+            paypalCaptureId: true,
+            paypalOrderId: true,
+            status: true,
+            totalPence: true
+          },
+          take: 8,
+          where: {
+            OR: paymentWhere
+          }
+        })
+      : Promise.resolve([]),
+    keys.payoutBatchIds.length
+      ? prisma.producerPayoutBatch.findMany({
+          select: {
+            createdAt: true,
+            id: true,
+            paypalPayoutBatchId: true,
+            senderBatchId: true,
+            status: true,
+            totalPence: true
+          },
+          take: 8,
+          where: {
+            OR: [
+              {
+                paypalPayoutBatchId: {
+                  in: keys.payoutBatchIds
+                }
+              },
+              {
+                senderBatchId: {
+                  in: keys.payoutBatchIds
+                }
+              }
+            ]
+          }
+        })
+      : Promise.resolve([]),
+    keys.senderItemIds.length || keys.payoutItemIds.length
+      ? prisma.producerPayoutItem.findMany({
+          select: {
+            amountPence: true,
+            createdAt: true,
+            id: true,
+            paypalPayoutItemId: true,
+            senderItemId: true,
+            status: true
+          },
+          take: 8,
+          where: {
+            OR: [
+              ...(keys.senderItemIds.length
+                ? [
+                    {
+                      senderItemId: {
+                        in: keys.senderItemIds
+                      }
+                    }
+                  ]
+                : []),
+              ...(keys.payoutItemIds.length
+                ? [
+                    {
+                      paypalPayoutItemId: {
+                        in: keys.payoutItemIds
+                      }
+                    }
+                  ]
+                : [])
+            ]
+          }
+        })
+      : Promise.resolve([])
+  ]);
+
+  return [
+    ...orders.map((record) => ({
+      amountPence: record.totalPence,
+      createdAt: record.createdAt.toISOString(),
+      href: "/admin/orders",
+      id: record.id,
+      label: "Shop order",
+      reference: record.paypalOrderId ?? record.paypalCaptureId,
+      status: record.status,
+      type: "shop"
+    })),
+    ...musicCheckouts.map((record) => ({
+      amountPence: record.totalPence,
+      createdAt: record.createdAt.toISOString(),
+      href: "/admin/tracks",
+      id: record.id,
+      label: "Music basket",
+      reference: record.paypalOrderId ?? record.paypalCaptureId,
+      status: record.status,
+      type: "music basket"
+    })),
+    ...trackPurchases.map((record) => ({
+      amountPence: record.pricePence,
+      createdAt: record.createdAt.toISOString(),
+      href: "/admin/tracks",
+      id: record.id,
+      label: record.trackTitle,
+      reference: record.paypalOrderId ?? record.paypalCaptureId,
+      status: record.status,
+      type: "music"
+    })),
+    ...starPurchases.map((record) => ({
+      amountPence: record.totalPence,
+      createdAt: record.createdAt.toISOString(),
+      href: "/admin/stars",
+      id: record.id,
+      label: record.packageLabel,
+      reference: record.paypalOrderId ?? record.paypalCaptureId,
+      status: record.status,
+      type: "stars"
+    })),
+    ...payoutBatches.map((record) => ({
+      amountPence: record.totalPence,
+      createdAt: record.createdAt.toISOString(),
+      href: "/admin/payments",
+      id: record.id,
+      label: "Producer payout batch",
+      reference: record.paypalPayoutBatchId ?? record.senderBatchId,
+      status: record.status,
+      type: "payout batch"
+    })),
+    ...payoutItems.map((record) => ({
+      amountPence: record.amountPence,
+      createdAt: record.createdAt.toISOString(),
+      href: "/admin/payments",
+      id: record.id,
+      label: "Producer payout item",
+      reference: record.paypalPayoutItemId ?? record.senderItemId,
+      status: record.status,
+      type: "payout item"
+    }))
+  ].sort(linkedRecordSort);
+}
+
+export async function getPayPalWebhookEventDetail(eventId: string): Promise<PayPalWebhookEventDetail | null> {
+  const event = await prisma.payPalWebhookEvent.findUnique({
+    select: {
+      errorMessage: true,
+      eventType: true,
+      id: true,
+      payload: true,
+      paypalEventId: true,
+      processedAt: true,
+      processingStatus: true,
+      receivedAt: true,
+      resourceId: true,
+      resourceType: true,
+      transmissionId: true,
+      verificationStatus: true
+    },
+    where: {
+      id: eventId
+    }
+  });
+
+  if (!event) {
+    return null;
+  }
+
+  const target = `paypal-webhook:${event.paypalEventId}`;
+  const payload = event.payload as unknown;
+  const [linkedRecords, auditTrail] = await Promise.all([
+    getPayPalWebhookLinkedRecords(asRecord(payload)),
+    prisma.auditLog.findMany({
+      include: {
+        actor: {
+          select: {
+            displayName: true,
+            email: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: 12,
+      where: {
+        target
+      }
+    })
+  ]);
+
+  return {
+    auditTrail: auditTrail.map((item) => ({
+      action: item.action,
+      actorName: item.actor?.displayName ?? item.actor?.email ?? null,
+      createdAt: item.createdAt.toISOString(),
+      id: item.id,
+      metadataPreview: paypalWebhookPayloadPreview(item.metadata, 4_000),
+      severity: item.severity
+    })),
+    createdAt: event.receivedAt.toISOString(),
+    errorMessage: event.errorMessage,
+    eventType: event.eventType,
+    id: event.id,
+    linkedRecords,
+    payloadPreview: paypalWebhookPayloadPreview(payload),
+    paypalEventId: event.paypalEventId,
+    processedAt: event.processedAt?.toISOString() ?? null,
+    processingStatus: event.processingStatus,
+    resourceId: event.resourceId,
+    resourceType: event.resourceType,
+    retryable: event.verificationStatus === "verified" && canRetryPayPalWebhookStatus(event.processingStatus),
+    transmissionId: event.transmissionId,
+    verificationStatus: event.verificationStatus
+  };
 }
 
 export async function retryPayPalWebhookEvent(actorId: string, eventId: string): Promise<PayPalWebhookRetryResult> {
