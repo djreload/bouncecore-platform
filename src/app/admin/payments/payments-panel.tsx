@@ -10,6 +10,11 @@ import { cancelStaleCheckoutsConfirmationText, stalePendingCleanupDefaultHours }
 import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { paypalWebhookDetailHref } from "@/lib/payments/paypal-webhook-detail-core";
+import {
+  paypalWebhookLimitOptions,
+  paypalWebhookStatusFilterOptions,
+  type PayPalWebhookFilters
+} from "@/lib/payments/paypal-webhook-filter-core";
 import { canRetryPayPalWebhookStatus } from "@/lib/payments/paypal-webhook-retry-core";
 import type { PayPalWebhookEventSummary } from "@/lib/payments/paypal-webhook-service";
 import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
@@ -19,9 +24,11 @@ type AdminPaymentsPanelProps = {
   payouts: AdminProducerPayoutsData;
   reconciliation: PaymentReconciliationData;
   webhookEvents: PayPalWebhookEventSummary[];
+  webhookFilters: PayPalWebhookFilters;
 };
 
 const paypalModeOptions = ["sandbox", "live"] as const;
+const commonWebhookStatuses = [...paypalWebhookStatusFilterOptions] as string[];
 
 function checkTone(status: string) {
   return status === "ready" ? ("acid" as const) : ("amber" as const);
@@ -102,11 +109,12 @@ function stalePendingTotal(reconciliation: PaymentReconciliationData) {
   );
 }
 
-export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvents }: AdminPaymentsPanelProps) {
+export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvents, webhookFilters }: AdminPaymentsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminPaymentsActionState, FormData>(
     adminPaymentsAction,
     initialAdminPaymentsActionState
   );
+  const includeCurrentWebhookStatus = webhookFilters.status && !commonWebhookStatuses.includes(webhookFilters.status);
 
   return (
     <div className="space-y-5">
@@ -436,8 +444,91 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
               Verified events are recorded once by PayPal event ID before any future reconciliation is added.
             </p>
           </div>
-          <Webhook className="h-7 w-7 text-bc-electric" aria-hidden="true" />
+          <div className="grid justify-items-end gap-2">
+            <Webhook className="h-7 w-7 text-bc-electric" aria-hidden="true" />
+            <Badge tone={webhookFilters.hasFilters ? "amber" : "muted"}>{webhookEvents.length} shown</Badge>
+          </div>
         </div>
+
+        <form className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4" method="get">
+          <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_220px_220px_120px_auto]">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="webhook-query">
+                Search
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={webhookFilters.query}
+                id="webhook-query"
+                name="webhookQuery"
+                placeholder="Event, resource, order, purchase, payout ID"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="webhook-status">
+                Status
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={webhookFilters.status}
+                id="webhook-status"
+                name="webhookStatus"
+              >
+                <option value="">All statuses</option>
+                {includeCurrentWebhookStatus ? <option value={webhookFilters.status}>{webhookFilters.status}</option> : null}
+                {commonWebhookStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="webhook-event-type">
+                Event type
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={webhookFilters.eventType}
+                id="webhook-event-type"
+                name="webhookEventType"
+                placeholder="PAYMENT.CAPTURE"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="webhook-limit">
+                Limit
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={webhookFilters.limit}
+                id="webhook-limit"
+                name="webhookLimit"
+              >
+                {paypalWebhookLimitOptions.map((limit) => (
+                  <option key={limit} value={limit}>
+                    {limit}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end gap-2">
+              <Button type="submit" variant="primary">
+                Filter
+              </Button>
+              {webhookFilters.hasFilters ? (
+                <ButtonLink href="/admin/payments" variant="ghost">
+                  Clear
+                </ButtonLink>
+              ) : null}
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-bc-muted">
+            Search checks PayPal event IDs, resource IDs, transmission IDs, event types, statuses, and common payload IDs used for local
+            orders, purchases, and payouts.
+          </p>
+        </form>
+
         <div className="mt-5 grid gap-3">
           {webhookEvents.map((event) => (
             <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={event.id}>
@@ -477,7 +568,9 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, webhookEvent
           ))}
           {!webhookEvents.length ? (
             <div className="rounded-md border border-bc-line bg-bc-ink p-5 text-sm text-bc-muted">
-              No verified PayPal webhook events have been received yet.
+              {webhookFilters.hasFilters
+                ? "No PayPal webhook events matched these filters."
+                : "No verified PayPal webhook events have been received yet."}
             </div>
           ) : null}
         </div>

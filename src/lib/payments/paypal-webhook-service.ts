@@ -9,6 +9,11 @@ import {
 import { prisma } from "@/lib/db/prisma";
 import { getPayPalSettings } from "@/lib/payments/paypal-service";
 import { paypalWebhookPayloadPreview } from "@/lib/payments/paypal-webhook-detail-core";
+import {
+  normalizePayPalWebhookFilters,
+  type PayPalWebhookFilterInput,
+  type PayPalWebhookFilters
+} from "@/lib/payments/paypal-webhook-filter-core";
 import { canRetryPayPalWebhookStatus } from "@/lib/payments/paypal-webhook-retry-core";
 import {
   notifyProducerPayoutItemStatus,
@@ -217,6 +222,106 @@ function paymentRecordWhere(keys: ReturnType<typeof eventLookupKeys>) {
 
 function linkedRecordSort(a: PayPalWebhookLinkedRecord, b: PayPalWebhookLinkedRecord) {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+}
+
+function payloadStringContains(path: string[], query: string): Prisma.PayPalWebhookEventWhereInput {
+  return {
+    payload: {
+      mode: "insensitive",
+      path,
+      string_contains: query
+    }
+  };
+}
+
+function paypalWebhookSearchWhere(query: string): Prisma.PayPalWebhookEventWhereInput | null {
+  if (!query) {
+    return null;
+  }
+
+  return {
+    OR: [
+      {
+        eventType: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      {
+        paypalEventId: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      {
+        processingStatus: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      {
+        resourceId: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      {
+        resourceType: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      {
+        transmissionId: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      {
+        verificationStatus: {
+          contains: query,
+          mode: "insensitive"
+        }
+      },
+      payloadStringContains(["resource", "id"], query),
+      payloadStringContains(["resource", "custom_id"], query),
+      payloadStringContains(["resource", "invoice_id"], query),
+      payloadStringContains(["resource", "reference_id"], query),
+      payloadStringContains(["resource", "order_id"], query),
+      payloadStringContains(["resource", "supplementary_data", "related_ids", "order_id"], query),
+      payloadStringContains(["resource", "payout_batch_id"], query),
+      payloadStringContains(["resource", "batch_header", "payout_batch_id"], query),
+      payloadStringContains(["resource", "payout_item_id"], query),
+      payloadStringContains(["resource", "sender_item_id"], query),
+      payloadStringContains(["resource", "payout_item", "sender_item_id"], query)
+    ]
+  };
+}
+
+function paypalWebhookListWhere(filters: PayPalWebhookFilters): Prisma.PayPalWebhookEventWhereInput {
+  const AND: Prisma.PayPalWebhookEventWhereInput[] = [];
+  const searchWhere = paypalWebhookSearchWhere(filters.query);
+
+  if (searchWhere) {
+    AND.push(searchWhere);
+  }
+
+  if (filters.status) {
+    AND.push({
+      processingStatus: filters.status
+    });
+  }
+
+  if (filters.eventType) {
+    AND.push({
+      eventType: {
+        contains: filters.eventType,
+        mode: "insensitive"
+      }
+    });
+  }
+
+  return AND.length ? { AND } : {};
 }
 
 function payoutBatchStatus(eventType: string) {
@@ -1509,7 +1614,8 @@ export async function retryPayPalWebhookEvent(actorId: string, eventId: string):
   };
 }
 
-export async function getRecentPayPalWebhookEvents(limit = 8): Promise<PayPalWebhookEventSummary[]> {
+export async function getRecentPayPalWebhookEvents(input: PayPalWebhookFilterInput | number = 8): Promise<PayPalWebhookEventSummary[]> {
+  const filters = typeof input === "number" ? normalizePayPalWebhookFilters({ limit: input }) : normalizePayPalWebhookFilters(input);
   const events = await prisma.payPalWebhookEvent.findMany({
     orderBy: {
       receivedAt: "desc"
@@ -1526,7 +1632,8 @@ export async function getRecentPayPalWebhookEvents(limit = 8): Promise<PayPalWeb
       transmissionId: true,
       verificationStatus: true
     },
-    take: limit
+    take: filters.limit,
+    where: paypalWebhookListWhere(filters)
   });
 
   return events.map((event) => ({
