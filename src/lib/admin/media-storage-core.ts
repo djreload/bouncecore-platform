@@ -27,6 +27,12 @@ export type MediaStorageReferenceLike = {
   source: string;
 };
 
+export function mediaStorageManifestFilename(date = new Date()) {
+  const timestamp = date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+
+  return `bouncecore-upload-manifest-${timestamp}.json`;
+}
+
 export function formatStorageBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 B";

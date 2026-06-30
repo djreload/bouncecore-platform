@@ -1,5 +1,16 @@
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, Database, FileArchive, Files, HardDrive, Link2Off, Search, UploadCloud } from "lucide-react";
+import {
+  AlertTriangle,
+  Database,
+  Download,
+  FileArchive,
+  Files,
+  HardDrive,
+  Link2Off,
+  Search,
+  ShieldCheck,
+  UploadCloud
+} from "lucide-react";
 import { CleanOrphanUploadsForm } from "@/app/admin/storage/clean-orphan-uploads-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
@@ -292,6 +303,25 @@ export default async function AdminStoragePage() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <Badge tone={data.stats.orphanCount ? "amber" : "muted"}>{data.stats.orphanCount} candidates</Badge>
                 <Badge tone="muted">{formatStorageBytes(data.stats.orphanSizeBytes)} reclaimable</Badge>
+              </div>
+              <div className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+                    <h4 className="font-black text-white">Backup first</h4>
+                  </div>
+                  <ButtonLink download href="/admin/storage/manifest" size="sm" variant="ghost">
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Download manifest
+                  </ButtonLink>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-bc-muted">
+                  The manifest records every managed upload, orphan candidate, and missing database reference before cleanup.
+                  For a full file backup, run the instance backup script on the server before deleting files.
+                </p>
+                <code className="mt-3 block overflow-x-auto rounded-md border border-bc-line bg-black/30 px-3 py-2 text-xs text-bc-muted">
+                  scripts/backup-instance.sh --env-file .env.instance --compose-file docker-compose.instance.yml
+                </code>
               </div>
             </div>
             <CleanOrphanUploadsForm

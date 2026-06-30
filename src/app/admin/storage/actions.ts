@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import type { AdminStorageActionState } from "@/app/admin/storage/state";
-import { assertMaintenanceConfirmation, cleanOrphanUploadsConfirmationText } from "@/lib/admin/maintenance-core";
+import {
+  assertBackupAcknowledgement,
+  assertMaintenanceConfirmation,
+  cleanOrphanUploadsConfirmationText
+} from "@/lib/admin/maintenance-core";
 import { cleanAdminOrphanUploads, formatStorageBytes } from "@/lib/admin/media-storage-service";
 import { requireUserPermission } from "@/lib/auth/guards";
 
@@ -20,6 +24,7 @@ export async function cleanOrphanUploadsAction(
     const actor = await requireUserPermission("settings.manage");
 
     assertMaintenanceConfirmation(formString(formData, "confirmation"), cleanOrphanUploadsConfirmationText);
+    assertBackupAcknowledgement(formData.get("backupAcknowledged"));
 
     const result = await cleanAdminOrphanUploads(actor);
 

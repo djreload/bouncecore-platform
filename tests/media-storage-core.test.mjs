@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   formatStorageBytes,
+  mediaStorageManifestFilename,
   summarizeMissingMediaReferences,
   summarizeMediaStorageCategories,
   uploadCategoryFromPath
@@ -12,6 +13,13 @@ test("media storage byte formatter uses compact binary units", () => {
   assert.equal(formatStorageBytes(512), "512 B");
   assert.equal(formatStorageBytes(1536), "1.50 KB");
   assert.equal(formatStorageBytes(5 * 1024 * 1024), "5.00 MB");
+});
+
+test("media storage manifest filename uses a stable UTC timestamp", () => {
+  assert.equal(
+    mediaStorageManifestFilename(new Date("2026-06-30T22:30:45.123Z")),
+    "bouncecore-upload-manifest-20260630T223045Z.json"
+  );
 });
 
 test("media storage category parser uses first uploads folder segment", () => {

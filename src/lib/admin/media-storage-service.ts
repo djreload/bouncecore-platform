@@ -38,6 +38,11 @@ export type AdminMediaStorageData = {
   };
 };
 
+export type AdminMediaStorageManifest = AdminMediaStorageData & {
+  generatedAt: string;
+  manifestVersion: 1;
+};
+
 export type AdminMediaStorageCleanupResult = {
   deletedFiles: number;
   deletedSizeBytes: number;
@@ -219,6 +224,16 @@ export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData>
     },
     rootPath,
     stats
+  };
+}
+
+export async function getAdminMediaStorageManifest(generatedAt = new Date()): Promise<AdminMediaStorageManifest> {
+  const data = await getAdminMediaStorageData();
+
+  return {
+    ...data,
+    generatedAt: generatedAt.toISOString(),
+    manifestVersion: 1
   };
 }
 
