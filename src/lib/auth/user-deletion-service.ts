@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { cleanupDeletedManagedUploads } from "@/lib/media/upload-cleanup-service";
 
 type UserDeletionMode = "admin" | "self";
 
@@ -13,6 +14,10 @@ export type DeletedUserSummary = {
   displayName: string;
   email: string;
   id: string;
+};
+
+type DeletedUserTransactionResult = DeletedUserSummary & {
+  uploadPaths: Array<string | null>;
 };
 
 function normalizedDeletionReason(reason: string | null | undefined) {
@@ -32,12 +37,17 @@ function normalizedDeletionReason(reason: string | null | undefined) {
 export async function deleteUserAndRelatedData(input: DeleteUserAndRelatedDataInput): Promise<DeletedUserSummary> {
   const reason = normalizedDeletionReason(input.reason);
 
-  return prisma.$transaction(async (tx) => {
+  const result: DeletedUserTransactionResult = await prisma.$transaction(async (tx) => {
     const user = await tx.user.findUniqueOrThrow({
       where: {
         id: input.targetUserId
       },
       include: {
+        profile: {
+          select: {
+            avatarUrl: true
+          }
+        },
         roles: {
           include: {
             role: true
@@ -45,6 +55,67 @@ export async function deleteUserAndRelatedData(input: DeleteUserAndRelatedDataIn
         }
       }
     });
+    const removedChatMedia = await tx.chatMessage.findMany({
+      where: {
+        userId: user.id
+      },
+      select: {
+        mediaPreviewUrl: true,
+        mediaUrl: true
+      }
+    });
+    const removedReportMedia = await tx.chatReport.findMany({
+      where: {
+        OR: [
+          {
+            reporterId: user.id
+          },
+          {
+            targetUserId: user.id
+          }
+        ]
+      },
+      select: {
+        mediaPreviewUrl: true
+      }
+    });
+    const removedProducerTrackMedia = await tx.digitalTrack.findMany({
+      where: {
+        producer: {
+          userId: user.id
+        }
+      },
+      select: {
+        artworkUrl: true,
+        downloadUrl: true,
+        previewUrl: true,
+        purchases: {
+          select: {
+            downloadUrl: true
+          }
+        }
+      }
+    });
+    const removedBuyerPurchaseMedia = await tx.digitalTrackPurchase.findMany({
+      where: {
+        buyerId: user.id
+      },
+      select: {
+        downloadUrl: true
+      }
+    });
+    const uploadPaths = [
+      user.profile?.avatarUrl ?? null,
+      ...removedChatMedia.flatMap((message) => [message.mediaUrl, message.mediaPreviewUrl]),
+      ...removedReportMedia.map((report) => report.mediaPreviewUrl),
+      ...removedProducerTrackMedia.flatMap((track) => [
+        track.artworkUrl,
+        track.previewUrl,
+        track.downloadUrl,
+        ...track.purchases.map((purchase) => purchase.downloadUrl)
+      ]),
+      ...removedBuyerPurchaseMedia.map((purchase) => purchase.downloadUrl)
+    ];
 
     const isOwner = user.roles.some((userRole) => userRole.role.name === "owner");
 
@@ -178,7 +249,16 @@ export async function deleteUserAndRelatedData(input: DeleteUserAndRelatedDataIn
     return {
       displayName: user.displayName,
       email: user.email,
-      id: user.id
+      id: user.id,
+      uploadPaths
     };
   });
+
+  await cleanupDeletedManagedUploads(result.uploadPaths);
+
+  return {
+    displayName: result.displayName,
+    email: result.email,
+    id: result.id
+  };
 }

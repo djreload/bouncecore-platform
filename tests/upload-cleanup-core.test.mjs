@@ -4,7 +4,8 @@ import test from "node:test";
 import {
   jsonValueReferencesUpload,
   managedUploadDiskPath,
-  normalizeManagedUploadPath
+  normalizeManagedUploadPath,
+  uniqueManagedUploadPaths
 } from "../src/lib/media/upload-cleanup-core.ts";
 
 test("managed upload cleanup accepts only safe local upload paths", () => {
@@ -36,4 +37,14 @@ test("managed upload cleanup detects exact JSON setting references", () => {
   assert.equal(jsonValueReferencesUpload(value, "/uploads/branding-images/logo.png"), true);
   assert.equal(jsonValueReferencesUpload(value, "/uploads/branding-images/log.png"), false);
   assert.equal(jsonValueReferencesUpload(undefined, "/uploads/branding-images/logo.png"), false);
+});
+
+test("managed upload cleanup deduplicates only safe local upload paths", () => {
+  assert.deepEqual(uniqueManagedUploadPaths([
+    "/uploads/avatars/reload.png",
+    " /uploads/avatars/reload.png ",
+    "https://example.com/uploads/avatars/reload.png",
+    "/uploads/avatars/../secret.png",
+    "/uploads/chat-assets/sheep.png"
+  ]), ["/uploads/avatars/reload.png", "/uploads/chat-assets/sheep.png"]);
 });

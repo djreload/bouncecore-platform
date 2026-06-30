@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db/prisma";
 import {
   jsonValueReferencesUpload,
   managedUploadDiskPath,
-  normalizeManagedUploadPath
+  normalizeManagedUploadPath,
+  uniqueManagedUploadPaths
 } from "@/lib/media/upload-cleanup-core";
 
 export type UploadCleanupResult = {
@@ -156,4 +157,8 @@ export async function cleanupReplacedManagedUploads(
   }>
 ) {
   return Promise.all(replacements.map((replacement) => cleanupReplacedManagedUpload(replacement.previous, replacement.next)));
+}
+
+export async function cleanupDeletedManagedUploads(values: Array<string | null | undefined>) {
+  return Promise.all(uniqueManagedUploadPaths(values).map((value) => deleteManagedUploadIfUnreferenced(value)));
 }

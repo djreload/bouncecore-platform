@@ -54,3 +54,7 @@ export function managedUploadDiskPath(uploadPath: string, cwd = process.cwd()) {
 export function jsonValueReferencesUpload(value: unknown, uploadPath: string) {
   return (JSON.stringify(value) ?? "").includes(JSON.stringify(uploadPath));
 }
+
+export function uniqueManagedUploadPaths(values: Array<string | null | undefined>) {
+  return [...new Set(values.map((value) => normalizeManagedUploadPath(value)).filter((value): value is string => Boolean(value)))];
+}
