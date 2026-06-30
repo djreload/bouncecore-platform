@@ -7,7 +7,7 @@ RUN apt-get update -y \
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --audit=false --fund=false
 
 FROM deps AS build
 COPY . .

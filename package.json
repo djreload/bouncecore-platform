@@ -19,6 +19,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "docker:build": "docker build -t bouncecore-platform:staging .",
     "readiness:report": "tsx scripts/readiness-report.mjs",
+    "security:audit": "npm audit --audit-level=moderate",
     "smoke:public": "node scripts/public-smoke-check.mjs",
     "stream:smoke": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-test.ps1",
     "stream:smoke:temp-key": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-with-temp-key.ps1",

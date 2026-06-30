@@ -79,6 +79,7 @@ Useful checks:
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run test
+npm.cmd run security:audit
 npm.cmd run build
 npm.cmd run smoke:public -- --base-url https://bouncecore.example.com
 ```
