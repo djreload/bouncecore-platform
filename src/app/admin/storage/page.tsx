@@ -1,7 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangle, Database, FileArchive, Files, HardDrive, Search, UploadCloud } from "lucide-react";
+import { CleanOrphanUploadsForm } from "@/app/admin/storage/clean-orphan-uploads-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { cleanOrphanUploadsConfirmationText } from "@/lib/admin/maintenance-core";
 import {
   type AdminMediaStorageData,
   formatStorageBytes,
@@ -58,8 +60,8 @@ function StorageBar({ label, total, value }: { label: string; total: number; val
         <span>{label}</span>
         <span>{formatStorageBytes(value)}</span>
       </div>
-        <div className="h-2 rounded-full bg-bc-ink">
-          <div className="h-2 rounded-full bg-bc-electric" style={{ width: `${width}%` }} />
+      <div className="h-2 rounded-full bg-bc-ink">
+        <div className="h-2 rounded-full bg-bc-electric" style={{ width: `${width}%` }} />
       </div>
     </div>
   );
@@ -120,11 +122,15 @@ function FileTable({ emptyText, files, title }: { emptyText: string; files: Stor
 }
 
 export default async function AdminStoragePage() {
-  await requireUserPermission("admin.access");
+  await requireUserPermission("settings.manage");
   const data = await getAdminMediaStorageData();
 
   return (
-    <AdminShell title="Storage" description="Inspect managed upload disk usage, active references, and orphan candidates.">
+    <AdminShell
+      title="Storage"
+      description="Inspect managed upload disk usage, active references, orphan candidates, and guarded media cleanup."
+      requiredPermission="settings.manage"
+    >
       <div className="space-y-5">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -201,6 +207,27 @@ export default async function AdminStoragePage() {
           </div>
         </section>
 
+        <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Badge tone="pink">Maintenance</Badge>
+              <h3 className="mt-4 text-xl font-black">Clean orphan uploads</h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-bc-muted">
+                Deletes files that exist under public/uploads but are not referenced by current database records or saved settings.
+                Each file is checked again immediately before deletion, and the result is written to the audit log.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Badge tone={data.stats.orphanCount ? "amber" : "muted"}>{data.stats.orphanCount} candidates</Badge>
+                <Badge tone="muted">{formatStorageBytes(data.stats.orphanSizeBytes)} reclaimable</Badge>
+              </div>
+            </div>
+            <CleanOrphanUploadsForm
+              confirmationText={cleanOrphanUploadsConfirmationText}
+              disabled={!data.stats.orphanCount}
+            />
+          </div>
+        </section>
+
         <FileTable emptyText="No unreferenced uploaded files were found." files={data.files.orphanCandidates} title="Orphan candidates" />
         <FileTable emptyText="No uploaded files were found." files={data.files.largest} title="Largest files" />
         <FileTable emptyText="No uploaded files were found." files={data.files.recent} title="Recent uploads" />
@@ -212,8 +239,7 @@ export default async function AdminStoragePage() {
           </div>
           <p className="mt-3 text-sm leading-6 text-bc-muted">
             Replaced or account-deleted media is removed automatically only after Bouncecore confirms the old upload path is no longer
-            referenced by active database records or saved settings. Orphan candidates shown here are report-only until a manual cleanup
-            action is added.
+            referenced by active database records or saved settings. Manual orphan cleanup uses the same reference-safe deletion path.
           </p>
           <div className="mt-4 flex items-center gap-2 text-xs text-bc-muted">
             <Search className="h-4 w-4" aria-hidden="true" />

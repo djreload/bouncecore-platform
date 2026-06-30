@@ -3,6 +3,7 @@ export const clearNotificationInboxConfirmationText = "CLEAR NOTIFICATIONS";
 export const clearNotificationLogsConfirmationText = "CLEAR NOTIFICATION LOGS";
 export const clearSupportInboxConfirmationText = "CLEAR SUPPORT INBOX";
 export const cancelStaleCheckoutsConfirmationText = "CANCEL STALE CHECKOUTS";
+export const cleanOrphanUploadsConfirmationText = "CLEAN ORPHAN UPLOADS";
 
 export function assertMaintenanceConfirmation(input: string | null | undefined, expected: string) {
   if ((input ?? "").trim() !== expected) {

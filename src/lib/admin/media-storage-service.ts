@@ -6,7 +6,12 @@ import {
   summarizeMediaStorageCategories,
   uploadCategoryFromPath
 } from "@/lib/admin/media-storage-core";
-import { getManagedUploadReferenceMap } from "@/lib/media/upload-cleanup-service";
+import type { CurrentUser } from "@/lib/auth/rbac";
+import { writeAuditLog } from "@/lib/auth/audit";
+import {
+  deleteManagedUploadIfUnreferenced,
+  getManagedUploadReferenceMap
+} from "@/lib/media/upload-cleanup-service";
 import { normalizeManagedUploadPath } from "@/lib/media/upload-cleanup-core";
 
 export type AdminMediaStorageData = {
@@ -26,6 +31,21 @@ export type AdminMediaStorageData = {
     referencedSizeBytes: number;
     totalSizeBytes: number;
   };
+};
+
+export type AdminMediaStorageCleanupResult = {
+  deletedFiles: number;
+  deletedSizeBytes: number;
+  errors: Array<{
+    error: string;
+    path: string;
+  }>;
+  failedFiles: number;
+  failedSizeBytes: number;
+  orphanCandidates: number;
+  scannedFiles: number;
+  skippedFiles: number;
+  skippedSizeBytes: number;
 };
 
 type ScannedUploadFile = {
@@ -99,11 +119,12 @@ function sortByModifiedDesc(files: MediaStorageFileSummary[]) {
 
 export { formatStorageBytes };
 
-export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData> {
+async function getMediaStorageFileSummaries() {
   const rootPath = uploadRootPath();
   const scannedFiles = await scanUploadDirectory(rootPath);
   const referenceMap = await getManagedUploadReferenceMap(scannedFiles.map((file) => file.path));
-  const files = scannedFiles.map<MediaStorageFileSummary>((file) => {
+
+  return scannedFiles.map<MediaStorageFileSummary>((file) => {
     const references = referenceMap.get(file.path) ?? 0;
 
     return {
@@ -115,6 +136,11 @@ export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData>
       status: references > 0 ? "referenced" : "orphan"
     };
   });
+}
+
+export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData> {
+  const rootPath = uploadRootPath();
+  const files = await getMediaStorageFileSummaries();
   const categories = summarizeMediaStorageCategories(files);
   const orphanCandidates = sortBySizeDesc(files.filter((file) => file.status === "orphan"));
   const largest = sortBySizeDesc(files);
@@ -156,4 +182,63 @@ export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData>
     rootPath,
     stats
   };
+}
+
+export async function cleanAdminOrphanUploads(actor: CurrentUser): Promise<AdminMediaStorageCleanupResult> {
+  const files = await getMediaStorageFileSummaries();
+  const orphanCandidates = sortBySizeDesc(files.filter((file) => file.status === "orphan"));
+  const result: AdminMediaStorageCleanupResult = {
+    deletedFiles: 0,
+    deletedSizeBytes: 0,
+    errors: [],
+    failedFiles: 0,
+    failedSizeBytes: 0,
+    orphanCandidates: orphanCandidates.length,
+    scannedFiles: files.length,
+    skippedFiles: 0,
+    skippedSizeBytes: 0
+  };
+
+  for (const file of orphanCandidates) {
+    const cleanup = await deleteManagedUploadIfUnreferenced(file.path);
+
+    if (cleanup.deleted) {
+      result.deletedFiles += 1;
+      result.deletedSizeBytes += file.sizeBytes;
+      continue;
+    }
+
+    if (cleanup.error) {
+      result.failedFiles += 1;
+      result.failedSizeBytes += file.sizeBytes;
+      result.errors.push({
+        error: cleanup.error,
+        path: file.path
+      });
+      continue;
+    }
+
+    result.skippedFiles += 1;
+    result.skippedSizeBytes += file.sizeBytes;
+  }
+
+  await writeAuditLog({
+    action: "admin.storage.clean_orphan_uploads",
+    actorId: actor.id,
+    metadata: {
+      deletedFiles: result.deletedFiles,
+      deletedSizeBytes: result.deletedSizeBytes,
+      failedFiles: result.failedFiles,
+      failedSizeBytes: result.failedSizeBytes,
+      orphanCandidates: result.orphanCandidates,
+      scannedFiles: result.scannedFiles,
+      skippedFiles: result.skippedFiles,
+      skippedSizeBytes: result.skippedSizeBytes,
+      errors: result.errors.slice(0, 10)
+    },
+    severity: result.deletedFiles || result.failedFiles ? "warning" : "info",
+    target: "media-storage"
+  });
+
+  return result;
 }
