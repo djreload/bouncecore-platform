@@ -1,6 +1,7 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { normalizeOptionalImageUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUpload } from "@/lib/media/upload-cleanup-service";
 
 export const productStatusOptions = ["draft", "active", "archived"] as const;
 
@@ -321,6 +322,8 @@ export async function updateProduct(actorId: string, input: ProductInput) {
     },
     data: productInput
   });
+
+  await cleanupReplacedManagedUpload(existing.imageUrl, product.imageUrl);
 
   await writeAuditLog({
     actorId,

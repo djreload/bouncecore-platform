@@ -1,6 +1,7 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { normalizeDownloadUrl, normalizeOptionalImageUrl, normalizeOptionalPreviewUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUploads } from "@/lib/media/upload-cleanup-service";
 import { digitalTrackStatusOptions, type DigitalTrackStatus } from "@/lib/music/music-service";
 
 export type AdminTrackInput = {
@@ -326,6 +327,21 @@ export async function updateAdminTrack(actorId: string, input: AdminTrackInput) 
     },
     data: trackInput
   });
+
+  await cleanupReplacedManagedUploads([
+    {
+      previous: existing.artworkUrl,
+      next: track.artworkUrl
+    },
+    {
+      previous: existing.previewUrl,
+      next: track.previewUrl
+    },
+    {
+      previous: existing.downloadUrl,
+      next: track.downloadUrl
+    }
+  ]);
 
   await writeAuditLog({
     actorId,

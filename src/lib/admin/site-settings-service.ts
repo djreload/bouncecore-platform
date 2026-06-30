@@ -10,6 +10,7 @@ import {
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
 import { normalizeOptionalBrandingImageUrl, normalizeOptionalFaviconUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUploads } from "@/lib/media/upload-cleanup-service";
 
 const siteSettingsKey = "site.general";
 export const defaultSiteFaviconUrl = "/favicon.svg";
@@ -520,6 +521,7 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
 
 export async function updateSiteSettings(input: SiteSettingsInput, actorId: string) {
   const settings = normalizeSiteSettingsInput(input);
+  const previous = await readSiteSettings();
 
   await prisma.appSetting.upsert({
     where: {
@@ -537,6 +539,17 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
       value: settings as Prisma.InputJsonValue
     }
   });
+
+  await cleanupReplacedManagedUploads([
+    {
+      previous: previous.settings.branding.logoUrl,
+      next: settings.branding.logoUrl
+    },
+    {
+      previous: previous.settings.branding.faviconUrl,
+      next: settings.branding.faviconUrl
+    }
+  ]);
 
   await writeAuditLog({
     actorId,

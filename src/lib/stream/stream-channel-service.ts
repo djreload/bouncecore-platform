@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeOptionalStreamOfflineImageUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUpload } from "@/lib/media/upload-cleanup-service";
 import { getStreamProvider, type StreamHealth, type StreamPlaybackSource, type StreamStatus } from "@/lib/stream/stream-provider";
 import {
   ensureDefaultStreamProfiles,
@@ -373,6 +374,8 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
 
     return updated;
   });
+
+  await cleanupReplacedManagedUpload(existing.offlineImageUrl, channel.offlineImageUrl);
 
   await writeAuditLog({
     actorId,
