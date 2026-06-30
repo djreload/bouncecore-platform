@@ -7,6 +7,7 @@ import "./chat-mentions.test.mjs";
 import "./chat-reaction-summary-display.test.mjs";
 import "./chat-sheep-throw-notifications.test.mjs";
 import "./cart-events.test.mjs";
+import "./default-public-assets.test.mjs";
 import "./email-address.test.mjs";
 import "./fcm-push-service.test.mjs";
 import "./ingest-url.test.mjs";

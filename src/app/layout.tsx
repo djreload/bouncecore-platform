@@ -2,12 +2,19 @@ import type { Metadata } from "next";
 import { PersistentLiveAudio } from "@/components/live/persistent-live-audio";
 import { SitePresenceHeartbeat } from "@/components/presence/site-presence-heartbeat";
 import { CookieConsentManager } from "@/components/privacy/cookie-consent-manager";
-import { getPublicSiteSettings } from "@/lib/admin/site-settings-service";
+import { defaultSiteFaviconUrl, getPublicSiteSettings } from "@/lib/admin/site-settings-service";
 import "./globals.css";
 
 const fallbackMetadata: Metadata = {
-  title: "Bouncecore Platform",
-  description: "All-in-one UK rave livestream, chat, merch, music marketplace, live support, and mobile API platform."
+  description: "All-in-one UK rave livestream, chat, merch, music marketplace, live support, and mobile API platform.",
+  icons: {
+    icon: [
+      {
+        url: defaultSiteFaviconUrl
+      }
+    ]
+  },
+  title: "Bouncecore Platform"
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,15 +23,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
     return {
       description: settings.homepageIntro,
-      icons: settings.branding.faviconUrl
-        ? {
-            icon: [
-              {
-                url: settings.branding.faviconUrl
-              }
-            ]
+      icons: {
+        icon: [
+          {
+            url: settings.branding.faviconUrl ?? defaultSiteFaviconUrl
           }
-        : undefined,
+        ]
+      },
       title: settings.siteName
     };
   } catch {

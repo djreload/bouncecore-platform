@@ -4,7 +4,7 @@ import { mailIsConfigured } from "@/lib/mail/smtp-service";
 import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
 import { getAdminSiteSettingsData } from "@/lib/admin/site-settings-service";
 import { getPayPalIntegrationData, type PayPalIntegrationData } from "@/lib/payments/paypal-service";
-import { getProviderSnapshot } from "@/lib/stream/stream-channel-service";
+import { defaultStreamOfflineImageUrl, getProviderSnapshot } from "@/lib/stream/stream-channel-service";
 import { getHlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getLatestWorkerHeartbeat, getWorkerHeartbeatStatus } from "@/lib/workers/worker-heartbeat";
 
@@ -639,15 +639,18 @@ export async function getAdminSystemHealthData() {
       singular: "pack",
       plural: "packs"
     }),
-    countQualityCheck({
-      count: streamChannelsMissingOfflineImage,
-      detail: "Stream channels without offline images fall back to the default offline presentation.",
-      healthyDetail: "All stream channels have offline images.",
-      href: "/admin/stream?repair=missing-offline-image",
+    {
+      detail:
+        streamChannelsMissingOfflineImage > 0
+          ? `${streamChannelsMissingOfflineImage.toLocaleString("en-GB")} stream ${
+              streamChannelsMissingOfflineImage === 1 ? "channel uses" : "channels use"
+            } the built-in offline image at ${defaultStreamOfflineImageUrl}. Upload custom offline images when each channel needs its own artwork.`
+          : "All stream channels have custom offline images.",
+      href: streamChannelsMissingOfflineImage > 0 ? "/admin/stream?repair=missing-offline-image" : undefined,
       label: "Offline stream images",
-      singular: "channel",
-      plural: "channels"
-    }),
+      status: "healthy",
+      value: streamChannelsMissingOfflineImage > 0 ? "Default fallback" : "Clean"
+    },
     {
       detail: mobileUpdateUrlInvalid
         ? "Saved mobile update URL is invalid or not HTTPS. The public mobile config now ignores it until repaired."

@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db/prisma";
 import { normalizeOptionalBrandingImageUrl } from "@/lib/media/media-service";
 
 const siteSettingsKey = "site.general";
+export const defaultSiteFaviconUrl = "/favicon.svg";
 
 export type SiteSettingsInput = {
   announcementBody?: string;
@@ -437,10 +438,10 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
         detail:
           settings.branding.logoUrl || settings.branding.faviconUrl
             ? "Custom public logo or browser icon is configured."
-            : "No custom public logo or browser icon is configured.",
+            : `Built-in brand mark and favicon are active. Upload a custom logo or favicon when rebranding is ready.`,
         label: "Branding",
-        status: settings.branding.logoUrl || settings.branding.faviconUrl ? "ready" : "warning",
-        value: settings.branding.logoUrl || settings.branding.faviconUrl ? "set" : "missing"
+        status: "ready",
+        value: settings.branding.logoUrl || settings.branding.faviconUrl ? "custom" : "built-in"
       },
       {
         detail: settings.legalPages.some((page) => page.enabled)

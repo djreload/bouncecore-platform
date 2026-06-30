@@ -62,6 +62,12 @@ export type PublicLiveState = {
   health: StreamHealth;
 };
 
+export const defaultStreamOfflineImageUrl = "/images/bouncecore-stage-hero.png";
+
+export function resolveStreamOfflineImageUrl(value: string | null | undefined) {
+  return value?.trim() || defaultStreamOfflineImageUrl;
+}
+
 function normalizeSlug(slug: string) {
   const normalized = slug
     .trim()
@@ -401,6 +407,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
     });
     const status = provider.status !== "offline" ? provider.status : channel?.status ?? provider.status;
     const viewerCount = status === "offline" ? 0 : Math.max(provider.viewerCount, liveViewerCount);
+    const offlineImageUrl = resolveStreamOfflineImageUrl(channel?.offlineImageUrl);
 
     return {
       activeIngests: provider.activeIngests,
@@ -410,14 +417,14 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
             title: channel.title,
             status: channel.status,
             playbackUrl: channel.playbackUrl,
-            offlineImageUrl: channel.offlineImageUrl,
+            offlineImageUrl,
             streamProfile: streamProfileToSummary(channel.streamProfile) ?? defaultProfile
           }
         : null,
       provider,
       status,
       playbackUrl: channel?.playbackUrl ?? provider.playbackUrl,
-      offlineImageUrl: channel?.offlineImageUrl ?? null,
+      offlineImageUrl,
       viewerCount,
       health: provider.health
     };
@@ -430,7 +437,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       provider,
       status: provider.status,
       playbackUrl: provider.playbackUrl,
-      offlineImageUrl: null,
+      offlineImageUrl: defaultStreamOfflineImageUrl,
       viewerCount,
       health: provider.health
     };
