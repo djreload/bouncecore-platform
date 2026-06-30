@@ -37,6 +37,7 @@ import "./paypal-webhook-filter-core.test.mjs";
 import "./paypal-webhook-retry-core.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
 import "./privacy-consent.test.mjs";
+import "./public-smoke-check.test.mjs";
 import "./restream-settings.test.mjs";
 import "./reward-wheel-core.test.mjs";
 import "./sheep-throw-settings.test.mjs";
