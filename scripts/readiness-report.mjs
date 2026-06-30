@@ -103,6 +103,18 @@ function issueCounts(issues) {
   };
 }
 
+function readinessOverallStatus(counts) {
+  if (counts.critical > 0) {
+    return "critical";
+  }
+
+  if (counts.warning > 0) {
+    return "warning";
+  }
+
+  return "healthy";
+}
+
 function shouldFail(failOn, counts) {
   if (failOn === "never") {
     return false;
@@ -117,10 +129,11 @@ function shouldFail(failOn, counts) {
 
 function printTextReport(health) {
   const counts = issueCounts(health.productionIssues);
+  const overallStatus = readinessOverallStatus(counts);
 
   console.log("Bouncecore production readiness");
   console.log(`Checked: ${health.checkedAt}`);
-  console.log(`Overall: ${health.overallStatus}`);
+  console.log(`Overall: ${overallStatus}`);
   console.log(`Launch attention: ${counts.critical} critical, ${counts.warning} warnings`);
   console.log("");
 
@@ -158,6 +171,7 @@ try {
   ]);
   const health = await getAdminSystemHealthData();
   const counts = issueCounts(health.productionIssues);
+  const overallStatus = readinessOverallStatus(counts);
 
   if (args.json) {
     console.log(
@@ -167,7 +181,7 @@ try {
           groups: health.productionReadiness,
           issueCounts: counts,
           issues: health.productionIssues,
-          overallStatus: health.overallStatus
+          overallStatus
         },
         null,
         2
