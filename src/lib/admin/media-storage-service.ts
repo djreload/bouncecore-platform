@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   type MediaStorageFileSummary,
   formatStorageBytes,
+  summarizeMissingMediaReferences,
   summarizeMediaStorageCategories,
   uploadCategoryFromPath
 } from "@/lib/admin/media-storage-core";
@@ -10,11 +11,13 @@ import type { CurrentUser } from "@/lib/auth/rbac";
 import { writeAuditLog } from "@/lib/auth/audit";
 import {
   deleteManagedUploadIfUnreferenced,
-  getManagedUploadReferenceMap
+  getManagedUploadReferences,
+  type ManagedUploadReference
 } from "@/lib/media/upload-cleanup-service";
 import { normalizeManagedUploadPath } from "@/lib/media/upload-cleanup-core";
 
 export type AdminMediaStorageData = {
+  brokenReferences: ManagedUploadReference[];
   categories: ReturnType<typeof summarizeMediaStorageCategories>;
   files: {
     largest: MediaStorageFileSummary[];
@@ -23,6 +26,8 @@ export type AdminMediaStorageData = {
   };
   rootPath: string;
   stats: {
+    brokenReferenceCount: number;
+    brokenReferencePathCount: number;
     fileCount: number;
     largestFileBytes: number;
     orphanCount: number;
@@ -117,13 +122,29 @@ function sortByModifiedDesc(files: MediaStorageFileSummary[]) {
   return [...files].sort((left, right) => new Date(right.modifiedAt).getTime() - new Date(left.modifiedAt).getTime() || left.path.localeCompare(right.path));
 }
 
+function buildReferenceMap(references: ManagedUploadReference[]) {
+  const referenceMap = new Map<string, number>();
+
+  references.forEach((reference) => {
+    referenceMap.set(reference.path, (referenceMap.get(reference.path) ?? 0) + 1);
+  });
+
+  return referenceMap;
+}
+
 export { formatStorageBytes };
 
-async function getMediaStorageFileSummaries() {
+async function getScannedMediaStorage() {
   const rootPath = uploadRootPath();
   const scannedFiles = await scanUploadDirectory(rootPath);
-  const referenceMap = await getManagedUploadReferenceMap(scannedFiles.map((file) => file.path));
 
+  return {
+    rootPath,
+    scannedFiles
+  };
+}
+
+function summarizeScannedMediaFiles(scannedFiles: ScannedUploadFile[], referenceMap: Map<string, number>) {
   return scannedFiles.map<MediaStorageFileSummary>((file) => {
     const references = referenceMap.get(file.path) ?? 0;
 
@@ -138,9 +159,23 @@ async function getMediaStorageFileSummaries() {
   });
 }
 
+async function getMediaStorageFileSummaries() {
+  const { scannedFiles } = await getScannedMediaStorage();
+  const referenceMap = buildReferenceMap(await getManagedUploadReferences(scannedFiles.map((file) => file.path)));
+
+  return summarizeScannedMediaFiles(scannedFiles, referenceMap);
+}
+
 export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData> {
-  const rootPath = uploadRootPath();
-  const files = await getMediaStorageFileSummaries();
+  const { rootPath, scannedFiles } = await getScannedMediaStorage();
+  const allReferences = await getManagedUploadReferences();
+  const referenceMap = buildReferenceMap(allReferences);
+  const files = summarizeScannedMediaFiles(scannedFiles, referenceMap);
+  const brokenReferences = summarizeMissingMediaReferences(
+    allReferences,
+    files.map((file) => file.path)
+  );
+  const brokenReferencePathCount = new Set(brokenReferences.map((reference) => reference.path)).size;
   const categories = summarizeMediaStorageCategories(files);
   const orphanCandidates = sortBySizeDesc(files.filter((file) => file.status === "orphan"));
   const largest = sortBySizeDesc(files);
@@ -162,6 +197,8 @@ export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData>
       return current;
     },
     {
+      brokenReferenceCount: brokenReferences.length,
+      brokenReferencePathCount,
       fileCount: 0,
       largestFileBytes: 0,
       orphanCount: 0,
@@ -173,6 +210,7 @@ export async function getAdminMediaStorageData(): Promise<AdminMediaStorageData>
   );
 
   return {
+    brokenReferences: brokenReferences.slice(0, 100),
     categories,
     files: {
       largest: largest.slice(0, 50),

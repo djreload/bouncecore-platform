@@ -1,8 +1,9 @@
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, Database, FileArchive, Files, HardDrive, Search, UploadCloud } from "lucide-react";
+import { AlertTriangle, Database, FileArchive, Files, HardDrive, Link2Off, Search, UploadCloud } from "lucide-react";
 import { CleanOrphanUploadsForm } from "@/app/admin/storage/clean-orphan-uploads-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { cleanOrphanUploadsConfirmationText } from "@/lib/admin/maintenance-core";
 import {
   type AdminMediaStorageData,
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 type BadgeTone = React.ComponentProps<typeof Badge>["tone"];
 type StorageFile = AdminMediaStorageData["files"]["largest"][number];
+type BrokenReference = AdminMediaStorageData["brokenReferences"][number];
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }).format(
@@ -121,6 +123,68 @@ function FileTable({ emptyText, files, title }: { emptyText: string; files: Stor
   );
 }
 
+function BrokenReferenceTable({ references }: { references: BrokenReference[] }) {
+  return (
+    <section className="rounded-md border border-bc-line bg-bc-panel">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
+        <div>
+          <h3 className="text-xl font-black">Missing uploaded files</h3>
+          <p className="mt-1 text-sm text-bc-muted">
+            Database records or settings pointing to upload paths that are not present on disk. Showing up to 100 references.
+          </p>
+        </div>
+        <Badge tone={references.length ? "amber" : "muted"}>{references.length} shown</Badge>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-bc-line text-left text-sm">
+          <thead className="bg-bc-ink text-xs uppercase text-bc-muted">
+            <tr>
+              <th className="px-4 py-3">Source</th>
+              <th className="px-4 py-3">Record</th>
+              <th className="px-4 py-3">Field</th>
+              <th className="px-4 py-3">Missing path</th>
+              <th className="px-4 py-3">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-bc-line">
+            {references.map((reference) => (
+              <tr className="align-top" key={`${reference.source}:${reference.recordId}:${reference.field}:${reference.path}`}>
+                <td className="px-4 py-3">
+                  <Badge tone="amber">{reference.source}</Badge>
+                </td>
+                <td className="max-w-[260px] px-4 py-3">
+                  <p className="font-semibold text-white">{reference.label}</p>
+                  <p className="mt-1 break-all text-xs text-bc-muted">{reference.recordId}</p>
+                </td>
+                <td className="px-4 py-3 text-bc-muted">{reference.field}</td>
+                <td className="max-w-[420px] px-4 py-3">
+                  <p className="break-all font-semibold text-white">{reference.path}</p>
+                </td>
+                <td className="px-4 py-3">
+                  {reference.href ? (
+                    <ButtonLink href={reference.href} size="sm" variant="ghost">
+                      Open
+                    </ButtonLink>
+                  ) : (
+                    <Badge tone="muted">Manual fix</Badge>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {!references.length ? (
+              <tr>
+                <td className="px-4 py-6 text-sm text-bc-muted" colSpan={5}>
+                  No missing uploaded file references were found.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
 export default async function AdminStoragePage() {
   await requireUserPermission("settings.manage");
   const data = await getAdminMediaStorageData();
@@ -132,7 +196,7 @@ export default async function AdminStoragePage() {
       requiredPermission="settings.manage"
     >
       <div className="space-y-5">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <StatCard
             detail="Total bytes currently stored in public/uploads."
             icon={HardDrive}
@@ -154,6 +218,13 @@ export default async function AdminStoragePage() {
             label="Orphan candidates"
             tone={data.stats.orphanCount ? "amber" : "muted"}
             value={data.stats.orphanCount}
+          />
+          <StatCard
+            detail={`${data.stats.brokenReferencePathCount} unique upload paths are missing from disk.`}
+            icon={Link2Off}
+            label="Missing refs"
+            tone={data.stats.brokenReferenceCount ? "amber" : "muted"}
+            value={data.stats.brokenReferenceCount}
           />
         </div>
 
@@ -206,6 +277,8 @@ export default async function AdminStoragePage() {
             ) : null}
           </div>
         </section>
+
+        <BrokenReferenceTable references={data.brokenReferences} />
 
         <section className="rounded-md border border-bc-line bg-bc-panel p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">

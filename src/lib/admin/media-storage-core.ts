@@ -19,6 +19,14 @@ export type MediaStorageCategorySummary = {
   sizeBytes: number;
 };
 
+export type MediaStorageReferenceLike = {
+  field: string;
+  label: string;
+  path: string;
+  recordId: string;
+  source: string;
+};
+
 export function formatStorageBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
     return "0 B";
@@ -79,4 +87,18 @@ export function summarizeMediaStorageCategories(files: MediaStorageFileSummary[]
   }
 
   return [...categories.values()].sort((left, right) => right.sizeBytes - left.sizeBytes || left.category.localeCompare(right.category));
+}
+
+export function summarizeMissingMediaReferences<T extends MediaStorageReferenceLike>(references: T[], existingPaths: Iterable<string>) {
+  const existingPathSet = new Set(existingPaths);
+
+  return references
+    .filter((reference) => !existingPathSet.has(reference.path))
+    .sort(
+      (left, right) =>
+        left.source.localeCompare(right.source) ||
+        left.label.localeCompare(right.label) ||
+        left.field.localeCompare(right.field) ||
+        left.path.localeCompare(right.path)
+    );
 }

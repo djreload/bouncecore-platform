@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   formatStorageBytes,
+  summarizeMissingMediaReferences,
   summarizeMediaStorageCategories,
   uploadCategoryFromPath
 } from "../src/lib/admin/media-storage-core.ts";
@@ -64,6 +65,52 @@ test("media storage summary groups referenced and orphan bytes by category", () 
       referencedCount: 1,
       referencedSizeBytes: 100,
       sizeBytes: 150
+    }
+  ]);
+});
+
+test("media storage summary reports missing references with stable ordering", () => {
+  const missing = summarizeMissingMediaReferences(
+    [
+      {
+        field: "previewUrl",
+        label: "Kisses",
+        path: "/uploads/tracks/missing-preview.mp3",
+        recordId: "track-1",
+        source: "Track preview"
+      },
+      {
+        field: "imageUrl",
+        label: "Hoodie",
+        path: "/uploads/products/hoodie.png",
+        recordId: "product-1",
+        source: "Product image"
+      },
+      {
+        field: "artworkUrl",
+        label: "Kisses",
+        path: "/uploads/tracks/kisses.png",
+        recordId: "track-1",
+        source: "Track artwork"
+      }
+    ],
+    ["/uploads/products/hoodie.png"]
+  );
+
+  assert.deepEqual(missing, [
+    {
+      field: "artworkUrl",
+      label: "Kisses",
+      path: "/uploads/tracks/kisses.png",
+      recordId: "track-1",
+      source: "Track artwork"
+    },
+    {
+      field: "previewUrl",
+      label: "Kisses",
+      path: "/uploads/tracks/missing-preview.mp3",
+      recordId: "track-1",
+      source: "Track preview"
     }
   ]);
 });
