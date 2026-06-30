@@ -126,6 +126,35 @@ test("stream offline image uploads use the stream offline upload root", async ()
   }
 });
 
+test("chat sticker and emoji uploads use separate chat asset roots", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const sticker = new File([png1x1], "sticker.png", {
+      type: "image/png"
+    });
+    const emoji = new File([png1x1], "emoji.png", {
+      type: "image/png"
+    });
+    const stickerPath = await mediaService.saveOptionalChatAssetUpload(sticker, "chat-stickers");
+    const emojiPath = await mediaService.saveOptionalChatAssetUpload(emoji, "chat-emojis");
+
+    assert.match(stickerPath, /^\/uploads\/chat-stickers\/.+\.png$/);
+    assert.match(emojiPath, /^\/uploads\/chat-emojis\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", stickerPath)), true);
+    assert.equal(existsSync(path.join(tempDir, "public", emojiPath)), true);
+    assert.equal(mediaService.normalizeOptionalChatAssetUrl(stickerPath, "chat-stickers"), stickerPath);
+    assert.equal(mediaService.normalizeOptionalChatAssetUrl(emojiPath, "chat-emojis"), emojiPath);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("preview MP3 uploads accept common browser MP3 MIME aliases", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
   const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);

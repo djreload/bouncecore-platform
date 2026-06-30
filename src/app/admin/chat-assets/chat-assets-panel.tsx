@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState } from "react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { Package, Plus, Save, Smile, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import {
   type AdminChatAssetsActionState,
   type AdminChatAssetsStats
 } from "@/app/admin/chat-assets/state";
+import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 
 type AdminChatAssetsPanelProps = {
   packs: AdminChatAssetPackRow[];
@@ -57,6 +58,15 @@ function matchesRepairFilter(pack: AdminChatAssetPackRow, filter: AdminChatAsset
   return filter === "empty-packs" && pack.status === "active" && pack.stickers.length === 0;
 }
 
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value : null;
+}
+
+function chatAssetUploadKind(formData: FormData) {
+  return formData.get("kind") === "emoji" ? "chat-emoji" : "chat-sticker";
+}
+
 function AssetPreview({ asset }: { asset: AdminChatAssetRow }) {
   return (
     <div className="grid gap-2">
@@ -84,8 +94,37 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
     adminChatAssetsAction,
     initialAdminChatAssetsActionState
   );
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const visiblePacks = repairFilter ? packs.filter((pack) => matchesRepairFilter(pack, repairFilter)) : packs;
   const activeRepair = repairFilter ? repairLabel() : null;
+  const busy = pending || uploading;
+
+  async function handleAssetSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const imageFile = formFile(formData, "imageUpload");
+
+    setUploadError(null);
+
+    try {
+      if (imageFile) {
+        setUploading(true);
+        formData.set("imageUrl", await uploadAdminMedia(chatAssetUploadKind(formData), imageFile));
+      }
+
+      formData.delete("imageUpload");
+
+      startTransition(() => {
+        formAction(formData);
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -124,15 +163,15 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
           <Package className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
 
-        {state.message ? (
+        {uploadError || state.message ? (
           <div
             className={`mt-5 rounded-md border p-3 text-sm ${
-              state.status === "error"
+              uploadError || state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
                 : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
             }`}
           >
-            {state.message}
+            {uploadError ?? state.message}
           </div>
         ) : null}
 
@@ -163,7 +202,7 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
             placeholder="Order"
             type="number"
           />
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button disabled={busy} type="submit" variant="primary">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create
           </Button>
@@ -243,7 +282,7 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
                 name="sortOrder"
                 type="number"
               />
-              <Button disabled={pending} type="submit" variant="dark">
+              <Button disabled={busy} type="submit" variant="dark">
                 <Save className="h-4 w-4" aria-hidden="true" />
                 Save
               </Button>
@@ -267,6 +306,7 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
                 action={formAction}
                 className="mt-4 grid gap-3 lg:grid-cols-[1fr_150px_150px_120px_160px_auto]"
                 encType="multipart/form-data"
+                onSubmit={handleAssetSubmit}
               >
                 <input name="intent" type="hidden" value="create-asset" />
                 <input name="packId" type="hidden" value={pack.id} />
@@ -299,13 +339,14 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
                   <input className="h-4 w-4 accent-bc-electric" name="isAnimated" type="checkbox" value="true" />
                   Animated
                 </label>
-                <Button disabled={pending} type="submit" variant="primary">
+                <Button disabled={busy} type="submit" variant="primary">
                   <Upload className="h-4 w-4" aria-hidden="true" />
-                  Add
+                  {uploading ? "Uploading..." : "Add"}
                 </Button>
                 <input
                   accept={imageAccept}
                   className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white lg:col-span-3"
+                  disabled={busy}
                   name="imageUpload"
                   type="file"
                 />
@@ -327,6 +368,7 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
                   className="grid gap-4 rounded-md border border-bc-line bg-bc-ink p-4"
                   encType="multipart/form-data"
                   key={asset.id}
+                  onSubmit={handleAssetSubmit}
                 >
                   <input name="intent" type="hidden" value="update-asset" />
                   <input name="assetId" type="hidden" value={asset.id} />
@@ -387,6 +429,7 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
                     <input
                       accept={imageAccept}
                       className="min-h-10 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                      disabled={busy}
                       name="imageUpload"
                       type="file"
                     />
@@ -395,9 +438,9 @@ export function AdminChatAssetsPanel({ packs, repairFilter = null, stats }: Admi
                       name="imageUrl"
                       placeholder="Replacement image URL"
                     />
-                    <Button disabled={pending} type="submit" variant="dark">
+                    <Button disabled={busy} type="submit" variant="dark">
                       <Save className="h-4 w-4" aria-hidden="true" />
-                      Save asset
+                      {uploading ? "Uploading..." : "Save asset"}
                     </Button>
                   </div>
                 </form>

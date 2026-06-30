@@ -3,7 +3,11 @@ import { getApiUserWithPermission } from "@/lib/auth/guards";
 import type { Permission } from "@/lib/auth/rbac";
 import {
   saveOptionalBrandingImageUpload,
+  saveOptionalChatAssetUpload,
+  saveOptionalDownloadMp3,
   saveOptionalFaviconUpload,
+  saveOptionalImageUpload,
+  saveOptionalPreviewMp3,
   saveOptionalStreamOfflineImageUpload
 } from "@/lib/media/media-service";
 
@@ -19,9 +23,33 @@ const uploadHandlers = {
     permission: "settings.manage",
     save: saveOptionalBrandingImageUpload
   },
+  "chat-emoji": {
+    permission: "admin.access",
+    save: (file) => saveOptionalChatAssetUpload(file, "chat-emojis")
+  },
+  "chat-sticker": {
+    permission: "admin.access",
+    save: (file) => saveOptionalChatAssetUpload(file, "chat-stickers")
+  },
+  "product-image": {
+    permission: "shop.manage",
+    save: (file) => saveOptionalImageUpload(file, "product-images")
+  },
   "stream-offline-image": {
     permission: "stream.settings.manage",
     save: saveOptionalStreamOfflineImageUpload
+  },
+  "track-artwork": {
+    permission: "music.manage",
+    save: (file) => saveOptionalImageUpload(file, "track-artwork")
+  },
+  "track-download": {
+    permission: "music.manage",
+    save: saveOptionalDownloadMp3
+  },
+  "track-preview": {
+    permission: "music.manage",
+    save: saveOptionalPreviewMp3
   }
 } as const satisfies Record<
   string,

@@ -1,12 +1,13 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useActionState } from "react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { Archive, CheckCircle2, Disc3, Image as ImageIcon, Save, ShieldCheck, Undo2 } from "lucide-react";
 import { adminTracksAction } from "@/app/admin/tracks/actions";
 import { initialAdminTracksActionState, type AdminTracksActionState } from "@/app/admin/tracks/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 import type { AdminMusicData, AdminMusicTrackRow } from "@/lib/music/admin-music-service";
 
 type AdminTracksRepairFilter = "missing-delivery" | "missing-artwork";
@@ -63,6 +64,11 @@ function matchesRepairFilter(track: AdminMusicTrackRow, filter: AdminTracksRepai
   }
 
   return track.status === "approved" && !track.artworkUrl;
+}
+
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value : null;
 }
 
 function TrackFields({ pending, track }: { pending: boolean; track: AdminMusicTrackRow }) {
@@ -323,9 +329,53 @@ export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null
     adminTracksAction,
     initialAdminTracksActionState
   );
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const baseTracks = mode === "approvals" ? data.tracks.filter((track) => track.status === "pending") : data.tracks;
   const tracks = repairFilter ? baseTracks.filter((track) => matchesRepairFilter(track, repairFilter)) : baseTracks;
   const activeRepair = repairFilter ? repairLabel(repairFilter) : null;
+  const busy = pending || uploading;
+
+  async function handleTrackSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const artworkFile = formFile(formData, "artworkFile");
+    const previewFile = formFile(formData, "previewFile");
+    const downloadFile = formFile(formData, "downloadFile");
+
+    setUploadError(null);
+
+    try {
+      if (artworkFile || previewFile || downloadFile) {
+        setUploading(true);
+      }
+
+      if (artworkFile) {
+        formData.set("artworkUrl", await uploadAdminMedia("track-artwork", artworkFile));
+      }
+
+      if (previewFile) {
+        formData.set("previewUrl", await uploadAdminMedia("track-preview", previewFile));
+      }
+
+      if (downloadFile) {
+        formData.set("downloadUrl", await uploadAdminMedia("track-download", downloadFile));
+      }
+
+      formData.delete("artworkFile");
+      formData.delete("previewFile");
+      formData.delete("downloadFile");
+
+      startTransition(() => {
+        formAction(formData);
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -366,15 +416,15 @@ export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null
           <Disc3 className="h-7 w-7 text-bc-acid" aria-hidden="true" />
         </div>
 
-        {state.message ? (
+        {uploadError || state.message ? (
           <div
             className={`mt-5 rounded-md border p-3 text-sm ${
-              state.status === "error"
+              uploadError || state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
                 : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
             }`}
           >
-            {state.message}
+            {uploadError ?? state.message}
           </div>
         ) : null}
       </section>
@@ -421,21 +471,21 @@ export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <StatusButton action={formAction} disabled={pending || track.status === "approved"} status="approved" trackId={track.id} />
-                <StatusButton action={formAction} disabled={pending || track.status === "draft"} status="draft" trackId={track.id} />
-                <StatusButton action={formAction} disabled={pending || track.status === "archived"} status="archived" trackId={track.id} />
+                <StatusButton action={formAction} disabled={busy || track.status === "approved"} status="approved" trackId={track.id} />
+                <StatusButton action={formAction} disabled={busy || track.status === "draft"} status="draft" trackId={track.id} />
+                <StatusButton action={formAction} disabled={busy || track.status === "archived"} status="archived" trackId={track.id} />
               </div>
             </div>
 
             {mode === "catalogue" ? (
-              <form action={formAction} className="grid gap-4 xl:grid-cols-4" encType="multipart/form-data">
+              <form action={formAction} className="grid gap-4 xl:grid-cols-4" encType="multipart/form-data" onSubmit={handleTrackSubmit}>
                 <input name="intent" type="hidden" value="update-track" />
                 <input name="trackId" type="hidden" value={track.id} />
-                <TrackFields pending={pending} track={track} />
+                <TrackFields pending={busy} track={track} />
                 <div className="flex items-end">
-                  <Button disabled={pending} type="submit" variant="dark">
+                  <Button disabled={busy} type="submit" variant="dark">
                     <Save className="h-4 w-4" aria-hidden="true" />
-                    Save track
+                    {uploading ? "Uploading..." : "Save track"}
                   </Button>
                 </div>
               </form>

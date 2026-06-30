@@ -1,12 +1,13 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useActionState } from "react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { Archive, Boxes, Image as ImageIcon, PackagePlus, Plus, Save, ShoppingBag } from "lucide-react";
 import { adminProductsAction } from "@/app/admin/products/actions";
 import { initialAdminProductsActionState, type AdminProductsActionState } from "@/app/admin/products/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 import type { ProductRow, ProductVariantRow, ShopStats } from "@/lib/shop/shop-service";
 
 type AdminProductsRepairFilter = "missing-images" | "missing-variants";
@@ -59,6 +60,11 @@ function matchesRepairFilter(product: ProductRow, filter: AdminProductsRepairFil
   }
 
   return product.status === "active" && product.variantCount === 0;
+}
+
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value : null;
 }
 
 function ProductFields({ pending, product }: { pending: boolean; product?: ProductRow }) {
@@ -254,8 +260,37 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
     adminProductsAction,
     initialAdminProductsActionState
   );
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const visibleProducts = repairFilter ? products.filter((product) => matchesRepairFilter(product, repairFilter)) : products;
   const activeRepair = repairFilter ? repairLabel(repairFilter) : null;
+  const busy = pending || uploading;
+
+  async function handleProductSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const imageFile = formFile(formData, "imageFile");
+
+    setUploadError(null);
+
+    try {
+      if (imageFile) {
+        setUploading(true);
+        formData.set("imageUrl", await uploadAdminMedia("product-image", imageFile));
+      }
+
+      formData.delete("imageFile");
+
+      startTransition(() => {
+        formAction(formData);
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -294,15 +329,15 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
           <ShoppingBag className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
 
-        {state.message ? (
+        {uploadError || state.message ? (
           <div
             className={`mt-5 rounded-md border p-3 text-sm ${
-              state.status === "error"
+              uploadError || state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
                 : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
             }`}
           >
-            {state.message}
+            {uploadError ?? state.message}
           </div>
         ) : null}
       </section>
@@ -326,13 +361,13 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <Badge tone="cyan">New product</Badge>
-        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-3" encType="multipart/form-data">
+        <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-3" encType="multipart/form-data" onSubmit={handleProductSubmit}>
           <input name="intent" type="hidden" value="create-product" />
-          <ProductFields pending={pending} />
+          <ProductFields pending={busy} />
           <div className="flex items-end">
-            <Button disabled={pending} type="submit" variant="primary">
+            <Button disabled={busy} type="submit" variant="primary">
               <PackagePlus className="h-4 w-4" aria-hidden="true" />
-              Create product
+              {uploading ? "Uploading..." : "Create product"}
             </Button>
           </div>
         </form>
@@ -361,14 +396,14 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
               )}
             </div>
 
-            <form action={formAction} className="grid gap-4 lg:grid-cols-3" encType="multipart/form-data">
+            <form action={formAction} className="grid gap-4 lg:grid-cols-3" encType="multipart/form-data" onSubmit={handleProductSubmit}>
               <input name="intent" type="hidden" value="update-product" />
               <input name="productId" type="hidden" value={product.id} />
-              <ProductFields pending={pending} product={product} />
+              <ProductFields pending={busy} product={product} />
               <div className="flex items-end gap-3">
-                <Button disabled={pending} type="submit" variant="dark">
+                <Button disabled={busy} type="submit" variant="dark">
                   <Save className="h-4 w-4" aria-hidden="true" />
-                  Save product
+                  {uploading ? "Uploading..." : "Save product"}
                 </Button>
               </div>
             </form>
@@ -376,7 +411,7 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
             <form action={formAction} className="mt-3 flex justify-end">
               <input name="intent" type="hidden" value="archive-product" />
               <input name="productId" type="hidden" value={product.id} />
-              <Button disabled={pending || product.status === "archived"} size="sm" type="submit" variant="pink">
+              <Button disabled={busy || product.status === "archived"} size="sm" type="submit" variant="pink">
                 <Archive className="h-4 w-4" aria-hidden="true" />
                 Archive
               </Button>
@@ -393,9 +428,9 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
 
               <form action={formAction} className="mt-4 grid gap-4 xl:grid-cols-[1fr_180px_140px_120px_auto]">
                 <input name="intent" type="hidden" value="create-variant" />
-                <VariantFields pending={pending} productId={product.id} />
+                <VariantFields pending={busy} productId={product.id} />
                 <div className="flex items-end">
-                  <Button disabled={pending} type="submit" variant="primary">
+                  <Button disabled={busy} type="submit" variant="primary">
                     <Plus className="h-4 w-4" aria-hidden="true" />
                     Add
                   </Button>
@@ -410,9 +445,9 @@ export function AdminProductsPanel({ products, repairFilter = null, stats }: Adm
                     key={variant.id}
                   >
                     <input name="intent" type="hidden" value="update-variant" />
-                    <VariantFields pending={pending} productId={product.id} variant={variant} />
+                    <VariantFields pending={busy} productId={product.id} variant={variant} />
                     <div className="flex items-end">
-                      <Button disabled={pending} type="submit" variant="dark">
+                      <Button disabled={busy} type="submit" variant="dark">
                         <Save className="h-4 w-4" aria-hidden="true" />
                         Save
                       </Button>
