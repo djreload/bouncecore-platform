@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import {
+  collectManagedUploadPathsFromJson,
   jsonValueReferencesUpload,
   managedUploadDiskPath,
   normalizeManagedUploadPath,
@@ -47,4 +48,22 @@ test("managed upload cleanup deduplicates only safe local upload paths", () => {
     "/uploads/avatars/../secret.png",
     "/uploads/chat-assets/sheep.png"
   ]), ["/uploads/avatars/reload.png", "/uploads/chat-assets/sheep.png"]);
+});
+
+test("managed upload cleanup collects upload paths from nested JSON values", () => {
+  assert.deepEqual(
+    collectManagedUploadPathsFromJson({
+      branding: {
+        logoUrl: "/uploads/branding/logo.png",
+        unsafe: "/uploads/branding/../secret.png"
+      },
+      socialLinks: [
+        {
+          iconUrl: "/uploads/social/facebook.png"
+        },
+        "https://example.com/uploads/social/external.png"
+      ]
+    }),
+    ["/uploads/branding/logo.png", "/uploads/social/facebook.png"]
+  );
 });

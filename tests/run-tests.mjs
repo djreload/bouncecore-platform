@@ -17,6 +17,7 @@ import "./live-playback-speed.test.mjs";
 import "./live-status-snapshot.test.mjs";
 import "./live-viewer-presence.test.mjs";
 import "./maintenance-core.test.mjs";
+import "./media-storage-core.test.mjs";
 import "./media-service.test.mjs";
 import "./media-gateway-state.test.mjs";
 import "./mobile-account-rewards-payload.test.mjs";

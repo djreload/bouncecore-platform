@@ -58,3 +58,34 @@ export function jsonValueReferencesUpload(value: unknown, uploadPath: string) {
 export function uniqueManagedUploadPaths(values: Array<string | null | undefined>) {
   return [...new Set(values.map((value) => normalizeManagedUploadPath(value)).filter((value): value is string => Boolean(value)))];
 }
+
+export function collectManagedUploadPathsFromJson(value: unknown): string[] {
+  const paths: string[] = [];
+
+  function visit(current: unknown) {
+    if (typeof current === "string") {
+      const uploadPath = normalizeManagedUploadPath(current);
+
+      if (uploadPath) {
+        paths.push(uploadPath);
+      }
+
+      return;
+    }
+
+    if (!current || typeof current !== "object") {
+      return;
+    }
+
+    if (Array.isArray(current)) {
+      current.forEach(visit);
+      return;
+    }
+
+    Object.values(current).forEach(visit);
+  }
+
+  visit(value);
+
+  return paths;
+}

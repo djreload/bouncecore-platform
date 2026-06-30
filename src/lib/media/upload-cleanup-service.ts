@@ -1,6 +1,7 @@
 import { unlink } from "node:fs/promises";
 import { prisma } from "@/lib/db/prisma";
 import {
+  collectManagedUploadPathsFromJson,
   jsonValueReferencesUpload,
   managedUploadDiskPath,
   normalizeManagedUploadPath,
@@ -25,7 +26,175 @@ async function appSettingsReferenceCount(uploadPath: string) {
   return settings.filter((setting) => jsonValueReferencesUpload(setting.value, uploadPath)).length;
 }
 
-async function uploadReferenceCount(uploadPath: string) {
+function incrementUploadReference(counts: Map<string, number>, value: string | null | undefined, targets?: Set<string>) {
+  const uploadPath = normalizeManagedUploadPath(value);
+
+  if (!uploadPath || (targets && !targets.has(uploadPath))) {
+    return;
+  }
+
+  counts.set(uploadPath, (counts.get(uploadPath) ?? 0) + 1);
+}
+
+function incrementAppSettingReferences(counts: Map<string, number>, value: unknown, targets?: Set<string>) {
+  for (const uploadPath of collectManagedUploadPathsFromJson(value)) {
+    if (targets && !targets.has(uploadPath)) {
+      continue;
+    }
+
+    counts.set(uploadPath, (counts.get(uploadPath) ?? 0) + 1);
+  }
+}
+
+export async function getManagedUploadReferenceMap(values?: Array<string | null | undefined>) {
+  const targets = values ? new Set(uniqueManagedUploadPaths(values)) : undefined;
+  const counts = new Map<string, number>();
+
+  const [
+    profiles,
+    streamChannels,
+    chatMessages,
+    chatReports,
+    chatStickers,
+    products,
+    tracks,
+    purchaseDownloads,
+    appSettings
+  ] = await Promise.all([
+    prisma.profile.findMany({
+      select: {
+        avatarUrl: true
+      },
+      where: {
+        avatarUrl: {
+          startsWith: "/uploads/"
+        }
+      }
+    }),
+    prisma.streamChannel.findMany({
+      select: {
+        offlineImageUrl: true
+      },
+      where: {
+        offlineImageUrl: {
+          startsWith: "/uploads/"
+        }
+      }
+    }),
+    prisma.chatMessage.findMany({
+      select: {
+        mediaPreviewUrl: true,
+        mediaUrl: true
+      },
+      where: {
+        OR: [
+          {
+            mediaUrl: {
+              startsWith: "/uploads/"
+            }
+          },
+          {
+            mediaPreviewUrl: {
+              startsWith: "/uploads/"
+            }
+          }
+        ]
+      }
+    }),
+    prisma.chatReport.findMany({
+      select: {
+        mediaPreviewUrl: true
+      },
+      where: {
+        mediaPreviewUrl: {
+          startsWith: "/uploads/"
+        }
+      }
+    }),
+    prisma.chatSticker.findMany({
+      select: {
+        imageUrl: true
+      },
+      where: {
+        imageUrl: {
+          startsWith: "/uploads/"
+        }
+      }
+    }),
+    prisma.product.findMany({
+      select: {
+        imageUrl: true
+      },
+      where: {
+        imageUrl: {
+          startsWith: "/uploads/"
+        }
+      }
+    }),
+    prisma.digitalTrack.findMany({
+      select: {
+        artworkUrl: true,
+        downloadUrl: true,
+        previewUrl: true
+      },
+      where: {
+        OR: [
+          {
+            artworkUrl: {
+              startsWith: "/uploads/"
+            }
+          },
+          {
+            downloadUrl: {
+              startsWith: "/uploads/"
+            }
+          },
+          {
+            previewUrl: {
+              startsWith: "/uploads/"
+            }
+          }
+        ]
+      }
+    }),
+    prisma.digitalTrackPurchase.findMany({
+      select: {
+        downloadUrl: true
+      },
+      where: {
+        downloadUrl: {
+          startsWith: "/uploads/"
+        }
+      }
+    }),
+    prisma.appSetting.findMany({
+      select: {
+        value: true
+      }
+    })
+  ]);
+
+  profiles.forEach((profile) => incrementUploadReference(counts, profile.avatarUrl, targets));
+  streamChannels.forEach((channel) => incrementUploadReference(counts, channel.offlineImageUrl, targets));
+  chatMessages.forEach((message) => {
+    incrementUploadReference(counts, message.mediaUrl, targets);
+    incrementUploadReference(counts, message.mediaPreviewUrl, targets);
+  });
+  chatReports.forEach((report) => incrementUploadReference(counts, report.mediaPreviewUrl, targets));
+  chatStickers.forEach((sticker) => incrementUploadReference(counts, sticker.imageUrl, targets));
+  products.forEach((product) => incrementUploadReference(counts, product.imageUrl, targets));
+  tracks.forEach((track) => {
+    incrementUploadReference(counts, track.artworkUrl, targets);
+    incrementUploadReference(counts, track.previewUrl, targets);
+    incrementUploadReference(counts, track.downloadUrl, targets);
+  });
+  purchaseDownloads.forEach((purchase) => incrementUploadReference(counts, purchase.downloadUrl, targets));
+  appSettings.forEach((setting) => incrementAppSettingReferences(counts, setting.value, targets));
+
+  return counts;
+}
+
+export async function getManagedUploadReferenceCount(uploadPath: string) {
   const [
     profiles,
     streamChannels,
@@ -89,7 +258,7 @@ export async function deleteManagedUploadIfUnreferenced(value: string | null | u
     };
   }
 
-  const references = await uploadReferenceCount(uploadPath);
+  const references = await getManagedUploadReferenceCount(uploadPath);
 
   if (references > 0) {
     return {
