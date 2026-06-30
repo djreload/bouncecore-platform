@@ -9,7 +9,7 @@ import {
 } from "@/lib/admin/legal-pages-core";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
-import { normalizeOptionalBrandingImageUrl } from "@/lib/media/media-service";
+import { normalizeOptionalBrandingImageUrl, normalizeOptionalFaviconUrl } from "@/lib/media/media-service";
 
 const siteSettingsKey = "site.general";
 export const defaultSiteFaviconUrl = "/favicon.svg";
@@ -249,6 +249,18 @@ function safeBrandingImageUrl(value: unknown, label: string) {
   }
 }
 
+function safeFaviconUrl(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return normalizeOptionalFaviconUrl(value);
+  } catch {
+    return null;
+  }
+}
+
 function normalizePlatform(value: string | undefined) {
   const platform = normalizedText(value, 40)?.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
@@ -341,7 +353,7 @@ function mergeSiteSettings(value: unknown): SiteSettings {
 
   if (isObject(value.branding)) {
     settings.branding.logoUrl = safeBrandingImageUrl(value.branding.logoUrl, "Logo URL");
-    settings.branding.faviconUrl = safeBrandingImageUrl(value.branding.faviconUrl, "Favicon URL");
+    settings.branding.faviconUrl = safeFaviconUrl(value.branding.faviconUrl);
   }
 
   if (Array.isArray(value.liveSocialLinks)) {
@@ -400,7 +412,7 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
       title: announcementTitle
     },
     branding: {
-      faviconUrl: normalizeOptionalBrandingImageUrl(input.faviconUrl, "Favicon URL"),
+      faviconUrl: normalizeOptionalFaviconUrl(input.faviconUrl),
       logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL")
     },
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),

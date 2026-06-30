@@ -32,6 +32,8 @@ function contentTypeForExtension(extension: string) {
       return "image/avif";
     case ".gif":
       return "image/gif";
+    case ".ico":
+      return "image/x-icon";
     case ".jpg":
     case ".jpeg":
     case ".jfif":

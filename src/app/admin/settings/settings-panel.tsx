@@ -217,7 +217,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                     <UploadCloud className="h-4 w-4 text-bc-electric" aria-hidden="true" />
                     {faviconUploading ? "Uploading..." : "Upload favicon"}
                     <input
-                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif,.ico,image/x-icon,image/vnd.microsoft.icon"
                       className="sr-only"
                       disabled={pending || faviconUploading}
                       onChange={async (event) => {

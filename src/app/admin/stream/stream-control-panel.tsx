@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Activity, Plus, Radio, Save, Share2, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -53,6 +53,24 @@ function matchesRepairFilter(channel: AdminStreamChannelRow, filter: AdminStream
   return filter === "missing-offline-image" && !channel.offlineImageUrl;
 }
 
+async function uploadAdminImage(kind: "stream-offline-image", file: File) {
+  const uploadData = new FormData();
+  uploadData.set("kind", kind);
+  uploadData.set("file", file);
+
+  const response = await fetch("/api/admin/uploads", {
+    body: uploadData,
+    method: "POST"
+  });
+  const result = (await response.json().catch(() => ({}))) as { error?: unknown; url?: unknown };
+
+  if (!response.ok || typeof result.url !== "string") {
+    throw new Error(typeof result.error === "string" ? result.error : "Upload failed.");
+  }
+
+  return result.url;
+}
+
 export function AdminStreamControlPanel({
   channels,
   provider,
@@ -68,6 +86,31 @@ export function AdminStreamControlPanel({
   const enabledProfiles = streamProfiles.filter((profile) => profile.isEnabled);
   const visibleChannels = repairFilter ? channels.filter((channel) => matchesRepairFilter(channel, repairFilter)) : channels;
   const activeRepair = repairFilter ? repairLabel() : null;
+  const [newOfflineImageUrl, setNewOfflineImageUrl] = useState("");
+  const [offlineImageUrls, setOfflineImageUrls] = useState<Record<string, string>>(() =>
+    Object.fromEntries(channels.map((channel) => [channel.id, channel.offlineImageUrl ?? ""]))
+  );
+  const [offlineUploading, setOfflineUploading] = useState<Record<string, boolean>>({});
+  const [offlineUploadError, setOfflineUploadError] = useState("");
+
+  async function uploadOfflineImage(key: string, file: File, onUrl: (url: string) => void) {
+    setOfflineUploadError("");
+    setOfflineUploading((current) => ({
+      ...current,
+      [key]: true
+    }));
+
+    try {
+      onUrl(await uploadAdminImage("stream-offline-image", file));
+    } catch (error) {
+      setOfflineUploadError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setOfflineUploading((current) => ({
+        ...current,
+        [key]: false
+      }));
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -125,6 +168,12 @@ export function AdminStreamControlPanel({
             }`}
           >
             {state.message}
+          </div>
+        ) : null}
+
+        {offlineUploadError ? (
+          <div className="mt-5 rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
+            {offlineUploadError}
           </div>
         ) : null}
       </section>
@@ -221,8 +270,7 @@ export function AdminStreamControlPanel({
         <Badge tone="cyan">New channel</Badge>
         <form
           action={formAction}
-          className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_150px_1fr_1fr_220px_auto]"
-          encType="multipart/form-data"
+          className="mt-4 grid gap-3 lg:grid-cols-[1fr_160px_150px_1fr_minmax(220px,1.2fr)_220px_auto]"
         >
           <input name="intent" type="hidden" value="create" />
           <input
@@ -249,11 +297,32 @@ export function AdminStreamControlPanel({
             name="playbackUrl"
             placeholder="https://.../live.m3u8"
           />
-          <input
-            className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-            name="offlineImageUrl"
-            placeholder="Offline image URL"
-          />
+          <div>
+            <input
+              className="min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              name="offlineImageUrl"
+              onChange={(event) => setNewOfflineImageUrl(event.currentTarget.value)}
+              placeholder="Offline image URL"
+              value={newOfflineImageUrl}
+            />
+            <input
+              accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-xs file:font-semibold file:text-bc-void"
+              disabled={pending || offlineUploading.create}
+              onChange={async (event) => {
+                const input = event.currentTarget;
+                const file = input.files?.[0];
+
+                if (!file) {
+                  return;
+                }
+
+                await uploadOfflineImage("create", file, setNewOfflineImageUrl);
+                input.value = "";
+              }}
+              type="file"
+            />
+          </div>
           <select
             className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
             name="streamProfileId"
@@ -265,7 +334,7 @@ export function AdminStreamControlPanel({
               </option>
             ))}
           </select>
-          <Button disabled={pending} type="submit" variant="primary">
+          <Button disabled={pending || offlineUploading.create} type="submit" variant="primary">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create
           </Button>
@@ -296,7 +365,6 @@ export function AdminStreamControlPanel({
             <form
               action={formAction}
               className="grid gap-4 xl:grid-cols-[1fr_160px_150px_1fr_1fr_220px_auto]"
-              encType="multipart/form-data"
             >
               <input name="intent" type="hidden" value="update" />
               <input name="channelId" type="hidden" value={channel.id} />
@@ -359,17 +427,39 @@ export function AdminStreamControlPanel({
                 </label>
                 <input
                   className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                  defaultValue={channel.offlineImageUrl ?? ""}
                   id={`offline-image-${channel.id}`}
                   name="offlineImageUrl"
+                  onChange={(event) =>
+                    setOfflineImageUrls((current) => ({
+                      ...current,
+                      [channel.id]: event.currentTarget.value
+                    }))
+                  }
                   placeholder="https://.../offline.jpg or uploaded file path"
                   type="text"
+                  value={offlineImageUrls[channel.id] ?? channel.offlineImageUrl ?? ""}
                 />
                 <input
                   accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
                   className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+                  disabled={pending || offlineUploading[channel.id]}
                   id={`offline-image-file-${channel.id}`}
-                  name="offlineImageFile"
+                  onChange={async (event) => {
+                    const input = event.currentTarget;
+                    const file = input.files?.[0];
+
+                    if (!file) {
+                      return;
+                    }
+
+                    await uploadOfflineImage(channel.id, file, (url) =>
+                      setOfflineImageUrls((current) => ({
+                        ...current,
+                        [channel.id]: url
+                      }))
+                    );
+                    input.value = "";
+                  }}
                   type="file"
                 />
                 <p className="mt-1 text-xs text-bc-muted">Landscape image, ideally 1920 x 1080.</p>
@@ -393,7 +483,7 @@ export function AdminStreamControlPanel({
                 </select>
               </div>
               <div className="flex items-end">
-                <Button disabled={pending} type="submit" variant="dark">
+                <Button disabled={pending || offlineUploading[channel.id]} type="submit" variant="dark">
                   <Save className="h-4 w-4" aria-hidden="true" />
                   Save
                 </Button>

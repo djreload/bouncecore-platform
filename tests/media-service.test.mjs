@@ -14,6 +14,7 @@ const png2x1 = Buffer.from(
   "89504e470d0a1a0a0000000d4948445200000002000000010806000000000000000000000049454e44ae426082",
   "hex"
 );
+const ico1x1 = Buffer.from("00000100010001010000010020006800000016000000", "hex");
 
 function mp3Frame(bitrateIndex) {
   const frame = Buffer.alloc(128);
@@ -72,6 +73,50 @@ test("branding image uploads use the branding upload root", async () => {
 
     assert.match(uploadPath, /^\/uploads\/branding-images\/.+\.png$/);
     assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("favicon uploads accept ico files in the branding upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const icon = new File([ico1x1], "favicon.ico", {
+      type: "image/x-icon"
+    });
+    const uploadPath = await mediaService.saveOptionalFaviconUpload(icon);
+
+    assert.match(uploadPath, /^\/uploads\/branding-images\/.+\.ico$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    assert.equal(mediaService.normalizeOptionalFaviconUrl(uploadPath), uploadPath);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("stream offline image uploads use the stream offline upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const image = new File([png1x1], "offline.png", {
+      type: "image/png"
+    });
+    const uploadPath = await mediaService.saveOptionalStreamOfflineImageUpload(image);
+
+    assert.match(uploadPath, /^\/uploads\/stream-offline-images\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    assert.equal(mediaService.normalizeOptionalStreamOfflineImageUrl(uploadPath), uploadPath);
   } finally {
     restore();
     await rm(tempDir, {
