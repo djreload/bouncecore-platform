@@ -292,6 +292,9 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                 name="supportEmail"
                 type="email"
               />
+              <p className="mt-2 text-xs text-bc-muted">
+                Leave blank to use PUBLIC_SUPPORT_EMAIL, SUPPORT_EMAIL, or MAIL_REPLY_TO when configured.
+              </p>
             </div>
             <div className="lg:col-span-2">
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="staging-target">

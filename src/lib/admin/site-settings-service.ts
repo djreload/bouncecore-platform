@@ -14,6 +14,8 @@ import { normalizeOptionalBrandingImageUrl } from "@/lib/media/media-service";
 const siteSettingsKey = "site.general";
 export const defaultSiteFaviconUrl = "/favicon.svg";
 
+type SupportEmailEnv = Record<string, string | undefined>;
+
 export type SiteSettingsInput = {
   announcementBody?: string;
   announcementCtaHref?: string;
@@ -78,6 +80,52 @@ export type AdminSiteSettingsData = {
   updatedAt: string | null;
 };
 
+function parseEnvEmail(value: string | undefined) {
+  const email = value?.trim().toLowerCase() ?? "";
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return null;
+  }
+
+  return email;
+}
+
+function envEmailFrom(env: SupportEmailEnv, keys: string[]) {
+  for (const key of keys) {
+    const email = parseEnvEmail(env[key]);
+
+    if (email) {
+      return email;
+    }
+  }
+
+  return null;
+}
+
+function isNoReplyEmail(email: string) {
+  const localPart = email.split("@")[0]?.replace(/[^a-z0-9]/gi, "").toLowerCase() ?? "";
+
+  return localPart === "noreply" || localPart === "donotreply";
+}
+
+export function resolveDefaultSupportEmail(env: SupportEmailEnv = process.env) {
+  const explicitSupport = envEmailFrom(env, ["PUBLIC_SUPPORT_EMAIL", "SUPPORT_EMAIL"]);
+
+  if (explicitSupport) {
+    return explicitSupport;
+  }
+
+  const replyTo = envEmailFrom(env, ["MAIL_REPLY_TO", "SMTP_REPLY_TO"]);
+
+  if (replyTo) {
+    return replyTo;
+  }
+
+  const mailFrom = envEmailFrom(env, ["MAIL_FROM", "BREVO_SMTP_FROM", "SMTP_FROM"]);
+
+  return mailFrom && !isNoReplyEmail(mailFrom) ? mailFrom : null;
+}
+
 function defaultSiteSettings(): SiteSettings {
   return {
     announcement: {
@@ -99,7 +147,7 @@ function defaultSiteSettings(): SiteSettings {
     liveSocialLinks: [],
     siteName: "Bouncecore",
     stagingTarget: null,
-    supportEmail: null
+    supportEmail: resolveDefaultSupportEmail()
   };
 }
 
