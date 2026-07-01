@@ -8,6 +8,7 @@ import {
   cleanOrphanUploadsConfirmationText
 } from "@/lib/admin/maintenance-core";
 import { cleanAdminOrphanUploads, formatStorageBytes } from "@/lib/admin/media-storage-service";
+import { updateOffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
 import { requireUserPermission } from "@/lib/auth/guards";
 
 function formString(formData: FormData, key: string) {
@@ -44,6 +45,40 @@ export async function cleanOrphanUploadsAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "Orphan uploads could not be cleaned.",
+      status: "error"
+    };
+  }
+}
+
+export async function updateOffsiteBackupSettingsAction(
+  _previousState: AdminStorageActionState,
+  formData: FormData
+): Promise<AdminStorageActionState> {
+  try {
+    const actor = await requireUserPermission("settings.manage");
+
+    await updateOffsiteBackupSettings(
+      {
+        ageRecipient: formString(formData, "ageRecipient"),
+        enabled: formData.get("enabled") === "on",
+        outputDir: formString(formData, "outputDir"),
+        rcloneRemote: formString(formData, "rcloneRemote"),
+        removeLocalAfterUpload: formData.get("removeLocalAfterUpload") === "on"
+      },
+      actor.id
+    );
+
+    revalidatePath("/admin/storage");
+    revalidatePath("/admin/system-health");
+    revalidatePath("/admin/audit-logs");
+
+    return {
+      message: "External backup location saved for scheduled backups.",
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "External backup location could not be saved.",
       status: "error"
     };
   }

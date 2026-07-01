@@ -11,12 +11,16 @@ SKIP_VOLUMES=false
 SKIP_STATUS_VOLUME=false
 STATUS_VOLUME_PATH=".ops/backup-status.env"
 OFFSITE_STATUS_VOLUME_PATH=".ops/offsite-backup-status.env"
+OFFSITE_CONFIG_VOLUME_PATH=".ops/offsite-backup-config.env"
 VERIFY_BACKUP=true
 OFFSITE_AGE_RECIPIENT=""
 OFFSITE_AGE_RECIPIENT_FILE=""
 OFFSITE_OUTPUT_DIR=""
 OFFSITE_RCLONE_REMOTE=""
 OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=false
+OFFSITE_CONFIG_FILE=""
+OFFSITE_ARGS_PROVIDED=false
+SKIP_OFFSITE_CONFIG=false
 
 info() {
   printf '\n==> %s\n' "$1"
@@ -44,6 +48,12 @@ Options:
                         Path inside the uploads Docker volume for latest backup status. Default: .ops/backup-status.env
   --offsite-status-volume-path PATH
                         Path inside the uploads Docker volume for latest off-server export status. Default: .ops/offsite-backup-status.env
+  --offsite-config-volume-path PATH
+                        Path inside the uploads Docker volume for admin-managed offsite config. Default: .ops/offsite-backup-config.env
+  --offsite-config-file PATH
+                        Host-side offsite config file to load when explicit offsite flags are not supplied.
+  --skip-offsite-config
+                        Do not load admin-managed offsite backup settings.
   --skip-db             Do not create a PostgreSQL dump.
   --skip-volumes        Do not archive Docker volumes.
   --skip-status-volume  Do not copy latest backup status into the uploads Docker volume.
@@ -120,6 +130,27 @@ file_value() {
   fi
 
   printf '%s' "${line#*=}"
+}
+
+validate_volume_path() {
+  local label="$1"
+  local value="$2"
+
+  case "$value" in
+    *[!A-Za-z0-9._/-]*) die "$label supports only letters, numbers, dot, underscore, dash, and slash." ;;
+    *..*) die "$label cannot contain '..'." ;;
+    "") die "$label cannot be empty." ;;
+  esac
+}
+
+validate_offsite_options() {
+  if [ -n "$OFFSITE_AGE_RECIPIENT" ] && [ -n "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
+    die "Use either --offsite-age-recipient or --offsite-age-recipient-file, not both."
+  fi
+
+  if [ "$OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD" = "true" ] && [ -z "$OFFSITE_RCLONE_REMOTE" ]; then
+    die "--offsite-remove-local-after-upload requires --offsite-rclone-remote."
+  fi
 }
 
 compose() {
@@ -289,6 +320,95 @@ copy_offsite_status_to_uploads_volume() {
   docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
+load_offsite_config_values() {
+  local config_file="$1"
+  local enabled
+  local recipient
+  local recipient_file
+  local output_dir
+  local rclone_remote
+  local remove_local
+
+  enabled="$(file_value "$config_file" OFFSITE_ENABLED false)"
+  enabled="${enabled,,}"
+
+  case "$enabled" in
+    true|1|yes|on) ;;
+    *)
+      warn "Admin-managed offsite backup export is disabled in $config_file."
+      return
+      ;;
+  esac
+
+  recipient="$(file_value "$config_file" OFFSITE_AGE_RECIPIENT "")"
+  recipient_file="$(file_value "$config_file" OFFSITE_AGE_RECIPIENT_FILE "")"
+  output_dir="$(file_value "$config_file" OFFSITE_OUTPUT_DIR "")"
+  rclone_remote="$(file_value "$config_file" OFFSITE_RCLONE_REMOTE "")"
+  remove_local="$(file_value "$config_file" OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD false)"
+  remove_local="${remove_local,,}"
+
+  if [ -n "$recipient" ]; then
+    OFFSITE_AGE_RECIPIENT="$recipient"
+  fi
+
+  if [ -n "$recipient_file" ]; then
+    OFFSITE_AGE_RECIPIENT_FILE="$(resolve_path "$recipient_file")"
+  fi
+
+  if [ -n "$output_dir" ]; then
+    OFFSITE_OUTPUT_DIR="$(resolve_path "$output_dir")"
+  fi
+
+  if [ -n "$rclone_remote" ]; then
+    OFFSITE_RCLONE_REMOTE="$rclone_remote"
+  fi
+
+  case "$remove_local" in
+    true|1|yes|on) OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=true ;;
+    *) OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=false ;;
+  esac
+
+  info "Loaded admin-managed offsite backup config from $config_file"
+}
+
+load_offsite_config_from_uploads_volume() {
+  local target_path="${OFFSITE_CONFIG_VOLUME_PATH#/}"
+  local temp_dir
+
+  if ! docker volume inspect "$UPLOADS_VOLUME" >/dev/null 2>&1; then
+    warn "Admin-managed offsite backup config skipped because Docker volume $UPLOADS_VOLUME does not exist."
+    return
+  fi
+
+  temp_dir="$(mktemp -d)"
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads:ro" -v "$temp_dir:/config" alpine:3.20 sh -c "if [ -f \"/uploads/$target_path\" ]; then cp \"/uploads/$target_path\" /config/offsite.env; fi"
+
+  if [ -f "$temp_dir/offsite.env" ]; then
+    load_offsite_config_values "$temp_dir/offsite.env"
+  else
+    warn "No admin-managed offsite backup config found at uploads volume path $OFFSITE_CONFIG_VOLUME_PATH."
+  fi
+
+  rm -rf "$temp_dir"
+}
+
+load_offsite_config() {
+  if [ "$SKIP_OFFSITE_CONFIG" = "true" ] || [ "$OFFSITE_ARGS_PROVIDED" = "true" ]; then
+    return
+  fi
+
+  if [ -n "$OFFSITE_CONFIG_FILE" ]; then
+    if [ -f "$OFFSITE_CONFIG_FILE" ]; then
+      load_offsite_config_values "$OFFSITE_CONFIG_FILE"
+    else
+      warn "Offsite backup config file not found: $OFFSITE_CONFIG_FILE"
+    fi
+    return
+  fi
+
+  load_offsite_config_from_uploads_volume
+}
+
 export_offsite_backup() {
   local -a args
 
@@ -361,6 +481,20 @@ while [ "$#" -gt 0 ]; do
       OFFSITE_STATUS_VOLUME_PATH="$2"
       shift 2
       ;;
+    --offsite-config-volume-path)
+      [ "$#" -ge 2 ] || die "--offsite-config-volume-path requires a path."
+      OFFSITE_CONFIG_VOLUME_PATH="$2"
+      shift 2
+      ;;
+    --offsite-config-file)
+      [ "$#" -ge 2 ] || die "--offsite-config-file requires a path."
+      OFFSITE_CONFIG_FILE="$(resolve_path "$2")"
+      shift 2
+      ;;
+    --skip-offsite-config)
+      SKIP_OFFSITE_CONFIG=true
+      shift
+      ;;
     --skip-db)
       SKIP_DB=true
       shift
@@ -380,25 +514,30 @@ while [ "$#" -gt 0 ]; do
     --offsite-age-recipient)
       [ "$#" -ge 2 ] || die "--offsite-age-recipient requires a key."
       OFFSITE_AGE_RECIPIENT="$2"
+      OFFSITE_ARGS_PROVIDED=true
       shift 2
       ;;
     --offsite-age-recipient-file)
       [ "$#" -ge 2 ] || die "--offsite-age-recipient-file requires a path."
       OFFSITE_AGE_RECIPIENT_FILE="$(resolve_path "$2")"
+      OFFSITE_ARGS_PROVIDED=true
       shift 2
       ;;
     --offsite-output-dir)
       [ "$#" -ge 2 ] || die "--offsite-output-dir requires a path."
       OFFSITE_OUTPUT_DIR="$(resolve_path "$2")"
+      OFFSITE_ARGS_PROVIDED=true
       shift 2
       ;;
     --offsite-rclone-remote)
       [ "$#" -ge 2 ] || die "--offsite-rclone-remote requires a destination."
       OFFSITE_RCLONE_REMOTE="$2"
+      OFFSITE_ARGS_PROVIDED=true
       shift 2
       ;;
     --offsite-remove-local-after-upload)
       OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=true
+      OFFSITE_ARGS_PROVIDED=true
       shift
       ;;
     -h|--help)
@@ -416,22 +555,10 @@ done
 command -v docker >/dev/null 2>&1 || die "Docker is required."
 docker compose version >/dev/null 2>&1 || die "Docker Compose plugin is required."
 [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || die "--retention-days must be a non-negative integer."
-if [ -n "$OFFSITE_AGE_RECIPIENT" ] && [ -n "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
-  die "Use either --offsite-age-recipient or --offsite-age-recipient-file, not both."
-fi
-if [ "$OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD" = "true" ] && [ -z "$OFFSITE_RCLONE_REMOTE" ]; then
-  die "--offsite-remove-local-after-upload requires --offsite-rclone-remote."
-fi
-case "$STATUS_VOLUME_PATH" in
-  *[!A-Za-z0-9._/-]*) die "--status-volume-path supports only letters, numbers, dot, underscore, dash, and slash." ;;
-  *..*) die "--status-volume-path cannot contain '..'." ;;
-  "") die "--status-volume-path cannot be empty." ;;
-esac
-case "$OFFSITE_STATUS_VOLUME_PATH" in
-  *[!A-Za-z0-9._/-]*) die "--offsite-status-volume-path supports only letters, numbers, dot, underscore, dash, and slash." ;;
-  *..*) die "--offsite-status-volume-path cannot contain '..'." ;;
-  "") die "--offsite-status-volume-path cannot be empty." ;;
-esac
+validate_offsite_options
+validate_volume_path "--status-volume-path" "$STATUS_VOLUME_PATH"
+validate_volume_path "--offsite-status-volume-path" "$OFFSITE_STATUS_VOLUME_PATH"
+validate_volume_path "--offsite-config-volume-path" "$OFFSITE_CONFIG_VOLUME_PATH"
 
 POSTGRES_DB="$(env_value POSTGRES_DB bouncecore_platform)"
 POSTGRES_USER="$(env_value POSTGRES_USER bouncecore_app)"
@@ -444,6 +571,9 @@ UPLOADS_VOLUME="$(resolve_docker_volume_name "$UPLOADS_VOLUME")"
 REDIS_VOLUME="$(resolve_docker_volume_name "$REDIS_VOLUME")"
 STREAM_CORE_VOLUME="$(resolve_docker_volume_name "$STREAM_CORE_VOLUME")"
 TRANSCODER_HLS_VOLUME="$(resolve_docker_volume_name "$TRANSCODER_HLS_VOLUME")"
+
+load_offsite_config
+validate_offsite_options
 
 mkdir -p "$BACKUP_ROOT"
 BACKUP_ROOT="$(cd "$BACKUP_ROOT" && pwd)"

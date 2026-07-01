@@ -12,6 +12,7 @@ import {
   UploadCloud
 } from "lucide-react";
 import { CleanOrphanUploadsForm } from "@/app/admin/storage/clean-orphan-uploads-form";
+import { OffsiteBackupSettingsForm } from "@/app/admin/storage/offsite-backup-settings-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
   formatStorageBytes,
   getAdminMediaStorageData
 } from "@/lib/admin/media-storage-service";
+import { getAdminOffsiteBackupSettingsData } from "@/lib/admin/offsite-backup-settings";
 import {
   backupStatusFilePath,
   backupStatusHealthCheck,
@@ -246,15 +248,16 @@ function BrokenReferenceTable({ references }: { references: BrokenReference[] })
 
 export default async function AdminStoragePage() {
   await requireUserPermission("settings.manage");
-  const [data, backupStatus, offsiteBackupStatus] = await Promise.all([
+  const [data, backupStatus, offsiteBackupStatus, offsiteSettings] = await Promise.all([
     getAdminMediaStorageData(),
     backupStatusHealthCheck(),
-    offsiteBackupStatusHealthCheck()
+    offsiteBackupStatusHealthCheck(),
+    getAdminOffsiteBackupSettingsData()
   ]);
   const verifiedBackupCommand =
     "scripts/backup-instance.sh --env-file .env.instance --compose-file docker-compose.instance.yml --backup-root /srv/bouncecore-backups";
   const offsiteBackupCommand =
-    "sudo bash scripts/setup-offsite-backups.sh --age-recipient age1... --rclone-remote remote:path --install-packages --run-now";
+    "sudo bash scripts/install-backup-schedule.sh --env-file .env.instance --compose-file docker-compose.instance.yml --backup-root /srv/bouncecore-backups";
 
   return (
     <AdminShell
@@ -322,6 +325,31 @@ export default async function AdminStoragePage() {
             <ButtonLink href="/admin/system-health" size="sm" variant="ghost">
               Open readiness
             </ButtonLink>
+          </div>
+          <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-4">
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="text-lg font-black text-white">External backup location</h4>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-bc-muted">
+                  Save the rclone destination and public age recipient here. The scheduled backup script reads the generated
+                  config from the uploads volume when no offsite command-line flags are supplied.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {offsiteSettings.checks.map((check) => (
+                  <Badge key={check.label} tone={check.status === "ready" ? "acid" : "amber"}>
+                    {check.label}: {check.value}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <OffsiteBackupSettingsForm
+              configVolumePath={offsiteSettings.configVolumePath}
+              settings={offsiteSettings.settings}
+            />
+            <p className="mt-4 break-all text-xs text-bc-muted">
+              Generated config file: {offsiteSettings.configFilePath}
+            </p>
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <BackupStatusCard

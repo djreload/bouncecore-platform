@@ -48,6 +48,14 @@ When encrypted off-server export is enabled through `backup-instance.sh`, the la
 
 The app reads that file from `/app/public/uploads/.ops/offsite-backup-status.env` and exposes it in Admin -> System health as `Off-server backups`. A fresh local encrypted export without a successful rclone upload is reported as `Local only` because it is not yet disaster recovery.
 
+Admin -> Storage can also save the external backup destination and public age recipient. The app writes that operational config into the uploads volume at:
+
+```text
+.ops/offsite-backup-config.env
+```
+
+When `backup-instance.sh` runs without explicit offsite flags, it reads this admin-managed config automatically. The server still needs `age` and a working `rclone` remote configured outside the app.
+
 Useful options:
 
 ```bash
@@ -56,6 +64,7 @@ bash scripts/backup-instance.sh --env-file .env.staging --compose-file docker-co
 bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
 bash scripts/backup-instance.sh --status-volume-path .ops/backup-status.env
 bash scripts/backup-instance.sh --offsite-status-volume-path .ops/offsite-backup-status.env
+bash scripts/backup-instance.sh --offsite-config-volume-path .ops/offsite-backup-config.env
 bash scripts/backup-instance.sh --skip-status-volume
 bash scripts/backup-instance.sh --skip-volumes
 bash scripts/backup-instance.sh --skip-verify
@@ -160,10 +169,10 @@ With encrypted off-server export enabled:
 ```bash
 sudo bash scripts/install-backup-schedule.sh \
   --backup-root /srv/bouncecore-backups \
-  --retention-days 14 \
-  --offsite-age-recipient age1examplepublickey \
-  --offsite-rclone-remote r2:bouncecore-backups/prod
+  --retention-days 14
 ```
+
+Then save the external destination in Admin -> Storage. The installed timer runs `backup-instance.sh`, and the backup script reads the saved `.ops/offsite-backup-config.env` file from the uploads volume.
 
 Recommended guided setup for encrypted off-server exports:
 

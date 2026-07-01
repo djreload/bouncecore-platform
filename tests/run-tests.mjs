@@ -30,6 +30,7 @@ import "./mobile-shop-payload.test.mjs";
 import "./mobile-event-notifications.test.mjs";
 import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";
+import "./offsite-backup-settings.test.mjs";
 import "./paypal-checkout-errors.test.mjs";
 import "./payment-reconciliation.test.mjs";
 import "./payment-smoke-core.test.mjs";
