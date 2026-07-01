@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import {
   googleDriveDefaultFolder,
   googleDriveDefaultRemoteName,
+  googleDriveRcloneConfigVolumePath,
   googleDriveRcloneDestination,
   normalizeDestinationType,
   normalizeGoogleDriveFolder,
@@ -201,6 +202,7 @@ export function offsiteBackupSettingsToEnv(settings: OffsiteBackupSettings, upda
     envLine("OFFSITE_GOOGLE_DRIVE_FOLDER", settings.googleDriveFolder),
     envLine("OFFSITE_AGE_RECIPIENT", settings.ageRecipient),
     envLine("OFFSITE_RCLONE_REMOTE", settings.rcloneRemote),
+    envLine("OFFSITE_RCLONE_CONFIG_VOLUME_PATH", googleDriveRcloneConfigVolumePath),
     envLine("OFFSITE_OUTPUT_DIR", settings.outputDir),
     envLine("OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD", settings.removeLocalAfterUpload),
     envLine("UPDATED_AT", updatedAt.toISOString())
@@ -238,6 +240,10 @@ async function readOffsiteBackupSettings() {
     source: setting ? ("database" as const) : ("default" as const),
     updatedAt: setting?.updatedAt ?? null
   };
+}
+
+export async function getOffsiteBackupSettings() {
+  return readOffsiteBackupSettings();
 }
 
 export async function getAdminOffsiteBackupSettingsData(): Promise<AdminOffsiteBackupSettingsData> {

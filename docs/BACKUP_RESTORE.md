@@ -54,9 +54,28 @@ Admin -> Storage can also save the external backup destination and public age re
 .ops/offsite-backup-config.env
 ```
 
-When `backup-instance.sh` runs without explicit offsite flags, it reads this admin-managed config automatically. The server still needs `age` and a working `rclone` remote configured outside the app.
+When `backup-instance.sh` runs without explicit offsite flags, it reads this admin-managed config automatically. The server still needs `age` and `rclone` installed. For Google Drive, Bouncecore can create the rclone Drive config through the Admin -> Storage OAuth flow.
 
-Google Drive is supported through rclone. Configure one Google Drive remote on the server, then select `Google Drive` in Admin -> Storage. The recommended rclone remote name is:
+Google Drive is supported through rclone without manually running `rclone config`. Create a Google Cloud OAuth 2.0 web client, set these environment variables, then restart the app:
+
+```env
+GOOGLE_DRIVE_OAUTH_CLIENT_ID=your-google-client-id
+GOOGLE_DRIVE_OAUTH_CLIENT_SECRET=your-google-client-secret
+```
+
+Add this redirect URI to the Google Cloud OAuth client:
+
+```text
+https://bouncecore.example.com/admin/storage/google-drive/callback
+```
+
+Then open Admin -> Storage and press `Connect Google Drive`. Google will show the Drive authorization page. After approval, Bouncecore writes the generated rclone config into the protected uploads volume path:
+
+```text
+.ops/google-drive-rclone.conf
+```
+
+The recommended generated rclone remote name is:
 
 ```text
 bouncecore-gdrive
@@ -68,7 +87,7 @@ With the default admin folder, Bouncecore generates this rclone destination:
 bouncecore-gdrive:Bouncecore Backups
 ```
 
-The Google Drive OAuth token remains in the server's rclone config; Bouncecore stores only the remote name, folder path, and public age recipient.
+The Google Drive OAuth token is not stored in a public upload URL or shown in admin. Bouncecore stores only connection metadata in the database and keeps the rclone token config in the protected `.ops` path above.
 
 If the database setting exists but the generated `.ops/offsite-backup-config.env` file is missing after a restore or volume repair, use Admin -> Storage -> Rewrite generated config. This rewrites the file from the saved database setting without changing the destination.
 
@@ -226,15 +245,7 @@ sudo bash scripts/setup-offsite-backups.sh \
 
 The helper checks `age` and `rclone`, optionally installs them on Debian/Ubuntu, writes and deletes a small probe file in the rclone destination, installs the systemd timer with off-server export enabled, and can start one backup immediately. Use `--dry-run` to print the exact timer install command without changing systemd.
 
-For Google Drive, configure the rclone remote first:
-
-```bash
-sudo apt-get install rclone
-rclone config
-rclone lsd bouncecore-gdrive:
-```
-
-Then validate and install the backup timers with Google Drive as the rclone destination:
+For Google Drive, use the Admin -> Storage `Connect Google Drive` button first. Then validate and install the backup timers with Google Drive as the rclone destination:
 
 ```bash
 sudo bash scripts/setup-offsite-backups.sh \

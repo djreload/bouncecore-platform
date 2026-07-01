@@ -1,5 +1,6 @@
 export const googleDriveDefaultRemoteName = "bouncecore-gdrive";
 export const googleDriveDefaultFolder = "Bouncecore Backups";
+export const googleDriveRcloneConfigVolumePath = ".ops/google-drive-rclone.conf";
 
 export type OffsiteBackupDestinationType = "rclone" | "google-drive";
 

@@ -4,7 +4,8 @@ import { useActionState, useMemo, useState } from "react";
 import { RefreshCw, Save } from "lucide-react";
 import { syncOffsiteBackupConfigAction, updateOffsiteBackupSettingsAction } from "@/app/admin/storage/actions";
 import { initialAdminStorageActionState, type AdminStorageActionState } from "@/app/admin/storage/state";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Button, ButtonLink } from "@/components/ui/button";
 import {
   googleDriveDefaultFolder,
   googleDriveDefaultRemoteName,
@@ -14,16 +15,53 @@ import {
 import {
   type OffsiteBackupSettings
 } from "@/lib/admin/offsite-backup-settings";
+import type { GoogleDriveBackupConnection } from "@/lib/admin/google-drive-backup-oauth";
 
 type OffsiteBackupSettingsFormProps = {
   configFilePresent: boolean;
   configVolumePath: string;
+  googleDriveConnection: GoogleDriveBackupConnection;
+  googleDriveMessage: string;
+  googleDriveOAuthRedirectUri: string;
+  googleDriveStatus: string;
   settings: OffsiteBackupSettings;
 };
 
 const inputClasses = "min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white";
 
-export function OffsiteBackupSettingsForm({ configFilePresent, configVolumePath, settings }: OffsiteBackupSettingsFormProps) {
+function googleDriveStatusText(status: string, message: string) {
+  if (status === "connected") {
+    return "Google Drive connected. Save and enable the external backup location when the age recipient is ready.";
+  }
+
+  if (status === "missing-oauth") {
+    return message || "Google Drive OAuth credentials are missing.";
+  }
+
+  if (status === "denied") {
+    return "Google Drive authorization was cancelled or denied.";
+  }
+
+  if (status === "state-error") {
+    return message || "Google Drive authorization expired. Start the connection again.";
+  }
+
+  if (status === "failed" || status === "missing-code") {
+    return message || "Google Drive authorization could not be completed.";
+  }
+
+  return "";
+}
+
+export function OffsiteBackupSettingsForm({
+  configFilePresent,
+  configVolumePath,
+  googleDriveConnection,
+  googleDriveMessage,
+  googleDriveOAuthRedirectUri,
+  googleDriveStatus,
+  settings
+}: OffsiteBackupSettingsFormProps) {
   const [destinationType, setDestinationType] = useState<OffsiteBackupDestinationType>(settings.destinationType);
   const [googleDriveRemoteName, setGoogleDriveRemoteName] = useState(settings.googleDriveRemoteName ?? googleDriveDefaultRemoteName);
   const [googleDriveFolder, setGoogleDriveFolder] = useState(settings.googleDriveFolder ?? googleDriveDefaultFolder);
@@ -42,6 +80,15 @@ export function OffsiteBackupSettingsForm({ configFilePresent, configVolumePath,
       return `${googleDriveRemoteName || googleDriveDefaultRemoteName}:${googleDriveFolder || googleDriveDefaultFolder}`;
     }
   }, [googleDriveFolder, googleDriveRemoteName]);
+  const googleDriveConnectHref = useMemo(() => {
+    const params = new URLSearchParams({
+      folder: googleDriveFolder || googleDriveDefaultFolder,
+      remoteName: googleDriveRemoteName || googleDriveDefaultRemoteName
+    });
+
+    return `/admin/storage/google-drive/connect?${params.toString()}`;
+  }, [googleDriveFolder, googleDriveRemoteName]);
+  const googleDriveStatusMessage = googleDriveStatusText(googleDriveStatus, googleDriveMessage);
 
   return (
     <div className="grid gap-4">
@@ -96,6 +143,55 @@ export function OffsiteBackupSettingsForm({ configFilePresent, configVolumePath,
               <p className="rounded-md border border-bc-line bg-black/20 px-3 py-2 text-xs text-bc-muted">
                 Generated rclone destination: <span className="font-semibold text-white">{googleDriveDestination}</span>
               </p>
+            </div>
+
+            <div className="grid gap-3 rounded-md border border-bc-line bg-black/20 p-3 lg:col-span-2">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone={googleDriveConnection.oauthConfigured ? "acid" : "amber"}>
+                      OAuth {googleDriveConnection.oauthConfigured ? "configured" : "missing"}
+                    </Badge>
+                    <Badge tone={googleDriveConnection.connected ? "acid" : "amber"}>
+                      Drive {googleDriveConnection.connected ? "connected" : "not connected"}
+                    </Badge>
+                    <Badge tone={googleDriveConnection.configFilePresent ? "acid" : "amber"}>
+                      Token config {googleDriveConnection.configFilePresent ? "present" : "missing"}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-bc-muted">{googleDriveConnection.setupDetail}</p>
+                  <p className="mt-2 break-all text-xs text-bc-muted">
+                    Redirect URI for Google Cloud OAuth:{" "}
+                    <span className="font-semibold text-white">{googleDriveOAuthRedirectUri}</span>
+                  </p>
+                  {googleDriveConnection.connectedAt ? (
+                    <p className="mt-2 text-xs text-bc-muted">Connected at {googleDriveConnection.connectedAt}</p>
+                  ) : null}
+                  <p className="mt-2 break-all text-xs text-bc-muted">
+                    Generated token config path: {googleDriveConnection.volumePath}
+                  </p>
+                </div>
+                {googleDriveConnection.oauthConfigured ? (
+                  <ButtonLink href={googleDriveConnectHref} size="sm" variant="primary">
+                    Connect Google Drive
+                  </ButtonLink>
+                ) : (
+                  <Button disabled size="sm" type="button" variant="ghost">
+                    Connect Google Drive
+                  </Button>
+                )}
+              </div>
+              {googleDriveStatusMessage ? (
+                <p
+                  className={`rounded-md border px-3 py-2 text-xs ${
+                    googleDriveStatus === "connected"
+                      ? "border-bc-acid/40 bg-bc-acid/10 text-bc-acid"
+                      : "border-bc-amber/40 bg-bc-amber/10 text-bc-amber"
+                  }`}
+                >
+                  {googleDriveStatusMessage}
+                </p>
+              ) : null}
             </div>
           </div>
         ) : (

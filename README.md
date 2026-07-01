@@ -247,6 +247,8 @@ sudo bash scripts/install-backup-schedule.sh --backup-root /srv/bouncecore-backu
 
 The backup script and timer installer also support `--offsite-age-recipient`, `--offsite-age-recipient-file`, `--offsite-rclone-remote`, and `--offsite-remove-local-after-upload` for automated encrypted off-server copies.
 
+Google Drive backups can be connected from Admin -> Storage. Configure `GOOGLE_DRIVE_OAUTH_CLIENT_ID` and `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET`, add `/admin/storage/google-drive/callback` as the Google OAuth redirect URI, then press `Connect Google Drive` in the admin UI. Bouncecore writes the generated rclone Drive token into the protected uploads `.ops` area for the host backup script.
+
 Guided off-server backup setup:
 
 ```bash

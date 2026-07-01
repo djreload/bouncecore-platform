@@ -386,6 +386,21 @@ Add a daily cron entry:
 
 Copy backups off-server. Local backups alone are not production-grade.
 
+For Google Drive off-server copies, install `rclone` and `age`, then configure Google OAuth credentials in the app environment:
+
+```env
+GOOGLE_DRIVE_OAUTH_CLIENT_ID=your-google-client-id
+GOOGLE_DRIVE_OAUTH_CLIENT_SECRET=your-google-client-secret
+```
+
+Add this Google OAuth redirect URI for your domain:
+
+```text
+https://bouncecore.example.com/admin/storage/google-drive/callback
+```
+
+After the app restarts, open Admin -> Storage and press `Connect Google Drive`. The backup timer will read the generated Drive rclone config from the protected uploads `.ops` directory.
+
 ## 14. Updates
 
 ```bash

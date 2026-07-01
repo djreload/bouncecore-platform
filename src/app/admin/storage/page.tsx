@@ -25,6 +25,7 @@ import {
 } from "@/lib/admin/media-storage-service";
 import { getAdminOffsiteBackupSettingsData } from "@/lib/admin/offsite-backup-settings";
 import { getAdminBackupRunData } from "@/lib/admin/backup-run-requests";
+import { getGoogleDriveBackupConnection } from "@/lib/admin/google-drive-backup-oauth";
 import {
   backupStatusFilePath,
   backupStatusHealthCheck,
@@ -248,7 +249,19 @@ function BrokenReferenceTable({ references }: { references: BrokenReference[] })
   );
 }
 
-export default async function AdminStoragePage() {
+function googleDriveRedirectUri() {
+  try {
+    return new URL("/admin/storage/google-drive/callback", process.env.NEXT_PUBLIC_APP_URL || "https://your-domain.example").toString();
+  } catch {
+    return "https://your-domain.example/admin/storage/google-drive/callback";
+  }
+}
+
+export default async function AdminStoragePage({
+  searchParams
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireUserPermission("settings.manage");
   const [data, backupStatus, offsiteBackupStatus, offsiteSettings, manualBackupRun] = await Promise.all([
     getAdminMediaStorageData(),
@@ -257,6 +270,14 @@ export default async function AdminStoragePage() {
     getAdminOffsiteBackupSettingsData(),
     getAdminBackupRunData()
   ]);
+  const googleDriveConnection = await getGoogleDriveBackupConnection(
+    offsiteSettings.settings.googleDriveRemoteName,
+    offsiteSettings.settings.googleDriveFolder
+  );
+  const params = (await searchParams) ?? {};
+  const googleDriveStatus = typeof params.googleDrive === "string" ? params.googleDrive : "";
+  const googleDriveMessage = typeof params.message === "string" ? params.message : "";
+  const googleDriveOAuthRedirectUri = googleDriveRedirectUri();
   const verifiedBackupCommand =
     "scripts/backup-instance.sh --env-file .env.instance --compose-file docker-compose.instance.yml --backup-root /srv/bouncecore-backups";
   const offsiteBackupCommand =
@@ -349,6 +370,10 @@ export default async function AdminStoragePage() {
             <OffsiteBackupSettingsForm
               configFilePresent={offsiteSettings.configFilePresent}
               configVolumePath={offsiteSettings.configVolumePath}
+              googleDriveConnection={googleDriveConnection}
+              googleDriveMessage={googleDriveMessage}
+              googleDriveOAuthRedirectUri={googleDriveOAuthRedirectUri}
+              googleDriveStatus={googleDriveStatus}
               settings={offsiteSettings.settings}
             />
             <p className="mt-4 break-all text-xs text-bc-muted">

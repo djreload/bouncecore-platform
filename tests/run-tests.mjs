@@ -11,6 +11,7 @@ import "./cart-events.test.mjs";
 import "./default-public-assets.test.mjs";
 import "./email-address.test.mjs";
 import "./fcm-push-service.test.mjs";
+import "./google-drive-backup-oauth.test.mjs";
 import "./ingest-url.test.mjs";
 import "./legal-pages.test.mjs";
 import "./live-hls-transcoder-config.test.mjs";

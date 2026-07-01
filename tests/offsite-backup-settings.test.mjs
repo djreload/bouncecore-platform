@@ -142,6 +142,7 @@ test("offsite backup settings serialize the admin-managed env file", () => {
   assert.match(output, /OFFSITE_GOOGLE_DRIVE_FOLDER=Bouncecore Backups/);
   assert.match(output, /OFFSITE_AGE_RECIPIENT=age1/);
   assert.match(output, /OFFSITE_RCLONE_REMOTE=r2:bouncecore\/prod/);
+  assert.match(output, /OFFSITE_RCLONE_CONFIG_VOLUME_PATH=\.ops\/google-drive-rclone\.conf/);
   assert.match(output, /OFFSITE_OUTPUT_DIR=\/srv\/bouncecore-backups\/offsite/);
   assert.match(output, /OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=true/);
   assert.match(output, /UPDATED_AT=2026-07-01T12:00:00.000Z/);

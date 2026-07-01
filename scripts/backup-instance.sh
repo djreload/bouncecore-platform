@@ -12,7 +12,9 @@ SKIP_STATUS_VOLUME=false
 STATUS_VOLUME_PATH=".ops/backup-status.env"
 OFFSITE_STATUS_VOLUME_PATH=".ops/offsite-backup-status.env"
 OFFSITE_CONFIG_VOLUME_PATH=".ops/offsite-backup-config.env"
+OFFSITE_RCLONE_CONFIG_VOLUME_PATH=".ops/google-drive-rclone.conf"
 VERIFY_BACKUP=true
+OFFSITE_DESTINATION_TYPE="rclone"
 OFFSITE_AGE_RECIPIENT=""
 OFFSITE_AGE_RECIPIENT_FILE=""
 OFFSITE_OUTPUT_DIR=""
@@ -21,6 +23,15 @@ OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=false
 OFFSITE_CONFIG_FILE=""
 OFFSITE_ARGS_PROVIDED=false
 SKIP_OFFSITE_CONFIG=false
+OFFSITE_TEMP_RCLONE_CONFIG_DIR=""
+
+cleanup_temp_rclone_config() {
+  if [ -n "$OFFSITE_TEMP_RCLONE_CONFIG_DIR" ] && [ -d "$OFFSITE_TEMP_RCLONE_CONFIG_DIR" ]; then
+    rm -rf "$OFFSITE_TEMP_RCLONE_CONFIG_DIR"
+  fi
+}
+
+trap cleanup_temp_rclone_config EXIT
 
 info() {
   printf '\n==> %s\n' "$1"
@@ -50,6 +61,8 @@ Options:
                         Path inside the uploads Docker volume for latest off-server export status. Default: .ops/offsite-backup-status.env
   --offsite-config-volume-path PATH
                         Path inside the uploads Docker volume for admin-managed offsite config. Default: .ops/offsite-backup-config.env
+  --offsite-rclone-config-volume-path PATH
+                        Path inside the uploads Docker volume for app-generated rclone config. Default: .ops/google-drive-rclone.conf
   --offsite-config-file PATH
                         Host-side offsite config file to load when explicit offsite flags are not supplied.
   --skip-offsite-config
@@ -144,12 +157,21 @@ validate_volume_path() {
 }
 
 validate_offsite_options() {
+  case "$OFFSITE_DESTINATION_TYPE" in
+    rclone|google-drive) ;;
+    *) die "OFFSITE_DESTINATION_TYPE must be rclone or google-drive." ;;
+  esac
+
   if [ -n "$OFFSITE_AGE_RECIPIENT" ] && [ -n "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
     die "Use either --offsite-age-recipient or --offsite-age-recipient-file, not both."
   fi
 
   if [ "$OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD" = "true" ] && [ -z "$OFFSITE_RCLONE_REMOTE" ]; then
     die "--offsite-remove-local-after-upload requires --offsite-rclone-remote."
+  fi
+
+  if [ "$OFFSITE_DESTINATION_TYPE" = "google-drive" ] && [ -n "$OFFSITE_RCLONE_REMOTE" ]; then
+    validate_volume_path "OFFSITE_RCLONE_CONFIG_VOLUME_PATH" "$OFFSITE_RCLONE_CONFIG_VOLUME_PATH"
   fi
 }
 
@@ -327,7 +349,9 @@ load_offsite_config_values() {
   local recipient_file
   local output_dir
   local rclone_remote
+  local rclone_config_volume_path
   local remove_local
+  local destination_type
 
   enabled="$(file_value "$config_file" OFFSITE_ENABLED false)"
   enabled="${enabled,,}"
@@ -340,12 +364,20 @@ load_offsite_config_values() {
       ;;
   esac
 
+  destination_type="$(file_value "$config_file" OFFSITE_DESTINATION_TYPE rclone)"
+  destination_type="${destination_type,,}"
   recipient="$(file_value "$config_file" OFFSITE_AGE_RECIPIENT "")"
   recipient_file="$(file_value "$config_file" OFFSITE_AGE_RECIPIENT_FILE "")"
   output_dir="$(file_value "$config_file" OFFSITE_OUTPUT_DIR "")"
   rclone_remote="$(file_value "$config_file" OFFSITE_RCLONE_REMOTE "")"
+  rclone_config_volume_path="$(file_value "$config_file" OFFSITE_RCLONE_CONFIG_VOLUME_PATH "$OFFSITE_RCLONE_CONFIG_VOLUME_PATH")"
   remove_local="$(file_value "$config_file" OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD false)"
   remove_local="${remove_local,,}"
+
+  case "$destination_type" in
+    rclone|google-drive) OFFSITE_DESTINATION_TYPE="$destination_type" ;;
+    *) die "Unsupported OFFSITE_DESTINATION_TYPE in $config_file." ;;
+  esac
 
   if [ -n "$recipient" ]; then
     OFFSITE_AGE_RECIPIENT="$recipient"
@@ -361,6 +393,10 @@ load_offsite_config_values() {
 
   if [ -n "$rclone_remote" ]; then
     OFFSITE_RCLONE_REMOTE="$rclone_remote"
+  fi
+
+  if [ -n "$rclone_config_volume_path" ]; then
+    OFFSITE_RCLONE_CONFIG_VOLUME_PATH="$rclone_config_volume_path"
   fi
 
   case "$remove_local" in
@@ -409,6 +445,34 @@ load_offsite_config() {
   load_offsite_config_from_uploads_volume
 }
 
+prepare_google_drive_rclone_config() {
+  local target_path
+  local temp_dir
+
+  if [ "$OFFSITE_DESTINATION_TYPE" != "google-drive" ] || [ -z "$OFFSITE_RCLONE_REMOTE" ]; then
+    return
+  fi
+
+  if ! docker volume inspect "$UPLOADS_VOLUME" >/dev/null 2>&1; then
+    die "Google Drive rclone config cannot be loaded because Docker volume $UPLOADS_VOLUME does not exist."
+  fi
+
+  target_path="${OFFSITE_RCLONE_CONFIG_VOLUME_PATH#/}"
+  temp_dir="$(mktemp -d)"
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads:ro" -v "$temp_dir:/config" alpine:3.20 sh -c "if [ -f \"/uploads/$target_path\" ]; then cp \"/uploads/$target_path\" /config/rclone.conf; fi"
+
+  if [ ! -s "$temp_dir/rclone.conf" ]; then
+    rm -rf "$temp_dir"
+    die "Google Drive rclone config not found at uploads volume path $OFFSITE_RCLONE_CONFIG_VOLUME_PATH. Connect Google Drive in Admin -> Storage first."
+  fi
+
+  chmod 600 "$temp_dir/rclone.conf"
+  OFFSITE_TEMP_RCLONE_CONFIG_DIR="$temp_dir"
+  export RCLONE_CONFIG="$temp_dir/rclone.conf"
+
+  info "Loaded Google Drive rclone config from uploads volume path $OFFSITE_RCLONE_CONFIG_VOLUME_PATH"
+}
+
 export_offsite_backup() {
   local -a args
 
@@ -443,6 +507,8 @@ export_offsite_backup() {
   if [ "$OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD" = "true" ]; then
     args+=("--remove-local-after-upload")
   fi
+
+  prepare_google_drive_rclone_config
 
   info "Creating encrypted off-server backup export"
   bash "${args[@]}"
@@ -484,6 +550,11 @@ while [ "$#" -gt 0 ]; do
     --offsite-config-volume-path)
       [ "$#" -ge 2 ] || die "--offsite-config-volume-path requires a path."
       OFFSITE_CONFIG_VOLUME_PATH="$2"
+      shift 2
+      ;;
+    --offsite-rclone-config-volume-path)
+      [ "$#" -ge 2 ] || die "--offsite-rclone-config-volume-path requires a path."
+      OFFSITE_RCLONE_CONFIG_VOLUME_PATH="$2"
       shift 2
       ;;
     --offsite-config-file)
@@ -559,6 +630,7 @@ validate_offsite_options
 validate_volume_path "--status-volume-path" "$STATUS_VOLUME_PATH"
 validate_volume_path "--offsite-status-volume-path" "$OFFSITE_STATUS_VOLUME_PATH"
 validate_volume_path "--offsite-config-volume-path" "$OFFSITE_CONFIG_VOLUME_PATH"
+validate_volume_path "--offsite-rclone-config-volume-path" "$OFFSITE_RCLONE_CONFIG_VOLUME_PATH"
 
 POSTGRES_DB="$(env_value POSTGRES_DB bouncecore_platform)"
 POSTGRES_USER="$(env_value POSTGRES_USER bouncecore_app)"
@@ -574,6 +646,7 @@ TRANSCODER_HLS_VOLUME="$(resolve_docker_volume_name "$TRANSCODER_HLS_VOLUME")"
 
 load_offsite_config
 validate_offsite_options
+validate_volume_path "--offsite-rclone-config-volume-path" "$OFFSITE_RCLONE_CONFIG_VOLUME_PATH"
 
 mkdir -p "$BACKUP_ROOT"
 BACKUP_ROOT="$(cd "$BACKUP_ROOT" && pwd)"
