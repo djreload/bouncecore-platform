@@ -8,6 +8,7 @@ BACKUP_ROOT="/srv/bouncecore-backups"
 RETENTION_DAYS=14
 ON_CALENDAR="*-*-* 03:15:00"
 SERVICE_NAME="bouncecore-backup"
+NO_REQUEST_TIMER=false
 APP_ROOT_CHANGED=false
 ENV_FILE_EXPLICIT=false
 COMPOSE_FILE_EXPLICIT=false
@@ -38,6 +39,7 @@ Options:
   --retention-days N    Delete local dated backup folders older than N days. Default: 14.
   --on-calendar VALUE   systemd OnCalendar value. Default: *-*-* 03:15:00.
   --service-name NAME   systemd unit prefix. Default: bouncecore-backup.
+  --no-request-timer    Do not install the admin "Run backup now" request timer.
   --offsite-age-recipient KEY
                         age public recipient key for encrypted off-server export.
   --offsite-age-recipient-file PATH
@@ -120,6 +122,10 @@ while [ "$#" -gt 0 ]; do
       SERVICE_NAME="$2"
       shift 2
       ;;
+    --no-request-timer)
+      NO_REQUEST_TIMER=true
+      shift
+      ;;
     --offsite-age-recipient)
       [ "$#" -ge 2 ] || die "--offsite-age-recipient requires a key."
       OFFSITE_AGE_RECIPIENT="$2"
@@ -180,6 +186,7 @@ if [ -n "$OFFSITE_OUTPUT_DIR" ]; then
 fi
 
 [ -f "$APP_ROOT/scripts/backup-instance.sh" ] || die "Missing backup script under $APP_ROOT."
+[ -f "$APP_ROOT/scripts/process-backup-requests.sh" ] || die "Missing backup request processor under $APP_ROOT."
 [ -f "$ENV_FILE" ] || die "Missing environment file: $ENV_FILE"
 [ -f "$COMPOSE_FILE" ] || die "Missing Compose file: $COMPOSE_FILE"
 if [ -n "$OFFSITE_AGE_RECIPIENT_FILE" ] && [ ! -f "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
@@ -229,6 +236,9 @@ chmod 700 "$BACKUP_ROOT"
 
 service_path="/etc/systemd/system/${SERVICE_NAME}.service"
 timer_path="/etc/systemd/system/${SERVICE_NAME}.timer"
+request_service_name="${SERVICE_NAME}-request"
+request_service_path="/etc/systemd/system/${request_service_name}.service"
+request_timer_path="/etc/systemd/system/${request_service_name}.timer"
 
 info "Writing $service_path"
 cat > "$service_path" <<SERVICE
@@ -257,9 +267,46 @@ RandomizedDelaySec=10m
 WantedBy=timers.target
 TIMER
 
+if [ "$NO_REQUEST_TIMER" = "false" ]; then
+  REQUEST_COMMAND="bash scripts/process-backup-requests.sh --env-file \"$ENV_FILE\" --compose-file \"$COMPOSE_FILE\" --backup-root \"$BACKUP_ROOT\" --retention-days \"$RETENTION_DAYS\""
+
+  info "Writing $request_service_path"
+  cat > "$request_service_path" <<SERVICE
+[Unit]
+Description=Bouncecore admin-requested backup processor
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=$APP_ROOT
+ExecStart=/usr/bin/env bash -lc '$REQUEST_COMMAND'
+SERVICE
+
+  info "Writing $request_timer_path"
+  cat > "$request_timer_path" <<TIMER
+[Unit]
+Description=Process Bouncecore admin-requested backups
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=60s
+Unit=${request_service_name}.service
+
+[Install]
+WantedBy=timers.target
+TIMER
+fi
+
 info "Enabling ${SERVICE_NAME}.timer"
 systemctl daemon-reload
 systemctl enable --now "${SERVICE_NAME}.timer"
+if [ "$NO_REQUEST_TIMER" = "false" ]; then
+  systemctl enable --now "${request_service_name}.timer"
+fi
 
 info "Backup schedule installed"
 systemctl list-timers "${SERVICE_NAME}.timer" --no-pager
+if [ "$NO_REQUEST_TIMER" = "false" ]; then
+  systemctl list-timers "${request_service_name}.timer" --no-pager
+fi

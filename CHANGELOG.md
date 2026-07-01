@@ -47,6 +47,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added Admin -> Storage controls for the external encrypted backup location, with scheduled backups auto-loading the saved config from the uploads volume.
 - Improved off-server backup readiness wording so it distinguishes missing admin config from a configured destination awaiting its first export.
 - Added an Admin -> Storage rewrite action for regenerating the off-server backup config file from saved settings after restores or volume repairs.
+- Added an Admin -> Storage `Run backup now` request flow with host-side systemd processing and manual run status reporting.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 

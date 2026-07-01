@@ -58,6 +58,20 @@ When `backup-instance.sh` runs without explicit offsite flags, it reads this adm
 
 If the database setting exists but the generated `.ops/offsite-backup-config.env` file is missing after a restore or volume repair, use Admin -> Storage -> Rewrite generated config. This rewrites the file from the saved database setting without changing the destination.
 
+Admin -> Storage can also queue a manual verified backup. The web app writes a request file to the uploads volume:
+
+```text
+.ops/backup-run-request.env
+```
+
+The host-side request processor reads that file, runs `backup-instance.sh`, writes the latest manual run status to:
+
+```text
+.ops/backup-run-status.env
+```
+
+and removes the request. This keeps Docker host permissions outside the web container while still giving owners a `Run backup now` button in the admin UI.
+
 Useful options:
 
 ```bash
@@ -166,6 +180,15 @@ sudo bash scripts/install-backup-schedule.sh \
   --on-calendar "*-*-* 03:15:00"
 ```
 
+The installer creates two timers by default:
+
+```text
+bouncecore-backup.timer
+bouncecore-backup-request.timer
+```
+
+`bouncecore-backup.timer` runs the scheduled verified backup. `bouncecore-backup-request.timer` checks every minute for the admin `Run backup now` request file and processes it when present. Use `--no-request-timer` only if admin-triggered backups should be disabled on that server.
+
 With encrypted off-server export enabled:
 
 ```bash
@@ -193,7 +216,9 @@ Inspect the installed timer:
 
 ```bash
 systemctl list-timers bouncecore-backup.timer
+systemctl list-timers bouncecore-backup-request.timer
 journalctl -u bouncecore-backup.service -n 100 --no-pager
+journalctl -u bouncecore-backup-request.service -n 100 --no-pager
 ```
 
 The timer runs verified backups. It also prunes local dated backup folders older than the configured retention period after a successful backup. Keep an off-server copy before relying on local pruning.

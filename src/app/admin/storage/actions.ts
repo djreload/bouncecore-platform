@@ -8,6 +8,7 @@ import {
   cleanOrphanUploadsConfirmationText
 } from "@/lib/admin/maintenance-core";
 import { cleanAdminOrphanUploads, formatStorageBytes } from "@/lib/admin/media-storage-service";
+import { queueManualBackupRun } from "@/lib/admin/backup-run-requests";
 import { syncOffsiteBackupConfig, updateOffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
 import { requireUserPermission } from "@/lib/auth/guards";
 
@@ -106,6 +107,33 @@ export async function syncOffsiteBackupConfigAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "Generated backup config could not be rewritten.",
+      status: "error"
+    };
+  }
+}
+
+export async function queueManualBackupRunAction(
+  _previousState: AdminStorageActionState,
+  _formData: FormData
+): Promise<AdminStorageActionState> {
+  void _previousState;
+  void _formData;
+
+  try {
+    const actor = await requireUserPermission("settings.manage");
+    const request = await queueManualBackupRun(actor.id);
+
+    revalidatePath("/admin/storage");
+    revalidatePath("/admin/system-health");
+    revalidatePath("/admin/audit-logs");
+
+    return {
+      message: `Backup request ${request.requestId} queued. The host timer should start it shortly.`,
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Manual backup request could not be queued.",
       status: "error"
     };
   }

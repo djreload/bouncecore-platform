@@ -12,6 +12,7 @@ import {
   UploadCloud
 } from "lucide-react";
 import { CleanOrphanUploadsForm } from "@/app/admin/storage/clean-orphan-uploads-form";
+import { ManualBackupRunForm } from "@/app/admin/storage/manual-backup-run-form";
 import { OffsiteBackupSettingsForm } from "@/app/admin/storage/offsite-backup-settings-form";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import {
   getAdminMediaStorageData
 } from "@/lib/admin/media-storage-service";
 import { getAdminOffsiteBackupSettingsData } from "@/lib/admin/offsite-backup-settings";
+import { getAdminBackupRunData } from "@/lib/admin/backup-run-requests";
 import {
   backupStatusFilePath,
   backupStatusHealthCheck,
@@ -248,11 +250,12 @@ function BrokenReferenceTable({ references }: { references: BrokenReference[] })
 
 export default async function AdminStoragePage() {
   await requireUserPermission("settings.manage");
-  const [data, backupStatus, offsiteBackupStatus, offsiteSettings] = await Promise.all([
+  const [data, backupStatus, offsiteBackupStatus, offsiteSettings, manualBackupRun] = await Promise.all([
     getAdminMediaStorageData(),
     backupStatusHealthCheck(),
     offsiteBackupStatusHealthCheck(),
-    getAdminOffsiteBackupSettingsData()
+    getAdminOffsiteBackupSettingsData(),
+    getAdminBackupRunData()
   ]);
   const verifiedBackupCommand =
     "scripts/backup-instance.sh --env-file .env.instance --compose-file docker-compose.instance.yml --backup-root /srv/bouncecore-backups";
@@ -367,6 +370,8 @@ export default async function AdminStoragePage() {
             />
           </div>
         </section>
+
+        <ManualBackupRunForm data={manualBackupRun} />
 
         <section className="rounded-md border border-bc-line bg-bc-panel">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
