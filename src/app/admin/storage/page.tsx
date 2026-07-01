@@ -344,6 +344,7 @@ export default async function AdminStoragePage() {
               </div>
             </div>
             <OffsiteBackupSettingsForm
+              configFilePresent={offsiteSettings.configFilePresent}
               configVolumePath={offsiteSettings.configVolumePath}
               settings={offsiteSettings.settings}
             />

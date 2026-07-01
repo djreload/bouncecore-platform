@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
@@ -25,6 +25,7 @@ export type AdminOffsiteBackupSettingsData = {
     value: string;
   }>;
   configFilePath: string;
+  configFilePresent: boolean;
   configVolumePath: string;
   settings: OffsiteBackupSettings;
   source: "default" | "database";
@@ -169,6 +170,16 @@ export function offsiteBackupSettingsToEnv(settings: OffsiteBackupSettings, upda
   ].join("");
 }
 
+async function offsiteBackupConfigFileExists() {
+  try {
+    const fileStat = await stat(/* turbopackIgnore: true */ offsiteBackupConfigFilePath());
+
+    return fileStat.isFile();
+  } catch {
+    return false;
+  }
+}
+
 async function writeOffsiteBackupConfig(settings: OffsiteBackupSettings) {
   const configFile = offsiteBackupConfigFilePath();
 
@@ -194,6 +205,7 @@ async function readOffsiteBackupSettings() {
 
 export async function getAdminOffsiteBackupSettingsData(): Promise<AdminOffsiteBackupSettingsData> {
   const { settings, source, updatedAt } = await readOffsiteBackupSettings();
+  const configFilePresent = await offsiteBackupConfigFileExists();
 
   return {
     checks: [
@@ -214,6 +226,14 @@ export async function getAdminOffsiteBackupSettingsData(): Promise<AdminOffsiteB
         value: settings.rcloneRemote ? "set" : "missing"
       },
       {
+        detail: configFilePresent
+          ? `The generated config file exists at ${offsiteBackupConfigVolumePath}.`
+          : "The generated config file is missing. Rewrite it from the saved settings before relying on the backup timer.",
+        label: "Generated config",
+        status: configFilePresent ? "ready" : "warning",
+        value: configFilePresent ? "present" : "missing"
+      },
+      {
         detail: settings.ageRecipient
           ? "A public age recipient is saved. Keep the private age identity key somewhere else."
           : "Generate an age key pair and paste only the public age1 recipient here.",
@@ -223,10 +243,36 @@ export async function getAdminOffsiteBackupSettingsData(): Promise<AdminOffsiteB
       }
     ],
     configFilePath: offsiteBackupConfigFilePath(),
+    configFilePresent,
     configVolumePath: offsiteBackupConfigVolumePath,
     settings,
     source,
     updatedAt: updatedAt?.toISOString() ?? null
+  };
+}
+
+export async function syncOffsiteBackupConfig(actorId: string) {
+  const { settings, source } = await readOffsiteBackupSettings();
+  const configFile = await writeOffsiteBackupConfig(settings);
+
+  await writeAuditLog({
+    actorId,
+    action: "backup.offsite_settings.sync_config",
+    target: `app-setting:${offsiteBackupSettingsKey}`,
+    severity: settings.enabled ? "warning" : "info",
+    metadata: {
+      configVolumePath: offsiteBackupConfigVolumePath,
+      enabled: settings.enabled,
+      localConfigFileWritten: configFile,
+      rcloneRemoteSet: Boolean(settings.rcloneRemote),
+      source
+    }
+  });
+
+  return {
+    configFile,
+    settings,
+    source
   };
 }
 

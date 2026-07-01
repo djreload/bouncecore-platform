@@ -8,7 +8,7 @@ import {
   cleanOrphanUploadsConfirmationText
 } from "@/lib/admin/maintenance-core";
 import { cleanAdminOrphanUploads, formatStorageBytes } from "@/lib/admin/media-storage-service";
-import { updateOffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
+import { syncOffsiteBackupConfig, updateOffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
 import { requireUserPermission } from "@/lib/auth/guards";
 
 function formString(formData: FormData, key: string) {
@@ -79,6 +79,33 @@ export async function updateOffsiteBackupSettingsAction(
   } catch (error) {
     return {
       message: error instanceof Error ? error.message : "External backup location could not be saved.",
+      status: "error"
+    };
+  }
+}
+
+export async function syncOffsiteBackupConfigAction(
+  _previousState: AdminStorageActionState,
+  _formData: FormData
+): Promise<AdminStorageActionState> {
+  void _previousState;
+  void _formData;
+
+  try {
+    const actor = await requireUserPermission("settings.manage");
+    const result = await syncOffsiteBackupConfig(actor.id);
+
+    revalidatePath("/admin/storage");
+    revalidatePath("/admin/system-health");
+    revalidatePath("/admin/audit-logs");
+
+    return {
+      message: `Generated backup config rewritten at ${result.configFile}.`,
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: error instanceof Error ? error.message : "Generated backup config could not be rewritten.",
       status: "error"
     };
   }

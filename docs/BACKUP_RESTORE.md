@@ -56,6 +56,8 @@ Admin -> Storage can also save the external backup destination and public age re
 
 When `backup-instance.sh` runs without explicit offsite flags, it reads this admin-managed config automatically. The server still needs `age` and a working `rclone` remote configured outside the app.
 
+If the database setting exists but the generated `.ops/offsite-backup-config.env` file is missing after a restore or volume repair, use Admin -> Storage -> Rewrite generated config. This rewrites the file from the saved database setting without changing the destination.
+
 Useful options:
 
 ```bash
