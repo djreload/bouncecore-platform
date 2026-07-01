@@ -282,6 +282,14 @@ npm.cmd run stream:smoke
 npm.cmd run stream:smoke -- -UseTranscoder
 ```
 
+For PayPal smoke testing on a sandbox/staging instance, seed the music checkout fixture before opening Admin -> Payments:
+
+```bash
+npm run smoke:payments:seed -- --env-file .env.instance --admin-email owner@example.com
+```
+
+This creates a staging-only producer and approved paid music track when needed so the admin payment smoke panel can test stars, music, and shop checkout routes. The script refuses `PAYPAL_MODE=live` unless `--allow-live` is passed intentionally.
+
 ## Documentation
 
 - [CHANGELOG.md](CHANGELOG.md)
