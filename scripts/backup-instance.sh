@@ -239,7 +239,7 @@ copy_status_to_uploads_volume() {
   target_name="$(basename "$target_path")"
 
   info "Writing latest backup status to uploads volume $UPLOADS_VOLUME:$target_path"
-  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\""
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
 while [ "$#" -gt 0 ]; do
