@@ -212,7 +212,19 @@ Production nginx, Apache, Plesk, Caddy, or CDN limits must be raised to match th
 Create a backup:
 
 ```bash
-bash scripts/backup-instance.sh
+bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
+```
+
+Verify a backup without restoring it:
+
+```bash
+bash scripts/verify-backup-instance.sh --backup-root /srv/bouncecore-backups --latest
+```
+
+Install a daily systemd backup timer:
+
+```bash
+sudo bash scripts/install-backup-schedule.sh --backup-root /srv/bouncecore-backups --retention-days 14
 ```
 
 Restore a backup:

@@ -5,8 +5,10 @@ APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$APP_ROOT/docker-compose.instance.yml"
 ENV_FILE="$APP_ROOT/.env.instance"
 BACKUP_ROOT="$APP_ROOT/backups"
+RETENTION_DAYS=0
 SKIP_DB=false
 SKIP_VOLUMES=false
+VERIFY_BACKUP=true
 
 info() {
   printf '\n==> %s\n' "$1"
@@ -29,8 +31,10 @@ Options:
   --env-file PATH       Environment file to use. Default: .env.instance
   --compose-file PATH   Compose file to use. Default: docker-compose.instance.yml
   --backup-root PATH    Directory that receives dated backup folders. Default: backups
+  --retention-days N    Delete dated backup folders older than N days after a successful backup. Default: disabled
   --skip-db             Do not create a PostgreSQL dump.
   --skip-volumes        Do not archive Docker volumes.
+  --skip-verify         Do not verify the completed backup artifacts.
   -h, --help            Show this help.
 USAGE
 }
@@ -118,6 +122,25 @@ backup_volume() {
   docker run --rm -v "$volume:/volume:ro" -v "$BACKUP_DIR:/backup" alpine:3.20 sh -c "cd /volume && tar -czf /backup/$archive ."
 }
 
+verify_backup() {
+  if [ "$VERIFY_BACKUP" = "false" ]; then
+    warn "Backup verification skipped."
+    return
+  fi
+
+  info "Verifying backup artifacts"
+  bash "$APP_ROOT/scripts/verify-backup-instance.sh" "$BACKUP_DIR"
+}
+
+prune_old_backups() {
+  if [ "$RETENTION_DAYS" = "0" ]; then
+    return
+  fi
+
+  info "Pruning local backup folders older than $RETENTION_DAYS days"
+  find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name '????????T??????Z' -mtime "+$RETENTION_DAYS" -exec rm -rf -- {} +
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --env-file)
@@ -135,12 +158,21 @@ while [ "$#" -gt 0 ]; do
       BACKUP_ROOT="$(resolve_path "$2")"
       shift 2
       ;;
+    --retention-days)
+      [ "$#" -ge 2 ] || die "--retention-days requires a number."
+      RETENTION_DAYS="$2"
+      shift 2
+      ;;
     --skip-db)
       SKIP_DB=true
       shift
       ;;
     --skip-volumes)
       SKIP_VOLUMES=true
+      shift
+      ;;
+    --skip-verify)
+      VERIFY_BACKUP=false
       shift
       ;;
     -h|--help)
@@ -157,6 +189,7 @@ done
 [ -f "$ENV_FILE" ] || die "Missing environment file: $ENV_FILE"
 command -v docker >/dev/null 2>&1 || die "Docker is required."
 docker compose version >/dev/null 2>&1 || die "Docker Compose plugin is required."
+[[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || die "--retention-days must be a non-negative integer."
 
 POSTGRES_DB="$(env_value POSTGRES_DB bouncecore_platform)"
 POSTGRES_USER="$(env_value POSTGRES_USER bouncecore_app)"
@@ -203,7 +236,12 @@ fi
   printf 'redis_volume=%s\n' "$REDIS_VOLUME"
   printf 'stream_core_volume=%s\n' "$STREAM_CORE_VOLUME"
   printf 'transcoder_hls_volume=%s\n' "$TRANSCODER_HLS_VOLUME"
+  printf 'skip_db=%s\n' "$SKIP_DB"
+  printf 'skip_volumes=%s\n' "$SKIP_VOLUMES"
 } > "$BACKUP_DIR/manifest.env"
+
+verify_backup
+prune_old_backups
 
 info "Backup complete"
 printf 'Backup directory: %s\n' "$BACKUP_DIR"

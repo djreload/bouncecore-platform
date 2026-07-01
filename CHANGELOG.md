@@ -36,6 +36,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added worker-backed stream-provider sync, stream sessions, stream events, manual admin sync, and readiness checks.
 - Added database-backed stream profiles for low bitrate through high-HD stream configurations.
 - Added backup and restore scripts for PostgreSQL and Docker volumes used by uploads, Redis, stream-core state, and transcoder HLS output.
+- Added backup verification, local retention pruning, and a Debian/Ubuntu systemd timer installer for automated Bouncecore instance backups.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 

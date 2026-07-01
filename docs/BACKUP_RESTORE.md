@@ -24,13 +24,39 @@ backups/20260608T203000Z/
 
 The PostgreSQL backup is a custom-format `pg_dump` created through the Compose `postgres` service. Volume archives are created with a short-lived Alpine container and the named volumes from `.env.instance`.
 
+Backups are verified by default after creation. Verification checks the manifest, validates the PostgreSQL dump with `pg_restore --list`, and opens each expected volume archive with `tar`.
+
 Useful options:
 
 ```bash
 bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups
 bash scripts/backup-instance.sh --env-file .env.staging --compose-file docker-compose.staging.yml
+bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
 bash scripts/backup-instance.sh --skip-volumes
+bash scripts/backup-instance.sh --skip-verify
 ```
+
+## Verify a Backup
+
+Run verification without restoring over the live site:
+
+```bash
+bash scripts/verify-backup-instance.sh backups/20260608T203000Z
+```
+
+Verify the newest backup under a custom backup root:
+
+```bash
+bash scripts/verify-backup-instance.sh --backup-root /srv/bouncecore-backups --latest
+```
+
+The verifier writes:
+
+```text
+backups/20260608T203000Z/verification.env
+```
+
+The report includes `status`, `failures`, `warnings`, and `verified_at`. Treat a failed verification as a broken backup until it is investigated.
 
 ## Restore a Backup
 
@@ -63,7 +89,7 @@ docker compose -f docker-compose.instance.yml --env-file .env.instance --profile
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
 ```
 
-## Daily Cron Example
+## Automated Backups
 
 Create a directory outside the git checkout and restrict it:
 
@@ -72,16 +98,28 @@ mkdir -p /srv/bouncecore-backups
 chmod 700 /srv/bouncecore-backups
 ```
 
-Example daily cron entry:
-
-```cron
-15 3 * * * cd /var/www/bouncecore-platform && bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups >> /var/log/bouncecore-backup.log 2>&1
-```
-
-Prune older local backups only after you have an off-server copy:
+Recommended systemd timer installation:
 
 ```bash
-find /srv/bouncecore-backups -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} \;
+sudo bash scripts/install-backup-schedule.sh \
+  --backup-root /srv/bouncecore-backups \
+  --retention-days 14 \
+  --on-calendar "*-*-* 03:15:00"
+```
+
+Inspect the installed timer:
+
+```bash
+systemctl list-timers bouncecore-backup.timer
+journalctl -u bouncecore-backup.service -n 100 --no-pager
+```
+
+The timer runs verified backups. It also prunes local dated backup folders older than the configured retention period after a successful backup. Keep an off-server copy before relying on local pruning.
+
+Alternative daily cron entry:
+
+```cron
+15 3 * * * cd /var/www/bouncecore-platform && bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14 >> /var/log/bouncecore-backup.log 2>&1
 ```
 
 ## Off-Server Copies
