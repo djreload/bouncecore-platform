@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/db/prisma";
 import { mailIsConfigured } from "@/lib/mail/smtp-service";
 import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
+import { getAdminOffsiteBackupSettingsData, type OffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
 import { getAdminSiteSettingsData } from "@/lib/admin/site-settings-service";
 import { getPayPalIntegrationData, type PayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { defaultStreamOfflineImageUrl, getProviderSnapshot } from "@/lib/stream/stream-channel-service";
@@ -434,6 +435,35 @@ export async function offsiteBackupStatusHealthCheck(): Promise<HealthCheck> {
   }
 }
 
+export function offsiteBackupStatusHealthCheckWithSettings(
+  check: HealthCheck,
+  settings: OffsiteBackupSettings,
+  {
+    statusFile = offsiteBackupStatusFilePath()
+  }: {
+    statusFile?: string;
+  } = {}
+): HealthCheck {
+  if (check.label !== "Off-server backups" || check.value !== "No status") {
+    return check;
+  }
+
+  if (!settings.enabled) {
+    return {
+      ...check,
+      detail:
+        "External encrypted backup export is not enabled yet. Save the rclone destination and public age recipient in Admin -> Storage, then run or wait for the verified backup timer.",
+      value: "Not configured"
+    };
+  }
+
+  return {
+    ...check,
+    detail: `External backup destination is configured${settings.rcloneRemote ? ` as ${settings.rcloneRemote}` : ""}, but no off-server export status file exists yet at ${statusFile}. Run a verified backup or wait for the backup timer to upload the first encrypted export.`,
+    value: "Awaiting export"
+  };
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -551,7 +581,8 @@ export async function getAdminSystemHealthData() {
     mobileConfigData,
     siteSettingsData,
     backupStatus,
-    offsiteBackupStatus
+    offsiteBackupStatus,
+    offsiteBackupSettingsData
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -673,7 +704,8 @@ export async function getAdminSystemHealthData() {
     getAdminMobileConfigData(),
     getAdminSiteSettingsData(),
     backupStatusHealthCheck(),
-    offsiteBackupStatusHealthCheck()
+    offsiteBackupStatusHealthCheck(),
+    getAdminOffsiteBackupSettingsData()
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
@@ -716,6 +748,10 @@ export async function getAdminSystemHealthData() {
     status: check.status === "ready" ? "healthy" : "warning",
     value: check.value
   }));
+  const offsiteBackupReadiness = offsiteBackupStatusHealthCheckWithSettings(
+    offsiteBackupStatus,
+    offsiteBackupSettingsData.settings
+  );
   const checks: HealthCheck[] = [
     {
       label: "App runtime",
@@ -731,7 +767,7 @@ export async function getAdminSystemHealthData() {
       detail: workerHeartbeatStatus.detail
     },
     backupStatus,
-    offsiteBackupStatus,
+    offsiteBackupReadiness,
     {
       label: "Stream provider",
       status: streamResult.health.status === "healthy" ? "healthy" : "warning",

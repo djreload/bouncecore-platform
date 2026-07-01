@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   backupStatusHealthCheckFromValues,
   offsiteBackupStatusHealthCheckFromValues,
+  offsiteBackupStatusHealthCheckWithSettings,
   paypalIntegrationHealthChecks,
   productionReadinessIssues,
   productionReadinessRepairHref,
@@ -182,6 +183,78 @@ test("offsite backup status warns on stale exports", () => {
 
   assert.equal(check.status, "warning");
   assert.equal(check.value, "Stale");
+});
+
+test("offsite backup readiness reports missing admin configuration before first export", () => {
+  const check = offsiteBackupStatusHealthCheckWithSettings(
+    {
+      detail: "No off-server backup export status file found.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "No status"
+    },
+    {
+      ageRecipient: null,
+      enabled: false,
+      outputDir: null,
+      rcloneRemote: null,
+      removeLocalAfterUpload: false
+    },
+    {
+      statusFile: "/app/public/uploads/.ops/offsite-backup-status.env"
+    }
+  );
+
+  assert.equal(check.status, "warning");
+  assert.equal(check.value, "Not configured");
+  assert.match(check.detail, /Admin -> Storage/);
+});
+
+test("offsite backup readiness reports configured destination awaiting first export", () => {
+  const check = offsiteBackupStatusHealthCheckWithSettings(
+    {
+      detail: "No off-server backup export status file found.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "No status"
+    },
+    {
+      ageRecipient: "age1ql3z7hjy54pw4klmpmdxcw4tw4fpdeuxmky0drg3m8xw3xt8pfnq4k0c0s",
+      enabled: true,
+      outputDir: null,
+      rcloneRemote: "r2:bouncecore-backups/prod",
+      removeLocalAfterUpload: false
+    },
+    {
+      statusFile: "/app/public/uploads/.ops/offsite-backup-status.env"
+    }
+  );
+
+  assert.equal(check.status, "warning");
+  assert.equal(check.value, "Awaiting export");
+  assert.match(check.detail, /r2:bouncecore-backups\/prod/);
+  assert.match(check.detail, /first encrypted export/);
+});
+
+test("offsite backup readiness keeps concrete export status authoritative", () => {
+  const sourceCheck = {
+    detail: "Latest encrypted backup export uploaded 2 hours ago.",
+    href: "/admin/storage",
+    label: "Off-server backups",
+    status: "healthy",
+    value: "Fresh"
+  };
+  const check = offsiteBackupStatusHealthCheckWithSettings(sourceCheck, {
+    ageRecipient: null,
+    enabled: false,
+    outputDir: null,
+    rcloneRemote: null,
+    removeLocalAfterUpload: false
+  });
+
+  assert.equal(check, sourceCheck);
 });
 
 test("production readiness issues flatten and prioritize critical launch blockers", () => {
