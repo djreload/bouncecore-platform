@@ -246,8 +246,12 @@ if [ -n "$AGE_RECIPIENT_FILE" ] && [ ! -f "$AGE_RECIPIENT_FILE" ]; then
   die "Missing age recipient file: $AGE_RECIPIENT_FILE"
 fi
 
-install_missing_packages
-validate_rclone_remote
+if [ "$DRY_RUN" = "true" ]; then
+  warn "Dry run: skipping package installation and rclone upload/delete probe."
+else
+  install_missing_packages
+  validate_rclone_remote
+fi
 
 INSTALL_ARGS=(
   "bash"
