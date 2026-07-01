@@ -21,6 +21,13 @@ import {
   formatStorageBytes,
   getAdminMediaStorageData
 } from "@/lib/admin/media-storage-service";
+import {
+  backupStatusFilePath,
+  backupStatusHealthCheck,
+  offsiteBackupStatusFilePath,
+  offsiteBackupStatusHealthCheck,
+  type HealthCheck
+} from "@/lib/admin/system-health";
 import { requireUserPermission } from "@/lib/auth/guards";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +44,18 @@ function formatDate(value: string) {
 
 function statusTone(status: StorageFile["status"]): BadgeTone {
   return status === "referenced" ? "acid" : "amber";
+}
+
+function healthTone(status: HealthCheck["status"]): BadgeTone {
+  if (status === "healthy") {
+    return "acid";
+  }
+
+  if (status === "critical") {
+    return "pink";
+  }
+
+  return "amber";
 }
 
 function StatCard({
@@ -60,6 +79,35 @@ function StatCard({
       </div>
       <p className="mt-4 text-3xl font-black">{value}</p>
       <p className="mt-2 text-sm text-bc-muted">{detail}</p>
+    </article>
+  );
+}
+
+function BackupStatusCard({
+  check,
+  command,
+  icon: Icon,
+  statusPath
+}: {
+  check: HealthCheck;
+  command: string;
+  icon: LucideIcon;
+  statusPath: string;
+}) {
+  return (
+    <article className="rounded-md border border-bc-line bg-bc-ink p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Badge tone={healthTone(check.status)}>{check.value}</Badge>
+          <h4 className="mt-3 text-lg font-black text-white">{check.label}</h4>
+        </div>
+        <Icon className="h-5 w-5 text-bc-muted" aria-hidden="true" />
+      </div>
+      <p className="mt-3 text-sm leading-6 text-bc-muted">{check.detail}</p>
+      <p className="mt-3 break-all text-xs text-bc-muted">Status file: {statusPath}</p>
+      <code className="mt-3 block overflow-x-auto rounded-md border border-bc-line bg-black/30 px-3 py-2 text-xs text-bc-muted">
+        {command}
+      </code>
     </article>
   );
 }
@@ -198,7 +246,15 @@ function BrokenReferenceTable({ references }: { references: BrokenReference[] })
 
 export default async function AdminStoragePage() {
   await requireUserPermission("settings.manage");
-  const data = await getAdminMediaStorageData();
+  const [data, backupStatus, offsiteBackupStatus] = await Promise.all([
+    getAdminMediaStorageData(),
+    backupStatusHealthCheck(),
+    offsiteBackupStatusHealthCheck()
+  ]);
+  const verifiedBackupCommand =
+    "scripts/backup-instance.sh --env-file .env.instance --compose-file docker-compose.instance.yml --backup-root /srv/bouncecore-backups";
+  const offsiteBackupCommand =
+    "sudo bash scripts/setup-offsite-backups.sh --age-recipient age1... --rclone-remote remote:path --install-packages --run-now";
 
   return (
     <AdminShell
@@ -250,6 +306,36 @@ export default async function AdminStoragePage() {
               <StorageBar label="Referenced media" total={data.stats.totalSizeBytes} value={data.stats.referencedSizeBytes} />
               <StorageBar label="Orphan candidates" total={data.stats.totalSizeBytes} value={data.stats.orphanSizeBytes} />
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <Badge tone="cyan">Backup readiness</Badge>
+              <h3 className="mt-4 text-xl font-black">Verified and off-server backups</h3>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-bc-muted">
+                These are the same backup checks used by the production readiness report. Keep the age private identity key
+                off this web server; this server only needs the public age recipient.
+              </p>
+            </div>
+            <ButtonLink href="/admin/system-health" size="sm" variant="ghost">
+              Open readiness
+            </ButtonLink>
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <BackupStatusCard
+              check={backupStatus}
+              command={verifiedBackupCommand}
+              icon={ShieldCheck}
+              statusPath={backupStatusFilePath()}
+            />
+            <BackupStatusCard
+              check={offsiteBackupStatus}
+              command={offsiteBackupCommand}
+              icon={FileArchive}
+              statusPath={offsiteBackupStatusFilePath()}
+            />
           </div>
         </section>
 

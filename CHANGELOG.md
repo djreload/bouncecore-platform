@@ -43,6 +43,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added off-server backup status reporting in Admin -> System health and production readiness.
 - Added a recovery-side verifier for encrypted off-server backup packages.
 - Added a guided off-server backup setup helper that validates age/rclone, probes the remote, and installs the backup timer.
+- Added verified-backup and off-server backup status cards to Admin -> Storage with the exact repair commands owners need.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 

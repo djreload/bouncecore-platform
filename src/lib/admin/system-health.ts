@@ -237,11 +237,11 @@ function parseEnvFileContent(input: string) {
   return values;
 }
 
-function backupStatusFilePath() {
+export function backupStatusFilePath() {
   return process.env.BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/backup-status.env";
 }
 
-function offsiteBackupStatusFilePath() {
+export function offsiteBackupStatusFilePath() {
   return process.env.OFFSITE_BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/offsite-backup-status.env";
 }
 
@@ -311,7 +311,7 @@ export function backupStatusHealthCheckFromValues(
   };
 }
 
-async function backupStatusHealthCheck(): Promise<HealthCheck> {
+export async function backupStatusHealthCheck(): Promise<HealthCheck> {
   const statusFile = backupStatusFilePath();
 
   try {
@@ -409,7 +409,7 @@ export function offsiteBackupStatusHealthCheckFromValues(
   };
 }
 
-async function offsiteBackupStatusHealthCheck(): Promise<HealthCheck> {
+export async function offsiteBackupStatusHealthCheck(): Promise<HealthCheck> {
   const statusFile = offsiteBackupStatusFilePath();
 
   try {
