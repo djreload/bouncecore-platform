@@ -26,12 +26,28 @@ The PostgreSQL backup is a custom-format `pg_dump` created through the Compose `
 
 Backups are verified by default after creation. Verification checks the manifest, validates the PostgreSQL dump with `pg_restore --list`, and opens each expected volume archive with `tar`.
 
+Each completed backup also writes:
+
+```text
+/srv/bouncecore-backups/latest-backup.env
+```
+
+By default the same status is copied into the uploads Docker volume at:
+
+```text
+.ops/backup-status.env
+```
+
+The app reads that file from `/app/public/uploads/.ops/backup-status.env` and exposes it in Admin -> System health as `Verified backups`.
+
 Useful options:
 
 ```bash
 bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups
 bash scripts/backup-instance.sh --env-file .env.staging --compose-file docker-compose.staging.yml
 bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
+bash scripts/backup-instance.sh --status-volume-path .ops/backup-status.env
+bash scripts/backup-instance.sh --skip-status-volume
 bash scripts/backup-instance.sh --skip-volumes
 bash scripts/backup-instance.sh --skip-verify
 ```
@@ -115,6 +131,13 @@ journalctl -u bouncecore-backup.service -n 100 --no-pager
 ```
 
 The timer runs verified backups. It also prunes local dated backup folders older than the configured retention period after a successful backup. Keep an off-server copy before relying on local pruning.
+
+System health treats backups as stale after 30 hours by default. Override this with:
+
+```env
+BACKUP_STATUS_FILE=/app/public/uploads/.ops/backup-status.env
+BACKUP_MAX_AGE_HOURS=30
+```
 
 Alternative daily cron entry:
 

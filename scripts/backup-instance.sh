@@ -8,6 +8,8 @@ BACKUP_ROOT="$APP_ROOT/backups"
 RETENTION_DAYS=0
 SKIP_DB=false
 SKIP_VOLUMES=false
+SKIP_STATUS_VOLUME=false
+STATUS_VOLUME_PATH=".ops/backup-status.env"
 VERIFY_BACKUP=true
 
 info() {
@@ -32,8 +34,11 @@ Options:
   --compose-file PATH   Compose file to use. Default: docker-compose.instance.yml
   --backup-root PATH    Directory that receives dated backup folders. Default: backups
   --retention-days N    Delete dated backup folders older than N days after a successful backup. Default: disabled
+  --status-volume-path PATH
+                        Path inside the uploads Docker volume for latest backup status. Default: .ops/backup-status.env
   --skip-db             Do not create a PostgreSQL dump.
   --skip-volumes        Do not archive Docker volumes.
+  --skip-status-volume  Do not copy latest backup status into the uploads Docker volume.
   --skip-verify         Do not verify the completed backup artifacts.
   -h, --help            Show this help.
 USAGE
@@ -76,6 +81,27 @@ env_value() {
   esac
 
   printf '%s' "$value"
+}
+
+file_value() {
+  local file="$1"
+  local key="$2"
+  local default_value="$3"
+  local line
+
+  if [ ! -f "$file" ]; then
+    printf '%s' "$default_value"
+    return
+  fi
+
+  line="$(grep -E "^${key}=" "$file" | tail -n 1 || true)"
+
+  if [ -z "$line" ]; then
+    printf '%s' "$default_value"
+    return
+  fi
+
+  printf '%s' "${line#*=}"
 }
 
 compose() {
@@ -123,13 +149,24 @@ backup_volume() {
 }
 
 verify_backup() {
+  VERIFY_EXIT_CODE=0
+
   if [ "$VERIFY_BACKUP" = "false" ]; then
     warn "Backup verification skipped."
+    VERIFICATION_STATUS="warning"
+    VERIFICATION_FAILURES=0
+    VERIFICATION_WARNINGS=1
     return
   fi
 
   info "Verifying backup artifacts"
-  bash "$APP_ROOT/scripts/verify-backup-instance.sh" "$BACKUP_DIR"
+  if ! bash "$APP_ROOT/scripts/verify-backup-instance.sh" "$BACKUP_DIR"; then
+    VERIFY_EXIT_CODE=1
+  fi
+
+  VERIFICATION_STATUS="$(file_value "$BACKUP_DIR/verification.env" status failed)"
+  VERIFICATION_FAILURES="$(file_value "$BACKUP_DIR/verification.env" failures 1)"
+  VERIFICATION_WARNINGS="$(file_value "$BACKUP_DIR/verification.env" warnings 0)"
 }
 
 prune_old_backups() {
@@ -139,6 +176,51 @@ prune_old_backups() {
 
   info "Pruning local backup folders older than $RETENTION_DAYS days"
   find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name '????????T??????Z' -mtime "+$RETENTION_DAYS" -exec rm -rf -- {} +
+}
+
+write_latest_backup_status() {
+  local created_at="$1"
+  local status_file="$BACKUP_ROOT/latest-backup.env"
+
+  {
+    printf 'status=%s\n' "$VERIFICATION_STATUS"
+    printf 'created_at=%s\n' "$created_at"
+    printf 'verified_at=%s\n' "$(file_value "$BACKUP_DIR/verification.env" verified_at "$created_at")"
+    printf 'backup_dir=%s\n' "$BACKUP_DIR"
+    printf 'backup_root=%s\n' "$BACKUP_ROOT"
+    printf 'git_commit=%s\n' "$(git -C "$APP_ROOT" rev-parse --short HEAD 2>/dev/null || printf 'unknown')"
+    printf 'failures=%s\n' "$VERIFICATION_FAILURES"
+    printf 'warnings=%s\n' "$VERIFICATION_WARNINGS"
+    printf 'skip_db=%s\n' "$SKIP_DB"
+    printf 'skip_volumes=%s\n' "$SKIP_VOLUMES"
+  } > "$status_file"
+
+  chmod 600 "$status_file"
+  printf 'Latest backup status: %s\n' "$status_file"
+}
+
+copy_status_to_uploads_volume() {
+  local status_file="$BACKUP_ROOT/latest-backup.env"
+  local target_path="$STATUS_VOLUME_PATH"
+  local target_dir
+  local target_name
+
+  if [ "$SKIP_STATUS_VOLUME" = "true" ]; then
+    warn "Upload-volume backup status copy skipped."
+    return
+  fi
+
+  if ! docker volume inspect "$UPLOADS_VOLUME" >/dev/null 2>&1; then
+    warn "Upload-volume backup status copy skipped because Docker volume $UPLOADS_VOLUME does not exist."
+    return
+  fi
+
+  target_path="${target_path#/}"
+  target_dir="$(dirname "$target_path")"
+  target_name="$(basename "$target_path")"
+
+  info "Writing latest backup status to uploads volume $UPLOADS_VOLUME:$target_path"
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\""
 }
 
 while [ "$#" -gt 0 ]; do
@@ -163,12 +245,21 @@ while [ "$#" -gt 0 ]; do
       RETENTION_DAYS="$2"
       shift 2
       ;;
+    --status-volume-path)
+      [ "$#" -ge 2 ] || die "--status-volume-path requires a path."
+      STATUS_VOLUME_PATH="$2"
+      shift 2
+      ;;
     --skip-db)
       SKIP_DB=true
       shift
       ;;
     --skip-volumes)
       SKIP_VOLUMES=true
+      shift
+      ;;
+    --skip-status-volume)
+      SKIP_STATUS_VOLUME=true
       shift
       ;;
     --skip-verify)
@@ -190,6 +281,11 @@ done
 command -v docker >/dev/null 2>&1 || die "Docker is required."
 docker compose version >/dev/null 2>&1 || die "Docker Compose plugin is required."
 [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || die "--retention-days must be a non-negative integer."
+case "$STATUS_VOLUME_PATH" in
+  *[!A-Za-z0-9._/-]*) die "--status-volume-path supports only letters, numbers, dot, underscore, dash, and slash." ;;
+  *..*) die "--status-volume-path cannot contain '..'." ;;
+  "") die "--status-volume-path cannot be empty." ;;
+esac
 
 POSTGRES_DB="$(env_value POSTGRES_DB bouncecore_platform)"
 POSTGRES_USER="$(env_value POSTGRES_USER bouncecore_app)"
@@ -203,6 +299,8 @@ BACKUP_ROOT="$(cd "$BACKUP_ROOT" && pwd)"
 BACKUP_DIR="$BACKUP_ROOT/$(date -u +"%Y%m%dT%H%M%SZ")"
 mkdir -p "$BACKUP_DIR/volumes"
 chmod 700 "$BACKUP_DIR"
+
+CREATED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 info "Creating Bouncecore backup at $BACKUP_DIR"
 
@@ -226,7 +324,7 @@ else
 fi
 
 {
-  printf 'created_at=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  printf 'created_at=%s\n' "$CREATED_AT"
   printf 'git_commit=%s\n' "$(git -C "$APP_ROOT" rev-parse --short HEAD 2>/dev/null || printf 'unknown')"
   printf 'compose_file=%s\n' "$COMPOSE_FILE"
   printf 'env_file=%s\n' "$ENV_FILE"
@@ -241,6 +339,13 @@ fi
 } > "$BACKUP_DIR/manifest.env"
 
 verify_backup
+write_latest_backup_status "$CREATED_AT"
+copy_status_to_uploads_volume
+
+if [ "$VERIFY_EXIT_CODE" -ne 0 ]; then
+  die "Backup verification failed. Inspect $BACKUP_DIR/verification.env"
+fi
+
 prune_old_backups
 
 info "Backup complete"

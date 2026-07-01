@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  backupStatusHealthCheckFromValues,
   paypalIntegrationHealthChecks,
   productionReadinessIssues,
   productionReadinessRepairHref,
@@ -64,8 +65,63 @@ test("production readiness repair links route common blockers to their admin sur
   assert.equal(productionReadinessRepairHref("PayPal client ID"), "/admin/payments");
   assert.equal(productionReadinessRepairHref("RTMPS ingest"), "/admin/stream");
   assert.equal(productionReadinessRepairHref("Mobile android push"), "/admin/mobile");
+  assert.equal(productionReadinessRepairHref("Verified backups"), "/admin/storage");
   assert.equal(productionReadinessRepairHref("Stream provider"), undefined);
   assert.equal(productionReadinessRepairHref("Unknown check"), undefined);
+});
+
+test("backup status health check accepts fresh verified backups", () => {
+  const check = backupStatusHealthCheckFromValues(
+    new Map([
+      ["status", "healthy"],
+      ["verified_at", "2026-07-01T06:00:00Z"],
+      ["backup_dir", "/srv/bouncecore-backups/20260701T060000Z"],
+      ["failures", "0"],
+      ["warnings", "0"]
+    ]),
+    {
+      maxAgeHours: 30,
+      now: new Date("2026-07-01T08:00:00Z")
+    }
+  );
+
+  assert.equal(check.label, "Verified backups");
+  assert.equal(check.status, "healthy");
+  assert.equal(check.value, "Fresh");
+});
+
+test("backup status health check warns on stale backups", () => {
+  const check = backupStatusHealthCheckFromValues(
+    new Map([
+      ["status", "healthy"],
+      ["verified_at", "2026-06-29T06:00:00Z"],
+      ["backup_dir", "/srv/bouncecore-backups/20260629T060000Z"]
+    ]),
+    {
+      maxAgeHours: 30,
+      now: new Date("2026-07-01T08:00:00Z")
+    }
+  );
+
+  assert.equal(check.status, "warning");
+  assert.equal(check.value, "Stale");
+});
+
+test("backup status health check marks failed verification critical", () => {
+  const check = backupStatusHealthCheckFromValues(
+    new Map([
+      ["status", "failed"],
+      ["verified_at", "2026-07-01T06:00:00Z"],
+      ["backup_dir", "/srv/bouncecore-backups/20260701T060000Z"],
+      ["failures", "2"]
+    ]),
+    {
+      now: new Date("2026-07-01T08:00:00Z")
+    }
+  );
+
+  assert.equal(check.status, "critical");
+  assert.equal(check.value, "Failed");
 });
 
 test("production readiness issues flatten and prioritize critical launch blockers", () => {

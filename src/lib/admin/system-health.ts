@@ -1,4 +1,5 @@
 import { cpus, freemem, totalmem, uptime } from "node:os";
+import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/db/prisma";
 import { mailIsConfigured } from "@/lib/mail/smtp-service";
 import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
@@ -87,7 +88,8 @@ const productionReadinessRepairLinks: Record<string, string> = {
   "Site branding": "/admin/settings",
   "Site live social links": "/admin/settings",
   "Public app URL": "/admin/integrations",
-  "Internal task token": "/admin/integrations"
+  "Internal task token": "/admin/integrations",
+  "Verified backups": "/admin/storage"
 };
 
 export function productionReadinessRepairHref(label: string) {
@@ -217,6 +219,118 @@ function envNumber(key: string, fallback: number) {
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
 }
 
+function parseEnvFileContent(input: string) {
+  const values = new Map<string, string>();
+
+  for (const line of input.split(/\r?\n/)) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
+      continue;
+    }
+
+    const [key, ...valueParts] = trimmed.split("=");
+    values.set(key.trim(), valueParts.join("=").trim());
+  }
+
+  return values;
+}
+
+function backupStatusFilePath() {
+  return process.env.BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/backup-status.env";
+}
+
+export function backupStatusHealthCheckFromValues(
+  values: Map<string, string>,
+  {
+    maxAgeHours = 30,
+    now = new Date()
+  }: {
+    maxAgeHours?: number;
+    now?: Date;
+  } = {}
+): HealthCheck {
+  const status = values.get("status") || "unknown";
+  const verifiedAtValue = values.get("verified_at") || "";
+  const backupDir = values.get("backup_dir") || "unknown backup location";
+  const failures = values.get("failures") || "0";
+  const warnings = values.get("warnings") || "0";
+  const verifiedAt = new Date(verifiedAtValue);
+  const verifiedAtIsValid = Number.isFinite(verifiedAt.getTime());
+  const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+  const ageMs = verifiedAtIsValid ? now.getTime() - verifiedAt.getTime() : Number.POSITIVE_INFINITY;
+  const ageHours = verifiedAtIsValid ? Math.max(0, Math.round(ageMs / 60 / 60 / 1000)) : null;
+  const stale = !verifiedAtIsValid || ageMs > maxAgeMs;
+
+  if (status === "failed") {
+    return {
+      detail: `Latest backup verification failed with ${failures} failures. Backup: ${backupDir}`,
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "critical",
+      value: "Failed"
+    };
+  }
+
+  if (status !== "healthy" && status !== "warning") {
+    return {
+      detail: "Backup status file exists but does not contain a recognized status.",
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "warning",
+      value: "Unknown"
+    };
+  }
+
+  if (stale) {
+    return {
+      detail: verifiedAtIsValid
+        ? `Latest verified backup is ${ageHours} hours old. Backup: ${backupDir}`
+        : "Backup status file does not contain a valid verified_at timestamp.",
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "warning",
+      value: "Stale"
+    };
+  }
+
+  return {
+    detail:
+      status === "warning"
+        ? `Latest backup verified ${ageHours} hours ago with ${warnings} warnings. Backup: ${backupDir}`
+        : `Latest backup verified ${ageHours} hours ago. Backup: ${backupDir}`,
+    href: "/admin/storage",
+    label: "Verified backups",
+    status: status === "warning" ? "warning" : "healthy",
+    value: status === "warning" ? "Verified with warnings" : "Fresh"
+  };
+}
+
+async function backupStatusHealthCheck(): Promise<HealthCheck> {
+  const statusFile = backupStatusFilePath();
+
+  try {
+    const content = await readFile(/*turbopackIgnore: true*/ statusFile, "utf8");
+
+    return backupStatusHealthCheckFromValues(parseEnvFileContent(content), {
+      maxAgeHours: envNumber("BACKUP_MAX_AGE_HOURS", 30)
+    });
+  } catch (error) {
+    return {
+      detail:
+        error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT"
+          ? `No backup status file found at ${statusFile}. Run a verified backup or install the backup timer.`
+          : error instanceof Error
+            ? error.message
+            : "Backup status file could not be read.",
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "warning",
+      value: "No status"
+    };
+  }
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -332,7 +446,8 @@ export async function getAdminSystemHealthData() {
     mobileConfigSetting,
     paypalIntegration,
     mobileConfigData,
-    siteSettingsData
+    siteSettingsData,
+    backupStatus
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -452,7 +567,8 @@ export async function getAdminSystemHealthData() {
     }),
     getPayPalIntegrationData(),
     getAdminMobileConfigData(),
-    getAdminSiteSettingsData()
+    getAdminSiteSettingsData(),
+    backupStatusHealthCheck()
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
@@ -509,6 +625,7 @@ export async function getAdminSystemHealthData() {
       value: workerHeartbeatStatus.value,
       detail: workerHeartbeatStatus.detail
     },
+    backupStatus,
     {
       label: "Stream provider",
       status: streamResult.health.status === "healthy" ? "healthy" : "warning",
@@ -742,6 +859,7 @@ export async function getAdminSystemHealthData() {
         checkFromSource(checkSources, "App runtime"),
         checkFromSource(checkSources, "Database"),
         checkFromSource(checkSources, "Worker heartbeat"),
+        checkFromSource(checkSources, "Verified backups"),
         checkFromSource(checkSources, "Public app URL"),
         checkFromSource(checkSources, "Internal task token")
       ]

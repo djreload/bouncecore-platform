@@ -227,6 +227,8 @@ Install a daily systemd backup timer:
 sudo bash scripts/install-backup-schedule.sh --backup-root /srv/bouncecore-backups --retention-days 14
 ```
 
+Verified backup status is copied into the uploads volume so Admin -> System health can warn when backups are missing, failed, or stale.
+
 Restore a backup:
 
 ```bash
