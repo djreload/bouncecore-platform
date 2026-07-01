@@ -1,11 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { RefreshCw, Save } from "lucide-react";
 import { syncOffsiteBackupConfigAction, updateOffsiteBackupSettingsAction } from "@/app/admin/storage/actions";
 import { initialAdminStorageActionState, type AdminStorageActionState } from "@/app/admin/storage/state";
 import { Button } from "@/components/ui/button";
-import type { OffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
+import {
+  googleDriveDefaultFolder,
+  googleDriveDefaultRemoteName,
+  googleDriveRcloneDestination,
+  type OffsiteBackupDestinationType
+} from "@/lib/admin/offsite-backup-targets";
+import {
+  type OffsiteBackupSettings
+} from "@/lib/admin/offsite-backup-settings";
 
 type OffsiteBackupSettingsFormProps = {
   configFilePresent: boolean;
@@ -16,6 +24,9 @@ type OffsiteBackupSettingsFormProps = {
 const inputClasses = "min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white";
 
 export function OffsiteBackupSettingsForm({ configFilePresent, configVolumePath, settings }: OffsiteBackupSettingsFormProps) {
+  const [destinationType, setDestinationType] = useState<OffsiteBackupDestinationType>(settings.destinationType);
+  const [googleDriveRemoteName, setGoogleDriveRemoteName] = useState(settings.googleDriveRemoteName ?? googleDriveDefaultRemoteName);
+  const [googleDriveFolder, setGoogleDriveFolder] = useState(settings.googleDriveFolder ?? googleDriveDefaultFolder);
   const [state, formAction, pending] = useActionState<AdminStorageActionState, FormData>(
     updateOffsiteBackupSettingsAction,
     initialAdminStorageActionState
@@ -24,21 +35,88 @@ export function OffsiteBackupSettingsForm({ configFilePresent, configVolumePath,
     syncOffsiteBackupConfigAction,
     initialAdminStorageActionState
   );
+  const googleDriveDestination = useMemo(() => {
+    try {
+      return googleDriveRcloneDestination(googleDriveRemoteName, googleDriveFolder);
+    } catch {
+      return `${googleDriveRemoteName || googleDriveDefaultRemoteName}:${googleDriveFolder || googleDriveDefaultFolder}`;
+    }
+  }, [googleDriveFolder, googleDriveRemoteName]);
 
   return (
     <div className="grid gap-4">
       <form action={formAction} className="grid gap-4">
+        <label className="grid gap-2 text-sm font-semibold text-white">
+          Backup destination type
+          <select
+            className={inputClasses}
+            name="destinationType"
+            onChange={(event) => setDestinationType(event.target.value === "rclone" ? "rclone" : "google-drive")}
+            value={destinationType}
+          >
+            <option value="google-drive">Google Drive</option>
+            <option value="rclone">Custom rclone destination</option>
+          </select>
+          <span className="text-xs font-normal leading-5 text-bc-muted">
+            Google Drive uses a configured rclone Drive remote on the server. Custom rclone can still target S3, R2, SFTP, or another provider.
+          </span>
+        </label>
+
+        {destinationType === "google-drive" ? (
+          <div className="grid gap-3 rounded-md border border-bc-line bg-bc-ink p-4 lg:grid-cols-2">
+            <label className="grid gap-2 text-sm font-semibold text-white">
+              Google Drive rclone remote name
+              <input
+                className={inputClasses}
+                name="googleDriveRemoteName"
+                onChange={(event) => setGoogleDriveRemoteName(event.target.value)}
+                placeholder={googleDriveDefaultRemoteName}
+                value={googleDriveRemoteName}
+              />
+              <span className="text-xs font-normal leading-5 text-bc-muted">
+                Name of the rclone Google Drive remote configured on the server. Recommended: {googleDriveDefaultRemoteName}.
+              </span>
+            </label>
+
+            <label className="grid gap-2 text-sm font-semibold text-white">
+              Google Drive folder
+              <input
+                className={inputClasses}
+                name="googleDriveFolder"
+                onChange={(event) => setGoogleDriveFolder(event.target.value)}
+                placeholder={googleDriveDefaultFolder}
+                value={googleDriveFolder}
+              />
+              <span className="text-xs font-normal leading-5 text-bc-muted">
+                Folder path inside Google Drive for encrypted backup packages.
+              </span>
+            </label>
+
+            <div className="lg:col-span-2">
+              <p className="rounded-md border border-bc-line bg-black/20 px-3 py-2 text-xs text-bc-muted">
+                Generated rclone destination: <span className="font-semibold text-white">{googleDriveDestination}</span>
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <input name="googleDriveRemoteName" type="hidden" value={googleDriveRemoteName} />
+            <input name="googleDriveFolder" type="hidden" value={googleDriveFolder} />
+          </>
+        )}
+
         <div className="grid gap-3 lg:grid-cols-2">
           <label className="grid gap-2 text-sm font-semibold text-white">
-            rclone destination
+            Custom rclone destination
             <input
               className={inputClasses}
+              disabled={destinationType === "google-drive"}
               defaultValue={settings.rcloneRemote ?? ""}
               name="rcloneRemote"
               placeholder="remote:bucket/path"
             />
             <span className="text-xs font-normal leading-5 text-bc-muted">
-              External backup location. The named rclone remote must already exist on the server running the backup timer.
+              Used only for custom rclone mode. For Google Drive, Bouncecore generates this from the remote name and folder above.
             </span>
           </label>
 

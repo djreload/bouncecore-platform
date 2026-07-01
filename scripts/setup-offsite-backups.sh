@@ -11,6 +11,9 @@ SERVICE_NAME="bouncecore-backup"
 AGE_RECIPIENT=""
 AGE_RECIPIENT_FILE=""
 RCLONE_REMOTE=""
+GOOGLE_DRIVE=false
+GOOGLE_DRIVE_REMOTE_NAME="bouncecore-gdrive"
+GOOGLE_DRIVE_FOLDER="Bouncecore Backups"
 OFFSITE_OUTPUT_DIR=""
 REMOVE_LOCAL_AFTER_UPLOAD=false
 INSTALL_PACKAGES=false
@@ -48,6 +51,11 @@ Options:
                         File containing age public recipient keys.
   --rclone-remote REMOTE
                         rclone destination directory, for example r2:bouncecore-backups/prod.
+  --google-drive        Use a Google Drive rclone remote as the destination.
+  --google-drive-remote-name NAME
+                        Configured rclone Google Drive remote name. Default: bouncecore-gdrive.
+  --google-drive-folder PATH
+                        Google Drive folder path for encrypted backups. Default: Bouncecore Backups.
   --offsite-output-dir PATH
                         Local encrypted export directory. Default: BACKUP_ROOT/offsite.
   --remove-local-after-upload
@@ -123,6 +131,14 @@ validate_rclone_remote() {
   rm -f "$temp_file"
 }
 
+google_drive_destination() {
+  local folder="${GOOGLE_DRIVE_FOLDER#/}"
+
+  folder="${folder%/}"
+  [ -n "$folder" ] || folder="Bouncecore Backups"
+  printf '%s:%s' "$GOOGLE_DRIVE_REMOTE_NAME" "$folder"
+}
+
 print_install_command() {
   local arg
 
@@ -185,6 +201,20 @@ while [ "$#" -gt 0 ]; do
       RCLONE_REMOTE="$2"
       shift 2
       ;;
+    --google-drive)
+      GOOGLE_DRIVE=true
+      shift
+      ;;
+    --google-drive-remote-name)
+      [ "$#" -ge 2 ] || die "--google-drive-remote-name requires a name."
+      GOOGLE_DRIVE_REMOTE_NAME="$2"
+      shift 2
+      ;;
+    --google-drive-folder)
+      [ "$#" -ge 2 ] || die "--google-drive-folder requires a folder path."
+      GOOGLE_DRIVE_FOLDER="$2"
+      shift 2
+      ;;
     --offsite-output-dir)
       [ "$#" -ge 2 ] || die "--offsite-output-dir requires a path."
       OFFSITE_OUTPUT_DIR="$(resolve_path "$2")"
@@ -232,7 +262,18 @@ if [ -z "$AGE_RECIPIENT" ] && [ -z "$AGE_RECIPIENT_FILE" ]; then
   die "An age recipient is required. Use --age-recipient or --age-recipient-file."
 fi
 
-[ -n "$RCLONE_REMOTE" ] || die "--rclone-remote is required."
+[[ "$GOOGLE_DRIVE_REMOTE_NAME" =~ ^[A-Za-z0-9_.-]+$ ]] || die "--google-drive-remote-name contains unsupported characters."
+case "$GOOGLE_DRIVE_FOLDER" in
+  *"'"*|*"\""*|*"\`"*|*'$'*|*";"*|*"&"*|*"|"*|*"<"*|*">"*) die "--google-drive-folder contains unsupported shell control characters." ;;
+  *..*) die "--google-drive-folder cannot contain '..'." ;;
+esac
+
+if [ "$GOOGLE_DRIVE" = "true" ] && [ -z "$RCLONE_REMOTE" ]; then
+  RCLONE_REMOTE="$(google_drive_destination)"
+  info "Using Google Drive rclone destination $RCLONE_REMOTE"
+fi
+
+[ -n "$RCLONE_REMOTE" ] || die "--rclone-remote is required, or use --google-drive after configuring the Google Drive rclone remote."
 
 APP_ROOT="$(cd "$APP_ROOT" && pwd)"
 ENV_FILE="$(resolve_path "$ENV_FILE")"

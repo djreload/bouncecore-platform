@@ -61,7 +61,10 @@ export async function updateOffsiteBackupSettingsAction(
     await updateOffsiteBackupSettings(
       {
         ageRecipient: formString(formData, "ageRecipient"),
+        destinationType: formString(formData, "destinationType") === "rclone" ? "rclone" : "google-drive",
         enabled: formData.get("enabled") === "on",
+        googleDriveFolder: formString(formData, "googleDriveFolder"),
+        googleDriveRemoteName: formString(formData, "googleDriveRemoteName"),
         outputDir: formString(formData, "outputDir"),
         rcloneRemote: formString(formData, "rcloneRemote"),
         removeLocalAfterUpload: formData.get("removeLocalAfterUpload") === "on"

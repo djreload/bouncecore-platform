@@ -45,6 +45,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added a guided off-server backup setup helper that validates age/rclone, probes the remote, and installs the backup timer.
 - Added verified-backup and off-server backup status cards to Admin -> Storage with the exact repair commands owners need.
 - Added Admin -> Storage controls for the external encrypted backup location, with scheduled backups auto-loading the saved config from the uploads volume.
+- Added Google Drive as a first-class Admin -> Storage backup destination backed by a configured rclone Drive remote.
 - Improved off-server backup readiness wording so it distinguishes missing admin config from a configured destination awaiting its first export.
 - Added an Admin -> Storage rewrite action for regenerating the off-server backup config file from saved settings after restores or volume repairs.
 - Added an Admin -> Storage `Run backup now` request flow with host-side systemd processing and manual run status reporting.

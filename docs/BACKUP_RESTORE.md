@@ -56,6 +56,20 @@ Admin -> Storage can also save the external backup destination and public age re
 
 When `backup-instance.sh` runs without explicit offsite flags, it reads this admin-managed config automatically. The server still needs `age` and a working `rclone` remote configured outside the app.
 
+Google Drive is supported through rclone. Configure one Google Drive remote on the server, then select `Google Drive` in Admin -> Storage. The recommended rclone remote name is:
+
+```text
+bouncecore-gdrive
+```
+
+With the default admin folder, Bouncecore generates this rclone destination:
+
+```text
+bouncecore-gdrive:Bouncecore Backups
+```
+
+The Google Drive OAuth token remains in the server's rclone config; Bouncecore stores only the remote name, folder path, and public age recipient.
+
 If the database setting exists but the generated `.ops/offsite-backup-config.env` file is missing after a restore or volume repair, use Admin -> Storage -> Rewrite generated config. This rewrites the file from the saved database setting without changing the destination.
 
 Admin -> Storage can also queue a manual verified backup. The web app writes a request file to the uploads volume:
@@ -211,6 +225,26 @@ sudo bash scripts/setup-offsite-backups.sh \
 ```
 
 The helper checks `age` and `rclone`, optionally installs them on Debian/Ubuntu, writes and deletes a small probe file in the rclone destination, installs the systemd timer with off-server export enabled, and can start one backup immediately. Use `--dry-run` to print the exact timer install command without changing systemd.
+
+For Google Drive, configure the rclone remote first:
+
+```bash
+sudo apt-get install rclone
+rclone config
+rclone lsd bouncecore-gdrive:
+```
+
+Then validate and install the backup timers with Google Drive as the rclone destination:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh \
+  --google-drive \
+  --google-drive-remote-name bouncecore-gdrive \
+  --google-drive-folder "Bouncecore Backups" \
+  --age-recipient age1examplepublickey \
+  --install-packages \
+  --run-now
+```
 
 Inspect the installed timer:
 
