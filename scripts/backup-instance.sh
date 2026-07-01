@@ -10,6 +10,7 @@ SKIP_DB=false
 SKIP_VOLUMES=false
 SKIP_STATUS_VOLUME=false
 STATUS_VOLUME_PATH=".ops/backup-status.env"
+OFFSITE_STATUS_VOLUME_PATH=".ops/offsite-backup-status.env"
 VERIFY_BACKUP=true
 OFFSITE_AGE_RECIPIENT=""
 OFFSITE_AGE_RECIPIENT_FILE=""
@@ -41,6 +42,8 @@ Options:
   --retention-days N    Delete dated backup folders older than N days after a successful backup. Default: disabled
   --status-volume-path PATH
                         Path inside the uploads Docker volume for latest backup status. Default: .ops/backup-status.env
+  --offsite-status-volume-path PATH
+                        Path inside the uploads Docker volume for latest off-server export status. Default: .ops/offsite-backup-status.env
   --skip-db             Do not create a PostgreSQL dump.
   --skip-volumes        Do not archive Docker volumes.
   --skip-status-volume  Do not copy latest backup status into the uploads Docker volume.
@@ -257,6 +260,35 @@ copy_status_to_uploads_volume() {
   docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
+copy_offsite_status_to_uploads_volume() {
+  local status_file="$BACKUP_ROOT/latest-offsite-backup.env"
+  local target_path="$OFFSITE_STATUS_VOLUME_PATH"
+  local target_dir
+  local target_name
+
+  if [ "$SKIP_STATUS_VOLUME" = "true" ]; then
+    warn "Upload-volume offsite backup status copy skipped."
+    return
+  fi
+
+  if [ ! -f "$status_file" ]; then
+    warn "Upload-volume offsite backup status copy skipped because $status_file does not exist."
+    return
+  fi
+
+  if ! docker volume inspect "$UPLOADS_VOLUME" >/dev/null 2>&1; then
+    warn "Upload-volume offsite backup status copy skipped because Docker volume $UPLOADS_VOLUME does not exist."
+    return
+  fi
+
+  target_path="${target_path#/}"
+  target_dir="$(dirname "$target_path")"
+  target_name="$(basename "$target_path")"
+
+  info "Writing latest offsite backup status to uploads volume $UPLOADS_VOLUME:$target_path"
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
+}
+
 export_offsite_backup() {
   local -a args
 
@@ -270,6 +302,7 @@ export_offsite_backup() {
   fi
 
   args=("$APP_ROOT/scripts/export-backup-offsite.sh" "$BACKUP_DIR")
+  args+=("--status-file" "$BACKUP_ROOT/latest-offsite-backup.env")
 
   if [ -n "$OFFSITE_AGE_RECIPIENT" ]; then
     args+=("--age-recipient" "$OFFSITE_AGE_RECIPIENT")
@@ -293,6 +326,7 @@ export_offsite_backup() {
 
   info "Creating encrypted off-server backup export"
   bash "${args[@]}"
+  copy_offsite_status_to_uploads_volume
 }
 
 while [ "$#" -gt 0 ]; do
@@ -320,6 +354,11 @@ while [ "$#" -gt 0 ]; do
     --status-volume-path)
       [ "$#" -ge 2 ] || die "--status-volume-path requires a path."
       STATUS_VOLUME_PATH="$2"
+      shift 2
+      ;;
+    --offsite-status-volume-path)
+      [ "$#" -ge 2 ] || die "--offsite-status-volume-path requires a path."
+      OFFSITE_STATUS_VOLUME_PATH="$2"
       shift 2
       ;;
     --skip-db)
@@ -387,6 +426,11 @@ case "$STATUS_VOLUME_PATH" in
   *[!A-Za-z0-9._/-]*) die "--status-volume-path supports only letters, numbers, dot, underscore, dash, and slash." ;;
   *..*) die "--status-volume-path cannot contain '..'." ;;
   "") die "--status-volume-path cannot be empty." ;;
+esac
+case "$OFFSITE_STATUS_VOLUME_PATH" in
+  *[!A-Za-z0-9._/-]*) die "--offsite-status-volume-path supports only letters, numbers, dot, underscore, dash, and slash." ;;
+  *..*) die "--offsite-status-volume-path cannot contain '..'." ;;
+  "") die "--offsite-status-volume-path cannot be empty." ;;
 esac
 
 POSTGRES_DB="$(env_value POSTGRES_DB bouncecore_platform)"

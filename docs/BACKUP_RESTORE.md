@@ -40,6 +40,14 @@ By default the same status is copied into the uploads Docker volume at:
 
 The app reads that file from `/app/public/uploads/.ops/backup-status.env` and exposes it in Admin -> System health as `Verified backups`.
 
+When encrypted off-server export is enabled through `backup-instance.sh`, the latest export status is copied into:
+
+```text
+.ops/offsite-backup-status.env
+```
+
+The app reads that file from `/app/public/uploads/.ops/offsite-backup-status.env` and exposes it in Admin -> System health as `Off-server backups`. A fresh local encrypted export without a successful rclone upload is reported as `Local only` because it is not yet disaster recovery.
+
 Useful options:
 
 ```bash
@@ -47,6 +55,7 @@ bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups
 bash scripts/backup-instance.sh --env-file .env.staging --compose-file docker-compose.staging.yml
 bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
 bash scripts/backup-instance.sh --status-volume-path .ops/backup-status.env
+bash scripts/backup-instance.sh --offsite-status-volume-path .ops/offsite-backup-status.env
 bash scripts/backup-instance.sh --skip-status-volume
 bash scripts/backup-instance.sh --skip-volumes
 bash scripts/backup-instance.sh --skip-verify
@@ -170,6 +179,8 @@ System health treats backups as stale after 30 hours by default. Override this w
 ```env
 BACKUP_STATUS_FILE=/app/public/uploads/.ops/backup-status.env
 BACKUP_MAX_AGE_HOURS=30
+OFFSITE_BACKUP_STATUS_FILE=/app/public/uploads/.ops/offsite-backup-status.env
+OFFSITE_BACKUP_MAX_AGE_HOURS=30
 ```
 
 Alternative daily cron entry:
@@ -220,6 +231,7 @@ The export writes:
 /srv/bouncecore-backups/offsite/20260608T203000Z.tar.gz.age
 /srv/bouncecore-backups/offsite/20260608T203000Z.tar.gz.age.sha256
 /srv/bouncecore-backups/offsite/20260608T203000Z.offsite.env
+/srv/bouncecore-backups/latest-offsite-backup.env
 ```
 
 The export script requires `verification.env` with `status=healthy` by default. This prevents broken backups from being copied off-server and mistaken for good disaster-recovery points.

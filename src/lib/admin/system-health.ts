@@ -89,7 +89,8 @@ const productionReadinessRepairLinks: Record<string, string> = {
   "Site live social links": "/admin/settings",
   "Public app URL": "/admin/integrations",
   "Internal task token": "/admin/integrations",
-  "Verified backups": "/admin/storage"
+  "Verified backups": "/admin/storage",
+  "Off-server backups": "/admin/storage"
 };
 
 export function productionReadinessRepairHref(label: string) {
@@ -240,6 +241,10 @@ function backupStatusFilePath() {
   return process.env.BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/backup-status.env";
 }
 
+function offsiteBackupStatusFilePath() {
+  return process.env.OFFSITE_BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/offsite-backup-status.env";
+}
+
 export function backupStatusHealthCheckFromValues(
   values: Map<string, string>,
   {
@@ -325,6 +330,104 @@ async function backupStatusHealthCheck(): Promise<HealthCheck> {
             : "Backup status file could not be read.",
       href: "/admin/storage",
       label: "Verified backups",
+      status: "warning",
+      value: "No status"
+    };
+  }
+}
+
+export function offsiteBackupStatusHealthCheckFromValues(
+  values: Map<string, string>,
+  {
+    maxAgeHours = 30,
+    now = new Date()
+  }: {
+    maxAgeHours?: number;
+    now?: Date;
+  } = {}
+): HealthCheck {
+  const status = values.get("status") || "unknown";
+  const exportedAtValue = values.get("exported_at") || "";
+  const backupDir = values.get("backup_dir") || "unknown backup location";
+  const uploaded = values.get("uploaded") === "true";
+  const remote = values.get("rclone_remote") || "";
+  const exportedAt = new Date(exportedAtValue);
+  const exportedAtIsValid = Number.isFinite(exportedAt.getTime());
+  const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+  const ageMs = exportedAtIsValid ? now.getTime() - exportedAt.getTime() : Number.POSITIVE_INFINITY;
+  const ageHours = exportedAtIsValid ? Math.max(0, Math.round(ageMs / 60 / 60 / 1000)) : null;
+  const stale = !exportedAtIsValid || ageMs > maxAgeMs;
+
+  if (status === "failed") {
+    return {
+      detail: `Latest encrypted off-server export failed. Backup: ${backupDir}`,
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "critical",
+      value: "Failed"
+    };
+  }
+
+  if (status !== "healthy") {
+    return {
+      detail: "Off-server backup status file exists but does not contain status=healthy.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "Unknown"
+    };
+  }
+
+  if (stale) {
+    return {
+      detail: exportedAtIsValid
+        ? `Latest encrypted backup export is ${ageHours} hours old. Backup: ${backupDir}`
+        : "Off-server backup status file does not contain a valid exported_at timestamp.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "Stale"
+    };
+  }
+
+  if (!uploaded || !remote) {
+    return {
+      detail: `Latest encrypted backup export is fresh but was not uploaded with rclone. Backup: ${backupDir}`,
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "Local only"
+    };
+  }
+
+  return {
+    detail: `Latest encrypted backup export uploaded ${ageHours} hours ago to ${remote}. Backup: ${backupDir}`,
+    href: "/admin/storage",
+    label: "Off-server backups",
+    status: "healthy",
+    value: "Fresh"
+  };
+}
+
+async function offsiteBackupStatusHealthCheck(): Promise<HealthCheck> {
+  const statusFile = offsiteBackupStatusFilePath();
+
+  try {
+    const content = await readFile(/*turbopackIgnore: true*/ statusFile, "utf8");
+
+    return offsiteBackupStatusHealthCheckFromValues(parseEnvFileContent(content), {
+      maxAgeHours: envNumber("OFFSITE_BACKUP_MAX_AGE_HOURS", envNumber("BACKUP_MAX_AGE_HOURS", 30))
+    });
+  } catch (error) {
+    return {
+      detail:
+        error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT"
+          ? `No off-server backup export status file found at ${statusFile}. Configure encrypted off-server exports for the backup timer.`
+          : error instanceof Error
+            ? error.message
+            : "Off-server backup status file could not be read.",
+      href: "/admin/storage",
+      label: "Off-server backups",
       status: "warning",
       value: "No status"
     };
@@ -447,7 +550,8 @@ export async function getAdminSystemHealthData() {
     paypalIntegration,
     mobileConfigData,
     siteSettingsData,
-    backupStatus
+    backupStatus,
+    offsiteBackupStatus
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -568,7 +672,8 @@ export async function getAdminSystemHealthData() {
     getPayPalIntegrationData(),
     getAdminMobileConfigData(),
     getAdminSiteSettingsData(),
-    backupStatusHealthCheck()
+    backupStatusHealthCheck(),
+    offsiteBackupStatusHealthCheck()
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
@@ -626,6 +731,7 @@ export async function getAdminSystemHealthData() {
       detail: workerHeartbeatStatus.detail
     },
     backupStatus,
+    offsiteBackupStatus,
     {
       label: "Stream provider",
       status: streamResult.health.status === "healthy" ? "healthy" : "warning",
@@ -852,7 +958,7 @@ export async function getAdminSystemHealthData() {
       ]
     }),
     productionReadinessGroup({
-      description: "Runtime, database, worker heartbeat, internal task security, and public URL configuration.",
+      description: "Runtime, database, worker heartbeat, verified backups, off-server exports, internal task security, and public URL configuration.",
       id: "operations",
       title: "Operations",
       items: [
@@ -860,6 +966,7 @@ export async function getAdminSystemHealthData() {
         checkFromSource(checkSources, "Database"),
         checkFromSource(checkSources, "Worker heartbeat"),
         checkFromSource(checkSources, "Verified backups"),
+        checkFromSource(checkSources, "Off-server backups"),
         checkFromSource(checkSources, "Public app URL"),
         checkFromSource(checkSources, "Internal task token")
       ]

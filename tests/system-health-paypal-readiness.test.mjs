@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   backupStatusHealthCheckFromValues,
+  offsiteBackupStatusHealthCheckFromValues,
   paypalIntegrationHealthChecks,
   productionReadinessIssues,
   productionReadinessRepairHref,
@@ -66,6 +67,7 @@ test("production readiness repair links route common blockers to their admin sur
   assert.equal(productionReadinessRepairHref("RTMPS ingest"), "/admin/stream");
   assert.equal(productionReadinessRepairHref("Mobile android push"), "/admin/mobile");
   assert.equal(productionReadinessRepairHref("Verified backups"), "/admin/storage");
+  assert.equal(productionReadinessRepairHref("Off-server backups"), "/admin/storage");
   assert.equal(productionReadinessRepairHref("Stream provider"), undefined);
   assert.equal(productionReadinessRepairHref("Unknown check"), undefined);
 });
@@ -122,6 +124,64 @@ test("backup status health check marks failed verification critical", () => {
 
   assert.equal(check.status, "critical");
   assert.equal(check.value, "Failed");
+});
+
+test("offsite backup status health check accepts fresh uploaded exports", () => {
+  const check = offsiteBackupStatusHealthCheckFromValues(
+    new Map([
+      ["status", "healthy"],
+      ["exported_at", "2026-07-01T06:00:00Z"],
+      ["backup_dir", "/srv/bouncecore-backups/20260701T060000Z"],
+      ["uploaded", "true"],
+      ["rclone_remote", "r2:bouncecore-backups/prod"]
+    ]),
+    {
+      maxAgeHours: 30,
+      now: new Date("2026-07-01T08:00:00Z")
+    }
+  );
+
+  assert.equal(check.label, "Off-server backups");
+  assert.equal(check.status, "healthy");
+  assert.equal(check.value, "Fresh");
+});
+
+test("offsite backup status warns when export is local only", () => {
+  const check = offsiteBackupStatusHealthCheckFromValues(
+    new Map([
+      ["status", "healthy"],
+      ["exported_at", "2026-07-01T06:00:00Z"],
+      ["backup_dir", "/srv/bouncecore-backups/20260701T060000Z"],
+      ["uploaded", "false"],
+      ["rclone_remote", ""]
+    ]),
+    {
+      maxAgeHours: 30,
+      now: new Date("2026-07-01T08:00:00Z")
+    }
+  );
+
+  assert.equal(check.status, "warning");
+  assert.equal(check.value, "Local only");
+});
+
+test("offsite backup status warns on stale exports", () => {
+  const check = offsiteBackupStatusHealthCheckFromValues(
+    new Map([
+      ["status", "healthy"],
+      ["exported_at", "2026-06-29T06:00:00Z"],
+      ["backup_dir", "/srv/bouncecore-backups/20260629T060000Z"],
+      ["uploaded", "true"],
+      ["rclone_remote", "r2:bouncecore-backups/prod"]
+    ]),
+    {
+      maxAgeHours: 30,
+      now: new Date("2026-07-01T08:00:00Z")
+    }
+  );
+
+  assert.equal(check.status, "warning");
+  assert.equal(check.value, "Stale");
 });
 
 test("production readiness issues flatten and prioritize critical launch blockers", () => {

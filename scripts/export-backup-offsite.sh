@@ -4,6 +4,7 @@ set -euo pipefail
 APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKUP_DIR=""
 OUTPUT_DIR=""
+STATUS_FILE=""
 AGE_RECIPIENT=""
 AGE_RECIPIENT_FILE=""
 RCLONE_REMOTE=""
@@ -33,6 +34,7 @@ Options:
   --age-recipient KEY       age public recipient key, for example age1...
   --age-recipient-file PATH File containing one or more age public recipient keys.
   --output-dir PATH         Local encrypted export directory. Default: BACKUP_ROOT/offsite.
+  --status-file PATH        Latest export status file. Default: BACKUP_ROOT/latest-offsite-backup.env.
   --rclone-remote REMOTE    Optional rclone destination directory, for example remote:bucket/path.
   --remove-local-after-upload
                             Delete the local encrypted export after a successful rclone upload.
@@ -130,6 +132,12 @@ write_report() {
   } > "$REPORT_FILE"
 
   chmod 600 "$REPORT_FILE"
+
+  if [ -n "$STATUS_FILE" ]; then
+    mkdir -p "$(dirname "$STATUS_FILE")"
+    cp "$REPORT_FILE" "$STATUS_FILE"
+    chmod 600 "$STATUS_FILE"
+  fi
 }
 
 encrypt_backup() {
@@ -200,6 +208,11 @@ while [ "$#" -gt 0 ]; do
       RCLONE_REMOTE="$2"
       shift 2
       ;;
+    --status-file)
+      [ "$#" -ge 2 ] || die "--status-file requires a path."
+      STATUS_FILE="$(resolve_path "$2")"
+      shift 2
+      ;;
     --remove-local-after-upload)
       REMOVE_LOCAL_AFTER_UPLOAD=true
       shift
@@ -257,8 +270,16 @@ if [ -z "$OUTPUT_DIR" ]; then
   OUTPUT_DIR="$BACKUP_ROOT/offsite"
 fi
 
+if [ -z "$STATUS_FILE" ]; then
+  STATUS_FILE="$BACKUP_ROOT/latest-offsite-backup.env"
+else
+  STATUS_FILE="$(dirname "$STATUS_FILE")/$(basename "$STATUS_FILE")"
+fi
+
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR="$(cd "$OUTPUT_DIR" && pwd)"
+mkdir -p "$(dirname "$STATUS_FILE")"
+STATUS_FILE="$(cd "$(dirname "$STATUS_FILE")" && pwd)/$(basename "$STATUS_FILE")"
 
 if [ "$OUTPUT_DIR" = "$BACKUP_DIR" ]; then
   die "--output-dir must not be the backup directory being exported."
