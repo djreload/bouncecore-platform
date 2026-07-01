@@ -113,6 +113,25 @@ is_service_running() {
   compose ps --services --status running 2>/dev/null | grep -qx "$service"
 }
 
+resolve_docker_volume_name() {
+  local configured_name="$1"
+  local candidate
+
+  if docker volume inspect "$configured_name" >/dev/null 2>&1; then
+    printf '%s' "$configured_name"
+    return
+  fi
+
+  while IFS= read -r candidate; do
+    if [ "$candidate" = "$configured_name" ] || [ "${candidate%"_$configured_name"}" != "$candidate" ]; then
+      printf '%s' "$candidate"
+      return
+    fi
+  done < <(docker volume ls --format '{{.Name}}')
+
+  printf '%s' "$configured_name"
+}
+
 wait_for_postgres() {
   for _ in $(seq 1 60); do
     if compose exec -T postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
@@ -293,6 +312,11 @@ UPLOADS_VOLUME="$(env_value UPLOADS_VOLUME bouncecore_uploads)"
 REDIS_VOLUME="$(env_value REDIS_VOLUME bouncecore_redis_data)"
 STREAM_CORE_VOLUME="$(env_value STREAM_CORE_VOLUME bouncecore_stream_core_data)"
 TRANSCODER_HLS_VOLUME="$(env_value TRANSCODER_HLS_VOLUME bouncecore_transcoder_hls)"
+
+UPLOADS_VOLUME="$(resolve_docker_volume_name "$UPLOADS_VOLUME")"
+REDIS_VOLUME="$(resolve_docker_volume_name "$REDIS_VOLUME")"
+STREAM_CORE_VOLUME="$(resolve_docker_volume_name "$STREAM_CORE_VOLUME")"
+TRANSCODER_HLS_VOLUME="$(resolve_docker_volume_name "$TRANSCODER_HLS_VOLUME")"
 
 mkdir -p "$BACKUP_ROOT"
 BACKUP_ROOT="$(cd "$BACKUP_ROOT" && pwd)"
