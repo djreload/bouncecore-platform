@@ -27,6 +27,14 @@ export type BackupRunStatus = {
   status: BackupRunStatusValue;
 };
 
+export type BackupRunHealthCheck = {
+  detail: string;
+  href?: string;
+  label: string;
+  status: "healthy" | "warning" | "critical";
+  value: string;
+};
+
 export type AdminBackupRunData = {
   canRequest: boolean;
   request: BackupRunRequest | null;
@@ -219,6 +227,124 @@ export async function getAdminBackupRunData(): Promise<AdminBackupRunData> {
     status,
     statusFilePath: backupRunStatusFilePath(),
     statusVolumePath: backupRunStatusVolumePath
+  };
+}
+
+function dateAgeMinutes(value: string | null, now: Date) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  if (!Number.isFinite(parsed.getTime())) {
+    return null;
+  }
+
+  return Math.max(0, Math.round((now.getTime() - parsed.getTime()) / 60 / 1000));
+}
+
+function formatAgeMinutes(minutes: number | null) {
+  if (minutes === null) {
+    return "unknown age";
+  }
+
+  if (minutes < 60) {
+    return `${minutes} minutes`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  return remainingMinutes ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+export function manualBackupRunHealthCheckFromData(
+  data: Pick<AdminBackupRunData, "request" | "status">,
+  {
+    now = new Date(),
+    queuedWarningMinutes = 5,
+    runningWarningMinutes = 180
+  }: {
+    now?: Date;
+    queuedWarningMinutes?: number;
+    runningWarningMinutes?: number;
+  } = {}
+): BackupRunHealthCheck {
+  const request = data.request;
+  const status = data.status;
+  const href = "/admin/storage";
+
+  if (status.status === "running") {
+    const ageMinutes = dateAgeMinutes(status.startedAt, now);
+    const stale = ageMinutes === null || ageMinutes > runningWarningMinutes;
+
+    return {
+      detail: stale
+        ? `Manual backup request ${status.requestId ?? "unknown"} has been running for ${formatAgeMinutes(ageMinutes)}. Check bouncecore-backup-request.service and the host log.`
+        : `Manual backup request ${status.requestId ?? "unknown"} has been running for ${formatAgeMinutes(ageMinutes)}.`,
+      href,
+      label: "Manual backup requests",
+      status: stale ? "warning" : "healthy",
+      value: stale ? "Long running" : "Running"
+    };
+  }
+
+  if (status.status === "queued" || request) {
+    const queuedAt = request?.requestedAt ?? status.requestedAt;
+    const requestId = request?.requestId ?? status.requestId ?? "unknown";
+    const ageMinutes = dateAgeMinutes(queuedAt, now);
+    const stale = ageMinutes === null || ageMinutes > queuedWarningMinutes;
+
+    return {
+      detail: stale
+        ? `Manual backup request ${requestId} has been queued for ${formatAgeMinutes(ageMinutes)}. The host request timer may not be processing uploads volume requests.`
+        : `Manual backup request ${requestId} is queued and waiting for the host request timer.`,
+      href,
+      label: "Manual backup requests",
+      status: stale ? "warning" : "healthy",
+      value: stale ? "Queued too long" : "Queued"
+    };
+  }
+
+  if (status.status === "failed") {
+    return {
+      detail: status.message || "The last manual backup request failed. Check the host backup request log.",
+      href,
+      label: "Manual backup requests",
+      status: "warning",
+      value: "Last failed"
+    };
+  }
+
+  if (status.status === "completed") {
+    return {
+      detail: status.completedAt
+        ? `Last manual backup request completed at ${status.completedAt}. Backup: ${status.backupDir ?? "not recorded"}`
+        : "Last manual backup request completed.",
+      href,
+      label: "Manual backup requests",
+      status: "healthy",
+      value: "Last completed"
+    };
+  }
+
+  if (status.status === "unknown") {
+    return {
+      detail: "Manual backup request status file exists but has an unrecognized status.",
+      href,
+      label: "Manual backup requests",
+      status: "warning",
+      value: "Unknown"
+    };
+  }
+
+  return {
+    detail: "No manual backup request is currently queued or running.",
+    href,
+    label: "Manual backup requests",
+    status: "healthy",
+    value: "Idle"
   };
 }
 

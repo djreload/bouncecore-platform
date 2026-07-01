@@ -1,5 +1,6 @@
 import { cpus, freemem, totalmem, uptime } from "node:os";
 import { readFile } from "node:fs/promises";
+import { getAdminBackupRunData, manualBackupRunHealthCheckFromData } from "@/lib/admin/backup-run-requests";
 import { prisma } from "@/lib/db/prisma";
 import { mailIsConfigured } from "@/lib/mail/smtp-service";
 import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
@@ -91,6 +92,7 @@ const productionReadinessRepairLinks: Record<string, string> = {
   "Public app URL": "/admin/integrations",
   "Internal task token": "/admin/integrations",
   "Verified backups": "/admin/storage",
+  "Manual backup requests": "/admin/storage",
   "Off-server backups": "/admin/storage"
 };
 
@@ -581,6 +583,7 @@ export async function getAdminSystemHealthData() {
     mobileConfigData,
     siteSettingsData,
     backupStatus,
+    manualBackupRunData,
     offsiteBackupStatus,
     offsiteBackupSettingsData
   ] = await Promise.all([
@@ -704,6 +707,7 @@ export async function getAdminSystemHealthData() {
     getAdminMobileConfigData(),
     getAdminSiteSettingsData(),
     backupStatusHealthCheck(),
+    getAdminBackupRunData(),
     offsiteBackupStatusHealthCheck(),
     getAdminOffsiteBackupSettingsData()
   ]);
@@ -767,6 +771,10 @@ export async function getAdminSystemHealthData() {
       detail: workerHeartbeatStatus.detail
     },
     backupStatus,
+    manualBackupRunHealthCheckFromData(manualBackupRunData, {
+      queuedWarningMinutes: envNumber("BACKUP_RUN_QUEUED_WARNING_MINUTES", 5),
+      runningWarningMinutes: envNumber("BACKUP_RUN_RUNNING_WARNING_MINUTES", 180)
+    }),
     offsiteBackupReadiness,
     {
       label: "Stream provider",
@@ -1002,6 +1010,7 @@ export async function getAdminSystemHealthData() {
         checkFromSource(checkSources, "Database"),
         checkFromSource(checkSources, "Worker heartbeat"),
         checkFromSource(checkSources, "Verified backups"),
+        checkFromSource(checkSources, "Manual backup requests"),
         checkFromSource(checkSources, "Off-server backups"),
         checkFromSource(checkSources, "Public app URL"),
         checkFromSource(checkSources, "Internal task token")

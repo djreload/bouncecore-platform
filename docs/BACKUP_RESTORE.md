@@ -230,7 +230,12 @@ BACKUP_STATUS_FILE=/app/public/uploads/.ops/backup-status.env
 BACKUP_MAX_AGE_HOURS=30
 OFFSITE_BACKUP_STATUS_FILE=/app/public/uploads/.ops/offsite-backup-status.env
 OFFSITE_BACKUP_MAX_AGE_HOURS=30
+BACKUP_RUN_STATUS_FILE=/app/public/uploads/.ops/backup-run-status.env
+BACKUP_RUN_QUEUED_WARNING_MINUTES=5
+BACKUP_RUN_RUNNING_WARNING_MINUTES=180
 ```
+
+Admin-requested backups appear as `Manual backup requests` in System health. A fresh queued/running request is treated as healthy. A request queued longer than `BACKUP_RUN_QUEUED_WARNING_MINUTES`, a request running longer than `BACKUP_RUN_RUNNING_WARNING_MINUTES`, or a failed last manual run is reported as an operations warning.
 
 Alternative daily cron entry:
 
