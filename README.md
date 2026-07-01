@@ -247,6 +247,12 @@ sudo bash scripts/install-backup-schedule.sh --backup-root /srv/bouncecore-backu
 
 The backup script and timer installer also support `--offsite-age-recipient`, `--offsite-age-recipient-file`, `--offsite-rclone-remote`, and `--offsite-remove-local-after-upload` for automated encrypted off-server copies.
 
+Guided off-server backup setup:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh --age-recipient age1examplepublickey --rclone-remote r2:bouncecore-backups/prod --install-packages
+```
+
 Verified backup status is copied into the uploads volume so Admin -> System health can warn when backups are missing, failed, or stale.
 Encrypted off-server export status is also copied into the uploads volume when enabled, so Admin -> System health can warn when the latest export is missing, stale, or local-only.
 

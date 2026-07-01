@@ -165,6 +165,19 @@ sudo bash scripts/install-backup-schedule.sh \
   --offsite-rclone-remote r2:bouncecore-backups/prod
 ```
 
+Recommended guided setup for encrypted off-server exports:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh \
+  --backup-root /srv/bouncecore-backups \
+  --age-recipient age1examplepublickey \
+  --rclone-remote r2:bouncecore-backups/prod \
+  --install-packages \
+  --run-now
+```
+
+The helper checks `age` and `rclone`, optionally installs them on Debian/Ubuntu, writes and deletes a small probe file in the rclone destination, installs the systemd timer with off-server export enabled, and can start one backup immediately. Use `--dry-run` to print the exact timer install command without changing systemd.
+
 Inspect the installed timer:
 
 ```bash
@@ -223,6 +236,15 @@ bash scripts/export-backup-offsite.sh \
   /srv/bouncecore-backups/20260608T203000Z \
   --age-recipient age1examplepublickey \
   --rclone-remote r2:bouncecore-backups/prod
+```
+
+Validate and install the automated off-server backup timer:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh \
+  --age-recipient age1examplepublickey \
+  --rclone-remote r2:bouncecore-backups/prod \
+  --install-packages
 ```
 
 The export writes:
