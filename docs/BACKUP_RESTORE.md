@@ -50,6 +50,7 @@ bash scripts/backup-instance.sh --status-volume-path .ops/backup-status.env
 bash scripts/backup-instance.sh --skip-status-volume
 bash scripts/backup-instance.sh --skip-volumes
 bash scripts/backup-instance.sh --skip-verify
+bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --offsite-age-recipient age1examplepublickey --offsite-rclone-remote r2:bouncecore-backups/prod
 ```
 
 ## Verify a Backup
@@ -145,6 +146,16 @@ sudo bash scripts/install-backup-schedule.sh \
   --on-calendar "*-*-* 03:15:00"
 ```
 
+With encrypted off-server export enabled:
+
+```bash
+sudo bash scripts/install-backup-schedule.sh \
+  --backup-root /srv/bouncecore-backups \
+  --retention-days 14 \
+  --offsite-age-recipient age1examplepublickey \
+  --offsite-rclone-remote r2:bouncecore-backups/prod
+```
+
 Inspect the installed timer:
 
 ```bash
@@ -169,7 +180,56 @@ Alternative daily cron entry:
 
 ## Off-Server Copies
 
-Local backups are not enough. Copy backup folders to a separate machine or object storage. A production-ready setup should eventually encrypt each dated backup and upload it to an S3/R2-compatible bucket with lifecycle retention.
+Local backups are not enough. Copy backup folders to a separate machine or object storage. Production backups should be encrypted before they leave the server.
+
+The off-server export script uses `age` for public-key encryption and can optionally upload with `rclone`:
+
+```bash
+sudo apt-get install age rclone
+```
+
+Generate the private key on a separate trusted machine when possible, not on the production server:
+
+```bash
+age-keygen -o bouncecore-backup.agekey
+grep 'public key:' bouncecore-backup.agekey
+```
+
+Keep `bouncecore-backup.agekey` offline or in a secure password manager. Put only the public key on the server or pass it as a command argument.
+
+Manual encrypted export:
+
+```bash
+bash scripts/export-backup-offsite.sh \
+  /srv/bouncecore-backups/20260608T203000Z \
+  --age-recipient age1examplepublickey
+```
+
+Manual encrypted export plus upload through an already-configured rclone remote:
+
+```bash
+bash scripts/export-backup-offsite.sh \
+  /srv/bouncecore-backups/20260608T203000Z \
+  --age-recipient age1examplepublickey \
+  --rclone-remote r2:bouncecore-backups/prod
+```
+
+The export writes:
+
+```text
+/srv/bouncecore-backups/offsite/20260608T203000Z.tar.gz.age
+/srv/bouncecore-backups/offsite/20260608T203000Z.tar.gz.age.sha256
+/srv/bouncecore-backups/offsite/20260608T203000Z.offsite.env
+```
+
+The export script requires `verification.env` with `status=healthy` by default. This prevents broken backups from being copied off-server and mistaken for good disaster-recovery points.
+
+To decrypt on the trusted recovery machine:
+
+```bash
+age --decrypt -i bouncecore-backup.agekey 20260608T203000Z.tar.gz.age > 20260608T203000Z.tar.gz
+tar -xzf 20260608T203000Z.tar.gz
+```
 
 ## Restore Checks
 

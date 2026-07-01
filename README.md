@@ -227,11 +227,19 @@ Run a non-destructive restore drill against a dated backup:
 bash scripts/restore-drill.sh /srv/bouncecore-backups/20260608T203000Z
 ```
 
+Export a verified backup as an encrypted age package, optionally through rclone:
+
+```bash
+bash scripts/export-backup-offsite.sh /srv/bouncecore-backups/20260608T203000Z --age-recipient age1examplepublickey
+```
+
 Install a daily systemd backup timer:
 
 ```bash
 sudo bash scripts/install-backup-schedule.sh --backup-root /srv/bouncecore-backups --retention-days 14
 ```
+
+The backup script and timer installer also support `--offsite-age-recipient`, `--offsite-age-recipient-file`, `--offsite-rclone-remote`, and `--offsite-remove-local-after-upload` for automated encrypted off-server copies.
 
 Verified backup status is copied into the uploads volume so Admin -> System health can warn when backups are missing, failed, or stale.
 

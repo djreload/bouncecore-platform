@@ -39,6 +39,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added backup verification, local retention pruning, and a Debian/Ubuntu systemd timer installer for automated Bouncecore instance backups.
 - Added backup status tracking in the uploads volume and production readiness warnings for missing, failed, or stale verified backups.
 - Added a non-destructive restore drill script that restores backups into temporary Docker resources and reports database/table and volume extraction status.
+- Added encrypted off-server backup export using age, optional rclone upload, and scheduled-backup integration flags.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 

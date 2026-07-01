@@ -11,6 +11,11 @@ SKIP_VOLUMES=false
 SKIP_STATUS_VOLUME=false
 STATUS_VOLUME_PATH=".ops/backup-status.env"
 VERIFY_BACKUP=true
+OFFSITE_AGE_RECIPIENT=""
+OFFSITE_AGE_RECIPIENT_FILE=""
+OFFSITE_OUTPUT_DIR=""
+OFFSITE_RCLONE_REMOTE=""
+OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=false
 
 info() {
   printf '\n==> %s\n' "$1"
@@ -40,6 +45,16 @@ Options:
   --skip-volumes        Do not archive Docker volumes.
   --skip-status-volume  Do not copy latest backup status into the uploads Docker volume.
   --skip-verify         Do not verify the completed backup artifacts.
+  --offsite-age-recipient KEY
+                        age public recipient key for encrypted off-server export.
+  --offsite-age-recipient-file PATH
+                        File containing age public recipient keys for encrypted export.
+  --offsite-output-dir PATH
+                        Local encrypted export directory. Default: BACKUP_ROOT/offsite.
+  --offsite-rclone-remote REMOTE
+                        Optional rclone destination directory for encrypted exports.
+  --offsite-remove-local-after-upload
+                        Delete local encrypted export files after successful rclone upload.
   -h, --help            Show this help.
 USAGE
 }
@@ -242,6 +257,44 @@ copy_status_to_uploads_volume() {
   docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
+export_offsite_backup() {
+  local -a args
+
+  if [ -z "$OFFSITE_AGE_RECIPIENT" ] && [ -z "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
+    return
+  fi
+
+  if [ "$VERIFICATION_STATUS" != "healthy" ]; then
+    warn "Encrypted off-server export skipped because backup verification status is $VERIFICATION_STATUS."
+    return
+  fi
+
+  args=("$APP_ROOT/scripts/export-backup-offsite.sh" "$BACKUP_DIR")
+
+  if [ -n "$OFFSITE_AGE_RECIPIENT" ]; then
+    args+=("--age-recipient" "$OFFSITE_AGE_RECIPIENT")
+  fi
+
+  if [ -n "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
+    args+=("--age-recipient-file" "$OFFSITE_AGE_RECIPIENT_FILE")
+  fi
+
+  if [ -n "$OFFSITE_OUTPUT_DIR" ]; then
+    args+=("--output-dir" "$OFFSITE_OUTPUT_DIR")
+  fi
+
+  if [ -n "$OFFSITE_RCLONE_REMOTE" ]; then
+    args+=("--rclone-remote" "$OFFSITE_RCLONE_REMOTE")
+  fi
+
+  if [ "$OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD" = "true" ]; then
+    args+=("--remove-local-after-upload")
+  fi
+
+  info "Creating encrypted off-server backup export"
+  bash "${args[@]}"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --env-file)
@@ -285,6 +338,30 @@ while [ "$#" -gt 0 ]; do
       VERIFY_BACKUP=false
       shift
       ;;
+    --offsite-age-recipient)
+      [ "$#" -ge 2 ] || die "--offsite-age-recipient requires a key."
+      OFFSITE_AGE_RECIPIENT="$2"
+      shift 2
+      ;;
+    --offsite-age-recipient-file)
+      [ "$#" -ge 2 ] || die "--offsite-age-recipient-file requires a path."
+      OFFSITE_AGE_RECIPIENT_FILE="$(resolve_path "$2")"
+      shift 2
+      ;;
+    --offsite-output-dir)
+      [ "$#" -ge 2 ] || die "--offsite-output-dir requires a path."
+      OFFSITE_OUTPUT_DIR="$(resolve_path "$2")"
+      shift 2
+      ;;
+    --offsite-rclone-remote)
+      [ "$#" -ge 2 ] || die "--offsite-rclone-remote requires a destination."
+      OFFSITE_RCLONE_REMOTE="$2"
+      shift 2
+      ;;
+    --offsite-remove-local-after-upload)
+      OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -300,6 +377,12 @@ done
 command -v docker >/dev/null 2>&1 || die "Docker is required."
 docker compose version >/dev/null 2>&1 || die "Docker Compose plugin is required."
 [[ "$RETENTION_DAYS" =~ ^[0-9]+$ ]] || die "--retention-days must be a non-negative integer."
+if [ -n "$OFFSITE_AGE_RECIPIENT" ] && [ -n "$OFFSITE_AGE_RECIPIENT_FILE" ]; then
+  die "Use either --offsite-age-recipient or --offsite-age-recipient-file, not both."
+fi
+if [ "$OFFSITE_REMOVE_LOCAL_AFTER_UPLOAD" = "true" ] && [ -z "$OFFSITE_RCLONE_REMOTE" ]; then
+  die "--offsite-remove-local-after-upload requires --offsite-rclone-remote."
+fi
 case "$STATUS_VOLUME_PATH" in
   *[!A-Za-z0-9._/-]*) die "--status-volume-path supports only letters, numbers, dot, underscore, dash, and slash." ;;
   *..*) die "--status-volume-path cannot contain '..'." ;;
@@ -370,6 +453,7 @@ if [ "$VERIFY_EXIT_CODE" -ne 0 ]; then
   die "Backup verification failed. Inspect $BACKUP_DIR/verification.env"
 fi
 
+export_offsite_backup
 prune_old_backups
 
 info "Backup complete"
