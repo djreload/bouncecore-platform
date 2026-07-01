@@ -310,7 +310,7 @@ copy_status_to_uploads_volume() {
   target_name="$(basename "$target_path")"
 
   info "Writing latest backup status to uploads volume $UPLOADS_VOLUME:$target_path"
-  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && chown 1001:65534 \"/uploads/$target_dir\" && chmod 775 \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
 copy_offsite_status_to_uploads_volume() {
@@ -339,7 +339,7 @@ copy_offsite_status_to_uploads_volume() {
   target_name="$(basename "$target_path")"
 
   info "Writing latest offsite backup status to uploads volume $UPLOADS_VOLUME:$target_path"
-  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && chown 1001:65534 \"/uploads/$target_dir\" && chmod 775 \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
 load_offsite_config_values() {

@@ -242,7 +242,12 @@ services:
 
 volumes:
   bouncecore_postgres_data:
+    name: ${POSTGRES_VOLUME:-bouncecore-platform_bouncecore_postgres_data}
   bouncecore_redis_data:
+    name: ${REDIS_VOLUME:-bouncecore-platform_bouncecore_redis_data}
   bouncecore_uploads:
+    name: ${UPLOADS_VOLUME:-bouncecore-platform_bouncecore_uploads}
   bouncecore_stream_core_data:
+    name: ${STREAM_CORE_VOLUME:-bouncecore-platform_bouncecore_stream_core_data}
   bouncecore_transcoder_hls:
+    name: ${TRANSCODER_HLS_VOLUME:-bouncecore-platform_bouncecore_transcoder_hls}

@@ -171,7 +171,7 @@ write_status_to_uploads_volume() {
     printf 'message=%s\n' "$(sanitize_status_value "$message")"
   } > "$status_file"
 
-  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
+  docker run --rm -v "$UPLOADS_VOLUME:/uploads" -v "$status_file:/status.env:ro" alpine:3.20 sh -c "mkdir -p \"/uploads/$target_dir\" && chown 1001:65534 \"/uploads/$target_dir\" && chmod 775 \"/uploads/$target_dir\" && cp /status.env \"/uploads/$target_dir/$target_name\" && chmod 644 \"/uploads/$target_dir/$target_name\""
 }
 
 delete_request_from_uploads_volume() {
