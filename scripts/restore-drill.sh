@@ -90,10 +90,19 @@ wait_for_postgres() {
       return
     fi
 
+    if [ "$(docker inspect -f '{{.State.Running}}' "$POSTGRES_CONTAINER" 2>/dev/null || printf 'false')" != "true" ]; then
+      return 1
+    fi
+
     sleep 2
   done
 
   return 1
+}
+
+print_postgres_logs() {
+  warn "Temporary PostgreSQL logs:"
+  docker logs --tail 80 "$POSTGRES_CONTAINER" >&2 || true
 }
 
 restore_database_drill() {
@@ -120,11 +129,12 @@ restore_database_drill() {
     -e "POSTGRES_DB=$POSTGRES_DB" \
     -e "POSTGRES_USER=$POSTGRES_USER" \
     -e "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
-    -v "$POSTGRES_VOLUME:/var/lib/postgresql/data" \
+    -v "$POSTGRES_VOLUME:/var/lib/postgresql" \
     "$POSTGRES_IMAGE" >/dev/null
 
   if ! wait_for_postgres; then
     warn "Temporary PostgreSQL did not become ready."
+    print_postgres_logs
     DB_STATUS="failed"
     FAILURES=$((FAILURES + 1))
     return
@@ -132,6 +142,7 @@ restore_database_drill() {
 
   if ! docker exec -i "$POSTGRES_CONTAINER" pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-acl < "$dump_file"; then
     warn "pg_restore failed inside the temporary PostgreSQL container."
+    print_postgres_logs
     DB_STATUS="failed"
     FAILURES=$((FAILURES + 1))
     return
