@@ -243,6 +243,22 @@ age --decrypt -i bouncecore-backup.agekey 20260608T203000Z.tar.gz.age > 20260608
 tar -xzf 20260608T203000Z.tar.gz
 ```
 
+To verify an off-server export without restoring it:
+
+```bash
+bash scripts/verify-offsite-backup.sh \
+  20260608T203000Z.tar.gz.age \
+  --identity bouncecore-backup.agekey
+```
+
+The verifier checks the `.sha256` file, decrypts the package, lists the tar archive, confirms required Bouncecore backup files exist, and checks that the original `verification.env` inside the archive is healthy. It writes:
+
+```text
+20260608T203000Z.offsite-verify.env
+```
+
+Run this on a trusted recovery machine after downloading a copy from object storage. Do not keep the private age identity key on the production server.
+
 ## Restore Checks
 
 After a restore:

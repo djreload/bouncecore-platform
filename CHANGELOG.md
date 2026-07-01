@@ -41,6 +41,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added a non-destructive restore drill script that restores backups into temporary Docker resources and reports database/table and volume extraction status.
 - Added encrypted off-server backup export using age, optional rclone upload, and scheduled-backup integration flags.
 - Added off-server backup status reporting in Admin -> System health and production readiness.
+- Added a recovery-side verifier for encrypted off-server backup packages.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 

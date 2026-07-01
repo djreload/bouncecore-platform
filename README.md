@@ -233,6 +233,12 @@ Export a verified backup as an encrypted age package, optionally through rclone:
 bash scripts/export-backup-offsite.sh /srv/bouncecore-backups/20260608T203000Z --age-recipient age1examplepublickey
 ```
 
+Verify an encrypted off-server backup on a trusted recovery machine:
+
+```bash
+bash scripts/verify-offsite-backup.sh 20260608T203000Z.tar.gz.age --identity bouncecore-backup.agekey
+```
+
 Install a daily systemd backup timer:
 
 ```bash
