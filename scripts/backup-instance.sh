@@ -511,8 +511,12 @@ export_offsite_backup() {
   prepare_google_drive_rclone_config
 
   info "Creating encrypted off-server backup export"
-  bash "${args[@]}"
-  copy_offsite_status_to_uploads_volume
+  if bash "${args[@]}"; then
+    copy_offsite_status_to_uploads_volume
+  else
+    copy_offsite_status_to_uploads_volume
+    return 1
+  fi
 }
 
 while [ "$#" -gt 0 ]; do
