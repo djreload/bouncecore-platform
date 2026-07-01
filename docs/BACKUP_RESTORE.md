@@ -74,6 +74,28 @@ backups/20260608T203000Z/verification.env
 
 The report includes `status`, `failures`, `warnings`, and `verified_at`. Treat a failed verification as a broken backup until it is investigated.
 
+## Restore Drill
+
+Run a non-destructive restore drill before trusting a backup process in production:
+
+```bash
+bash scripts/restore-drill.sh backups/20260608T203000Z
+```
+
+The drill creates temporary Docker volumes, a temporary Docker network, and a temporary PostgreSQL container. It restores the database dump and extracts each saved volume archive, then writes:
+
+```text
+backups/20260608T203000Z/restore-drill.env
+```
+
+The report includes `status`, `failures`, restored database table count, and restored file counts for each volume. Temporary Docker resources are removed automatically unless `--keep` is passed for inspection:
+
+```bash
+bash scripts/restore-drill.sh /srv/bouncecore-backups/20260608T203000Z --keep
+```
+
+This does not stop or overwrite the live app. Use it as a regular disaster-recovery confidence check after backup-script changes and before major releases.
+
 ## Restore a Backup
 
 Restores are destructive. The restore script stops services that use restored data, restores the database and volume archives, then starts the base `postgres`, `redis`, and `app` services.

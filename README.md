@@ -221,6 +221,12 @@ Verify a backup without restoring it:
 bash scripts/verify-backup-instance.sh --backup-root /srv/bouncecore-backups --latest
 ```
 
+Run a non-destructive restore drill against a dated backup:
+
+```bash
+bash scripts/restore-drill.sh /srv/bouncecore-backups/20260608T203000Z
+```
+
 Install a daily systemd backup timer:
 
 ```bash
