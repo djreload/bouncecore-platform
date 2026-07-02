@@ -26,7 +26,7 @@ BOUNCECORE_WEB_URL=<https-url>
 For command-line debug builds on Windows:
 
 ```powershell
-.\android-webview\gradlew.bat -p android-webview --no-daemon assembleDebug -PBOUNCECORE_WEB_URL=<https-url> -PLEVELPLAY_APP_KEY=<app-key> -PLEVELPLAY_BANNER_AD_UNIT_ID=<banner-ad-unit-id> -PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=<interstitial-ad-unit-id>
+.\android-webview\gradlew.bat -p android-webview --no-daemon assembleDebug -PBOUNCECORE_DEBUG_WEB_URL=<https-url> -PLEVELPLAY_APP_KEY=<app-key> -PLEVELPLAY_BANNER_AD_UNIT_ID=<banner-ad-unit-id> -PLEVELPLAY_INTERSTITIAL_AD_UNIT_ID=<interstitial-ad-unit-id>
 ```
 
 The debug APK is written to `android-webview/app/build/outputs/apk/debug/app-debug.apk`.
@@ -38,7 +38,7 @@ Use the release scripts from the repository root:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-android-release-keystore.ps1 -GeneratePasswords
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl <https-url> -VersionCode 2 -VersionName 1.0.1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://app.yourdomain.com -VersionCode 2 -VersionName 1.0.1
 ```
 
 For Google Play, add `-Bundle` to create `app-release.aab`.
@@ -47,7 +47,7 @@ Full release instructions are in `docs/ANDROID_RELEASE.md`. Back up `android-web
 Release builds can also embed fallback mobile integration values used before the backend config response is available:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl <https-url> -VersionCode 1 -VersionName 1.0.0 -Bundle -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-unit-id> -InterstitialAdUnitId <interstitial-unit-id>
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 -WebUrl https://app.yourdomain.com -VersionCode 1 -VersionName 1.0.0 -Bundle -LevelPlayAppKey <app-key> -BannerAdUnitId <banner-unit-id> -InterstitialAdUnitId <interstitial-unit-id>
 ```
 
 ## Push Notifications

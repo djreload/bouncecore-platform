@@ -54,7 +54,7 @@ The credentials file contains the signing passwords and is required for non-inte
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
-  -WebUrl https://your-domain.example `
+  -WebUrl https://app.yourdomain.com `
   -VersionCode 2 `
   -VersionName 1.0.1
 ```
@@ -71,7 +71,7 @@ Google Play normally expects an Android App Bundle:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
-  -WebUrl https://your-domain.example `
+  -WebUrl https://app.yourdomain.com `
   -VersionCode 2 `
   -VersionName 1.0.1 `
   -Bundle
@@ -90,7 +90,7 @@ Use the generated credentials file:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
   -CredentialsPath C:\secure\bouncecore-signing.properties `
-  -WebUrl https://your-domain.example `
+  -WebUrl https://app.yourdomain.com `
   -VersionCode 2 `
   -VersionName 1.0.1 `
   -Bundle
@@ -109,7 +109,7 @@ Then run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
-  -WebUrl https://your-domain.example `
+  -WebUrl https://app.yourdomain.com `
   -VersionCode 2 `
   -VersionName 1.0.1 `
   -Bundle
@@ -139,7 +139,7 @@ uk.co.bouncecore.app
 The Android app still pulls live settings from:
 
 ```text
-https://your-domain.example/api/mobile/v1/config
+https://app.yourdomain.com/api/mobile/v1/config
 ```
 
 That means mobile ads, maintenance mode, update policy, Firebase push config, and feature flags can be changed in `Admin -> Mobile` without rebuilding the app. The release build only needs the correct WebView base URL and package signing.
@@ -148,7 +148,7 @@ For Play Store release candidates, you can also embed fallback values used befor
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-release.ps1 `
-  -WebUrl https://your-domain.example `
+  -WebUrl https://app.yourdomain.com `
   -VersionCode 1 `
   -VersionName 1.0.0 `
   -Bundle `
