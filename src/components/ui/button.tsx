@@ -9,9 +9,8 @@ const buttonVariants = cva(
       variant: {
         primary: "bc-button-primary bg-bc-electric text-bc-void",
         pink: "bc-button-pink bg-bc-pink text-white",
-        ghost:
-          "border border-bc-line bg-white/5 text-white hover:border-bc-electric/60 hover:bg-bc-electric/10 hover:shadow-[0_0_24px_rgba(0,213,255,0.12)]",
-        dark: "border border-bc-line bg-bc-panel text-white hover:border-bc-pink/60 hover:shadow-[0_0_24px_rgba(255,43,214,0.12)]"
+        ghost: "bc-button-ghost border border-bc-line text-white",
+        dark: "bc-button-dark border border-bc-line text-white"
       },
       size: {
         sm: "min-h-9 px-3 text-xs",

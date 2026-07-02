@@ -68,14 +68,25 @@ test("theme input normalizes lowercase hex and rejects unknown tokens", () => {
 
 test("shared visual system styling is driven by theme tokens", () => {
   assert.match(globalsCss, /--bc-surface-glass:/);
+  assert.match(globalsCss, /--bc-gradient-brand:/);
+  assert.match(globalsCss, /--bc-field-surface:/);
   assert.match(globalsCss, /color-mix\(in srgb, var\(--color-bc-panel\)/);
   assert.match(globalsCss, /\.bc-button-primary/);
   assert.match(globalsCss, /\.bc-button-pink/);
+  assert.match(globalsCss, /\.bc-button-ghost/);
+  assert.match(globalsCss, /\.bc-button-dark/);
+  assert.match(globalsCss, /input\[type="file"\]::file-selector-button/);
+  assert.match(globalsCss, /:where\(\.bc-app-shell, \.bc-dashboard-shell\) th/);
+  assert.match(globalsCss, /@keyframes bc-background-drift/);
+  assert.match(globalsCss, /prefers-reduced-motion: reduce/);
   assert.doesNotMatch(globalsCss, /rgba\(17,\s*20,\s*33,\s*0\.96\)/);
   assert.doesNotMatch(globalsCss, /rgba\(11,\s*13,\s*20,\s*0\.98\)/);
 
   assert.match(buttonSource, /bc-button-primary/);
   assert.match(buttonSource, /bc-button-pink/);
+  assert.match(buttonSource, /bc-button-ghost/);
+  assert.match(buttonSource, /bc-button-dark/);
   assert.doesNotMatch(buttonSource, /#00d5ff/);
   assert.doesNotMatch(buttonSource, /#ff2bd6/);
+  assert.doesNotMatch(buttonSource, /shadow-\[/);
 });
