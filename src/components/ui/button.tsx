@@ -7,10 +7,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary:
-          "bg-[linear-gradient(135deg,#00d5ff,#7deeff)] text-bc-void shadow-[0_0_28px_rgba(0,213,255,0.32)] hover:shadow-[0_0_34px_rgba(0,213,255,0.42)]",
-        pink:
-          "bg-[linear-gradient(135deg,#ff2bd6,#ff68e7)] text-white shadow-[0_0_28px_rgba(255,43,214,0.28)] hover:shadow-[0_0_34px_rgba(255,43,214,0.42)]",
+        primary: "bc-button-primary bg-bc-electric text-bc-void",
+        pink: "bc-button-pink bg-bc-pink text-white",
         ghost:
           "border border-bc-line bg-white/5 text-white hover:border-bc-electric/60 hover:bg-bc-electric/10 hover:shadow-[0_0_24px_rgba(0,213,255,0.12)]",
         dark: "border border-bc-line bg-bc-panel text-white hover:border-bc-pink/60 hover:shadow-[0_0_24px_rgba(255,43,214,0.12)]"
