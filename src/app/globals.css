@@ -14,25 +14,72 @@
   --color-bc-amber: #ffb020;
 }
 
+:root {
+  --bc-shadow-soft: 0 18px 54px rgba(0, 0, 0, 0.34);
+  --bc-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --bc-shadow-active: 0 0 0 1px rgba(0, 213, 255, 0.24), 0 0 30px rgba(0, 213, 255, 0.18);
+  --bc-surface-glass:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 36%),
+    linear-gradient(180deg, rgba(17, 20, 33, 0.96), rgba(9, 11, 19, 0.98));
+  --bc-surface-ink:
+    linear-gradient(145deg, rgba(0, 213, 255, 0.035), transparent 42%),
+    linear-gradient(180deg, rgba(11, 13, 20, 0.98), rgba(6, 7, 12, 0.98));
+  --bc-border-glow: rgba(95, 108, 152, 0.5);
+}
+
 * {
   box-sizing: border-box;
 }
 
 html {
   color-scheme: dark;
+  scrollbar-color: rgba(0, 213, 255, 0.55) rgba(9, 11, 19, 0.86);
+  scrollbar-gutter: stable;
 }
 
 body {
+  position: relative;
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(135deg, rgba(0, 213, 255, 0.06), transparent 34%),
-    linear-gradient(225deg, rgba(255, 43, 214, 0.08), transparent 35%),
+    linear-gradient(115deg, rgba(0, 213, 255, 0.08), transparent 30%),
+    linear-gradient(245deg, rgba(255, 43, 214, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(139, 92, 246, 0.055), transparent 48%),
     #05050a;
   color: #f7fbff;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  font-synthesis-weight: none;
+  overflow-x: hidden;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 28%, rgba(0, 0, 0, 0.22));
+  background-position:
+    center top,
+    center top,
+    center;
+  background-size:
+    56px 56px,
+    56px 56px,
+    100% 100%;
+  mask-image: linear-gradient(180deg, black, rgba(0, 0, 0, 0.5) 64%, transparent);
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 a {
@@ -45,6 +92,243 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+::selection {
+  background: rgba(0, 213, 255, 0.34);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(9, 11, 19, 0.9);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid rgba(9, 11, 19, 0.9);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(0, 213, 255, 0.8), rgba(255, 43, 214, 0.64));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #00d5ff, #ff2bd6);
+}
+
+input,
+textarea,
+select {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: rgba(0, 213, 255, 0.7) !important;
+  box-shadow: 0 0 0 1px rgba(0, 213, 255, 0.42), 0 0 0 4px rgba(0, 213, 255, 0.12);
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(167, 176, 196, 0.68);
+}
+
+select {
+  color-scheme: dark;
+}
+
+.bc-app-shell,
+.bc-dashboard-shell {
+  background:
+    linear-gradient(180deg, rgba(11, 13, 20, 0.52), rgba(5, 5, 10, 0.95) 42%),
+    transparent;
+}
+
+.bc-site-header {
+  position: sticky;
+  isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(9, 11, 19, 0.94), rgba(5, 5, 10, 0.86)),
+    rgba(5, 5, 10, 0.9);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
+}
+
+.bc-site-header::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(90deg, transparent, rgba(0, 213, 255, 0.62), rgba(255, 43, 214, 0.44), transparent);
+  opacity: 0.84;
+}
+
+.bc-site-footer {
+  background:
+    linear-gradient(180deg, rgba(11, 13, 20, 0.96), rgba(5, 5, 10, 0.98)),
+    #0b0d14;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.bc-dashboard-sidebar,
+.bc-dashboard-hero {
+  background: var(--bc-surface-glass);
+  border-color: var(--bc-border-glow);
+  box-shadow: var(--bc-shadow-panel);
+}
+
+.bc-dashboard-hero {
+  overflow: hidden;
+  position: relative;
+}
+
+.bc-dashboard-hero::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, rgba(0, 213, 255, 0.14), transparent 32%),
+    linear-gradient(270deg, rgba(255, 43, 214, 0.1), transparent 36%);
+  opacity: 0.72;
+}
+
+.bc-dashboard-hero > * {
+  position: relative;
+}
+
+.bc-brand-mark {
+  background:
+    linear-gradient(145deg, rgba(0, 213, 255, 0.24), rgba(255, 43, 214, 0.08)),
+    rgba(0, 213, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgba(0, 213, 255, 0.18),
+    0 0 28px rgba(0, 213, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.bc-button {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateZ(0);
+}
+
+.bc-button::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(120deg, transparent 0 32%, rgba(255, 255, 255, 0.18) 46%, transparent 62%);
+  opacity: 0;
+  transform: translateX(-120%);
+  transition:
+    opacity 180ms ease,
+    transform 420ms ease;
+}
+
+.bc-button:hover::before {
+  opacity: 1;
+  transform: translateX(120%);
+}
+
+.bc-button:active {
+  transform: translateY(1px);
+}
+
+.bc-button > * {
+  position: relative;
+}
+
+.bc-badge {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 18px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.bc-nav-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.bc-nav-link::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: linear-gradient(180deg, #00d5ff, #ff2bd6);
+  opacity: 0;
+  transform: scaleY(0.42);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.bc-nav-link:hover::before,
+.bc-nav-link-active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.bc-nav-link-active {
+  box-shadow: var(--bc-shadow-active);
+}
+
+.bc-mobile-menu-panel {
+  background:
+    linear-gradient(180deg, rgba(11, 13, 20, 0.98), rgba(5, 5, 10, 0.98)),
+    #05050a;
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.56);
+}
+
+.bc-icon-button {
+  background: var(--bc-surface-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 26px rgba(0, 0, 0, 0.22);
+}
+
+:where(article, section, aside, form).bg-bc-panel.border-bc-line {
+  border-color: var(--bc-border-glow);
+  background: var(--bc-surface-glass);
+  box-shadow: var(--bc-shadow-panel);
+}
+
+:where(article, section, aside, form).bg-bc-ink.border-bc-line {
+  border-color: rgba(72, 84, 124, 0.58);
+  background: var(--bc-surface-ink);
+  box-shadow: var(--bc-shadow-soft);
+}
+
+:where(article, section, form).bg-bc-panel.border-bc-line,
+:where(article, section, form).bg-bc-ink.border-bc-line {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(article, section, form).bg-bc-panel.border-bc-line:hover,
+  :where(article, section, form).bg-bc-ink.border-bc-line:hover {
+    border-color: rgba(0, 213, 255, 0.34);
+    box-shadow: var(--bc-shadow-panel), 0 0 30px rgba(0, 213, 255, 0.06);
+  }
+}
+
+@media (min-width: 1024px) {
+  .bc-dashboard-sidebar {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
 }
 
 .bc-grid {
@@ -1545,6 +1829,10 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   .bc-chat-effect::after,
   .bc-chat-effect-particle,
   .bc-chat-effect .bc-chat-effect-letter,
+  .bc-button,
+  .bc-button::before,
+  .bc-nav-link,
+  .bc-nav-link::before,
   .bc-giveaway-bulbs span,
   .bc-giveaway-wheel,
   .bc-giveaway-winner-toast,

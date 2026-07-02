@@ -24,8 +24,8 @@ export function NavList({ items, compact = false, orientation = "vertical" }: Na
         return (
           <Link
             className={cn(
-              "bc-focus-ring flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm text-bc-muted transition hover:border-bc-line hover:bg-white/5 hover:text-white",
-              active && "border-bc-electric/45 bg-bc-electric/10 text-white shadow-[0_0_24px_rgba(0,213,255,0.16)]",
+              "bc-nav-link bc-focus-ring flex items-center gap-2 rounded-md border border-transparent px-3 py-2 text-sm text-bc-muted transition hover:border-bc-line hover:bg-white/5 hover:text-white",
+              active && "bc-nav-link-active border-bc-electric/45 bg-bc-electric/10 text-white shadow-[0_0_24px_rgba(0,213,255,0.16)]",
               compact && "h-10 w-10 justify-center px-0",
               orientation === "horizontal" && "h-10"
             )}

@@ -20,7 +20,7 @@ export function BrandMark({ className, iconClassName, logoUrl, siteName }: Brand
   return (
     <span
       className={cn(
-        "grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-electric/40 bg-bc-electric/10 text-bc-electric shadow-[0_0_26px_rgba(0,213,255,0.22)]",
+        "bc-brand-mark grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-electric/40 bg-bc-electric/10 text-bc-electric shadow-[0_0_26px_rgba(0,213,255,0.22)]",
         className
       )}
     >

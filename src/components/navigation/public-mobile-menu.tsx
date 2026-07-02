@@ -46,7 +46,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
       <button
         aria-expanded={open}
         aria-label="Open site menu"
-        className="bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
+        className="bc-icon-button bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
         onClick={() => setOpen(true)}
         type="button"
       >
@@ -61,7 +61,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
             onClick={closeMenu}
             type="button"
           />
-          <aside className="fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
+          <aside className="bc-mobile-menu-panel fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
             <div className="shrink-0 border-b border-bc-line bg-bc-ink p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -73,7 +73,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
                 </div>
                 <button
                   aria-label="Close site menu"
-                  className="bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
+                  className="bc-icon-button bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
                   onClick={closeMenu}
                   type="button"
                 >
