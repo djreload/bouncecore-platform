@@ -48,6 +48,7 @@ import "./restream-settings.test.mjs";
 import "./reward-wheel-core.test.mjs";
 import "./sheep-throw-settings.test.mjs";
 import "./sheep-throw-overlay.test.mjs";
+import "./site-theme.test.mjs";
 import "./star-packages.test.mjs";
 import "./stream-core-playback-url.test.mjs";
 import "./support-request.test.mjs";
