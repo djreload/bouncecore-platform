@@ -8,6 +8,7 @@ export const defaultSmokeChecks = [
   { id: "music", kind: "html", label: "Music catalogue", path: "/music" },
   { id: "shop", kind: "html", label: "Shop catalogue", path: "/shop" },
   { id: "support", kind: "html", label: "Support page", path: "/support" },
+  { id: "account-delete", kind: "html", label: "Account deletion page", path: "/account/delete" },
   { id: "privacy", kind: "html", label: "Privacy policy", path: "/privacy" },
   { id: "terms", kind: "html", label: "Terms page", path: "/terms" },
   { id: "cookies", kind: "html", label: "Cookie policy", path: "/cookies" },

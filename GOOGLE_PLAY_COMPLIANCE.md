@@ -73,9 +73,9 @@ Implemented path:
 
 - Website/account: `/account/settings#delete-account`
 - Android app: WebView account settings exposes the same flow.
-- Outside-app URL for Play Console: configure a public account deletion help URL, for example `https://bouncecore.example.com/account/settings` or a dedicated public deletion request page if you require non-authenticated requests.
+- Outside-app URL for Play Console: `https://bouncecore.example.com/account/delete`
 
-The current implementation creates a tracked account deletion support request. Operators must process deletion/anonymisation and document any retained records required for payment, tax, fraud prevention, security, or legal obligations.
+The signed-in settings flow can delete the user account after confirmation. The public outside-app URL creates a tracked high-priority account deletion support request, because unauthenticated requests must be ownership-verified before deletion. Operators must process deletion/anonymisation and document any retained records required for payment, tax, fraud prevention, security, or legal obligations.
 
 ## Consent Implementation
 
@@ -101,7 +101,7 @@ Use this as a starting point; the developer/operator remains responsible for fin
 - Data collected: Yes.
 - Data shared: Yes, with service providers listed above.
 - Data encrypted in transit: Yes, when deployed behind HTTPS.
-- Users can request deletion: Yes, via account settings and web URL.
+- Users can request deletion: Yes, via account settings and the public `/account/delete` web URL.
 - Account creation: Yes.
 - Financial info: Purchases and payment references are handled by PayPal. Full card details are not stored by Bouncecore.
 - User IDs / device IDs: Declare FCM token/device metadata and Advertising ID for ads.
@@ -113,7 +113,7 @@ Use this as a starting point; the developer/operator remains responsible for fin
 ## Manual Play Console Actions
 
 1. Add a public Privacy Policy URL in Play Console. Example: `https://bouncecore.example.com/privacy`.
-2. Add an account deletion URL in Play Console.
+2. Add the account deletion URL in Play Console. Example: `https://bouncecore.example.com/account/delete`.
 3. Complete Data Safety using this document and current third-party SDK provider guidance.
 4. Confirm whether Unity LevelPlay mediated networks require additional consent strings or adapter-specific disclosures.
 5. If AdMob is introduced later, add Google UMP and update this document.

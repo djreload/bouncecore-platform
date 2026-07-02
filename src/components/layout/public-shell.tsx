@@ -11,6 +11,7 @@ import type { NavigationItem } from "@/config/navigation";
 import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
 import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-settings-service";
 import { getCurrentUser } from "@/lib/auth/session";
+import { accountDeletionHref } from "@/lib/privacy/privacy-config";
 
 type PublicShellProps = {
   children: React.ReactNode;
@@ -106,6 +107,9 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
               <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href="/support">
                 Support
+              </Link>
+              <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={accountDeletionHref}>
+                Account deletion
               </Link>
               {legalPages.map((page) => (
                 <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={page.href} key={page.key}>

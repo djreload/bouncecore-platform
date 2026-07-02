@@ -351,6 +351,17 @@ if (-not $SkipNetwork -and $WebUrl) {
     }
 
     try {
+        $deletion = Invoke-TextGet -Url "$WebUrl/account/delete"
+        if ($deletion.StatusCode -eq 200 -and $deletion.Content -match '(?i)account deletion|deletion request') {
+            Pass-Check -Name "Account deletion URL" -Detail "$WebUrl/account/delete returned HTTP 200."
+        } else {
+            Fail-Check -Name "Account deletion URL" -Detail "$WebUrl/account/delete did not return a recognizable deletion page."
+        }
+    } catch {
+        Fail-Check -Name "Account deletion URL" -Detail $_.Exception.Message
+    }
+
+    try {
         $appAds = Invoke-TextGet -Url "$WebUrl/app-ads.txt"
         if ($appAds.StatusCode -eq 200 -and $appAds.Content -match '(?im)^\s*unity\.com\s*,') {
             Pass-Check -Name "Public app-ads.txt" -Detail "$WebUrl/app-ads.txt returned Unity seller entry."

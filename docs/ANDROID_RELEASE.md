@@ -99,6 +99,7 @@ The preflight checks:
 - Cleartext traffic is disabled.
 - A release AAB exists and its version code is higher than the previous Play upload.
 - The public privacy page is reachable.
+- The public account deletion page is reachable.
 - Public `app-ads.txt` is reachable and includes the Unity seller entry.
 - `/api/mobile/v1/config` is reachable for runtime mobile settings.
 

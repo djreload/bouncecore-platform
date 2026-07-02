@@ -11,7 +11,13 @@ import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAccountSettingsData } from "@/lib/account/account-service";
 import { getUserNotificationPreferences } from "@/lib/account/notification-preferences-service";
 import { NotificationPreferencesForm } from "@/app/account/settings/notification-preferences-form";
-import { cookiePolicyHref, mobilePrivacyChoicesHref, privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
+import {
+  accountDeletionHref,
+  cookiePolicyHref,
+  mobilePrivacyChoicesHref,
+  privacyPolicyHref,
+  termsHref
+} from "@/lib/privacy/privacy-config";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +132,9 @@ export default async function AccountSettingsPage() {
             </Link>
             <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={mobilePrivacyChoicesHref}>
               Mobile privacy
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={accountDeletionHref}>
+              Public deletion URL
             </Link>
           </div>
           <div className="mt-4">
