@@ -16,6 +16,7 @@ import {
   cookiePolicyHref,
   mobilePrivacyChoicesHref,
   privacyPolicyHref,
+  privacyRequestsHref,
   termsHref
 } from "@/lib/privacy/privacy-config";
 
@@ -135,6 +136,9 @@ export default async function AccountSettingsPage() {
             </Link>
             <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={accountDeletionHref}>
               Public deletion URL
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={privacyRequestsHref}>
+              Privacy requests
             </Link>
           </div>
           <div className="mt-4">

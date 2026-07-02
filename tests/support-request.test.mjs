@@ -8,7 +8,7 @@ import {
 } from "../src/lib/support/support-request-core.ts";
 
 test("support options expose expected categories priorities and statuses", () => {
-  assert.deepEqual([...supportCategories], ["account", "stream", "chat", "orders", "music", "shop", "mobile", "other"]);
+  assert.deepEqual([...supportCategories], ["account", "privacy", "stream", "chat", "orders", "music", "shop", "mobile", "other"]);
   assert.deepEqual([...supportPriorities], ["normal", "high", "urgent"]);
   assert.deepEqual([...supportStatuses], ["open", "reviewing", "waiting", "resolved", "dismissed"]);
 });

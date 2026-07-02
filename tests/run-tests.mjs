@@ -41,6 +41,7 @@ import "./paypal-webhook-filter-core.test.mjs";
 import "./paypal-webhook-retry-core.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
 import "./privacy-consent.test.mjs";
+import "./privacy-rights.test.mjs";
 import "./public-account-deletion.test.mjs";
 import "./public-smoke-check.test.mjs";
 import "./restream-settings.test.mjs";

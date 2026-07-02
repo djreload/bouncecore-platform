@@ -362,6 +362,17 @@ if (-not $SkipNetwork -and $WebUrl) {
     }
 
     try {
+        $privacyRequests = Invoke-TextGet -Url "$WebUrl/privacy/requests"
+        if ($privacyRequests.StatusCode -eq 200 -and $privacyRequests.Content -match '(?i)privacy request|privacy rights') {
+            Pass-Check -Name "Privacy requests URL" -Detail "$WebUrl/privacy/requests returned HTTP 200."
+        } else {
+            Fail-Check -Name "Privacy requests URL" -Detail "$WebUrl/privacy/requests did not return a recognizable privacy request page."
+        }
+    } catch {
+        Fail-Check -Name "Privacy requests URL" -Detail $_.Exception.Message
+    }
+
+    try {
         $appAds = Invoke-TextGet -Url "$WebUrl/app-ads.txt"
         if ($appAds.StatusCode -eq 200 -and $appAds.Content -match '(?im)^\s*unity\.com\s*,') {
             Pass-Check -Name "Public app-ads.txt" -Detail "$WebUrl/app-ads.txt returned Unity seller entry."
