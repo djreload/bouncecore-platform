@@ -103,12 +103,16 @@ export function ShopCartProvider({
   checkoutReady,
   checkoutReason,
   children,
+  paypalReady,
+  squareReady,
   signedIn,
   variants
 }: {
   checkoutReady: boolean;
   checkoutReason: string | null;
   children: ReactNode;
+  paypalReady: boolean;
+  squareReady: boolean;
   signedIn: boolean;
   variants: ShopCartVariant[];
 }) {
@@ -374,12 +378,16 @@ export function ShopCartProvider({
                         </ShippingField>
                       </div>
                     </div>
-                    <Button className="w-full" disabled={!checkoutReady} type="submit" variant="primary">
+                    <Button className="w-full" disabled={!paypalReady} name="provider" type="submit" value="paypal" variant="primary">
                       <ShoppingCart className="h-4 w-4" aria-hidden="true" />
                       Checkout with PayPal
                     </Button>
+                    <Button className="mt-2 w-full" disabled={!squareReady} name="provider" type="submit" value="square" variant="ghost">
+                      <ShoppingCart className="h-4 w-4" aria-hidden="true" />
+                      Checkout with Square
+                    </Button>
                     <p className="mt-2 text-xs leading-5 text-bc-muted">
-                      Checkout stores order, shipping, fulfilment, and PayPal reference details. See{" "}
+                      Checkout stores order, shipping, fulfilment, and payment reference details. See{" "}
                       <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
                         Privacy
                       </Link>{" "}

@@ -11,6 +11,7 @@ import { cancelStaleCheckoutsConfirmationText, stalePendingCleanupDefaultHours }
 import type { PaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import type { PaymentSmokeData } from "@/lib/payments/payment-smoke-service";
 import type { PayPalIntegrationData } from "@/lib/payments/paypal-service";
+import type { SquareIntegrationData } from "@/lib/payments/square-service";
 import { paypalWebhookDetailHref } from "@/lib/payments/paypal-webhook-detail-core";
 import {
   paypalWebhookLimitOptions,
@@ -23,6 +24,7 @@ import type { AdminProducerPayoutsData } from "@/lib/payments/producer-payout-se
 
 type AdminPaymentsPanelProps = {
   data: PayPalIntegrationData;
+  square: SquareIntegrationData;
   payouts: AdminProducerPayoutsData;
   reconciliation: PaymentReconciliationData;
   smoke: PaymentSmokeData;
@@ -31,6 +33,7 @@ type AdminPaymentsPanelProps = {
 };
 
 const paypalModeOptions = ["sandbox", "live"] as const;
+const squareModeOptions = ["sandbox", "live"] as const;
 const commonWebhookStatuses = [...paypalWebhookStatusFilterOptions] as string[];
 
 function checkTone(status: string) {
@@ -124,7 +127,7 @@ function stalePendingTotal(reconciliation: PaymentReconciliationData) {
   );
 }
 
-export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webhookEvents, webhookFilters }: AdminPaymentsPanelProps) {
+export function AdminPaymentsPanel({ data, square, payouts, reconciliation, smoke, webhookEvents, webhookFilters }: AdminPaymentsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminPaymentsActionState, FormData>(
     adminPaymentsAction,
     initialAdminPaymentsActionState
@@ -136,13 +139,13 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webho
       <div className="grid gap-4 md:grid-cols-4">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="pink">Provider</Badge>
-          <p className="mt-4 text-3xl font-black">PayPal</p>
-          <p className="mt-2 text-sm text-bc-muted">Required payment rail.</p>
+          <p className="mt-4 text-3xl font-black">PayPal + Square</p>
+          <p className="mt-2 text-sm text-bc-muted">Music payouts stay PayPal.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Mode</Badge>
           <p className="mt-4 text-3xl font-black capitalize">{data.settings.mode}</p>
-          <p className="mt-2 text-sm text-bc-muted">{data.apiBaseUrl}</p>
+          <p className="mt-2 text-sm text-bc-muted">PayPal / Square {square.settings.mode}</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={data.secretConfigured ? "acid" : "amber"}>Secret</Badge>
@@ -152,7 +155,8 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webho
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Coverage</Badge>
           <p className="mt-4 text-3xl font-black">
-            {data.useCases.filter((item) => item.enabled).length}/{data.useCases.length}
+            {data.useCases.filter((item) => item.enabled).length + square.useCases.filter((item) => item.enabled).length}/
+            {data.useCases.length + square.useCases.length}
           </p>
           <p className="mt-2 text-sm text-bc-muted">Stars, shop, music, payouts.</p>
         </article>
@@ -289,6 +293,132 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webho
         </form>
       </section>
 
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="cyan">Square integration</Badge>
+            <h3 className="mt-4 text-2xl font-black">Square hosted checkout</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              Square can be offered for stars and merch. Producer music purchases and producer payouts remain on PayPal.
+            </p>
+          </div>
+          <CreditCard className="h-7 w-7 text-bc-electric" aria-hidden="true" />
+        </div>
+
+        <form action={formAction} className="mt-5 grid gap-4">
+          <input name="intent" type="hidden" value="square-settings" />
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="square-mode">
+                Mode
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={square.settings.mode}
+                disabled={pending}
+                id="square-mode"
+                name="squareMode"
+              >
+                {squareModeOptions.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-bc-muted">Use sandbox for tests and live for production.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="square-application-id">
+                Application ID
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={square.settings.applicationId}
+                disabled={pending}
+                id="square-application-id"
+                name="squareApplicationId"
+                placeholder="Square application ID"
+              />
+              <p className="mt-1 text-xs text-bc-muted">From the Square developer application.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="square-location-id">
+                Location ID
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={square.settings.locationId}
+                disabled={pending}
+                id="square-location-id"
+                name="squareLocationId"
+                placeholder="Square location ID"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Used when creating hosted checkout orders.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="square-access-token">
+                Access token
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                disabled={pending}
+                id="square-access-token"
+                name="squareAccessToken"
+                placeholder={square.accessTokenConfigured ? "Stored - leave blank to keep" : "Square access token"}
+                type="password"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Stored server-side only. Blank keeps the current token.</p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="square-webhook-url">
+                Webhook notification URL
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={square.settings.webhookNotificationUrl}
+                disabled={pending}
+                id="square-webhook-url"
+                name="squareWebhookNotificationUrl"
+                placeholder="https://example.com/api/payments/square/webhook"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Must exactly match the Square webhook subscription URL.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="square-webhook-key">
+                Webhook signature key
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                disabled={pending}
+                id="square-webhook-key"
+                name="squareWebhookSignatureKey"
+                placeholder={square.webhookSignatureKeyConfigured ? "Stored - leave blank to keep" : "Square webhook signature key"}
+                type="password"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Used to verify Square webhook payloads. Blank keeps the current key.</p>
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-ink p-3 text-sm">
+              <input defaultChecked={square.settings.starsEnabled} disabled={pending} name="squareStarsEnabled" type="checkbox" />
+              Stars purchases can use Square
+            </label>
+            <label className="flex items-center gap-3 rounded-md border border-bc-line bg-bc-ink p-3 text-sm">
+              <input defaultChecked={square.settings.shopEnabled} disabled={pending} name="squareShopEnabled" type="checkbox" />
+              Shop checkout can use Square
+            </label>
+          </div>
+          <div>
+            <Button disabled={pending} type="submit" variant="primary">
+              <Save className="h-4 w-4" aria-hidden="true" />
+              Save Square settings
+            </Button>
+          </div>
+        </form>
+      </section>
+
       <section className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <div className="flex items-center gap-2">
@@ -297,6 +427,15 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webho
           </div>
           <div className="mt-4 grid gap-3">
             {data.checks.map((item) => (
+              <div className="rounded-md border border-bc-line bg-bc-ink p-3" key={item.label}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold">{item.label}</p>
+                  <Badge tone={checkTone(item.status)}>{item.value}</Badge>
+                </div>
+                <p className="mt-2 text-sm text-bc-muted">{item.detail}</p>
+              </div>
+            ))}
+            {square.checks.map((item) => (
               <div className="rounded-md border border-bc-line bg-bc-ink p-3" key={item.label}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="font-semibold">{item.label}</p>
@@ -318,6 +457,16 @@ export function AdminPaymentsPanel({ data, payouts, reconciliation, smoke, webho
               <div className="rounded-md border border-bc-line bg-bc-ink p-3" key={item.label}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <p className="font-semibold">{item.label}</p>
+                  <Badge tone={item.enabled ? "acid" : "muted"}>{item.enabled ? "Enabled" : "Disabled"}</Badge>
+                </div>
+                <p className="mt-2 text-sm text-bc-muted">{item.rail}</p>
+                <p className="mt-1 text-xs text-bc-muted">{item.surface}</p>
+              </div>
+            ))}
+            {square.useCases.map((item) => (
+              <div className="rounded-md border border-bc-line bg-bc-ink p-3" key={`square-${item.label}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-semibold">Square {item.label}</p>
                   <Badge tone={item.enabled ? "acid" : "muted"}>{item.enabled ? "Enabled" : "Disabled"}</Badge>
                 </div>
                 <p className="mt-2 text-sm text-bc-muted">{item.rail}</p>

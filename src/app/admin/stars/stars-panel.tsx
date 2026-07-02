@@ -251,9 +251,9 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
         <div className="border-b border-bc-line p-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h3 className="text-xl font-black">PayPal star purchases</h3>
+              <h3 className="text-xl font-black">Star purchases</h3>
               <p className="mt-1 text-sm text-bc-muted">
-                Captured stars purchases credit wallets automatically and leave a PayPal audit trail.
+                Captured stars purchases credit wallets automatically and leave a payment audit trail.
               </p>
             </div>
             <CreditCard className="h-6 w-6 text-bc-electric" aria-hidden="true" />
@@ -283,9 +283,11 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone={purchaseStatusTone(purchase.status)}>{purchase.status}</Badge>
-                    <Badge tone="muted">#{purchase.id.slice(0, 8)}</Badge>
-                    {purchase.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                      <Badge tone={purchaseStatusTone(purchase.status)}>{purchase.status}</Badge>
+                      <Badge tone="muted">#{purchase.id.slice(0, 8)}</Badge>
+                      <Badge tone="cyan">{purchase.paymentProvider}</Badge>
+                      {purchase.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                      {purchase.squarePaymentId ? <Badge tone="acid">Captured</Badge> : null}
                   </div>
                   <h4 className="mt-3 text-lg font-black">{purchase.customerName}</h4>
                   <p className="mt-1 text-sm text-bc-muted">{purchase.customerEmail}</p>
@@ -298,16 +300,18 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
                   <p className="mt-1 text-xs text-bc-muted">{formatMoney(purchase.totalPence)}</p>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {purchase.paypalOrderId ? <Badge tone="muted">PayPal {purchase.paypalOrderId.slice(0, 10)}</Badge> : null}
-                {purchase.paypalPayerEmail ? <Badge tone="cyan">{purchase.paypalPayerEmail}</Badge> : null}
-              </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {purchase.paypalOrderId ? <Badge tone="muted">PayPal {purchase.paypalOrderId.slice(0, 10)}</Badge> : null}
+                  {purchase.paypalPayerEmail ? <Badge tone="cyan">{purchase.paypalPayerEmail}</Badge> : null}
+                  {purchase.squareOrderId ? <Badge tone="muted">Square {purchase.squareOrderId.slice(0, 10)}</Badge> : null}
+                  {purchase.squareBuyerEmail ? <Badge tone="cyan">{purchase.squareBuyerEmail}</Badge> : null}
+                </div>
             </article>
           ))}
           {!data.recentPurchases.length ? (
             <article className="rounded-md border border-bc-line bg-bc-ink p-5">
               <CreditCard className="h-7 w-7 text-bc-electric" aria-hidden="true" />
-              <h3 className="mt-4 text-xl font-black">No PayPal star purchases yet</h3>
+                <h3 className="mt-4 text-xl font-black">No star purchases yet</h3>
               <p className="mt-2 text-sm text-bc-muted">Captured stars purchases will appear here automatically.</p>
             </article>
           ) : null}

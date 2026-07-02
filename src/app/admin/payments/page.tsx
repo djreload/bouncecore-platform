@@ -3,6 +3,7 @@ import { AdminPaymentsPanel } from "@/app/admin/payments/payments-panel";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getPaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
+import { getSquareIntegrationData } from "@/lib/payments/square-service";
 import { getPaymentSmokeData } from "@/lib/payments/payment-smoke-service";
 import { normalizePayPalWebhookFilters } from "@/lib/payments/paypal-webhook-filter-core";
 import { getRecentPayPalWebhookEvents } from "@/lib/payments/paypal-webhook-service";
@@ -27,8 +28,9 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
     query: firstSearchParam(params.webhookQuery),
     status: firstSearchParam(params.webhookStatus)
   });
-  const [data, payouts, webhookEvents, reconciliation, smoke] = await Promise.all([
+  const [data, square, payouts, webhookEvents, reconciliation, smoke] = await Promise.all([
     getPayPalIntegrationData(),
+    getSquareIntegrationData(),
     getAdminProducerPayoutsData(),
     getRecentPayPalWebhookEvents(webhookFilters),
     getPaymentReconciliationData(),
@@ -38,10 +40,11 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
   return (
     <AdminShell
       title="Payments"
-      description="PayPal integration control for stars purchases, merch checkout, and producer payouts."
+      description="Payment integration control for Square stars/merch checkout and PayPal producer music payouts."
     >
       <AdminPaymentsPanel
         data={data}
+        square={square}
         payouts={payouts}
         reconciliation={reconciliation}
         smoke={smoke}

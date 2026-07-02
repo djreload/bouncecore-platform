@@ -2,7 +2,7 @@ import { revalidatePath } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { appUrl } from "@/lib/http/app-url";
-import { completeStarsCheckout } from "@/lib/rewards/stars-checkout-service";
+import { completeSquareStarsCheckout, completeStarsCheckout } from "@/lib/rewards/stars-checkout-service";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
@@ -13,9 +13,13 @@ export async function GET(request: NextRequest) {
 
   const purchaseId = request.nextUrl.searchParams.get("purchaseId") ?? "";
   const paypalOrderId = request.nextUrl.searchParams.get("token") ?? "";
+  const provider = request.nextUrl.searchParams.get("provider") ?? "paypal";
 
   try {
-    const purchase = await completeStarsCheckout(user.id, purchaseId, paypalOrderId);
+    const purchase =
+      provider === "square"
+        ? await completeSquareStarsCheckout(user.id, purchaseId)
+        : await completeStarsCheckout(user.id, purchaseId, paypalOrderId);
 
     revalidatePath("/account/rewards");
     revalidatePath("/admin/stars");

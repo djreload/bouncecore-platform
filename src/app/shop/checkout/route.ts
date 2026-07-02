@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { appOrigin, appUrl } from "@/lib/http/app-url";
 import { paypalCheckoutErrorParam } from "@/lib/payments/paypal-checkout-errors";
+import { squareCheckoutErrorParam } from "@/lib/payments/square-checkout-errors";
 import { startShopCartCheckout } from "@/lib/shop/checkout-service";
 
 function shopRedirect(request: NextRequest, checkout: string) {
@@ -15,6 +16,7 @@ function formString(formData: FormData, key: string) {
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
+  let requestedProvider = "";
 
   if (!user) {
     return NextResponse.redirect(appUrl(request, "/auth/login", { error: "auth-required" }), 303);
@@ -22,6 +24,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const formData = await request.formData();
+    const provider = formData.get("provider");
+    requestedProvider = typeof provider === "string" ? provider : "";
     const variantIds = formData.getAll("variantId").filter((variantId): variantId is string => typeof variantId === "string");
     const quantities = formData.getAll("quantity").filter((quantity): quantity is string => typeof quantity === "string");
     const checkout = await startShopCartCheckout(user.id, {
@@ -30,6 +34,7 @@ export async function POST(request: NextRequest) {
         variantId
       })),
       origin: appOrigin(request),
+      provider: requestedProvider || undefined,
       shippingAddress: {
         city: formString(formData, "shippingCity"),
         country: formString(formData, "shippingCountry"),
@@ -45,6 +50,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.redirect(checkout.approvalUrl, 303);
   } catch (error) {
-    return shopRedirect(request, paypalCheckoutErrorParam(error));
+    return shopRedirect(request, requestedProvider === "square" ? squareCheckoutErrorParam(error) : paypalCheckoutErrorParam(error));
   }
 }

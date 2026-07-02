@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { getPayPalIntegrationData, getPayPalStarsReadiness } from "@/lib/payments/paypal-service";
+import { getSquareIntegrationData, getSquareStarsReadiness } from "@/lib/payments/square-service";
 import { getAccountRewardWheelsData } from "@/lib/rewards/prize-service";
 import { getAccountRewardsData, starPackages } from "@/lib/rewards/stars-service";
 import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
@@ -20,11 +21,11 @@ type AccountRewardsPageProps = {
 
 const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber" | "pink" }> = {
   cancelled: {
-    message: "PayPal stars checkout was cancelled.",
+    message: "Stars checkout was cancelled.",
     tone: "amber"
   },
   "capture-error": {
-    message: "PayPal approved the stars purchase, but the capture could not be completed.",
+    message: "The stars payment was approved, but the capture could not be completed.",
     tone: "pink"
   },
   error: {
@@ -39,8 +40,16 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
     message: "PayPal rejected the stars checkout request. Check sandbox/live mode and API credentials, then try again.",
     tone: "pink"
   },
+  "square-not-ready": {
+    message: "Square stars checkout needs application, location, and access token configuration before purchases can start.",
+    tone: "pink"
+  },
+  "square-api-error": {
+    message: "Square rejected the stars checkout request. Check sandbox/live mode and API credentials, then try again.",
+    tone: "pink"
+  },
   success: {
-    message: "PayPal stars checkout complete. Your wallet has been credited.",
+    message: "Stars checkout complete. Your wallet has been credited.",
     tone: "acid"
   }
 };
@@ -88,12 +97,15 @@ function statusTone(status: string) {
 export default async function AccountRewardsPage({ searchParams }: AccountRewardsPageProps) {
   const params = searchParams ? await searchParams : {};
   const user = await requireSignedInUser();
-  const [data, paypal, wheelData] = await Promise.all([
+  const [data, paypal, square, wheelData] = await Promise.all([
     getAccountRewardsData(user.id),
     getPayPalIntegrationData(),
+    getSquareIntegrationData(),
     getAccountRewardWheelsData(user.id)
   ]);
-  const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
+  const paypalReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
+  const squareReadiness = getSquareStarsReadiness(square.settings, square.accessTokenConfigured);
+  const checkoutReady = paypalReadiness.ready || squareReadiness.ready;
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
 
   return (
@@ -158,17 +170,18 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
           <section className="mt-5 rounded-md border border-bc-line bg-bc-ink p-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <Badge tone="acid">PayPal stars</Badge>
+                <Badge tone="acid">Stars checkout</Badge>
                 <h4 className="mt-3 text-xl font-black">Buy stars</h4>
                 <p className="mt-2 text-sm text-bc-muted">
-                  Stars purchases use PayPal {paypal.settings.mode} checkout and credit this wallet after capture.
+                  Stars purchases can use PayPal {paypal.settings.mode}
+                  {square.settings.starsEnabled ? ` or Square ${square.settings.mode}` : ""} checkout and credit this wallet after capture.
                 </p>
               </div>
               <CreditCard className="h-6 w-6 text-bc-acid" aria-hidden="true" />
             </div>
-            {!checkoutReadiness.ready ? (
+            {!checkoutReady ? (
               <div className="mt-4 rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3 text-sm text-bc-pink">
-                {checkoutReadiness.reason}
+                {[paypalReadiness.reason, squareReadiness.reason].filter(Boolean).join(" ")}
               </div>
             ) : null}
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -178,12 +191,16 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
                   <Badge tone="cyan">{pack.label}</Badge>
                   <p className="mt-3 text-2xl font-black">{pack.stars.toLocaleString("en-GB")}</p>
                   <p className="mt-1 text-sm text-bc-muted">{formatMoney(pack.pricePence)}</p>
-                  <Button className="mt-4 w-full" disabled={!checkoutReadiness.ready} size="sm" type="submit" variant="primary">
+                  <Button className="mt-4 w-full" disabled={!paypalReadiness.ready} name="provider" size="sm" type="submit" value="paypal" variant="primary">
                     <CreditCard className="h-4 w-4" aria-hidden="true" />
                     PayPal checkout
                   </Button>
+                  <Button className="mt-2 w-full" disabled={!squareReadiness.ready} name="provider" size="sm" type="submit" value="square" variant="ghost">
+                    <CreditCard className="h-4 w-4" aria-hidden="true" />
+                    Square checkout
+                  </Button>
                   <p className="mt-2 text-xs leading-5 text-bc-muted">
-                    Uses PayPal and stores purchase references.{" "}
+                    Uses the selected payment provider and stores purchase references.{" "}
                     <Link className="font-semibold text-bc-electric hover:text-white" href={privacyPolicyHref}>
                       Privacy
                     </Link>{" "}
@@ -223,7 +240,7 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
       <section className="mt-5 rounded-md border border-bc-line bg-bc-panel">
         <div className="border-b border-bc-line p-4">
           <h3 className="text-xl font-black">Stars purchase history</h3>
-          <p className="mt-1 text-sm text-bc-muted">PayPal stars purchases show status, package, capture reference, and wallet credit.</p>
+          <p className="mt-1 text-sm text-bc-muted">Stars purchases show status, package, payment reference, and wallet credit.</p>
         </div>
         <div className="grid gap-4 p-4">
           {data.purchases.map((purchase) => (
@@ -233,7 +250,9 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
                   <div className="flex flex-wrap gap-2">
                     <Badge tone={statusTone(purchase.status)}>{purchase.status}</Badge>
                     <Badge tone="muted">#{purchase.id.slice(0, 8)}</Badge>
+                    <Badge tone="cyan">{purchase.paymentProvider}</Badge>
                     {purchase.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                    {purchase.squarePaymentId ? <Badge tone="acid">Captured</Badge> : null}
                   </div>
                   <h4 className="mt-3 text-lg font-black">{purchase.packageLabel}</h4>
                   <p className="mt-1 text-sm text-bc-muted">
@@ -249,6 +268,8 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
               <div className="mt-3 flex flex-wrap gap-2">
                 {purchase.paypalOrderId ? <Badge tone="muted">PayPal {purchase.paypalOrderId.slice(0, 10)}</Badge> : null}
                 {purchase.paypalPayerEmail ? <Badge tone="cyan">{purchase.paypalPayerEmail}</Badge> : null}
+                {purchase.squareOrderId ? <Badge tone="muted">Square {purchase.squareOrderId.slice(0, 10)}</Badge> : null}
+                {purchase.squareBuyerEmail ? <Badge tone="cyan">{purchase.squareBuyerEmail}</Badge> : null}
               </div>
             </article>
           ))}
@@ -256,7 +277,7 @@ export default async function AccountRewardsPage({ searchParams }: AccountReward
             <article className="rounded-md border border-bc-line bg-bc-ink p-5">
               <Star className="h-7 w-7 text-bc-acid" aria-hidden="true" />
               <h3 className="mt-4 text-xl font-black">No stars purchases yet</h3>
-              <p className="mt-2 text-sm text-bc-muted">PayPal stars purchases will appear here after checkout starts.</p>
+              <p className="mt-2 text-sm text-bc-muted">Stars purchases will appear here after checkout starts.</p>
             </article>
           ) : null}
         </div>

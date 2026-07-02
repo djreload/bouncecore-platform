@@ -11,6 +11,12 @@ import {
   type PayPalMode,
   type PayPalSettingsInput
 } from "@/lib/payments/paypal-service";
+import {
+  squareModeOptions,
+  updateSquareSettings,
+  type SquareMode,
+  type SquareSettingsInput
+} from "@/lib/payments/square-service";
 import { cancelStalePendingCheckouts } from "@/lib/payments/payment-reconciliation-service";
 import { createProducerPayoutBatch, syncProducerPayoutBatch } from "@/lib/payments/producer-payout-service";
 import { retryPayPalWebhookEvent } from "@/lib/payments/paypal-webhook-service";
@@ -29,6 +35,10 @@ function isPayPalMode(value: string): value is PayPalMode {
   return paypalModeOptions.includes(value as PayPalMode);
 }
 
+function isSquareMode(value: string): value is SquareMode {
+  return squareModeOptions.includes(value as SquareMode);
+}
+
 function paypalInput(formData: FormData): PayPalSettingsInput {
   const mode = formString(formData, "mode");
 
@@ -45,6 +55,25 @@ function paypalInput(formData: FormData): PayPalSettingsInput {
     shopEnabled: formBoolean(formData, "shopEnabled"),
     starsEnabled: formBoolean(formData, "starsEnabled"),
     webhookId: formString(formData, "webhookId")
+  };
+}
+
+function squareInput(formData: FormData): SquareSettingsInput {
+  const mode = formString(formData, "squareMode");
+
+  if (!isSquareMode(mode)) {
+    throw new Error("Invalid Square mode.");
+  }
+
+  return {
+    accessToken: formString(formData, "squareAccessToken"),
+    applicationId: formString(formData, "squareApplicationId"),
+    locationId: formString(formData, "squareLocationId"),
+    mode,
+    shopEnabled: formBoolean(formData, "squareShopEnabled"),
+    starsEnabled: formBoolean(formData, "squareStarsEnabled"),
+    webhookNotificationUrl: formString(formData, "squareWebhookNotificationUrl"),
+    webhookSignatureKey: formString(formData, "squareWebhookSignatureKey")
   };
 }
 
@@ -83,6 +112,16 @@ export async function adminPaymentsAction(
       return {
         status: "success",
         message: "PayPal integration settings saved."
+      };
+    }
+
+    if (intent === "square-settings") {
+      await updateSquareSettings(squareInput(formData), actor.id);
+      revalidatePaymentViews();
+
+      return {
+        status: "success",
+        message: "Square integration settings saved."
       };
     }
 

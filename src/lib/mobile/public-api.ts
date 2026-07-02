@@ -9,6 +9,7 @@ import {
   getPayPalMusicReadiness,
   getPayPalStarsReadiness
 } from "@/lib/payments/paypal-service";
+import { getSquareIntegrationData, getSquareShopReadiness, getSquareStarsReadiness } from "@/lib/payments/square-service";
 import { starPackages } from "@/lib/rewards/stars-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
@@ -132,8 +133,9 @@ export async function getMobileChatPayload(roomSlug?: string) {
 }
 
 export async function getMobileShopPayload() {
-  const [products, paypal] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData()]);
+  const [products, paypal, square] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData(), getSquareIntegrationData()]);
   const checkoutReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
+  const squareReadiness = getSquareShopReadiness(square.settings, square.accessTokenConfigured);
 
   return {
     ...buildMobileShopPayload(products),
@@ -141,7 +143,21 @@ export async function getMobileShopPayload() {
       mode: paypal.settings.mode,
       ready: checkoutReadiness.ready,
       reason: checkoutReadiness.reason
-    })
+    }),
+    checkoutProviders: [
+      {
+        mode: paypal.settings.mode,
+        provider: "paypal",
+        ready: checkoutReadiness.ready,
+        reason: checkoutReadiness.reason
+      },
+      {
+        mode: square.settings.mode,
+        provider: "square",
+        ready: squareReadiness.ready,
+        reason: squareReadiness.reason
+      }
+    ]
   };
 }
 
@@ -160,8 +176,9 @@ export async function getMobileMusicPayload() {
 }
 
 export async function getMobileRewardsPayload() {
-  const [data, paypal] = await Promise.all([getLiveStarSupportData(), getPayPalIntegrationData()]);
+  const [data, paypal, square] = await Promise.all([getLiveStarSupportData(), getPayPalIntegrationData(), getSquareIntegrationData()]);
   const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
+  const squareReadiness = getSquareStarsReadiness(square.settings, square.accessTokenConfigured);
 
   return {
     live: {
@@ -177,6 +194,20 @@ export async function getMobileRewardsPayload() {
       mode: paypal.settings.mode,
       ready: checkoutReadiness.ready,
       reason: checkoutReadiness.reason
-    })
+    }),
+    checkoutProviders: [
+      {
+        mode: paypal.settings.mode,
+        provider: "paypal",
+        ready: checkoutReadiness.ready,
+        reason: checkoutReadiness.reason
+      },
+      {
+        mode: square.settings.mode,
+        provider: "square",
+        ready: squareReadiness.ready,
+        reason: squareReadiness.reason
+      }
+    ]
   };
 }

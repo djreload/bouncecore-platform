@@ -7,8 +7,19 @@ import {
   startTrackCartCheckout,
   startTrackCheckout
 } from "@/lib/music/track-checkout-service";
-import { cancelStarsCheckout, completeStarsCheckout, startStarsCheckout } from "@/lib/rewards/stars-checkout-service";
-import { cancelShopCheckout, completeShopCheckout, startShopCartCheckout, startShopCheckout } from "@/lib/shop/checkout-service";
+import {
+  cancelStarsCheckout,
+  completeSquareStarsCheckout,
+  completeStarsCheckout,
+  startStarsCheckout
+} from "@/lib/rewards/stars-checkout-service";
+import {
+  cancelShopCheckout,
+  completeShopCheckout,
+  completeSquareShopCheckout,
+  startShopCartCheckout,
+  startShopCheckout
+} from "@/lib/shop/checkout-service";
 
 export type MobileCheckoutPayload = {
   checkoutId?: string;
@@ -17,6 +28,7 @@ export type MobileCheckoutPayload = {
     variantId?: string;
   }[];
   paypalOrderId?: string;
+  provider?: string;
   purchaseId?: string;
   orderId?: string;
   packageId?: string;
@@ -94,19 +106,21 @@ export async function startMobileShopCheckout(user: CurrentUser, origin: string,
     const checkout = await startShopCartCheckout(user.id, {
       items,
       origin,
+      provider: payloadString(payload, "provider") || undefined,
       shippingAddress: payloadShippingAddress(payload)
     });
 
     return {
       approvalUrl: checkout.approvalUrl,
       orderId: checkout.orderId,
-      provider: "paypal",
+      provider: checkout.provider,
       status: "pending"
     };
   }
 
   const checkout = await startShopCheckout(user.id, {
     origin,
+    provider: payloadString(payload, "provider") || undefined,
     quantity: payloadString(payload, "quantity") || "1",
     shippingAddress: payloadShippingAddress(payload),
     variantId: payloadString(payload, "variantId")
@@ -115,17 +129,21 @@ export async function startMobileShopCheckout(user: CurrentUser, origin: string,
   return {
     approvalUrl: checkout.approvalUrl,
     orderId: checkout.orderId,
-    provider: "paypal",
+    provider: checkout.provider,
     status: "pending"
   };
 }
 
 export async function captureMobileShopCheckout(user: CurrentUser, payload: MobileCheckoutPayload) {
-  const order = await completeShopCheckout(user.id, payloadString(payload, "orderId"), payloadString(payload, "paypalOrderId"));
+  const order =
+    payloadString(payload, "provider") === "square"
+      ? await completeSquareShopCheckout(user.id, payloadString(payload, "orderId"))
+      : await completeShopCheckout(user.id, payloadString(payload, "orderId"), payloadString(payload, "paypalOrderId"));
 
   return {
     orderId: order.id,
     paypalCaptureId: order.paypalCaptureId,
+    squarePaymentId: order.squarePaymentId,
     status: order.status,
     totalPence: order.totalPence
   };
@@ -217,23 +235,28 @@ export async function cancelMobileMusicCheckout(user: CurrentUser, payload: Mobi
 export async function startMobileStarsCheckout(user: CurrentUser, origin: string, payload: MobileCheckoutPayload) {
   const checkout = await startStarsCheckout(user.id, {
     origin,
-    packageId: payloadString(payload, "packageId")
+    packageId: payloadString(payload, "packageId"),
+    provider: payloadString(payload, "provider") || undefined
   });
 
   return {
     approvalUrl: checkout.approvalUrl,
-    provider: "paypal",
+    provider: checkout.provider,
     purchaseId: checkout.purchaseId,
     status: "pending"
   };
 }
 
 export async function captureMobileStarsCheckout(user: CurrentUser, payload: MobileCheckoutPayload) {
-  const purchase = await completeStarsCheckout(user.id, payloadString(payload, "purchaseId"), payloadString(payload, "paypalOrderId"));
+  const purchase =
+    payloadString(payload, "provider") === "square"
+      ? await completeSquareStarsCheckout(user.id, payloadString(payload, "purchaseId"))
+      : await completeStarsCheckout(user.id, payloadString(payload, "purchaseId"), payloadString(payload, "paypalOrderId"));
 
   return {
     paypalCaptureId: purchase.paypalCaptureId,
     purchaseId: purchase.id,
+    squarePaymentId: purchase.squarePaymentId,
     stars: purchase.stars,
     status: purchase.status
   };
