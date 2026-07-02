@@ -83,6 +83,27 @@ Default output:
 android-webview/app/build/outputs/bundle/release/app-release.aab
 ```
 
+## Run Play Store Preflight
+
+Before uploading the AAB, run the preflight script against the real production HTTPS site:
+
+```powershell
+npm run android:play-preflight -- -WebUrl https://app.yourdomain.com -PreviousVersionCode 1
+```
+
+The preflight checks:
+
+- Android package name is `uk.co.bouncecore.app`.
+- Target/minimum SDK values are sane for Play.
+- Required app, push, and advertising permissions are declared.
+- Cleartext traffic is disabled.
+- A release AAB exists and its version code is higher than the previous Play upload.
+- The public privacy page is reachable.
+- Public `app-ads.txt` is reachable and includes the Unity seller entry.
+- `/api/mobile/v1/config` is reachable for runtime mobile settings.
+
+Use `-SkipNetwork` only for local dry-runs before DNS or production hosting is ready. Use `-SkipArtifact` only when checking source configuration before building the release bundle. Use `-AllowStaging` only to test the preflight checks against a staging host; do not use it for the final Play Store upload check.
+
 ## Non-Interactive CI/Server Builds
 
 Use the generated credentials file:

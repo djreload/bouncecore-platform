@@ -22,6 +22,7 @@
     "security:audit": "npm audit --omit=dev --audit-level=moderate",
     "smoke:public": "node scripts/public-smoke-check.mjs",
     "smoke:payments:seed": "node scripts/seed-payment-smoke-fixture.mjs",
+    "android:play-preflight": "powershell -ExecutionPolicy Bypass -File scripts/play-store-preflight.ps1",
     "stream:smoke": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-test.ps1",
     "stream:smoke:temp-key": "powershell -ExecutionPolicy Bypass -File scripts/stream-smoke-with-temp-key.ps1",
     "stream:smoke:dual": "powershell -ExecutionPolicy Bypass -File scripts/stream-dual-smoke-test.ps1",

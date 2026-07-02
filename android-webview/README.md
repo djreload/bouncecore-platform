@@ -44,6 +44,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-android-
 For Google Play, add `-Bundle` to create `app-release.aab`.
 Full release instructions are in `docs/ANDROID_RELEASE.md`. Back up `android-webview/release/bouncecore-release.jks` and `android-webview/release/signing.properties`; both are ignored by git.
 
+Before uploading to Play Console, run the release preflight against the production site:
+
+```powershell
+npm run android:play-preflight -- -WebUrl https://app.yourdomain.com -PreviousVersionCode 1
+```
+
 Release builds can also embed fallback mobile integration values used before the backend config response is available:
 
 ```powershell
