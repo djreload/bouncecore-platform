@@ -28,6 +28,7 @@ export type PublicChatMessageRow = {
   starNote: string | null;
   createdAt: string;
   deletedAt: string | null;
+  editedAt: string | null;
   authorDisplayName: string;
   authorAvatarUrl: string | null;
   authorUserId: string | null;

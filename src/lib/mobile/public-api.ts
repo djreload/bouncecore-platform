@@ -49,6 +49,7 @@ function publicMessage(message: ChatMessageSummary) {
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,
+    editedAt: message.editedAt,
     author: {
       avatarUrl: message.authorAvatarUrl,
       displayName: message.authorDisplayName,

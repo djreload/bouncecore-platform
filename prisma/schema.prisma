@@ -482,6 +482,7 @@ model ChatMessage {
   mediaHeight      Int?
   effectId         String?
   deletedAt        DateTime?
+  editedAt         DateTime?
   createdAt        DateTime       @default(now())
   room             ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   replyToMessage   ChatMessage?   @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
@@ -491,6 +492,7 @@ model ChatMessage {
   reactions        ChatReaction[]
 
   @@index([replyToMessageId])
+  @@index([roomId, createdAt])
 }
 
 model ChatStickerPack {

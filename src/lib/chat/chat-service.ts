@@ -7,6 +7,7 @@ import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat, getActiveChatBan } from "@/lib/chat/moderation-service";
 import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/chat-asset-service";
 import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
+import { canEditChatMessage, normalizeEditableChatMessageBody } from "@/lib/chat/chat-message-edit-core";
 import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-service";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
@@ -53,6 +54,7 @@ export type ChatMessageSummary = {
   starNote: string | null;
   createdAt: string;
   deletedAt: string | null;
+  editedAt: string | null;
   authorDisplayName: string;
   authorAvatarUrl: string | null;
   authorUserId: string | null;
@@ -299,6 +301,7 @@ function toMessageSummary(
       note: string | null;
     } | null;
     deletedAt: Date | null;
+    editedAt: Date | null;
     createdAt: Date;
     reactions?: ReactionSource[];
   },
@@ -336,6 +339,7 @@ function toMessageSummary(
     starNote: message.deletedAt ? null : message.starSend?.note ?? null,
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
+    editedAt: message.deletedAt ? null : message.editedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
     authorAvatarUrl: author?.avatarUrl ?? null,
     authorUserId: message.userId,
@@ -851,11 +855,7 @@ export async function createChatMessage(
 ) {
   await pruneExpiredChatHistory();
 
-  const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
-
-  if (normalizedBody.length < 1 || normalizedBody.length > 500) {
-    throw new Error("Chat messages must be between 1 and 500 characters.");
-  }
+  const normalizedBody = normalizeEditableChatMessageBody(body);
 
   const room = await prisma.chatRoom.findUniqueOrThrow({
     where: {
@@ -902,6 +902,82 @@ export async function createChatMessage(
   await publishChatRoomChanged(roomId, message.id);
 
   return message;
+}
+
+export async function editOwnChatMessage(messageId: string, body: string, userId: string) {
+  await pruneExpiredChatHistory();
+
+  const normalizedMessageId = messageId.trim();
+  const normalizedBody = normalizeEditableChatMessageBody(body);
+
+  if (!normalizedMessageId) {
+    throw new Error("Choose a message to edit.");
+  }
+
+  const message = await prisma.chatMessage.findUniqueOrThrow({
+    where: {
+      id: normalizedMessageId
+    },
+    include: {
+      room: {
+        select: {
+          id: true,
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!canEditChatMessage({ authorUserId: message.userId, currentUserId: userId, deletedAt: message.deletedAt, kind: message.kind })) {
+    throw new Error("You can only edit your own text messages.");
+  }
+
+  await assertUserCanPostInChat(userId, message.roomId);
+
+  if (message.body === normalizedBody) {
+    return message;
+  }
+
+  const updatedMessage = await prisma.chatMessage.update({
+    where: {
+      id: message.id
+    },
+    data: {
+      body: normalizedBody,
+      editedAt: new Date()
+    }
+  });
+
+  await queueChatMentionNotifications({
+    body: normalizedBody,
+    messageId: updatedMessage.id,
+    roomSlug: message.room.slug,
+    senderUserId: userId
+  }).catch((error) =>
+    writeAuditLog({
+      action: "chat.mention_notifications.edit_queue_failed",
+      actorId: userId,
+      metadata: {
+        error: error instanceof Error ? error.message : "Edited mention notification queue failed.",
+        roomId: message.roomId
+      },
+      severity: "warning",
+      target: `chat-message:${updatedMessage.id}`
+    })
+  );
+
+  await writeAuditLog({
+    action: "chat.message.edit",
+    actorId: userId,
+    metadata: {
+      roomSlug: message.room.slug
+    },
+    severity: "info",
+    target: `chat-message:${updatedMessage.id}`
+  });
+  await publishChatRoomChanged(message.roomId, updatedMessage.id);
+
+  return updatedMessage;
 }
 
 function assertTenorMediaUrl(value: string) {

@@ -24,6 +24,7 @@ import {
   Lock,
   LogIn,
   MessageSquare,
+  Pencil,
   Plus,
   Reply,
   Search,
@@ -44,6 +45,7 @@ import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
+import { canEditChatMessage } from "@/lib/chat/chat-message-edit-core";
 import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
 import { defaultSheepThrowSettings, formatSheepThrowCooldownLabel, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
@@ -333,6 +335,7 @@ export function ChatRoomPanel({
   const [composerBody, setComposerBody] = useState("");
   const [selectedEffectId, setSelectedEffectId] = useState("");
   const [replyTarget, setReplyTarget] = useState<ChatReplyTarget | null>(null);
+  const [editingMessage, setEditingMessage] = useState<PublicChatMessageRow | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
@@ -599,6 +602,7 @@ export function ChatRoomPanel({
       setOpenMessageActionsId(null);
       closeComposerPanels();
       setReplyTarget(null);
+      setEditingMessage(null);
       setMentionQuery(null);
     }, 0);
     const syncTimer = selectedRoomId
@@ -747,6 +751,11 @@ export function ChatRoomPanel({
     });
     setOpenMessageActionsId(null);
     textareaRef.current?.focus();
+  }
+
+  function startEditingChatMessage(message: PublicChatMessageRow) {
+    setEditingMessage(message);
+    setOpenMessageActionsId(null);
   }
 
   function handleComposerFocus() {
@@ -980,12 +989,19 @@ export function ChatRoomPanel({
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
             const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
             const canUseMessageActions = Boolean(currentUser && selectedRoom && !message.deletedAt);
+            const canEditOwnMessage = canEditChatMessage({
+              authorUserId: message.authorUserId,
+              currentUserId: currentUser?.id,
+              deletedAt: message.deletedAt,
+              kind: message.kind
+            });
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
             const canThrowAtMessageAuthor = Boolean(
               canUseMessageActions && currentUserCanThrowSheep && message.authorUserId && message.authorUserId !== currentUser?.id
             );
             const messageActionsOpen = openMessageActionsId === message.id;
+            const editingThisMessage = editingMessage?.id === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
             const visibleReactionSummaries = message.reactions
               .filter((reaction) => reaction.count > 0)
@@ -1080,6 +1096,7 @@ export function ChatRoomPanel({
                   </div>
                   <div className="ml-auto flex shrink-0 items-center gap-1">
                     <span className="text-xs text-bc-muted">{formatTime(message.createdAt)}</span>
+                    {message.editedAt ? <span className="text-[10px] font-semibold text-bc-muted">(edited)</span> : null}
                     {canUseMessageActions ? (
                       <button
                         aria-expanded={messageActionsOpen}
@@ -1112,7 +1129,37 @@ export function ChatRoomPanel({
                   </div>
                 ) : null}
 
-                {message.kind === "stars" ? (
+                {editingThisMessage ? (
+                  <form action={formAction} className="mt-3 grid gap-2 rounded-md border border-bc-electric/30 bg-bc-electric/10 p-2">
+                    <input name="intent" type="hidden" value="edit-message" />
+                    <input name="roomId" type="hidden" value={selectedRoom?.id ?? message.roomId} />
+                    <input name="messageId" type="hidden" value={message.id} />
+                    <textarea
+                      aria-label="Edit message"
+                      className="min-h-20 w-full resize-none rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white outline-none transition placeholder:text-bc-muted focus:border-bc-electric focus:ring-2 focus:ring-bc-electric/20"
+                      defaultValue={message.body}
+                      maxLength={500}
+                      name="body"
+                      required
+                    />
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        className="min-h-8 px-2 text-[11px]"
+                        disabled={pending}
+                        onClick={() => setEditingMessage(null)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Cancel
+                      </Button>
+                      <Button className="min-h-8 px-2 text-[11px]" disabled={pending || roomLockedForUser} size="sm" type="submit">
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Save edit
+                      </Button>
+                    </div>
+                  </form>
+                ) : message.kind === "stars" ? (
                   <div className="mt-3 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
@@ -1167,6 +1214,16 @@ export function ChatRoomPanel({
                       <Reply className="h-3.5 w-3.5" aria-hidden="true" />
                       Reply
                     </button>
+                    {canEditOwnMessage ? (
+                      <button
+                        className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
+                        onClick={() => startEditingChatMessage(message)}
+                        type="button"
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Edit
+                      </button>
+                    ) : null}
                     {canThrowAtMessageAuthor ? (
                       <form action={formAction} className="inline-flex">
                         <input name="intent" type="hidden" value="sheep" />

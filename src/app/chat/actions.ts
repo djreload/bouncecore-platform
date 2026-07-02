@@ -6,6 +6,7 @@ import {
   createChatGifMessage,
   createChatMessage,
   createChatStickerMessage,
+  editOwnChatMessage,
   moderateChatMessage,
   toggleChatMessageReaction
 } from "@/lib/chat/chat-service";
@@ -97,6 +98,8 @@ export async function publicChatAction(
       await createChatStickerMessage(roomId, user.id, formString(formData, "assetId"));
     } else if (intent === "reaction") {
       await toggleChatMessageReaction(formString(formData, "messageId"), user.id, formString(formData, "reactionKey"));
+    } else if (intent === "edit-message") {
+      await editOwnChatMessage(formString(formData, "messageId"), body, user.id);
     } else if (intent === "sheep") {
       await createChatSheepThrow(roomId, user.id, formString(formData, "messageId"));
     } else if (intent === "stars") {
@@ -135,6 +138,8 @@ export async function publicChatAction(
               ? "Sticker sent."
               : intent === "reaction"
                 ? "Reaction updated."
+                : intent === "edit-message"
+                  ? "Message updated."
                 : intent === "sheep"
                   ? "Sheep thrown."
             : intent === "stars"
@@ -171,6 +176,8 @@ export async function publicChatAction(
               ? "Sticker was not sent."
               : intent === "reaction"
                 ? "Reaction was not saved."
+                : intent === "edit-message"
+                  ? "Message was not updated."
                 : intent === "sheep"
                   ? "Sheep was not thrown."
             : intent === "stars"

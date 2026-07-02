@@ -155,6 +155,7 @@ export default async function LivePage() {
     starNote: message.starNote,
     createdAt: message.createdAt,
     deletedAt: message.deletedAt,
+    editedAt: message.editedAt,
     authorDisplayName: message.authorDisplayName,
     authorAvatarUrl: message.authorAvatarUrl,
     authorUserId: message.authorUserId,
