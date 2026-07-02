@@ -41,6 +41,50 @@ test("public smoke check validates HTML responses", async () => {
   assert.ok(result.bytes > 0);
 });
 
+test("public smoke check validates required and rejected HTML markers", async () => {
+  const ok = await evaluateSmokeResponse(
+    {
+      kind: "html",
+      rejectedText: ["Application error"],
+      requiredText: ['data-bc-visual-shell="public"']
+    },
+    new Response('<!doctype html><html><body><div data-bc-visual-shell="public">Bouncecore</div></body></html>', {
+      headers: { "content-type": "text/html; charset=utf-8" },
+      status: 200
+    })
+  );
+
+  assert.equal(ok.ok, true);
+
+  const missing = await evaluateSmokeResponse(
+    {
+      kind: "html",
+      requiredText: ['data-bc-visual-shell="public"']
+    },
+    new Response("<!doctype html><html><body>Bouncecore</body></html>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+      status: 200
+    })
+  );
+
+  assert.equal(missing.ok, false);
+  assert.match(missing.error, /required text/);
+
+  const rejected = await evaluateSmokeResponse(
+    {
+      kind: "html",
+      rejectedText: ["Application error"]
+    },
+    new Response("<!doctype html><html><body>Application error</body></html>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+      status: 200
+    })
+  );
+
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.error, /rejected text/);
+});
+
 test("public smoke check validates health JSON response", async () => {
   const result = await evaluateSmokeResponse(
     {

@@ -1,18 +1,32 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url";
 
+const publicShellRequiredText = ['data-bc-visual-shell="public"', 'data-bc-visual-part="site-header"'];
+const defaultHtmlRejectedText = ["Application error", "Internal Server Error", "This page couldn"];
+
+function publicHtmlCheck({ id, label, path, requiredText = [] }) {
+  return {
+    id,
+    kind: "html",
+    label,
+    path,
+    rejectedText: defaultHtmlRejectedText,
+    requiredText: [...publicShellRequiredText, ...requiredText]
+  };
+}
+
 export const defaultSmokeChecks = [
-  { id: "home", kind: "html", label: "Home page", path: "/" },
-  { id: "live", kind: "html", label: "Live page", path: "/live" },
-  { id: "chat", kind: "html", label: "Chat page", path: "/chat" },
-  { id: "music", kind: "html", label: "Music catalogue", path: "/music" },
-  { id: "shop", kind: "html", label: "Shop catalogue", path: "/shop" },
-  { id: "support", kind: "html", label: "Support page", path: "/support" },
-  { id: "account-delete", kind: "html", label: "Account deletion page", path: "/account/delete" },
-  { id: "privacy", kind: "html", label: "Privacy policy", path: "/privacy" },
-  { id: "privacy-requests", kind: "html", label: "Privacy requests page", path: "/privacy/requests" },
-  { id: "terms", kind: "html", label: "Terms page", path: "/terms" },
-  { id: "cookies", kind: "html", label: "Cookie policy", path: "/cookies" },
+  publicHtmlCheck({ id: "home", label: "Home page", path: "/", requiredText: ["Platform modules"] }),
+  publicHtmlCheck({ id: "live", label: "Live page", path: "/live", requiredText: ["Stream status"] }),
+  publicHtmlCheck({ id: "chat", label: "Chat page", path: "/chat", requiredText: ["Bouncecore Chat"] }),
+  publicHtmlCheck({ id: "music", label: "Music catalogue", path: "/music", requiredText: ["Bouncecore Music"] }),
+  publicHtmlCheck({ id: "shop", label: "Shop catalogue", path: "/shop", requiredText: ["Merch shop"] }),
+  publicHtmlCheck({ id: "support", label: "Support page", path: "/support", requiredText: ["Help desk"] }),
+  publicHtmlCheck({ id: "account-delete", label: "Account deletion page", path: "/account/delete", requiredText: ["Account deletion"] }),
+  publicHtmlCheck({ id: "privacy", label: "Privacy policy", path: "/privacy" }),
+  publicHtmlCheck({ id: "privacy-requests", label: "Privacy requests page", path: "/privacy/requests", requiredText: ["Privacy requests"] }),
+  publicHtmlCheck({ id: "terms", label: "Terms page", path: "/terms" }),
+  publicHtmlCheck({ id: "cookies", label: "Cookie policy", path: "/cookies" }),
   { id: "health", kind: "json", label: "Health API", path: "/api/health", validator: validateHealthPayload },
   { id: "mobile-config", kind: "json", label: "Mobile config API", path: "/api/mobile/v1/config" },
   { id: "mobile-live", kind: "json", label: "Mobile live API", path: "/api/mobile/v1/live" },
@@ -168,6 +182,18 @@ export async function evaluateSmokeResponse(check, response) {
 
     if (!/<html[\s>]/i.test(text)) {
       return { ok: false, error: "HTML response did not include a document root." };
+    }
+
+    for (const requiredText of check.requiredText ?? []) {
+      if (!text.includes(requiredText)) {
+        return { ok: false, error: `HTML response did not include required text: ${requiredText}` };
+      }
+    }
+
+    for (const rejectedText of check.rejectedText ?? []) {
+      if (text.includes(rejectedText)) {
+        return { ok: false, error: `HTML response included rejected text: ${rejectedText}` };
+      }
     }
 
     return { ok: true, bytes: Buffer.byteLength(text) };
