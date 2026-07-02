@@ -20,6 +20,7 @@
     "docker:build": "docker build -t bouncecore-platform:staging .",
     "readiness:report": "tsx scripts/readiness-report.mjs",
     "security:audit": "npm audit --omit=dev --audit-level=moderate",
+    "smoke:auth": "node scripts/authenticated-smoke-check.mjs",
     "smoke:public": "node scripts/public-smoke-check.mjs",
     "smoke:payments:seed": "node scripts/seed-payment-smoke-fixture.mjs",
     "android:play-preflight": "powershell -ExecutionPolicy Bypass -File scripts/play-store-preflight.ps1",
