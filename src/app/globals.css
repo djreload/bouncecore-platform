@@ -208,6 +208,29 @@ textarea::placeholder {
 
 select {
   color-scheme: dark;
+  color: color-mix(in srgb, white 94%, var(--color-bc-electric) 6%);
+}
+
+select option,
+select optgroup {
+  background-color: var(--color-bc-ink);
+  color: #f7fbff;
+}
+
+select option:checked {
+  background-color: color-mix(in srgb, var(--color-bc-electric) 28%, var(--color-bc-ink) 72%);
+  color: #ffffff;
+}
+
+select option:disabled {
+  background-color: var(--color-bc-ink);
+  color: color-mix(in srgb, var(--color-bc-muted) 64%, transparent);
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) select,
+:where(.bc-app-shell, .bc-dashboard-shell) select option,
+:where(.bc-app-shell, .bc-dashboard-shell) select optgroup {
+  color-scheme: dark;
 }
 
 input[type="file"]::file-selector-button {
