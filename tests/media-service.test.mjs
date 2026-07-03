@@ -292,6 +292,36 @@ test("download MP3 uploads still require 320kbps frames", async () => {
   }
 });
 
+test("Android APK uploads use the mobile APK upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const apk = new File([Buffer.from("apk")], "bouncecore.apk", {
+      type: "application/vnd.android.package-archive"
+    });
+    const uploadPath = await mediaService.saveOptionalAndroidApkUpload(apk);
+
+    assert.match(uploadPath, /^\/uploads\/mobile-apks\/.+\.apk$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    await assert.rejects(
+      () =>
+        mediaService.saveOptionalAndroidApkUpload(
+          new File([Buffer.from("zip")], "bouncecore.zip", {
+            type: "application/zip"
+          })
+        ),
+      /\.apk file extension/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("upload limits match production asset requirements", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
   const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
@@ -320,6 +350,10 @@ test("upload limits match production asset requirements", async () => {
     await assert.rejects(
       () => mediaService.saveOptionalDownloadMp3(overLimitFile("download.mp3", "audio/mpeg", 201 * 1024 * 1024)),
       /Maximum 200MB/
+    );
+    await assert.rejects(
+      () => mediaService.saveOptionalAndroidApkUpload(overLimitFile("bouncecore.apk", "application/vnd.android.package-archive", 251 * 1024 * 1024)),
+      /Maximum 250MB/
     );
   } finally {
     restore();

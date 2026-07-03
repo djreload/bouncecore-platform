@@ -20,6 +20,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -68,6 +69,7 @@ public class MainActivity extends Activity {
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
+    private static final int FILE_CHOOSER_REQUEST_CODE = 2102;
     private static final int MAX_BANNER_RETRIES = 6;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -85,6 +87,7 @@ public class MainActivity extends Activity {
     };
 
     private WebView webView;
+    private ValueCallback<Uri[]> filePathCallback;
     private FrameLayout bannerContainer;
     private LevelPlayBannerAdView bannerAdView;
     private LevelPlayInterstitialAd interstitialAd;
@@ -174,7 +177,41 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(
+                WebView view,
+                ValueCallback<Uri[]> filePathCallback,
+                FileChooserParams fileChooserParams
+            ) {
+                if (MainActivity.this.filePathCallback != null) {
+                    MainActivity.this.filePathCallback.onReceiveValue(null);
+                }
+
+                MainActivity.this.filePathCallback = filePathCallback;
+
+                Intent chooserIntent;
+                try {
+                    chooserIntent = fileChooserParams.createIntent();
+                    chooserIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                } catch (Exception error) {
+                    MainActivity.this.filePathCallback = null;
+                    filePathCallback.onReceiveValue(null);
+                    Log.w(TAG, "Could not create file chooser intent: " + error.getMessage());
+                    return true;
+                }
+
+                try {
+                    startActivityForResult(chooserIntent, FILE_CHOOSER_REQUEST_CODE);
+                } catch (Exception error) {
+                    MainActivity.this.filePathCallback = null;
+                    filePathCallback.onReceiveValue(null);
+                    Log.w(TAG, "Could not open file chooser: " + error.getMessage());
+                }
+
+                return true;
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -864,6 +901,24 @@ public class MainActivity extends Activity {
         if (webView != null) {
             webView.loadUrl(resolveAppUrlFromIntent(intent));
         }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            if (filePathCallback == null) {
+                return;
+            }
+
+            Uri[] result = resultCode == RESULT_OK
+                ? WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+                : null;
+            filePathCallback.onReceiveValue(result);
+            filePathCallback = null;
+            return;
+        }
+
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     @Override

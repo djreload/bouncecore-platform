@@ -27,8 +27,8 @@ export default async function RewardsPage() {
           </p>
           <div className="mt-6 grid gap-4 md:grid-cols-4">
             <article className="rounded-md border border-bc-line bg-bc-ink p-4">
-              <Badge tone="cyan">Live window</Badge>
-              <p className="mt-3 text-3xl font-black">{data.sessionActive ? "Live" : "Recent"}</p>
+              <Badge tone="cyan">Leaderboard</Badge>
+              <p className="mt-3 text-3xl font-black">Weekly</p>
             </article>
             <article className="rounded-md border border-bc-line bg-bc-ink p-4">
               <Badge tone="acid">Stars sent</Badge>
@@ -50,9 +50,9 @@ export default async function RewardsPage() {
             <div className="border-b border-bc-line p-4">
               <div className="flex items-center gap-2">
                 <Trophy className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-                <h2 className="text-xl font-black">Live stars leaderboard</h2>
+                <h2 className="text-xl font-black">Weekly stars leaderboard</h2>
               </div>
-              <p className="mt-1 text-sm text-bc-muted">Top viewers by stars sent during the livestream window.</p>
+              <p className="mt-1 text-sm text-bc-muted">Top viewers by stars sent in live chat this week.</p>
             </div>
             <div className="grid gap-3 p-4">
               {data.leaderboard.map((row, index) => (
@@ -64,7 +64,7 @@ export default async function RewardsPage() {
                       </span>
                       <div>
                         <h3 className="font-black">{row.displayName}</h3>
-                        <p className="mt-1 text-sm text-bc-muted">Live chat supporter</p>
+                        <p className="mt-1 text-sm text-bc-muted">Weekly live chat supporter</p>
                       </div>
                     </div>
                     <Badge tone="acid">{row.stars.toLocaleString("en-GB")} stars sent</Badge>

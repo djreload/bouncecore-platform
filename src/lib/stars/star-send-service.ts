@@ -30,6 +30,11 @@ export type LiveStarSupportData = {
     stars: number;
     userId: string;
   }>;
+  leaderboardPeriod: {
+    endsAt: string;
+    label: string;
+    startsAt: string;
+  };
   sendCount: number;
   sessionActive: boolean;
   totalStarsSent: number;
@@ -71,6 +76,19 @@ async function currentOpenStreamSession() {
       id: true
     }
   });
+}
+
+export function weeklyStarLeaderboardWindow(now = new Date()) {
+  const utcDay = now.getUTCDay();
+  const daysSinceMonday = (utcDay + 6) % 7;
+  const startsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceMonday, 0, 0, 0, 0));
+  const endsAt = new Date(startsAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  return {
+    endsAt,
+    label: "This week",
+    startsAt
+  };
 }
 
 export async function getStarWalletBalance(userId: string | undefined) {
@@ -225,19 +243,16 @@ export async function createLiveChatStarSend(
 
 export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
   const session = await currentOpenStreamSession();
-  const windowStart = new Date(Date.now() - 6 * 60 * 60 * 1000);
-  const where = session
-    ? {
-        streamSessionId: session.id
-      }
-    : {
-        createdAt: {
-          gte: windowStart
-        },
-        room: {
-          type: "live"
-        }
-      };
+  const leaderboardPeriod = weeklyStarLeaderboardWindow();
+  const where = {
+    createdAt: {
+      gte: leaderboardPeriod.startsAt,
+      lt: leaderboardPeriod.endsAt
+    },
+    room: {
+      type: "live"
+    }
+  };
   const [alertSettings, sends, aggregate, sendCount, recentSends] = await Promise.all([
     getStarAlertSettings(),
     prisma.starSend.groupBy({
@@ -251,7 +266,7 @@ export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
           amount: "desc"
         }
       },
-      take: 10
+      take: 20
     }),
     prisma.starSend.aggregate({
       where,
@@ -308,6 +323,11 @@ export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
       stars: send._sum.amount ?? 0,
       userId: send.userId
     })),
+    leaderboardPeriod: {
+      endsAt: leaderboardPeriod.endsAt.toISOString(),
+      label: leaderboardPeriod.label,
+      startsAt: leaderboardPeriod.startsAt.toISOString()
+    },
     sendCount,
     sessionActive: Boolean(session),
     totalStarsSent: aggregate._sum.amount ?? 0

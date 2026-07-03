@@ -3,6 +3,7 @@ export type AdminUploadKind =
   | "branding-logo"
   | "chat-emoji"
   | "chat-sticker"
+  | "mobile-apk"
   | "product-image"
   | "stream-offline-image"
   | "track-artwork"

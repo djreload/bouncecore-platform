@@ -8,6 +8,7 @@ const maxImageBytes = 100 * 1024 * 1024;
 const maxChatImageBytes = 150 * 1024 * 1024;
 const maxProfileAvatarBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 200 * 1024 * 1024;
+const maxAndroidApkBytes = 250 * 1024 * 1024;
 const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
 const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
 const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
@@ -25,6 +26,7 @@ const mp3UploadTypes = [
   "binary/octet-stream",
   ""
 ];
+const androidApkUploadTypes = ["application/vnd.android.package-archive", ...genericUploadTypes];
 
 type UploadKind =
   | "branding-images"
@@ -34,6 +36,7 @@ type UploadKind =
   | "stream-offline-images"
   | "chat-stickers"
   | "chat-emojis"
+  | "mobile-apks"
   | "music-previews"
   | "music-downloads";
 
@@ -205,6 +208,19 @@ function validateMp3Upload(file: File, label: string) {
 
   if (!mp3UploadTypes.includes(contentType)) {
     throw new Error(`${label} has an unsupported MIME type: ${file.type}.`);
+  }
+}
+
+function validateAndroidApkUpload(file: File) {
+  const extension = fileExtension(file.name);
+  const contentType = normalizedContentType(file.type);
+
+  if (extension !== ".apk") {
+    throw new Error("Android APK upload must use a .apk file extension.");
+  }
+
+  if (!androidApkUploadTypes.includes(contentType)) {
+    throw new Error(`Android APK upload has an unsupported MIME type: ${file.type}.`);
   }
 }
 
@@ -720,4 +736,18 @@ export async function saveOptionalDownloadMp3(file: File | null | undefined) {
   assertMp3Upload(buffer, true, "Download MP3 upload");
 
   return savePublicUpload("music-downloads", file, maxDownloadBytes, "Download MP3 upload", ".mp3", buffer);
+}
+
+export async function saveOptionalAndroidApkUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxAndroidApkBytes) {
+    throw new Error(`Android APK upload is too large. Maximum ${formatBytes(maxAndroidApkBytes)}.`);
+  }
+
+  validateAndroidApkUpload(file);
+
+  return savePublicUpload("mobile-apks", file, maxAndroidApkBytes, "Android APK upload", ".apk");
 }

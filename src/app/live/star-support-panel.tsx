@@ -335,9 +335,9 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
         <Badge tone="acid">Stars sent</Badge>
         <Trophy className="h-5 w-5 text-bc-acid" aria-hidden="true" />
       </div>
-      <h2 className="mt-4 text-xl font-black">Live leaderboard</h2>
+      <h2 className="mt-4 text-xl font-black">Weekly leaderboard</h2>
       <p className="mt-2 text-sm text-bc-muted">
-        {data.totalStarsSent.toLocaleString("en-GB")} stars sent across {data.sendCount} live chat sends.
+        {data.totalStarsSent.toLocaleString("en-GB")} stars sent across {data.sendCount} live chat sends this week.
       </p>
       <div className="mt-4 space-y-2">
         {data.leaderboard.map((row, index) => (
@@ -351,7 +351,7 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
             <Badge tone="acid">{row.stars.toLocaleString("en-GB")}</Badge>
           </div>
         ))}
-        {!data.leaderboard.length ? <p className="text-sm text-bc-muted">No stars have been sent in this live window yet.</p> : null}
+        {!data.leaderboard.length ? <p className="text-sm text-bc-muted">No stars have been sent this week yet.</p> : null}
       </div>
     </div>
   );

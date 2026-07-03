@@ -79,6 +79,7 @@ export type PublicChatUser = {
 
 export type PublicChatActionState = {
   intent?: string;
+  revision?: number;
   status: "idle" | "success" | "error";
   message?: string;
 };

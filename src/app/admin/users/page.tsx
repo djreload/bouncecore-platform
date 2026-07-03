@@ -3,6 +3,7 @@ import { AdminUserInvitesPanel } from "@/app/admin/users/invites-panel";
 import {
   AddUserRoleForm,
   DeleteUserForm,
+  PasswordResetForm,
   RemoveUserRoleForm,
   UserStatusForm
 } from "@/app/admin/users/user-management-forms";
@@ -170,6 +171,8 @@ export default async function AdminUsersPage() {
                         ) : (
                           <Badge tone="muted">All roles assigned</Badge>
                         )}
+
+                        {canDeleteUsers ? <PasswordResetForm email={user.email} userId={user.id} /> : null}
 
                         {canDeleteUsers ? (
                           user.id === actor.id ? (

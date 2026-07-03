@@ -3,6 +3,7 @@ import { getApiUserWithPermission } from "@/lib/auth/guards";
 import type { Permission } from "@/lib/auth/rbac";
 import {
   saveOptionalBrandingImageUpload,
+  saveOptionalAndroidApkUpload,
   saveOptionalChatAssetUpload,
   saveOptionalDownloadMp3,
   saveOptionalFaviconUpload,
@@ -30,6 +31,10 @@ const uploadHandlers = {
   "chat-sticker": {
     permission: "admin.access",
     save: (file) => saveOptionalChatAssetUpload(file, "chat-stickers")
+  },
+  "mobile-apk": {
+    permission: "mobile.manage",
+    save: saveOptionalAndroidApkUpload
   },
   "product-image": {
     permission: "shop.manage",

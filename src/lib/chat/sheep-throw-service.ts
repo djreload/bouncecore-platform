@@ -32,6 +32,8 @@ export type ChatSheepThrowOverlayData = {
 };
 
 export type ChatSheepThrowReadiness = {
+  effectiveCostStars: number;
+  freeThrowAvailable: boolean;
   latestThrowAt: string | null;
   remainingCooldownSeconds: number;
 };
@@ -101,6 +103,40 @@ async function pruneExpiredSheepThrows() {
       }
     }
   });
+}
+
+async function currentOpenStreamSession() {
+  return prisma.streamSession.findFirst({
+    where: {
+      endedAt: null
+    },
+    orderBy: {
+      startedAt: "desc"
+    },
+    select: {
+      id: true,
+      startedAt: true
+    }
+  });
+}
+
+async function hasUsedFreeSheepThrowInCurrentStream(userId: string) {
+  const session = await currentOpenStreamSession();
+
+  if (!session) {
+    return true;
+  }
+
+  const throwCount = await prisma.chatSheepThrow.count({
+    where: {
+      createdAt: {
+        gte: session.startedAt
+      },
+      throwerId: userId
+    }
+  });
+
+  return throwCount > 0;
 }
 
 async function resolveTarget(roomId: string, throwerId: string, messageId?: string | null) {
@@ -224,6 +260,8 @@ export async function getChatSheepThrowReadiness(
 ): Promise<ChatSheepThrowReadiness> {
   if (!userId) {
     return {
+      effectiveCostStars: providedSettings?.costStars ?? defaultSheepThrowSettings.costStars,
+      freeThrowAvailable: false,
       latestThrowAt: null,
       remainingCooldownSeconds: 0
     };
@@ -231,7 +269,7 @@ export async function getChatSheepThrowReadiness(
 
   await pruneExpiredSheepThrows();
 
-  const [settings, latestThrow] = await Promise.all([
+  const [settings, latestThrow, usedFreeThrow] = await Promise.all([
     providedSettings ? Promise.resolve(providedSettings) : getSheepThrowSettings(),
     prisma.chatSheepThrow.findFirst({
       where: {
@@ -243,10 +281,14 @@ export async function getChatSheepThrowReadiness(
       select: {
         createdAt: true
       }
-    })
+    }),
+    hasUsedFreeSheepThrowInCurrentStream(userId)
   ]);
+  const freeThrowAvailable = !usedFreeThrow;
 
   return {
+    effectiveCostStars: freeThrowAvailable ? 0 : settings.costStars,
+    freeThrowAvailable,
     latestThrowAt: latestThrow?.createdAt.toISOString() ?? null,
     remainingCooldownSeconds: remainingSheepThrowCooldownSeconds(latestThrow?.createdAt, settings.cooldownSeconds)
   };
@@ -283,7 +325,32 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
 
   const target = await resolveTarget(roomId, throwerId, targetMessageId);
   const result = await prisma.$transaction(async (tx) => {
-    if (settings.costStars > 0) {
+    const activeStreamSession = await tx.streamSession.findFirst({
+      where: {
+        endedAt: null
+      },
+      orderBy: {
+        startedAt: "desc"
+      },
+      select: {
+        id: true,
+        startedAt: true
+      }
+    });
+    const priorStreamThrowCount = activeStreamSession
+      ? await tx.chatSheepThrow.count({
+          where: {
+            createdAt: {
+              gte: activeStreamSession.startedAt
+            },
+            throwerId
+          }
+        })
+      : 1;
+    const freeThrowApplied = Boolean(activeStreamSession && priorStreamThrowCount === 0);
+    const costStars = freeThrowApplied ? 0 : settings.costStars;
+
+    if (costStars > 0) {
       const wallet = await tx.starWallet.upsert({
         where: {
           userId: throwerId
@@ -295,26 +362,26 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
         }
       });
 
-      if (wallet.balance < settings.costStars) {
-        throw new Error(`You need ${settings.costStars.toLocaleString("en-GB")} stars to throw sheep.`);
+      if (wallet.balance < costStars) {
+        throw new Error(`You need ${costStars.toLocaleString("en-GB")} stars to throw sheep.`);
       }
 
       const updatedWallet = await tx.starWallet.updateMany({
         where: {
           id: wallet.id,
           balance: {
-            gte: settings.costStars
+            gte: costStars
           }
         },
         data: {
           balance: {
-            decrement: settings.costStars
+            decrement: costStars
           }
         }
       });
 
       if (updatedWallet.count !== 1) {
-        throw new Error(`You need ${settings.costStars.toLocaleString("en-GB")} stars to throw sheep.`);
+        throw new Error(`You need ${costStars.toLocaleString("en-GB")} stars to throw sheep.`);
       }
     }
 
@@ -337,6 +404,8 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     });
 
     return {
+      costStars,
+      freeThrowApplied,
       sheepThrow,
       toastMessage
     };
@@ -349,7 +418,8 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     severity: "info",
     metadata: {
       roomSlug: throwContext.room.slug,
-      costStars: settings.costStars,
+      costStars: result.costStars,
+      freeThrowApplied: result.freeThrowApplied,
       toastMessageId: result.toastMessage.id,
       targetDisplayName: target.targetDisplayName,
       targetMessageId: target.targetMessageId,

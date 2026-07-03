@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { startTransition, useActionState, useState, type FormEvent } from "react";
-import { Archive, CheckCircle2, Disc3, Image as ImageIcon, Save, ShieldCheck, Undo2 } from "lucide-react";
+import { Archive, CheckCircle2, Disc3, Image as ImageIcon, Save, ShieldCheck, Trash2, Undo2 } from "lucide-react";
 import { adminTracksAction } from "@/app/admin/tracks/actions";
 import { initialAdminTracksActionState, type AdminTracksActionState } from "@/app/admin/tracks/state";
 import { Badge } from "@/components/ui/badge";
@@ -324,6 +324,52 @@ function StatusButton({
   );
 }
 
+function DeleteTrackForm({
+  action,
+  disabled,
+  track
+}: {
+  action: (formData: FormData) => void;
+  disabled: boolean;
+  track: AdminMusicTrackRow;
+}) {
+  if (track.purchaseCount > 0) {
+    return (
+      <div className="rounded-md border border-bc-amber/30 bg-bc-amber/10 p-3 text-xs text-bc-muted">
+        <p className="font-semibold text-bc-amber">Deletion locked</p>
+        <p className="mt-1">
+          This track has {track.purchaseCount.toLocaleString("en-GB")} purchase record
+          {track.purchaseCount === 1 ? "" : "s"}. Archive it to keep customer downloads and payout history intact.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form action={action} className="grid gap-2 rounded-md border border-bc-pink/30 bg-bc-pink/10 p-3">
+      <input name="intent" type="hidden" value="delete-track" />
+      <input name="trackId" type="hidden" value={track.id} />
+      <label className="text-xs font-semibold text-bc-muted" htmlFor={`delete-track-${track.id}`}>
+        Type the track title to permanently delete this zero-purchase track.
+      </label>
+      <div className="flex flex-wrap gap-2">
+        <input
+          autoComplete="off"
+          className="min-h-9 min-w-0 flex-1 rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs text-white"
+          disabled={disabled}
+          id={`delete-track-${track.id}`}
+          name="confirmation"
+          placeholder={track.title}
+        />
+        <Button disabled={disabled} size="sm" type="submit" variant="pink">
+          <Trash2 className="h-4 w-4" aria-hidden="true" />
+          Delete
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null }: AdminTracksPanelProps) {
   const [state, formAction, pending] = useActionState<AdminTracksActionState, FormData>(
     adminTracksAction,
@@ -462,6 +508,9 @@ export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null
                   <div className="flex flex-wrap gap-2">
                     <Badge tone={statusTone(track.status)}>{track.status}</Badge>
                     <Badge tone="muted">{formatMoney(track.pricePence)}</Badge>
+                    <Badge tone={track.purchaseCount > 0 ? "acid" : "muted"}>
+                      {track.purchaseCount.toLocaleString("en-GB")} purchase{track.purchaseCount === 1 ? "" : "s"}
+                    </Badge>
                     {track.downloadUrl ? <Badge tone="cyan">Download ready</Badge> : <Badge tone="amber">No download URL</Badge>}
                   </div>
                   <h4 className="mt-3 text-xl font-black">{track.title}</h4>
@@ -489,6 +538,12 @@ export function AdminTracksPanel({ data, mode = "catalogue", repairFilter = null
                   </Button>
                 </div>
               </form>
+            ) : null}
+
+            {mode === "catalogue" ? (
+              <div className="mt-4">
+                <DeleteTrackForm action={formAction} disabled={busy} track={track} />
+              </div>
             ) : (
               <div className="grid gap-3 rounded-md border border-bc-line bg-bc-ink p-4 text-sm md:grid-cols-3">
                 <div>

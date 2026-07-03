@@ -67,6 +67,7 @@ type ChatRoomPanelProps = {
   presenceUsers?: PublicChatPresenceUserRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
+  sheepFreeThrowAvailable?: boolean;
   sheepRemainingCooldownSeconds?: number;
   sheepSettings?: SheepThrowSettings;
   roleDisplayLabels: RoleDisplayNameMap;
@@ -307,6 +308,7 @@ export function ChatRoomPanel({
   presenceUsers = [],
   currentUser,
   currentStarBalance = 0,
+  sheepFreeThrowAvailable = false,
   sheepRemainingCooldownSeconds = 0,
   sheepSettings = defaultSheepThrowSettings,
   roleDisplayLabels,
@@ -342,6 +344,7 @@ export function ChatRoomPanel({
   const [syncedPresence, setSyncedPresence] = useState<SyncedPresence | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const [localStarBalance, setLocalStarBalance] = useState(currentStarBalance);
+  const [localSheepFreeThrowAvailable, setLocalSheepFreeThrowAvailable] = useState(sheepFreeThrowAvailable);
   const [sheepCooldownRemaining, setSheepCooldownRemaining] = useState(sheepRemainingCooldownSeconds);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
@@ -358,8 +361,13 @@ export function ChatRoomPanel({
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
-  const currentUserCanAffordSheep = localStarBalance >= sheepSettings.costStars;
-  const sheepThrowCostLabel = sheepSettings.costStars > 0 ? `${sheepSettings.costStars.toLocaleString("en-GB")} stars` : "Free";
+  const effectiveSheepCostStars = localSheepFreeThrowAvailable ? 0 : sheepSettings.costStars;
+  const currentUserCanAffordSheep = localStarBalance >= effectiveSheepCostStars;
+  const sheepThrowCostLabel = localSheepFreeThrowAvailable
+    ? "Free live throw"
+    : effectiveSheepCostStars > 0
+      ? `${effectiveSheepCostStars.toLocaleString("en-GB")} stars`
+      : "Free";
   const sheepCooldownActive = sheepCooldownRemaining > 0;
   const sheepCooldownLabel = formatSheepThrowCooldownLabel(sheepCooldownRemaining);
   const sheepThrowStatusLabel = !sheepSettings.enabled
@@ -598,7 +606,8 @@ export function ChatRoomPanel({
       state.intent === "sheep"
         ? window.setTimeout(() => {
             setSheepCooldownRemaining(sheepSettings.cooldownSeconds);
-            setLocalStarBalance((balance) => Math.max(0, balance - sheepSettings.costStars));
+            setLocalStarBalance((balance) => Math.max(0, balance - effectiveSheepCostStars));
+            setLocalSheepFreeThrowAvailable(false);
           }, 0)
         : null;
     const resetTimer = window.setTimeout(() => {
@@ -628,11 +637,11 @@ export function ChatRoomPanel({
     };
   }, [
     closeComposerPanels,
+    effectiveSheepCostStars,
     loadLatestMessages,
     sheepSettings.cooldownSeconds,
-    sheepSettings.costStars,
     state.intent,
-    state.message,
+    state.revision,
     state.status,
     selectedRoomId
   ]);
@@ -660,6 +669,16 @@ export function ChatRoomPanel({
       window.clearTimeout(timer);
     };
   }, [sheepRemainingCooldownSeconds]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setLocalSheepFreeThrowAvailable(sheepFreeThrowAvailable);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [sheepFreeThrowAvailable]);
 
   useEffect(() => {
     if (!sheepCooldownActive) {

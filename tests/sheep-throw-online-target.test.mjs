@@ -31,3 +31,15 @@ test("chat UI only shows sheep action for online message authors", () => {
   assert.match(content, /onlinePresenceUserIds/);
   assert.match(content, /onlinePresenceUserIds\.has\(message\.authorUserId\)/);
 });
+
+test("supporters get one free sheep throw per active livestream before wallet deduction", () => {
+  const service = readFileSync(join(process.cwd(), "src/lib/chat/sheep-throw-service.ts"), "utf8");
+  const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+
+  assert.match(service, /freeThrowAvailable/);
+  assert.match(service, /createdAt:\s*{\s*gte: activeStreamSession\.startedAt/s);
+  assert.match(service, /const freeThrowApplied = Boolean\(activeStreamSession && priorStreamThrowCount === 0\)/);
+  assert.match(service, /const costStars = freeThrowApplied \? 0 : settings\.costStars/);
+  assert.match(panel, /Free live throw/);
+  assert.match(panel, /setLocalSheepFreeThrowAvailable\(false\)/);
+});

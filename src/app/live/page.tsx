@@ -267,6 +267,7 @@ export default async function LivePage() {
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}
+              sheepFreeThrowAvailable={sheepReadiness.freeThrowAvailable}
               sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
               sheepSettings={sheepSettings}
               showPresenceRail

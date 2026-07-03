@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
-import { BadgeDollarSign, BellRing, Download, Megaphone, Save, Settings2, Smartphone, Wrench } from "lucide-react";
+import { startTransition, useActionState, useState, type FormEvent } from "react";
+import { BadgeDollarSign, BellRing, Download, Megaphone, Save, Settings2, Smartphone, Upload, Wrench } from "lucide-react";
 import { adminMobileAction } from "@/app/admin/mobile/actions";
 import { initialAdminMobileActionState, type AdminMobileActionState } from "@/app/admin/mobile/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 import type { AdminMobileConfigData, MobileFeatureKey } from "@/lib/admin/mobile-service";
 
 type AdminMobilePanelProps = {
@@ -43,12 +44,54 @@ function repairLabel() {
   };
 }
 
+function formFile(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return value instanceof File && value.size > 0 ? value : null;
+}
+
+function absoluteUrl(pathOrUrl: string) {
+  if (/^https:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+
+  return new URL(pathOrUrl, window.location.origin).toString();
+}
+
 export function AdminMobilePanel({ data, repairFilter = null }: AdminMobilePanelProps) {
   const [state, formAction, pending] = useActionState<AdminMobileActionState, FormData>(
     adminMobileAction,
     initialAdminMobileActionState
   );
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const activeRepair = repairFilter === "update-url" ? repairLabel() : null;
+  const busy = pending || uploading;
+
+  async function handleConfigSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const apkFile = formFile(formData, "androidApkFile");
+
+    setUploadError(null);
+
+    try {
+      if (apkFile) {
+        setUploading(true);
+        formData.set("androidUpdateUrl", absoluteUrl(await uploadAdminMedia("mobile-apk", apkFile)));
+      }
+
+      formData.delete("androidApkFile");
+
+      startTransition(() => {
+        formAction(formData);
+      });
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "APK upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -104,19 +147,19 @@ export function AdminMobilePanel({ data, repairFilter = null }: AdminMobilePanel
           <Smartphone className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
 
-        {state.message ? (
+        {uploadError || state.message ? (
           <div
             className={`mt-5 rounded-md border p-3 text-sm ${
-              state.status === "error"
+              uploadError || state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
                 : "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
             }`}
           >
-            {state.message}
+            {uploadError ?? state.message}
           </div>
         ) : null}
 
-        <form action={formAction} className="mt-5 grid gap-5">
+        <form action={formAction} className="mt-5 grid gap-5" encType="multipart/form-data" onSubmit={handleConfigSubmit}>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-app-name">
@@ -447,6 +490,25 @@ export function AdminMobilePanel({ data, repairFilter = null }: AdminMobilePanel
                 />
               </div>
             </div>
+            <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-3">
+              <div className="flex items-center gap-2">
+                <Upload className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-apk-file">
+                  Upload APK
+                </label>
+              </div>
+              <input
+                accept=".apk,application/vnd.android.package-archive,application/octet-stream"
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white file:mr-3 file:rounded file:border-0 file:bg-bc-electric file:px-3 file:py-1 file:text-sm file:font-semibold file:text-bc-void"
+                disabled={busy}
+                id="mobile-android-apk-file"
+                name="androidApkFile"
+                type="file"
+              />
+              <p className="mt-2 text-xs text-bc-muted">
+                Upload a signed `.apk` to this site and save its generated HTTPS URL as the mobile update/download URL.
+              </p>
+            </div>
             <label className="mt-4 block text-xs font-semibold uppercase text-bc-muted" htmlFor="mobile-android-update-message">
               Required update message
             </label>
@@ -515,9 +577,9 @@ export function AdminMobilePanel({ data, repairFilter = null }: AdminMobilePanel
           </div>
 
           <div>
-            <Button disabled={pending} type="submit" variant="primary">
+            <Button disabled={busy} type="submit" variant="primary">
               <Save className="h-4 w-4" aria-hidden="true" />
-              Save app config
+              {uploading ? "Uploading APK..." : "Save app config"}
             </Button>
           </div>
         </form>

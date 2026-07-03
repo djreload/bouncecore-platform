@@ -1,14 +1,16 @@
 "use server";
 
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import type { AdminUserInviteActionState, AdminUserManagementActionState } from "@/app/admin/users/state";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { addAdminUserRole, removeAdminUserRole, updateAdminUserStatus } from "@/lib/auth/user-admin-service";
-import { sendInviteEmail } from "@/lib/auth/email-verification-service";
+import { requestPasswordReset, sendInviteEmail } from "@/lib/auth/email-verification-service";
 import { deleteUserAndRelatedData } from "@/lib/auth/user-deletion-service";
 import { createAdminUserInvite, revokeAdminUserInvite, rolesFromInviteJson } from "@/lib/auth/user-invite-service";
 import { prisma } from "@/lib/db/prisma";
+import { appOriginFromHeaders } from "@/lib/http/app-url";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -171,6 +173,50 @@ export async function deleteAdminUserAction(
   } catch (error) {
     return {
       message: actionErrorMessage(error, "User account could not be deleted."),
+      status: "error"
+    };
+  }
+}
+
+export async function sendAdminPasswordResetAction(
+  _previousState: AdminUserManagementActionState,
+  formData: FormData
+): Promise<AdminUserManagementActionState> {
+  const actor = await requireSignedInUser();
+
+  try {
+    if (!hasPermission(actor, "users.manage")) {
+      throw new Error("You do not have permission to send password reset emails.");
+    }
+
+    const userId = formString(formData, "userId");
+
+    if (!userId) {
+      throw new Error("Missing user.");
+    }
+
+    const target = await prisma.user.findUniqueOrThrow({
+      where: {
+        id: userId
+      },
+      select: {
+        email: true
+      }
+    });
+    const origin = appOriginFromHeaders(await headers()) ?? process.env.NEXT_PUBLIC_APP_URL;
+    const result = await requestPasswordReset(target.email, origin);
+
+    revalidateUserAdminViews();
+
+    return {
+      message: result.sent
+        ? `Password reset email sent to ${target.email}.`
+        : `Password reset request accepted for ${target.email}. Check SMTP configuration if no email arrives.`,
+      status: "success"
+    };
+  } catch (error) {
+    return {
+      message: actionErrorMessage(error, "Password reset email could not be sent."),
       status: "error"
     };
   }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { PersistentLiveAudio } from "@/components/live/persistent-live-audio";
+import { MobileApkInstallPrompt } from "@/components/mobile/mobile-apk-install-prompt";
 import { SitePresenceHeartbeat } from "@/components/presence/site-presence-heartbeat";
 import { CookieConsentManager } from "@/components/privacy/cookie-consent-manager";
 import { defaultSiteFaviconUrl, getPublicSiteSettings } from "@/lib/admin/site-settings-service";
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <PersistentLiveAudio />
         <SitePresenceHeartbeat />
         <CookieConsentManager />
+        <MobileApkInstallPrompt />
       </body>
     </html>
   );

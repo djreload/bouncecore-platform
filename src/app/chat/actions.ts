@@ -122,6 +122,7 @@ export async function publicChatAction(
 
     return {
       intent,
+      revision: Date.now(),
       status: "success",
       message:
         intent === "report"

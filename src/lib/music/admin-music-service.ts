@@ -41,6 +41,7 @@ export type AdminMusicTrackRow = {
   producerUserId: string;
   producerEmail: string;
   producerDisplayName: string;
+  purchaseCount: number;
 };
 
 export type AdminMusicStats = {
@@ -200,6 +201,9 @@ function toAdminTrackRow(track: {
       displayName: string;
     };
   };
+  _count: {
+    purchases: number;
+  };
 }): AdminMusicTrackRow {
   return {
     id: track.id,
@@ -221,7 +225,8 @@ function toAdminTrackRow(track: {
     producerBio: track.producer.bio,
     producerUserId: track.producer.userId,
     producerEmail: track.producer.user.email,
-    producerDisplayName: track.producer.user.displayName
+    producerDisplayName: track.producer.user.displayName,
+    purchaseCount: track._count.purchases
   };
 }
 
@@ -257,6 +262,11 @@ async function uniqueTrackSlug(slug: string, trackId: string) {
 export async function getAdminMusicTracksData(): Promise<AdminMusicData> {
   const tracks = await prisma.digitalTrack.findMany({
     include: {
+      _count: {
+        select: {
+          purchases: true
+        }
+      },
       producer: {
         include: {
           user: {
@@ -285,6 +295,11 @@ export async function getAdminProducerApprovalsData(): Promise<AdminMusicData> {
       status: "pending"
     },
     include: {
+      _count: {
+        select: {
+          purchases: true
+        }
+      },
       producer: {
         include: {
           user: {
@@ -395,4 +410,67 @@ export async function setAdminTrackStatus(actorId: string, trackId: string, stat
   });
 
   return track;
+}
+
+export async function deleteAdminTrack(actorId: string, trackId: string, confirmation: string) {
+  if (!trackId) {
+    throw new Error("Missing track.");
+  }
+
+  const existing = await prisma.digitalTrack.findUniqueOrThrow({
+    where: {
+      id: trackId
+    },
+    include: {
+      _count: {
+        select: {
+          purchases: true
+        }
+      }
+    }
+  });
+
+  if (existing._count.purchases > 0) {
+    throw new Error("Tracks with purchase records cannot be deleted. Archive this track to preserve customer downloads and payout history.");
+  }
+
+  if (confirmation.trim().toLowerCase() !== existing.title.trim().toLowerCase()) {
+    throw new Error("Type the track title to confirm deletion.");
+  }
+
+  await prisma.digitalTrack.delete({
+    where: {
+      id: existing.id
+    }
+  });
+
+  await cleanupReplacedManagedUploads([
+    {
+      previous: existing.artworkUrl,
+      next: null
+    },
+    {
+      previous: existing.previewUrl,
+      next: null
+    },
+    {
+      previous: existing.downloadUrl,
+      next: null
+    }
+  ]);
+
+  await writeAuditLog({
+    actorId,
+    action: "music.track.admin_delete",
+    target: `digital-track:${existing.id}`,
+    severity: "warning",
+    metadata: {
+      purchaseCount: existing._count.purchases,
+      slug: existing.slug,
+      status: existing.status,
+      title: existing.title
+    }
+  });
+
+  return existing;
 }

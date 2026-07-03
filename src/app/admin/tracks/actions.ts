@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import {
+  deleteAdminTrack,
   setAdminTrackStatus,
   updateAdminTrack,
   type AdminTrackInput
@@ -122,6 +123,16 @@ export async function adminTracksAction(
       return {
         status: "success",
         message: `Track ${track.title} moved to ${track.status}.`
+      };
+    }
+
+    if (intent === "delete-track") {
+      const track = await deleteAdminTrack(actor.id, formString(formData, "trackId"), formString(formData, "confirmation"));
+      revalidateMusicViews();
+
+      return {
+        status: "success",
+        message: `Track ${track.title} deleted.`
       };
     }
 
