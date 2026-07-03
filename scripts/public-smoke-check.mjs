@@ -22,6 +22,7 @@ export const defaultSmokeChecks = [
   publicHtmlCheck({ id: "music", label: "Music catalogue", path: "/music", requiredText: ["Bouncecore Music"] }),
   publicHtmlCheck({ id: "shop", label: "Shop catalogue", path: "/shop", requiredText: ["Merch shop"] }),
   publicHtmlCheck({ id: "support", label: "Support page", path: "/support", requiredText: ["Help desk"] }),
+  publicHtmlCheck({ id: "mobile", label: "Mobile app page", path: "/mobile", requiredText: ["Bouncecore Android app"] }),
   publicHtmlCheck({ id: "account-delete", label: "Account deletion page", path: "/account/delete", requiredText: ["Account deletion"] }),
   publicHtmlCheck({ id: "privacy", label: "Privacy policy", path: "/privacy" }),
   publicHtmlCheck({ id: "privacy-requests", label: "Privacy requests page", path: "/privacy/requests", requiredText: ["Privacy requests"] }),

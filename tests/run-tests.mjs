@@ -31,6 +31,7 @@ import "./media-service.test.mjs";
 import "./media-gateway-state.test.mjs";
 import "./mobile-account-rewards-payload.test.mjs";
 import "./mobile-apk-install-prompt.test.mjs";
+import "./mobile-app-page.test.mjs";
 import "./music-delivery-recovery-core.test.mjs";
 import "./music-checkout-errors.test.mjs";
 import "./music-ranking.test.mjs";

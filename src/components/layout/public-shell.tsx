@@ -112,6 +112,9 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
               <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href="/support">
                 Support
               </Link>
+              <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href="/mobile">
+                Mobile app
+              </Link>
               <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={accountDeletionHref}>
                 Account deletion
               </Link>
