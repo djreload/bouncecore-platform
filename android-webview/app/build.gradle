@@ -64,7 +64,7 @@ def releaseKeyPassword = configValue("BOUNCECORE_RELEASE_KEY_PASSWORD")
 def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
 def debugWebUrl = normalizeHttpsWebUrl(
     "BOUNCECORE_DEBUG_WEB_URL",
-    configValue("BOUNCECORE_DEBUG_WEB_URL", configValue("BOUNCECORE_WEB_URL", "https://develop.k-nrg.co.uk"))
+    configValue("BOUNCECORE_DEBUG_WEB_URL", configValue("BOUNCECORE_WEB_URL", "https://bouncecore.co.uk"))
 )
 def configuredReleaseWebUrl = configValue("BOUNCECORE_WEB_URL").trim()
 def releaseBuildConfigWebUrl = configuredReleaseWebUrl ? configuredReleaseWebUrl.replaceAll('/+$', '') : "https://release-url-required.invalid"

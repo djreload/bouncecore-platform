@@ -1,5 +1,5 @@
 param(
-    [string]$WebUrl = "https://develop.k-nrg.co.uk",
+    [string]$WebUrl = "https://bouncecore.co.uk",
     [string]$Serial = "",
     [switch]$LevelPlayTestSuite,
     [string]$LevelPlayAppKey = "",
