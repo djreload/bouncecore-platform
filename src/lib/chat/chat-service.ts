@@ -9,12 +9,11 @@ import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/ch
 import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
 import { canEditChatMessage, normalizeEditableChatMessageBody } from "@/lib/chat/chat-message-edit-core";
 import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-service";
+import { chatPresenceAwayMs, chatPresenceStatus } from "@/lib/chat/chat-presence-core";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import { registerTenorShare } from "@/lib/chat/tenor-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
-const chatPresenceOnlineMs = 5 * 60 * 1000;
-const chatPresenceAwayMs = 30 * 60 * 1000;
 
 export type ChatRoomInput = {
   locked?: boolean;
@@ -401,7 +400,6 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
 
   const now = new Date();
   const awayCutoff = new Date(now.getTime() - chatPresenceAwayMs);
-  const onlineCutoff = new Date(now.getTime() - chatPresenceOnlineMs);
   const activeSessions = await prisma.authSession.findMany({
     where: {
       revokedAt: null,
@@ -480,7 +478,7 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
       displayName: session.user.displayName,
       avatarUrl: session.user.profile?.avatarUrl ?? null,
       roles: normalizeRoles(session.user.roles.map((userRole) => userRole.role.name)),
-      status: lastActiveAt >= onlineCutoff ? "online" : "away",
+      status: chatPresenceStatus(lastActiveAt, now),
       lastActiveAt: lastActiveAt.toISOString()
     };
   });

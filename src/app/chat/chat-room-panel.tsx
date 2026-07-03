@@ -350,6 +350,10 @@ export function ChatRoomPanel({
   const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const visiblePresence = syncedPresence && syncedPresence.roomId === selectedRoomId ? syncedPresence.users : presenceUsers;
+  const onlinePresenceUserIds = useMemo(
+    () => new Set(visiblePresence.filter((user) => user.status === "online").map((user) => user.id)),
+    [visiblePresence]
+  );
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
@@ -998,7 +1002,11 @@ export function ChatRoomPanel({
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
             const canThrowAtMessageAuthor = Boolean(
-              canUseMessageActions && currentUserCanThrowSheep && message.authorUserId && message.authorUserId !== currentUser?.id
+              canUseMessageActions &&
+                currentUserCanThrowSheep &&
+                message.authorUserId &&
+                message.authorUserId !== currentUser?.id &&
+                onlinePresenceUserIds.has(message.authorUserId)
             );
             const messageActionsOpen = openMessageActionsId === message.id;
             const editingThisMessage = editingMessage?.id === message.id;

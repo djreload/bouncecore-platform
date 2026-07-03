@@ -2,6 +2,7 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeRoles } from "@/lib/auth/role-normalize";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
+import { chatPresenceOnlineMs } from "@/lib/chat/chat-presence-core";
 import { getActiveChatBan } from "@/lib/chat/moderation-service";
 import { queueChatSheepThrowNotification } from "@/lib/chat/sheep-throw-notification-service";
 import {
@@ -139,14 +140,40 @@ async function resolveTarget(roomId: string, throwerId: string, messageId?: stri
     },
     select: {
       displayName: true,
+      emailVerifiedAt: true,
+      id: true,
+      status: true
+    }
+  });
+
+  if (!target?.emailVerifiedAt || target.status !== "active") {
+    throw new Error("That chat user is not available for sheep throws.");
+  }
+
+  const activeTargetSession = await prisma.authSession.findFirst({
+    where: {
+      expiresAt: {
+        gt: new Date()
+      },
+      revokedAt: null,
+      updatedAt: {
+        gte: new Date(Date.now() - chatPresenceOnlineMs)
+      },
+      userId: target.id
+    },
+    select: {
       id: true
     }
   });
 
+  if (!activeTargetSession) {
+    throw new Error("Sheep can only be thrown at users who are online and active right now.");
+  }
+
   return {
-    targetDisplayName: target?.displayName ?? "Guest",
+    targetDisplayName: target.displayName,
     targetMessageId: message.id,
-    targetUserId: target?.id ?? message.userId
+    targetUserId: target.id
   };
 }
 
