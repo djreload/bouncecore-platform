@@ -8,6 +8,7 @@ test("mobile APK install prompt is driven by public mobile config and hidden ins
   const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
   const uploadClient = readFileSync(join(process.cwd(), "src/lib/media/admin-upload-client.ts"), "utf8");
   const uploadRoute = readFileSync(join(process.cwd(), "src/app/api/admin/uploads/route.ts"), "utf8");
+  const publicUploadRoute = readFileSync(join(process.cwd(), "src/app/uploads/[...path]/route.ts"), "utf8");
 
   assert.match(prompt, /\/api\/mobile\/v1\/config/);
   assert.match(prompt, /version\?\.updateUrl/);
@@ -16,4 +17,6 @@ test("mobile APK install prompt is driven by public mobile config and hidden ins
   assert.match(layout, /<MobileApkInstallPrompt \/>/);
   assert.match(uploadClient, /"mobile-apk"/);
   assert.match(uploadRoute, /"mobile-apk"/);
+  assert.match(publicUploadRoute, /"mobile-apks"/);
+  assert.match(publicUploadRoute, /application\/vnd\.android\.package-archive/);
 });
