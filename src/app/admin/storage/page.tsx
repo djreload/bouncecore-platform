@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { headers } from "next/headers";
 import {
   AlertTriangle,
   Database,
@@ -34,6 +35,7 @@ import {
   type HealthCheck
 } from "@/lib/admin/system-health";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { appOriginFromHeaders } from "@/lib/http/app-url";
 
 export const dynamic = "force-dynamic";
 
@@ -249,11 +251,17 @@ function BrokenReferenceTable({ references }: { references: BrokenReference[] })
   );
 }
 
-function googleDriveRedirectUri() {
+function googleDriveRedirectUri(requestHeaders: Headers) {
+  const origin = appOriginFromHeaders(requestHeaders);
+
+  if (!origin) {
+    return "Set NEXT_PUBLIC_APP_URL to show the Google Drive OAuth redirect URL.";
+  }
+
   try {
-    return new URL("/admin/storage/google-drive/callback", process.env.NEXT_PUBLIC_APP_URL || "https://your-domain.example").toString();
+    return new URL("/admin/storage/google-drive/callback", origin).toString();
   } catch {
-    return "https://your-domain.example/admin/storage/google-drive/callback";
+    return "Set NEXT_PUBLIC_APP_URL to show the Google Drive OAuth redirect URL.";
   }
 }
 
@@ -263,6 +271,7 @@ export default async function AdminStoragePage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireUserPermission("settings.manage");
+  const requestHeaders = await headers();
   const [data, backupStatus, offsiteBackupStatus, offsiteSettings, manualBackupRun] = await Promise.all([
     getAdminMediaStorageData(),
     backupStatusHealthCheck(),
@@ -277,7 +286,7 @@ export default async function AdminStoragePage({
   const params = (await searchParams) ?? {};
   const googleDriveStatus = typeof params.googleDrive === "string" ? params.googleDrive : "";
   const googleDriveMessage = typeof params.message === "string" ? params.message : "";
-  const googleDriveOAuthRedirectUri = googleDriveRedirectUri();
+  const googleDriveOAuthRedirectUri = googleDriveRedirectUri(requestHeaders);
   const verifiedBackupCommand =
     "scripts/backup-instance.sh --env-file .env.instance --compose-file docker-compose.instance.yml --backup-root /srv/bouncecore-backups";
   const offsiteBackupCommand =

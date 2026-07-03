@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { appOrigin, appUrl } from "../src/lib/http/app-url.ts";
+import { appOrigin, appOriginFromHeaders, appUrl } from "../src/lib/http/app-url.ts";
 
 function withAppUrl(value, callback) {
   const previous = process.env.NEXT_PUBLIC_APP_URL;
@@ -46,6 +46,30 @@ test("appOrigin sanitizes forwarded host and protocol fallbacks", () => {
     });
 
     assert.equal(appOrigin(request), "https://develop.example.com");
+  });
+});
+
+test("appOriginFromHeaders builds an origin from forwarded headers", () => {
+  withAppUrl(null, () => {
+    const requestHeaders = new Headers({
+      host: "internal.local:3000",
+      "x-forwarded-host": "bouncecore.example.com",
+      "x-forwarded-proto": "https"
+    });
+
+    assert.equal(appOriginFromHeaders(requestHeaders), "https://bouncecore.example.com");
+  });
+});
+
+test("appOriginFromHeaders prefers configured app URL", () => {
+  withAppUrl("https://public.example.com/admin", () => {
+    const requestHeaders = new Headers({
+      host: "internal.local:3000",
+      "x-forwarded-host": "attacker.example.com",
+      "x-forwarded-proto": "http"
+    });
+
+    assert.equal(appOriginFromHeaders(requestHeaders), "https://public.example.com");
   });
 });
 
