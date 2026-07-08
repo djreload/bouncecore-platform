@@ -79,9 +79,7 @@ export type Permission = (typeof permissionDefinitions)[number]["key"];
 export const rolePermissions = {
   owner: permissionDefinitions.map((permission) => permission.key),
   developer: [],
-  admin: permissionDefinitions
-    .map((permission) => permission.key)
-    .filter((permission) => permission !== "settings.manage" && permission !== "stream.keys.view.raw.any"),
+  admin: permissionDefinitions.map((permission) => permission.key),
   moderator: ["moderation.use", "audit.view"],
   streamer: ["stream.dashboard", "stream.keys.manage.own", "stream.keys.view.raw.own"],
   producer: ["producer.dashboard"],

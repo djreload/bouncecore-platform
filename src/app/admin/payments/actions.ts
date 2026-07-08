@@ -48,6 +48,7 @@ function paypalInput(formData: FormData): PayPalSettingsInput {
 
   return {
     clientId: formString(formData, "clientId"),
+    clientSecret: formString(formData, "clientSecret"),
     merchantEmail: formString(formData, "merchantEmail"),
     merchantId: formString(formData, "merchantId"),
     mode,

@@ -2,6 +2,7 @@ import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
 import { getHlsPlaybackHealth, type HlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getStreamProviderMode } from "@/lib/stream/stream-provider";
+import { getAdminGifProviderSettingsData, type AdminGifProviderSettingsData } from "@/lib/chat/gif-provider-service";
 
 export type IntegrationStatus = "ready" | "partial" | "missing";
 
@@ -32,6 +33,7 @@ export type IntegrationGroup = {
 };
 
 export type AdminIntegrationsData = {
+  gifProviders: AdminGifProviderSettingsData;
   groups: IntegrationGroup[];
   readyCount: number;
   attentionCount: number;
@@ -132,7 +134,11 @@ function absolutePath(path: string) {
 }
 
 export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData> {
-  const [paypal, stream] = await Promise.all([getPayPalIntegrationData(), getAdminStreamControlData()]);
+  const [paypal, stream, gifProviders] = await Promise.all([
+    getPayPalIntegrationData(),
+    getAdminStreamControlData(),
+    getAdminGifProviderSettingsData()
+  ]);
   const streamProviderMode = getStreamProviderMode();
   const normalizedStreamProviderMode = streamProviderMode.toLowerCase();
   const streamProviderReady =
@@ -152,10 +158,27 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     status: item.status === "ready" ? "ready" : "missing",
     value: item.value
   }));
-  const tenorChecks: IntegrationCheck[] = [
-    check("Tenor API key", configured("TENOR_API_KEY"), configured("TENOR_API_KEY") ? "Configured" : "Missing", "TENOR_API_KEY is required for GIF search in chat."),
-    check("Client key", true, "bouncecore-platform", "Tenor requests use a fixed Bouncecore client key."),
-    check("Content filter", true, "Medium", "GIF search is restricted to the GB locale with medium content filtering.")
+  const gifChecks: IntegrationCheck[] = [
+    check(
+      "GIPHY API key",
+      gifProviders.configured.giphy,
+      gifProviders.configured.giphy ? "Configured" : "Missing",
+      "GIPHY_API_KEY or admin GIPHY key enables GIPHY results in the unified GIF picker."
+    ),
+    check(
+      "KLIPY API key",
+      gifProviders.configured.klipy,
+      gifProviders.configured.klipy ? "Configured" : "Missing",
+      "KLIPY_API_KEY or admin KLIPY key enables KLIPY results in the unified GIF picker."
+    ),
+    check(
+      "Imgur client ID",
+      gifProviders.configured.imgur,
+      gifProviders.configured.imgur ? "Configured" : "Missing",
+      "IMGUR_CLIENT_ID or admin Imgur client ID enables Imgur GIF results."
+    ),
+    check("Server proxy endpoint", true, absolutePath("/api/gifs/search"), "Frontend chat calls the server proxy so provider keys are never exposed."),
+    check("Safety filtering", true, "Enabled", "GIPHY is limited to PG-13 and Imgur NSFW gallery items are excluded when metadata is available.")
   ];
   const mailChecks: IntegrationCheck[] = [
     check("Brevo SMTP host", configured("BREVO_SMTP_HOST") || configured("SMTP_HOST"), envValue("BREVO_SMTP_HOST") || envValue("SMTP_HOST") || "smtp-relay.brevo.com", "SMTP relay host for transactional account emails."),
@@ -275,14 +298,14 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       title: "PayPal payments"
     },
     {
-      checks: tenorChecks,
-      description: "GIF search and selected media messages for live chat, backed by the Tenor API.",
+      checks: gifChecks,
+      description: "Unified GIF search and selected media messages for live chat, backed by server-side GIPHY, KLIPY, and Imgur providers.",
       eyebrow: "Chat media",
-      id: "tenor",
-      primaryHref: "/chat",
-      primaryLabel: "Open chat",
-      status: groupStatus(tenorChecks),
-      statusLabel: statusLabel(groupStatus(tenorChecks)),
+      id: "gifs",
+      primaryHref: "/admin/integrations",
+      primaryLabel: "Configure providers",
+      status: groupStatus(gifChecks),
+      statusLabel: statusLabel(groupStatus(gifChecks)),
       surfaces: [
         {
           detail: "Search and send GIFs from the public chat UI.",
@@ -295,7 +318,7 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
           label: "Live chat"
         }
       ],
-      title: "Tenor GIF search"
+      title: "Unified GIF search"
     },
     {
       checks: mailChecks,
@@ -395,6 +418,7 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
 
   return {
     attentionCount: groups.filter((group) => group.status !== "ready").length,
+    gifProviders,
     groups,
     readyCount: groups.filter((group) => group.status === "ready").length,
     totalCount: groups.length

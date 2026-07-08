@@ -1,6 +1,7 @@
 export type AdminUploadKind =
   | "branding-favicon"
   | "branding-logo"
+  | "branding-og-image"
   | "chat-emoji"
   | "chat-sticker"
   | "mobile-apk"

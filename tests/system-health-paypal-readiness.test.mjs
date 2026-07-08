@@ -32,7 +32,7 @@ test("system health uses PayPal integration readiness instead of raw env-only ch
         value: "Configured"
       },
       {
-        detail: "PAYPAL_CLIENT_SECRET must stay in the server environment.",
+        detail: "PAYPAL_CLIENT_SECRET or admin PayPal client secret stored server-side only.",
         label: "PayPal client secret",
         status: "missing",
         value: "Missing"
@@ -49,7 +49,7 @@ test("system health uses PayPal integration readiness instead of raw env-only ch
       value: "Configured"
     },
     {
-      detail: "PAYPAL_CLIENT_SECRET must stay in the server environment.",
+      detail: "PAYPAL_CLIENT_SECRET or admin PayPal client secret stored server-side only.",
       label: "PayPal client secret",
       status: "warning",
       value: "Missing"

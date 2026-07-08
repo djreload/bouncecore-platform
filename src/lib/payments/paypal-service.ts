@@ -8,6 +8,7 @@ export const paypalModeOptions = ["sandbox", "live"] as const;
 export type PayPalMode = (typeof paypalModeOptions)[number];
 
 export type PayPalSettingsInput = {
+  clientSecret?: string;
   mode: PayPalMode;
   clientId?: string;
   merchantEmail?: string;
@@ -20,10 +21,13 @@ export type PayPalSettingsInput = {
 
 export type PayPalSettings = PayPalSettingsInput & {
   clientId: string;
+  clientSecret: string;
   merchantEmail: string;
   merchantId: string;
   webhookId: string;
 };
+
+export type PayPalPublicSettings = Omit<PayPalSettings, "clientSecret">;
 
 export type PayPalReadinessCheck = {
   label: string;
@@ -40,7 +44,7 @@ export type PayPalUseCase = {
 };
 
 export type PayPalIntegrationData = {
-  settings: PayPalSettings;
+  settings: PayPalPublicSettings;
   secretConfigured: boolean;
   apiBaseUrl: string;
   checks: PayPalReadinessCheck[];
@@ -160,6 +164,7 @@ function toSettings(value: unknown): PayPalSettings {
       (typeof stored.clientId === "string" && stored.clientId.trim()) ||
       envValue("PAYPAL_CLIENT_ID") ||
       envValue("NEXT_PUBLIC_PAYPAL_CLIENT_ID"),
+    clientSecret: (typeof stored.clientSecret === "string" && stored.clientSecret.trim()) || envValue("PAYPAL_CLIENT_SECRET"),
     merchantEmail: (typeof stored.merchantEmail === "string" && stored.merchantEmail.trim()) || envValue("PAYPAL_MERCHANT_EMAIL"),
     merchantId: (typeof stored.merchantId === "string" && stored.merchantId.trim()) || envValue("PAYPAL_MERCHANT_ID"),
     mode,
@@ -167,6 +172,19 @@ function toSettings(value: unknown): PayPalSettings {
     shopEnabled: typeof stored.shopEnabled === "boolean" ? stored.shopEnabled : true,
     starsEnabled: typeof stored.starsEnabled === "boolean" ? stored.starsEnabled : true,
     webhookId: (typeof stored.webhookId === "string" && stored.webhookId.trim()) || envValue("PAYPAL_WEBHOOK_ID")
+  };
+}
+
+function publicSettings(settings: PayPalSettings): PayPalPublicSettings {
+  return {
+    clientId: settings.clientId,
+    merchantEmail: settings.merchantEmail,
+    merchantId: settings.merchantId,
+    mode: settings.mode,
+    producerPayoutsEnabled: settings.producerPayoutsEnabled,
+    shopEnabled: settings.shopEnabled,
+    starsEnabled: settings.starsEnabled,
+    webhookId: settings.webhookId
   };
 }
 
@@ -183,10 +201,6 @@ export function paypalApiBaseUrl(mode: PayPalMode) {
   return mode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 }
 
-function paypalClientSecret() {
-  return envValue("PAYPAL_CLIENT_SECRET");
-}
-
 export async function getPayPalSettings() {
   const setting = await prisma.appSetting.findUnique({
     where: {
@@ -199,11 +213,11 @@ export async function getPayPalSettings() {
 
 export async function getPayPalIntegrationData(): Promise<PayPalIntegrationData> {
   const settings = await getPayPalSettings();
-  const secretConfigured = Boolean(paypalClientSecret());
+  const secretConfigured = Boolean(settings.clientSecret);
   const checks: PayPalReadinessCheck[] = [
     check("Payment rail", true, "PayPal is the required provider for stars, shop checkout, and producer payouts."),
     check("PayPal client ID", Boolean(settings.clientId), "PAYPAL_CLIENT_ID or admin PayPal client ID."),
-    check("PayPal client secret", secretConfigured, "PAYPAL_CLIENT_SECRET must stay in the server environment."),
+    check("PayPal client secret", secretConfigured, "PAYPAL_CLIENT_SECRET or admin PayPal client secret stored server-side only."),
     check("PayPal webhook ID", Boolean(settings.webhookId), "PAYPAL_WEBHOOK_ID or admin PayPal webhook ID for event verification."),
     check("PayPal merchant", Boolean(settings.merchantEmail || settings.merchantId), "Merchant email or merchant ID for admin reference."),
     check("Producer payouts", settings.producerPayoutsEnabled, "Producer payouts are routed through PayPal Payouts.")
@@ -213,7 +227,7 @@ export async function getPayPalIntegrationData(): Promise<PayPalIntegrationData>
     apiBaseUrl: paypalApiBaseUrl(settings.mode),
     checks,
     secretConfigured,
-    settings,
+    settings: publicSettings(settings),
     useCases: [
       {
         enabled: settings.starsEnabled,
@@ -243,7 +257,13 @@ export async function getPayPalIntegrationData(): Promise<PayPalIntegrationData>
   };
 }
 
-export function getPayPalCheckoutReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+type PayPalReadinessSettings = PayPalSettings | PayPalPublicSettings;
+
+function defaultSecretConfigured(settings: PayPalReadinessSettings) {
+  return "clientSecret" in settings ? Boolean(settings.clientSecret) : Boolean(envValue("PAYPAL_CLIENT_SECRET"));
+}
+
+export function getPayPalCheckoutReadiness(settings: PayPalReadinessSettings, secretConfigured = defaultSecretConfigured(settings)) {
   return {
     ready: settings.shopEnabled && Boolean(settings.clientId) && secretConfigured,
     reason: !settings.shopEnabled
@@ -256,7 +276,7 @@ export function getPayPalCheckoutReadiness(settings: PayPalSettings, secretConfi
   };
 }
 
-export function getPayPalStarsReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+export function getPayPalStarsReadiness(settings: PayPalReadinessSettings, secretConfigured = defaultSecretConfigured(settings)) {
   return {
     ready: settings.starsEnabled && Boolean(settings.clientId) && secretConfigured,
     reason: !settings.starsEnabled
@@ -269,7 +289,7 @@ export function getPayPalStarsReadiness(settings: PayPalSettings, secretConfigur
   };
 }
 
-export function getPayPalMusicReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+export function getPayPalMusicReadiness(settings: PayPalReadinessSettings, secretConfigured = defaultSecretConfigured(settings)) {
   return {
     ready: Boolean(settings.clientId) && secretConfigured,
     reason: !settings.clientId
@@ -280,7 +300,7 @@ export function getPayPalMusicReadiness(settings: PayPalSettings, secretConfigur
   };
 }
 
-export function getPayPalPayoutReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+export function getPayPalPayoutReadiness(settings: PayPalReadinessSettings, secretConfigured = defaultSecretConfigured(settings)) {
   return {
     ready: settings.producerPayoutsEnabled && Boolean(settings.clientId) && secretConfigured,
     reason: !settings.producerPayoutsEnabled
@@ -293,7 +313,7 @@ export function getPayPalPayoutReadiness(settings: PayPalSettings, secretConfigu
   };
 }
 
-function getPayPalCredentialReadiness(settings: PayPalSettings, secretConfigured = Boolean(paypalClientSecret())) {
+function getPayPalCredentialReadiness(settings: PayPalReadinessSettings, secretConfigured = defaultSecretConfigured(settings)) {
   return {
     ready: Boolean(settings.clientId) && secretConfigured,
     reason: !settings.clientId
@@ -367,7 +387,7 @@ async function paypalFetch(path: string, init: RequestInit, settings: PayPalSett
 }
 
 async function getPayPalAccessToken(settings: PayPalSettings) {
-  const secret = paypalClientSecret();
+  const secret = settings.clientSecret;
   const readiness = getPayPalCredentialReadiness(settings, Boolean(secret));
 
   if (!readiness.ready) {
@@ -644,8 +664,10 @@ export async function updatePayPalSettings(input: PayPalSettingsInput, actorId: 
     throw new Error("Invalid PayPal mode.");
   }
 
-  const settings: PayPalSettingsInput = {
+  const existing = await getPayPalSettings();
+  const settings: PayPalSettings = {
     clientId: normalizeString(input.clientId, 220),
+    clientSecret: normalizeString(input.clientSecret, 2048) || existing.clientSecret,
     merchantEmail: normalizeString(input.merchantEmail, 180),
     merchantId: normalizeString(input.merchantId, 120),
     mode: input.mode,
@@ -660,13 +682,13 @@ export async function updatePayPalSettings(input: PayPalSettingsInput, actorId: 
       key: paypalSettingsKey
     },
     update: {
-      description: "Non-secret PayPal integration settings. Client secret remains in server environment.",
-      isSecret: false,
+      description: "PayPal integration settings. Client secret is stored server-side and never exposed to clients.",
+      isSecret: true,
       value: settings
     },
     create: {
-      description: "Non-secret PayPal integration settings. Client secret remains in server environment.",
-      isSecret: false,
+      description: "PayPal integration settings. Client secret is stored server-side and never exposed to clients.",
+      isSecret: true,
       key: paypalSettingsKey,
       value: settings
     }
@@ -680,10 +702,11 @@ export async function updatePayPalSettings(input: PayPalSettingsInput, actorId: 
     metadata: {
       mode: settings.mode,
       producerPayoutsEnabled: settings.producerPayoutsEnabled,
+      secretConfigured: Boolean(settings.clientSecret),
       shopEnabled: settings.shopEnabled,
       starsEnabled: settings.starsEnabled
     }
   });
 
-  return settings;
+  return publicSettings(settings);
 }

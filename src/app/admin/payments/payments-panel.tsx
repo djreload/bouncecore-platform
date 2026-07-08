@@ -150,7 +150,7 @@ export function AdminPaymentsPanel({ data, square, payouts, reconciliation, smok
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={data.secretConfigured ? "acid" : "amber"}>Secret</Badge>
           <p className="mt-4 text-3xl font-black">{data.secretConfigured ? "Ready" : "Missing"}</p>
-          <p className="mt-2 text-sm text-bc-muted">Server env only.</p>
+          <p className="mt-2 text-sm text-bc-muted">Stored server-side only.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="acid">Coverage</Badge>
@@ -221,6 +221,20 @@ export function AdminPaymentsPanel({ data, square, payouts, reconciliation, smok
               />
             </div>
             <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="paypal-client-secret">
+                Client secret
+              </label>
+              <input
+                autoComplete="off"
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                disabled={pending}
+                id="paypal-client-secret"
+                name="clientSecret"
+                placeholder={data.secretConfigured ? "Stored - leave blank to keep" : "PayPal REST app client secret"}
+                type="password"
+              />
+            </div>
+            <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="paypal-webhook-id">
                 Webhook ID
               </label>
@@ -282,7 +296,7 @@ export function AdminPaymentsPanel({ data, square, payouts, reconciliation, smok
           </div>
           <div className="rounded-md border border-bc-line bg-bc-ink p-4 text-sm text-bc-muted">
             <KeyRound className="mb-3 h-5 w-5 text-bc-acid" aria-hidden="true" />
-            Store `PAYPAL_CLIENT_SECRET` only in the server environment. It is intentionally not editable here.
+            PayPal secrets are stored server-side only. Leave the secret field blank to keep the current value.
           </div>
           <div>
             <Button disabled={pending} type="submit" variant="primary">

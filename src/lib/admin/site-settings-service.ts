@@ -35,6 +35,7 @@ export type SiteSettingsInput = {
     url?: string;
   }>;
   logoUrl?: string;
+  openGraphImageUrl?: string;
   siteName?: string;
   stagingTarget?: string;
   supportEmail?: string;
@@ -58,6 +59,7 @@ export type SiteSettings = {
   branding: {
     faviconUrl: string | null;
     logoUrl: string | null;
+    openGraphImageUrl: string | null;
   };
   footerSummary: string;
   homepageBadge: string;
@@ -138,7 +140,8 @@ function defaultSiteSettings(): SiteSettings {
     },
     branding: {
       faviconUrl: null,
-      logoUrl: null
+      logoUrl: null,
+      openGraphImageUrl: null
     },
     footerSummary: "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.",
     homepageBadge: "Bouncecore platform",
@@ -355,6 +358,7 @@ function mergeSiteSettings(value: unknown): SiteSettings {
   if (isObject(value.branding)) {
     settings.branding.logoUrl = safeBrandingImageUrl(value.branding.logoUrl, "Logo URL");
     settings.branding.faviconUrl = safeFaviconUrl(value.branding.faviconUrl);
+    settings.branding.openGraphImageUrl = safeBrandingImageUrl(value.branding.openGraphImageUrl, "Open Graph image URL");
   }
 
   if (Array.isArray(value.liveSocialLinks)) {
@@ -414,7 +418,8 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
     },
     branding: {
       faviconUrl: normalizeOptionalFaviconUrl(input.faviconUrl),
-      logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL")
+      logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL"),
+      openGraphImageUrl: normalizeOptionalBrandingImageUrl(input.openGraphImageUrl, "Open Graph image URL")
     },
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),
     homepageBadge: normalizedRequiredText(input.homepageBadge, 80, "Homepage badge"),
@@ -497,12 +502,12 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
       },
       {
         detail:
-          settings.branding.logoUrl || settings.branding.faviconUrl
-            ? "Custom public logo or browser icon is configured."
-            : `Built-in brand mark and favicon are active. Upload a custom logo or favicon when rebranding is ready.`,
+          settings.branding.logoUrl || settings.branding.faviconUrl || settings.branding.openGraphImageUrl
+            ? "Custom public logo, browser icon, or share image is configured."
+            : `Built-in brand mark, favicon, and share image are active. Upload custom assets when rebranding is ready.`,
         label: "Branding",
         status: "ready",
-        value: settings.branding.logoUrl || settings.branding.faviconUrl ? "custom" : "built-in"
+        value: settings.branding.logoUrl || settings.branding.faviconUrl || settings.branding.openGraphImageUrl ? "custom" : "built-in"
       },
       {
         detail: settings.legalPages.some((page) => page.enabled)
@@ -548,6 +553,10 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
     {
       previous: previous.settings.branding.faviconUrl,
       next: settings.branding.faviconUrl
+    },
+    {
+      previous: previous.settings.branding.openGraphImageUrl,
+      next: settings.branding.openGraphImageUrl
     }
   ]);
 
@@ -560,6 +569,7 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
       announcementEnabled: settings.announcement.enabled,
       brandingFaviconSet: Boolean(settings.branding.faviconUrl),
       brandingLogoSet: Boolean(settings.branding.logoUrl),
+      brandingOpenGraphImageSet: Boolean(settings.branding.openGraphImageUrl),
       legalPages: settings.legalPages.filter((page) => page.enabled).map((page) => page.key),
       liveSocialLinks: settings.liveSocialLinks.filter((link) => link.enabled).length,
       siteName: settings.siteName,

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogIn, Menu, UserPlus, X } from "lucide-react";
+import { LogIn, Menu, Share2, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -39,6 +39,11 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
 
   function closeMenu() {
     setOpen(false);
+  }
+
+  function shareOnFacebook() {
+    const url = typeof window === "undefined" ? "/" : window.location.href;
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -108,6 +113,14 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
                     </Link>
                   );
                 })}
+                <button
+                  className="bc-focus-ring flex min-h-12 items-center gap-3 rounded-md border border-bc-line/70 bg-bc-ink px-3 py-2 text-left text-sm font-semibold text-white transition hover:border-bc-electric/60 hover:bg-bc-electric/10"
+                  onClick={shareOnFacebook}
+                  type="button"
+                >
+                  <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Share on Facebook</span>
+                </button>
               </div>
             </nav>
 

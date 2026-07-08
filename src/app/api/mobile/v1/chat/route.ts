@@ -68,6 +68,7 @@ export async function POST(request: Request) {
         height: bodyNumber(gif, "height"),
         id: bodyString(gif, "id"),
         previewUrl: bodyString(gif, "previewUrl"),
+        provider: bodyString(gif, "provider"),
         searchTerm: bodyString(payload, "searchTerm") || bodyString(gif, "searchTerm"),
         url: bodyString(gif, "url"),
         width: bodyNumber(gif, "width")

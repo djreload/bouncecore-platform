@@ -87,6 +87,7 @@ export async function publicChatAction(
     } else if (intent === "gif") {
       await createChatGifMessage(roomId, user.id, {
         id: formString(formData, "gifId"),
+        provider: formString(formData, "gifProvider"),
         url: formString(formData, "gifUrl"),
         previewUrl: formString(formData, "gifPreviewUrl"),
         alt: formString(formData, "gifAlt"),

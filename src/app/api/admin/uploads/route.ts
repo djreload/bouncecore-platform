@@ -24,6 +24,10 @@ const uploadHandlers = {
     permission: "settings.manage",
     save: saveOptionalBrandingImageUpload
   },
+  "branding-og-image": {
+    permission: "settings.manage",
+    save: saveOptionalBrandingImageUpload
+  },
   "chat-emoji": {
     permission: "admin.access",
     save: (file) => saveOptionalChatAssetUpload(file, "chat-emojis")

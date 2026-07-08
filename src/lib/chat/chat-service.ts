@@ -11,7 +11,7 @@ import { canEditChatMessage, normalizeEditableChatMessageBody } from "@/lib/chat
 import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-service";
 import { chatPresenceAwayMs, chatPresenceStatus } from "@/lib/chat/chat-presence-core";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
-import { registerTenorShare } from "@/lib/chat/tenor-service";
+import type { GifProvider } from "@/lib/chat/gif-provider-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
 
@@ -72,6 +72,7 @@ export type ChatMessageReplySummary = {
 
 export type ChatGifMessageInput = {
   id: string;
+  provider?: string;
   url: string;
   previewUrl: string;
   alt: string;
@@ -978,13 +979,50 @@ export async function editOwnChatMessage(messageId: string, body: string, userId
   return updatedMessage;
 }
 
-function assertTenorMediaUrl(value: string) {
-  const url = new URL(value);
-  const allowedHosts = new Set(["media.tenor.com", "c.tenor.com"]);
+type SupportedChatGifProvider = GifProvider | "tenor";
 
-  if (url.protocol !== "https:" || !allowedHosts.has(url.hostname)) {
-    throw new Error("GIF URL is not from Tenor.");
+function chatGifProviderFromUrl(value: string): SupportedChatGifProvider | null {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
   }
+
+  const host = url.hostname.toLowerCase();
+
+  if (url.protocol !== "https:") {
+    return null;
+  }
+
+  if (host === "media.tenor.com" || host === "c.tenor.com") {
+    return "tenor";
+  }
+
+  if (host === "i.imgur.com") {
+    return "imgur";
+  }
+
+  if (host === "giphy.com" || host.endsWith(".giphy.com")) {
+    return "giphy";
+  }
+
+  if (host === "klipy.com" || host.endsWith(".klipy.com")) {
+    return "klipy";
+  }
+
+  return null;
+}
+
+function assertSupportedGifMediaUrl(value: string) {
+  const provider = chatGifProviderFromUrl(value);
+
+  if (!provider) {
+    throw new Error("GIF URL is not from an enabled GIF provider.");
+  }
+
+  return provider;
 }
 
 function normalizeGifDimension(value: number | null | undefined) {
@@ -1001,14 +1039,14 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
   const gifId = gif.id.trim().slice(0, 120);
   const mediaUrl = gif.url.trim();
   const previewUrl = (gif.previewUrl || gif.url).trim();
-  const mediaAlt = gif.alt.trim().slice(0, 180) || "Tenor GIF";
+  const mediaAlt = gif.alt.trim().slice(0, 180) || "GIF";
 
   if (!gifId || !mediaUrl || !previewUrl) {
     throw new Error("Missing GIF data.");
   }
 
-  assertTenorMediaUrl(mediaUrl);
-  assertTenorMediaUrl(previewUrl);
+  const mediaSource = assertSupportedGifMediaUrl(mediaUrl);
+  assertSupportedGifMediaUrl(previewUrl);
 
   await prisma.chatRoom.findUniqueOrThrow({
     where: {
@@ -1029,14 +1067,13 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
       mediaUrl,
       mediaPreviewUrl: previewUrl,
       mediaAlt,
-      mediaSource: "tenor",
+      mediaSource,
       mediaSourceId: gifId,
       mediaWidth: normalizeGifDimension(gif.width),
       mediaHeight: normalizeGifDimension(gif.height)
     }
   });
 
-  await registerTenorShare(gifId, gif.searchTerm ?? "");
   await publishChatRoomChanged(roomId, message.id);
 
   return message;

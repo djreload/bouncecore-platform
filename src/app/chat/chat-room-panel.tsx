@@ -11,8 +11,7 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
-  type KeyboardEvent,
-  type UIEvent
+  type KeyboardEvent
 } from "react";
 import {
   AtSign,
@@ -82,11 +81,14 @@ type ChatRoomPanelProps = {
 
 type GifResult = {
   id: string;
+  provider: "giphy" | "klipy" | "imgur";
   title: string;
-  url: string;
+  gifUrl: string;
   previewUrl: string;
-  width: number | null;
-  height: number | null;
+  width?: number | null;
+  height?: number | null;
+  sourceUrl?: string;
+  rating?: string;
 };
 
 type SyncedMessages = {
@@ -155,7 +157,7 @@ function roomTone(type: string) {
   return "cyan" as const;
 }
 
-function imageSize(width: number | null, height: number | null) {
+function imageSize(width: number | null | undefined, height: number | null | undefined) {
   return {
     width: width ?? 360,
     height: height ?? 260
@@ -170,6 +172,10 @@ function slowModeLabel(seconds: number) {
   }
 
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
+}
+
+function visibleBadgeRoles<T extends string>(roles: T[]) {
+  return roles.filter((role) => role !== "viewer");
 }
 
 function authorInitial(value: string) {
@@ -274,9 +280,9 @@ function ChatPresenceRail({
                       </p>
                     </div>
                   </div>
-                  {user.roles.length ? (
+                  {visibleBadgeRoles(user.roles).length ? (
                     <div className="mt-2 flex flex-wrap gap-1">
-                      {user.roles.slice(0, 2).map((role) => (
+                      {visibleBadgeRoles(user.roles).slice(0, 2).map((role) => (
                         <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
                           {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>
@@ -331,7 +337,6 @@ export function ChatRoomPanel({
   const [presenceRailOpen, setPresenceRailOpen] = useState(true);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
-  const [gifNextPosition, setGifNextPosition] = useState<string | null>(null);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
   const [composerBody, setComposerBody] = useState("");
@@ -794,7 +799,7 @@ export function ChatRoomPanel({
     window.setTimeout(keepComposerVisible, 320);
   }
 
-  async function loadGifs(query: string, position: string | null, append: boolean) {
+  async function loadGifs(query: string) {
     const normalizedQuery = query.trim();
 
     if (!normalizedQuery) {
@@ -807,35 +812,27 @@ export function ChatRoomPanel({
 
     try {
       const params = new URLSearchParams({
+        limit: "48",
         q: normalizedQuery
       });
 
-      if (position) {
-        params.set("pos", position);
-      }
-
-      const response = await fetch(`/api/chat/gifs?${params.toString()}`, {
+      const response = await fetch(`/api/gifs/search?${params.toString()}`, {
         cache: "no-store"
       });
-      const payload = (await response.json()) as { gifs?: GifResult[]; next?: string | null; error?: string };
+      const payload = (await response.json()) as { results?: GifResult[]; error?: string };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "GIF search failed.");
       }
 
-      const nextGifs = payload.gifs ?? [];
+      const nextGifs = payload.results ?? [];
 
-      setGifResults((current) => (append ? [...current, ...nextGifs] : nextGifs));
-      setGifNextPosition(payload.next ?? null);
-      setGifError(nextGifs.length || append ? null : "No GIFs found.");
+      setGifResults(nextGifs);
+      setGifError(nextGifs.length ? null : "No GIFs found.");
 
-      if (!append) {
-        gifResultsViewportRef.current?.scrollTo({ top: 0 });
-      }
+      gifResultsViewportRef.current?.scrollTo({ top: 0 });
     } catch (error) {
-      if (!append) {
-        setGifResults([]);
-      }
+      setGifResults([]);
       setGifError(error instanceof Error ? error.message : "GIF search failed.");
     } finally {
       setGifLoading(false);
@@ -845,21 +842,7 @@ export function ChatRoomPanel({
   async function searchGifs(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    setGifNextPosition(null);
-    await loadGifs(gifQuery, null, false);
-  }
-
-  function handleGifResultsScroll(event: UIEvent<HTMLDivElement>) {
-    if (!gifNextPosition || gifLoading) {
-      return;
-    }
-
-    const element = event.currentTarget;
-    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
-
-    if (remaining < 180) {
-      void loadGifs(gifQuery, gifNextPosition, true);
-    }
+    await loadGifs(gifQuery);
   }
 
   function renderStarsForm(className?: string, compactStarForm = false) {
@@ -1092,7 +1075,7 @@ export function ChatRoomPanel({
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
-                        {message.authorRoles.map((role) => (
+                        {visibleBadgeRoles(message.authorRoles).map((role) => (
                           <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
                             {roleDisplayName(role, roleDisplayLabels)}
                           </Badge>
@@ -1707,7 +1690,7 @@ export function ChatRoomPanel({
               <section className="rounded-md border border-bc-line bg-bc-ink p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Badge tone="cyan">GIFs</Badge>
-                  <span className="text-xs font-semibold text-bc-muted">GIFs by Tenor</span>
+                  <span className="text-xs font-semibold text-bc-muted">Unified search</span>
                 </div>
                 <form className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={searchGifs}>
                   <input
@@ -1724,12 +1707,12 @@ export function ChatRoomPanel({
                   </Button>
                 </form>
 
+                {gifLoading && !gifResults.length ? <p className="mt-3 text-sm text-bc-muted">Loading GIFs...</p> : null}
                 {gifError ? <p className="mt-3 text-sm text-bc-muted">{gifError}</p> : null}
 
                 {gifResults.length ? (
                   <div
                     className="mt-3 max-h-[22rem] overflow-y-auto pr-1"
-                    onScroll={handleGifResultsScroll}
                     ref={gifResultsViewportRef}
                   >
                     <div
@@ -1745,7 +1728,8 @@ export function ChatRoomPanel({
                             <input name="intent" type="hidden" value="gif" />
                             <input name="roomId" type="hidden" value={selectedRoom.id} />
                             <input name="gifId" type="hidden" value={gif.id} />
-                            <input name="gifUrl" type="hidden" value={gif.url} />
+                            <input name="gifProvider" type="hidden" value={gif.provider} />
+                            <input name="gifUrl" type="hidden" value={gif.gifUrl} />
                             <input name="gifPreviewUrl" type="hidden" value={gif.previewUrl} />
                             <input name="gifAlt" type="hidden" value={gif.title} />
                             <input name="gifWidth" type="hidden" value={gif.width ?? ""} />
@@ -1771,19 +1755,6 @@ export function ChatRoomPanel({
                         );
                       })}
                     </div>
-                    {gifNextPosition ? (
-                      <div className="sticky bottom-0 mt-2 border-t border-bc-line bg-bc-ink/95 py-2 backdrop-blur">
-                        <Button
-                          className="w-full"
-                          disabled={gifLoading}
-                          onClick={() => void loadGifs(gifQuery, gifNextPosition, true)}
-                          type="button"
-                          variant="ghost"
-                        >
-                          {gifLoading ? "Loading..." : "Load more GIFs"}
-                        </Button>
-                      </div>
-                    ) : null}
                   </div>
                 ) : null}
               </section>
