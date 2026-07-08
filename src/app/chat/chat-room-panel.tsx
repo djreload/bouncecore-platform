@@ -11,7 +11,8 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
-  type KeyboardEvent
+  type KeyboardEvent,
+  type UIEvent
 } from "react";
 import {
   AtSign,
@@ -46,7 +47,12 @@ import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
 import { canEditChatMessage } from "@/lib/chat/chat-message-edit-core";
 import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
-import { defaultSheepThrowSettings, formatSheepThrowCooldownLabel, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
+import {
+  defaultSheepThrowSettings,
+  formatSheepThrowCooldownLabel,
+  getAvailableSheepThrowSprites,
+  type SheepThrowSettings
+} from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
@@ -81,7 +87,7 @@ type ChatRoomPanelProps = {
 
 type GifResult = {
   id: string;
-  provider: "giphy" | "klipy" | "imgur";
+  provider: "giphy" | "klipy";
   title: string;
   gifUrl: string;
   previewUrl: string;
@@ -339,6 +345,8 @@ export function ChatRoomPanel({
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
+  const [gifLoadedQuery, setGifLoadedQuery] = useState("rave");
+  const [gifNextOffset, setGifNextOffset] = useState<number | null>(null);
   const [composerBody, setComposerBody] = useState("");
   const [selectedEffectId, setSelectedEffectId] = useState("");
   const [replyTarget, setReplyTarget] = useState<ChatReplyTarget | null>(null);
@@ -354,6 +362,7 @@ export function ChatRoomPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const gifResultsViewportRef = useRef<HTMLDivElement>(null);
+  const gifLoadingRef = useRef(false);
   const selectedRoomId = selectedRoom?.id;
   const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
@@ -366,6 +375,8 @@ export function ChatRoomPanel({
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
+  const availableThrowSprites = useMemo(() => getAvailableSheepThrowSprites(sheepSettings), [sheepSettings]);
+  const defaultThrowSprite = availableThrowSprites[0];
   const effectiveSheepCostStars = localSheepFreeThrowAvailable ? 0 : sheepSettings.costStars;
   const currentUserCanAffordSheep = localStarBalance >= effectiveSheepCostStars;
   const sheepThrowCostLabel = localSheepFreeThrowAvailable
@@ -799,7 +810,7 @@ export function ChatRoomPanel({
     window.setTimeout(keepComposerVisible, 320);
   }
 
-  async function loadGifs(query: string) {
+  async function loadGifs(query: string, offset = 0, append = false) {
     const normalizedQuery = query.trim();
 
     if (!normalizedQuery) {
@@ -807,19 +818,25 @@ export function ChatRoomPanel({
       return;
     }
 
+    if (gifLoadingRef.current) {
+      return;
+    }
+
+    gifLoadingRef.current = true;
     setGifLoading(true);
     setGifError(null);
 
     try {
       const params = new URLSearchParams({
         limit: "48",
+        offset: String(offset),
         q: normalizedQuery
       });
 
       const response = await fetch(`/api/gifs/search?${params.toString()}`, {
         cache: "no-store"
       });
-      const payload = (await response.json()) as { results?: GifResult[]; error?: string };
+      const payload = (await response.json()) as { nextOffset?: number | null; results?: GifResult[]; error?: string };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "GIF search failed.");
@@ -827,14 +844,40 @@ export function ChatRoomPanel({
 
       const nextGifs = payload.results ?? [];
 
-      setGifResults(nextGifs);
-      setGifError(nextGifs.length ? null : "No GIFs found.");
+      if (append) {
+        setGifResults((currentResults) => {
+          const seen = new Set(currentResults.map((gif) => gif.gifUrl.toLowerCase()));
+          const uniqueNextGifs = nextGifs.filter((gif) => {
+            const key = gif.gifUrl.toLowerCase();
 
-      gifResultsViewportRef.current?.scrollTo({ top: 0 });
+            if (seen.has(key)) {
+              return false;
+            }
+
+            seen.add(key);
+            return true;
+          });
+
+          return [...currentResults, ...uniqueNextGifs];
+        });
+      } else {
+        setGifResults(nextGifs);
+        gifResultsViewportRef.current?.scrollTo({ top: 0 });
+      }
+
+      setGifLoadedQuery(normalizedQuery);
+      setGifNextOffset(typeof payload.nextOffset === "number" ? payload.nextOffset : null);
+      setGifError(nextGifs.length || append ? null : "No GIFs found.");
+
     } catch (error) {
-      setGifResults([]);
+      if (!append) {
+        setGifResults([]);
+        setGifNextOffset(null);
+      }
+
       setGifError(error instanceof Error ? error.message : "GIF search failed.");
     } finally {
+      gifLoadingRef.current = false;
       setGifLoading(false);
     }
   }
@@ -843,6 +886,19 @@ export function ChatRoomPanel({
     event.preventDefault();
 
     await loadGifs(gifQuery);
+  }
+
+  function handleGifResultsScroll(event: UIEvent<HTMLDivElement>) {
+    if (gifNextOffset === null || gifLoadingRef.current) {
+      return;
+    }
+
+    const viewport = event.currentTarget;
+    const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+
+    if (remaining <= 220) {
+      void loadGifs(gifLoadedQuery || gifQuery, gifNextOffset, true);
+    }
   }
 
   function renderStarsForm(className?: string, compactStarForm = false) {
@@ -1235,20 +1291,37 @@ export function ChatRoomPanel({
                       </button>
                     ) : null}
                     {canThrowAtMessageAuthor ? (
-                      <form action={formAction} className="inline-flex">
+                      <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
                         <input name="intent" type="hidden" value="sheep" />
                         <input name="roomId" type="hidden" value={selectedRoom.id} />
                         <input name="messageId" type="hidden" value={message.id} />
+                        {availableThrowSprites.length > 1 ? (
+                          <select
+                            className="min-h-7 max-w-[9rem] rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white"
+                            defaultValue={defaultThrowSprite?.id}
+                            disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
+                            name="throwSpriteId"
+                            title="Choose what to throw"
+                          >
+                            {availableThrowSprites.map((sprite) => (
+                              <option key={sprite.id} value={sprite.id}>
+                                {sprite.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
+                        )}
                         <Button
                           className="min-h-7 px-2 text-xs"
                           disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
                           size="sm"
-                          title={sheepThrowDisabledReason ?? `Throw sheep for ${sheepThrowCostLabel}`}
+                          title={sheepThrowDisabledReason ?? `Throw for ${sheepThrowCostLabel}`}
                           type="submit"
                           variant="ghost"
                         >
                           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                          Throw sheep
+                          {availableThrowSprites.length > 1 ? "Throw" : `Throw ${(defaultThrowSprite?.label ?? "sheep").toLowerCase()}`}
                           <span
                             className={cn(
                               "rounded-full px-1.5 py-0.5 text-[10px] font-black",
@@ -1713,6 +1786,7 @@ export function ChatRoomPanel({
                 {gifResults.length ? (
                   <div
                     className="mt-3 max-h-[22rem] overflow-y-auto pr-1"
+                    onScroll={handleGifResultsScroll}
                     ref={gifResultsViewportRef}
                   >
                     <div
@@ -1755,6 +1829,10 @@ export function ChatRoomPanel({
                         );
                       })}
                     </div>
+                    {gifLoading ? <p className="py-3 text-center text-xs font-semibold text-bc-muted">Loading more GIFs...</p> : null}
+                    {!gifLoading && gifNextOffset === null ? (
+                      <p className="py-3 text-center text-xs font-semibold text-bc-muted">End of results.</p>
+                    ) : null}
                   </div>
                 ) : null}
               </section>

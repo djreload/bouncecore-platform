@@ -727,6 +727,7 @@ export async function getAdminChatroomsData() {
         id: sheepThrow.id,
         roomName: room?.name ?? "Unknown room",
         roomSlug: room?.slug ?? "unknown",
+        spriteId: sheepThrow.spriteId,
         throwerDisplayName: sheepUserById.get(sheepThrow.throwerId) ?? "Unknown user",
         targetDisplayName: sheepThrow.targetDisplayName ?? (sheepThrow.targetUserId ? sheepUserById.get(sheepThrow.targetUserId) : null) ?? "Unknown user",
         targetMessageId: sheepThrow.targetMessageId,
@@ -998,10 +999,6 @@ function chatGifProviderFromUrl(value: string): SupportedChatGifProvider | null 
 
   if (host === "media.tenor.com" || host === "c.tenor.com") {
     return "tenor";
-  }
-
-  if (host === "i.imgur.com") {
-    return "imgur";
   }
 
   if (host === "giphy.com" || host.endsWith(".giphy.com")) {

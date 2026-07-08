@@ -9,7 +9,8 @@ import {
   saveOptionalFaviconUpload,
   saveOptionalImageUpload,
   saveOptionalPreviewMp3,
-  saveOptionalStreamOfflineImageUpload
+  saveOptionalStreamOfflineImageUpload,
+  saveOptionalThrowSpriteUpload
 } from "@/lib/media/media-service";
 
 export const dynamic = "force-dynamic";
@@ -47,6 +48,10 @@ const uploadHandlers = {
   "stream-offline-image": {
     permission: "stream.settings.manage",
     save: saveOptionalStreamOfflineImageUpload
+  },
+  "throw-sprite": {
+    permission: "admin.access",
+    save: saveOptionalThrowSpriteUpload
   },
   "track-artwork": {
     permission: "music.manage",

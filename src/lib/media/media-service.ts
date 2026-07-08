@@ -34,6 +34,7 @@ type UploadKind =
   | "track-artwork"
   | "profile-avatars"
   | "stream-offline-images"
+  | "throw-sprites"
   | "chat-stickers"
   | "chat-emojis"
   | "mobile-apks"
@@ -687,6 +688,21 @@ export async function saveOptionalChatAssetUpload(file: File | null | undefined,
   const image = validateImageUpload(file, buffer, "Chat image upload");
 
   return savePublicUpload(kind, file, maxChatImageBytes, "Chat image upload", image.extension, buffer);
+}
+
+export async function saveOptionalThrowSpriteUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxChatImageBytes) {
+    throw new Error(`Throw sprite upload is too large. Maximum ${formatBytes(maxChatImageBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Throw sprite upload");
+
+  return savePublicUpload("throw-sprites", file, maxChatImageBytes, "Throw sprite upload", image.extension, buffer);
 }
 
 export async function saveOptionalProfileAvatarUpload(file: File | null | undefined) {

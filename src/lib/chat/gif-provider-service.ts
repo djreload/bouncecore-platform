@@ -5,9 +5,8 @@ import { prisma } from "@/lib/db/prisma";
 const gifProviderSettingsKey = "chat.gif_providers";
 const giphyBaseUrl = "https://api.giphy.com/v1/gifs/search";
 const klipyBaseUrl = "https://api.klipy.com/v2/search";
-const imgurSearchBaseUrl = "https://api.imgur.com/3/gallery/search/time/all/0";
 
-export type GifProvider = "giphy" | "klipy" | "imgur";
+export type GifProvider = "giphy" | "klipy";
 
 export type GifResult = {
   id: string;
@@ -24,7 +23,6 @@ export type GifResult = {
 export type GifProviderSettingsInput = {
   giphyApiKey?: string;
   klipyApiKey?: string;
-  imgurClientId?: string;
 };
 
 export type GifProviderSettings = Required<GifProviderSettingsInput>;
@@ -70,7 +68,6 @@ function toStoredSettings(value: unknown): GifProviderSettings {
   return {
     // These server-side keys are used only by /api/gifs/search. Leaving a key blank disables that provider.
     giphyApiKey: (typeof stored.giphyApiKey === "string" && stored.giphyApiKey.trim()) || envValue("GIPHY_API_KEY"),
-    imgurClientId: (typeof stored.imgurClientId === "string" && stored.imgurClientId.trim()) || envValue("IMGUR_CLIENT_ID"),
     klipyApiKey: (typeof stored.klipyApiKey === "string" && stored.klipyApiKey.trim()) || envValue("KLIPY_API_KEY")
   };
 }
@@ -78,7 +75,6 @@ function toStoredSettings(value: unknown): GifProviderSettings {
 function publicConfigured(settings: GifProviderSettings): Record<GifProvider, boolean> {
   return {
     giphy: Boolean(settings.giphyApiKey),
-    imgur: Boolean(settings.imgurClientId),
     klipy: Boolean(settings.klipyApiKey)
   };
 }
@@ -100,7 +96,6 @@ export async function getAdminGifProviderSettingsData(): Promise<AdminGifProvide
     configured: publicConfigured(settings),
     envConfigured: {
       giphy: Boolean(envValue("GIPHY_API_KEY")),
-      imgur: Boolean(envValue("IMGUR_CLIENT_ID")),
       klipy: Boolean(envValue("KLIPY_API_KEY"))
     }
   };
@@ -110,7 +105,6 @@ export async function updateGifProviderSettings(input: GifProviderSettingsInput,
   const existing = await getGifProviderSettings();
   const next: GifProviderSettings = {
     giphyApiKey: normalizeString(input.giphyApiKey, 300) || existing.giphyApiKey,
-    imgurClientId: normalizeString(input.imgurClientId, 300) || existing.imgurClientId,
     klipyApiKey: normalizeString(input.klipyApiKey, 300) || existing.klipyApiKey
   };
 
@@ -119,13 +113,13 @@ export async function updateGifProviderSettings(input: GifProviderSettingsInput,
       key: gifProviderSettingsKey
     },
     create: {
-      description: "Server-side GIF provider credentials for GIPHY, KLIPY, and Imgur chat search.",
+      description: "Server-side GIF provider credentials for GIPHY and KLIPY chat search.",
       isSecret: true,
       key: gifProviderSettingsKey,
       value: next as Prisma.InputJsonValue
     },
     update: {
-      description: "Server-side GIF provider credentials for GIPHY, KLIPY, and Imgur chat search.",
+      description: "Server-side GIF provider credentials for GIPHY and KLIPY chat search.",
       isSecret: true,
       value: next as Prisma.InputJsonValue
     }
@@ -148,6 +142,14 @@ function clampLimit(value: number) {
   }
 
   return Math.min(60, Math.max(1, Math.round(value)));
+}
+
+function clampOffset(value: number) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(5000, Math.max(0, Math.round(value)));
 }
 
 function cleanQuery(value: string) {
@@ -257,56 +259,6 @@ export function normalizeKlipyResults(payload: unknown): GifResult[] {
     .filter((item): item is GifResult => Boolean(item));
 }
 
-function imgurImageResults(payload: unknown) {
-  return asArray(asRecord(payload).data).flatMap((item) => {
-    const record = asRecord(item);
-
-    if (record.nsfw === true) {
-      return [];
-    }
-
-    if (Array.isArray(record.images)) {
-      return record.images.map((image) => ({
-        album: record,
-        image: asRecord(image)
-      }));
-    }
-
-    return [
-      {
-        album: record,
-        image: record
-      }
-    ];
-  });
-}
-
-export function normalizeImgurResults(payload: unknown): GifResult[] {
-  return imgurImageResults(payload)
-    .filter(({ image }) => image.nsfw !== true)
-    .filter(({ image }) => image.animated === true || String(image.type ?? "").toLowerCase().includes("gif"))
-    .map(({ album, image }): GifResult | null => {
-      const gifUrl = gifLikeUrl(image.link);
-      const previewUrl = gifLikeUrl(image.gifv) ?? gifUrl;
-
-      if (!gifUrl || !previewUrl || !/\.gif($|\?)/i.test(new URL(gifUrl).pathname)) {
-        return null;
-      }
-
-      return {
-        gifUrl,
-        height: normalizeDimension(image.height),
-        id: typeof image.id === "string" ? image.id : gifUrl,
-        previewUrl,
-        provider: "imgur",
-        sourceUrl: httpsUrl(album.link) ?? gifUrl,
-        title: safeTitle(image.title, safeTitle(album.title, "Imgur GIF")),
-        width: normalizeDimension(image.width)
-      };
-    })
-    .filter((item): item is GifResult => Boolean(item));
-}
-
 async function fetchJson(url: URL, init?: RequestInit) {
   const response = await fetch(url, {
     ...init,
@@ -320,7 +272,7 @@ async function fetchJson(url: URL, init?: RequestInit) {
   return response.json() as Promise<unknown>;
 }
 
-export async function searchGiphy(query: string, limit: number, apiKey?: string): Promise<GifResult[]> {
+export async function searchGiphy(query: string, limit: number, apiKey?: string, offsetValue = 0): Promise<GifResult[]> {
   const key = apiKey?.trim() || envValue("GIPHY_API_KEY");
 
   if (!key) {
@@ -328,16 +280,18 @@ export async function searchGiphy(query: string, limit: number, apiKey?: string)
   }
 
   const url = new URL(giphyBaseUrl);
+  const offset = clampOffset(offsetValue);
   url.searchParams.set("api_key", key);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(clampLimit(limit)));
+  url.searchParams.set("offset", String(offset));
   url.searchParams.set("rating", "pg-13");
   url.searchParams.set("lang", "en");
 
   return normalizeGiphyResults(await fetchJson(url));
 }
 
-export async function searchKlipy(query: string, limit: number, apiKey?: string): Promise<GifResult[]> {
+export async function searchKlipy(query: string, limit: number, apiKey?: string, offsetValue = 0): Promise<GifResult[]> {
   const key = apiKey?.trim() || envValue("KLIPY_API_KEY");
 
   if (!key) {
@@ -345,10 +299,13 @@ export async function searchKlipy(query: string, limit: number, apiKey?: string)
   }
 
   const url = new URL(klipyBaseUrl);
+  const offset = clampOffset(offsetValue);
   url.searchParams.set("key", key);
   url.searchParams.set("client_key", "bouncecore-platform");
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(clampLimit(limit)));
+  url.searchParams.set("offset", String(offset));
+  url.searchParams.set("pos", String(offset));
   url.searchParams.set("media_filter", "minimal");
   url.searchParams.set("contentfilter", "medium");
   url.searchParams.set("country", "GB");
@@ -357,33 +314,12 @@ export async function searchKlipy(query: string, limit: number, apiKey?: string)
   return normalizeKlipyResults(await fetchJson(url));
 }
 
-export async function searchImgur(query: string, limit: number, clientId?: string): Promise<GifResult[]> {
-  const id = clientId?.trim() || envValue("IMGUR_CLIENT_ID");
-
-  if (!id) {
-    return [];
-  }
-
-  const url = new URL(imgurSearchBaseUrl);
-  url.searchParams.set("q", query);
-
-  return normalizeImgurResults(
-    await fetchJson(url, {
-      headers: {
-        Authorization: `Client-ID ${id}`
-      }
-    })
-  ).slice(0, clampLimit(limit));
-}
-
 function providerPriority(provider: GifProvider) {
   switch (provider) {
     case "giphy":
       return 0;
     case "klipy":
       return 1;
-    case "imgur":
-      return 2;
   }
 }
 
@@ -402,12 +338,42 @@ export function dedupeGifResults(results: GifResult[]) {
   return [...deduped.values()];
 }
 
-export async function searchUnifiedGifs(query: string, limitValue = 36) {
+function interleaveGifResults(results: GifResult[]) {
+  const byProvider = new Map<GifProvider, GifResult[]>();
+  const orderedProviders: GifProvider[] = ["giphy", "klipy"];
+  const interleaved: GifResult[] = [];
+
+  for (const provider of orderedProviders) {
+    byProvider.set(provider, []);
+  }
+
+  for (const result of results) {
+    byProvider.get(result.provider)?.push(result);
+  }
+
+  const maxLength = Math.max(...orderedProviders.map((provider) => byProvider.get(provider)?.length ?? 0));
+
+  for (let index = 0; index < maxLength; index += 1) {
+    for (const provider of orderedProviders) {
+      const result = byProvider.get(provider)?.[index];
+
+      if (result) {
+        interleaved.push(result);
+      }
+    }
+  }
+
+  return interleaved;
+}
+
+export async function searchUnifiedGifs(query: string, limitValue = 36, offsetValue = 0) {
   const normalizedQuery = cleanQuery(query);
   const limit = clampLimit(limitValue);
+  const offset = clampOffset(offsetValue);
 
   if (!normalizedQuery) {
     return {
+      nextOffset: null,
       query: "",
       results: [] as GifResult[]
     };
@@ -415,9 +381,8 @@ export async function searchUnifiedGifs(query: string, limitValue = 36) {
 
   const credentials = await getGifProviderSettings();
   const providers: Array<[GifProvider, Promise<GifResult[]>]> = [
-    ["giphy", searchGiphy(normalizedQuery, limit, credentials.giphyApiKey)],
-    ["klipy", searchKlipy(normalizedQuery, limit, credentials.klipyApiKey)],
-    ["imgur", searchImgur(normalizedQuery, limit, credentials.imgurClientId)]
+    ["giphy", searchGiphy(normalizedQuery, limit, credentials.giphyApiKey, offset)],
+    ["klipy", searchKlipy(normalizedQuery, limit, credentials.klipyApiKey, offset)]
   ];
   const settled = await Promise.allSettled(providers.map(([, task]) => task));
   const results: GifResult[] = [];
@@ -433,8 +398,12 @@ export async function searchUnifiedGifs(query: string, limitValue = 36) {
     console.warn(`[gif-search] ${provider} failed`, settledResult.reason);
   });
 
+  const orderedResults = interleaveGifResults(dedupeGifResults(results));
+  const pageResults = orderedResults.slice(0, limit);
+
   return {
+    nextOffset: pageResults.length >= limit ? offset + limit : null,
     query: normalizedQuery,
-    results: dedupeGifResults(results).slice(0, limit)
+    results: pageResults
   };
 }

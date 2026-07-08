@@ -19,6 +19,35 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
+function formStrings(formData: FormData, key: string) {
+  return formData.getAll(key).map((value) => (typeof value === "string" ? value : ""));
+}
+
+function sheepSpriteInputs(formData: FormData) {
+  const ids = formStrings(formData, "spriteId");
+  const labels = formStrings(formData, "spriteLabel");
+  const urls = formStrings(formData, "spriteSheetUrl");
+  const enabled = formStrings(formData, "spriteEnabled");
+  const frameCounts = formStrings(formData, "spriteFrameCount");
+  const columns = formStrings(formData, "spriteColumns");
+  const rows = formStrings(formData, "spriteRows");
+  const frameWidths = formStrings(formData, "spriteFrameWidth");
+  const frameHeights = formStrings(formData, "spriteFrameHeight");
+  const rowCount = Math.max(ids.length, labels.length, urls.length);
+
+  return Array.from({ length: rowCount }, (_, index) => ({
+    columns: columns[index],
+    enabled: enabled[index] !== "false",
+    frameCount: frameCounts[index],
+    frameHeight: frameHeights[index],
+    frameWidth: frameWidths[index],
+    id: ids[index],
+    label: labels[index],
+    rows: rows[index],
+    spriteSheetUrl: urls[index]
+  }));
+}
+
 function isChatRoomType(value: string): value is ChatRoomType {
   return chatRoomTypeOptions.includes(value as ChatRoomType);
 }
@@ -101,7 +130,8 @@ export async function adminChatroomsAction(
           costStars: formString(formData, "costStars"),
           overlayDurationSeconds: formString(formData, "overlayDurationSeconds"),
           pollSeconds: formString(formData, "pollSeconds"),
-          maxRecentEvents: formString(formData, "maxRecentEvents")
+          maxRecentEvents: formString(formData, "maxRecentEvents"),
+          sprites: sheepSpriteInputs(formData)
         },
         actor.id
       );

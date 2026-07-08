@@ -70,7 +70,6 @@ export async function adminGifProviderSettingsAction(
     await updateGifProviderSettings(
       {
         giphyApiKey: formString(formData, "giphyApiKey"),
-        imgurClientId: formString(formData, "imgurClientId"),
         klipyApiKey: formString(formData, "klipyApiKey")
       },
       actor.id

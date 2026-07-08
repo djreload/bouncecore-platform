@@ -14,9 +14,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const query = url.searchParams.get("q") ?? "";
   const limit = Number(url.searchParams.get("limit") ?? "36");
+  const offset = Number(url.searchParams.get("offset") ?? "0");
 
   try {
-    return NextResponse.json(await searchUnifiedGifs(query, limit));
+    return NextResponse.json(await searchUnifiedGifs(query, limit, offset));
   } catch (error) {
     console.error("[gif-search] unified search failed", error);
 

@@ -1,3 +1,16 @@
+export type SheepThrowSprite = {
+  id: string;
+  label: string;
+  spriteSheetUrl: string;
+  glassSmashUrl: string;
+  frameCount: number;
+  columns: number;
+  rows: number;
+  frameWidth: number;
+  frameHeight: number;
+  enabled: boolean;
+};
+
 export type SheepThrowSettings = {
   enabled: boolean;
   cooldownSeconds: number;
@@ -5,6 +18,19 @@ export type SheepThrowSettings = {
   overlayDurationMs: number;
   pollMs: number;
   maxRecentEvents: number;
+  sprites: SheepThrowSprite[];
+};
+
+export type SheepThrowSpriteInput = {
+  id?: string;
+  label?: string;
+  spriteSheetUrl?: string;
+  frameCount?: string;
+  columns?: string;
+  rows?: string;
+  frameWidth?: string;
+  frameHeight?: string;
+  enabled?: boolean;
 };
 
 export type SheepThrowSettingsInput = {
@@ -14,6 +40,20 @@ export type SheepThrowSettingsInput = {
   overlayDurationSeconds?: string;
   pollSeconds?: string;
   maxRecentEvents?: string;
+  sprites?: SheepThrowSpriteInput[];
+};
+
+export const defaultSheepThrowSprite: SheepThrowSprite = {
+  id: "sheep",
+  label: "Sheep",
+  spriteSheetUrl: "/sheep-throw/SheepThrowSequence.png",
+  glassSmashUrl: "/sheep-throw/glass-smash.png",
+  frameCount: 12,
+  columns: 12,
+  rows: 1,
+  frameWidth: 400,
+  frameHeight: 400,
+  enabled: true
 };
 
 export const defaultSheepThrowSettings: SheepThrowSettings = {
@@ -22,11 +62,15 @@ export const defaultSheepThrowSettings: SheepThrowSettings = {
   costStars: 10,
   overlayDurationMs: 4300,
   pollMs: 2000,
-  maxRecentEvents: 16
+  maxRecentEvents: 16,
+  sprites: [defaultSheepThrowSprite]
 };
 
-export function formatSheepThrowToast(throwerDisplayName: string, targetDisplayName: string) {
-  return `${throwerDisplayName} threw a sheep at ${targetDisplayName} 😂`;
+export function formatSheepThrowToast(throwerDisplayName: string, targetDisplayName: string, spriteLabel = "Sheep") {
+  const normalizedLabel = (spriteLabel.trim() || "Sheep").toLowerCase();
+  const article = /^(uni|user|use|euro)/.test(normalizedLabel) ? "a" : /^[aeiou]/.test(normalizedLabel) ? "an" : "a";
+
+  return `${throwerDisplayName} threw ${article} ${normalizedLabel} at ${targetDisplayName} \u{1f602}`;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -63,6 +107,117 @@ function requiredWholeNumber(value: unknown, label: string, min: number, max: nu
   return number;
 }
 
+function compactText(value: unknown, fallback: string, maxLength: number) {
+  const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+  if (!text) {
+    return fallback;
+  }
+
+  return text.slice(0, maxLength);
+}
+
+function compactSpriteId(value: unknown, fallback: string) {
+  const text = compactText(value, "", 80)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return text || fallback;
+}
+
+function normalizeSpriteUrl(value: unknown, label: string, fallback?: string) {
+  const text = typeof value === "string" ? value.trim() : "";
+
+  if (!text) {
+    if (fallback) {
+      return fallback;
+    }
+
+    throw new Error(`${label} needs an uploaded sprite sheet image.`);
+  }
+
+  if (text.length > 500) {
+    throw new Error(`${label} must be 500 characters or fewer.`);
+  }
+
+  if (
+    /^\/sheep-throw\/[^/]+\.(png|jpg|jpeg|webp|gif|avif)$/i.test(text) ||
+    /^\/uploads\/throw-sprites\/[^/]+\.(png|jpg|jpeg|webp|gif|avif)$/i.test(text)
+  ) {
+    return text;
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error(`${label} must be an uploaded sprite image or a valid https URL.`);
+  }
+
+  if (url.protocol !== "https:" || !/\.(png|jpg|jpeg|webp|gif|avif)$/i.test(url.pathname)) {
+    throw new Error(`${label} must point to a PNG, JPG, WebP, GIF, or AVIF sprite image.`);
+  }
+
+  return text;
+}
+
+function normalizeSprite(value: unknown, index: number): SheepThrowSprite | null {
+  const record = isObject(value) ? value : {};
+  const rawLabel = compactText(record.label, "", 40);
+  const spriteSheetUrl = compactText(record.spriteSheetUrl, "", 500);
+
+  if (!rawLabel && !spriteSheetUrl) {
+    return null;
+  }
+
+  const label = rawLabel || `Throwable ${index + 1}`;
+  const id = compactSpriteId(record.id, compactSpriteId(label, `throwable-${index + 1}`));
+
+  if (id === defaultSheepThrowSprite.id) {
+    return {
+      ...defaultSheepThrowSprite,
+      enabled: typeof record.enabled === "boolean" ? record.enabled : defaultSheepThrowSprite.enabled
+    };
+  }
+
+  return {
+    id,
+    label,
+    spriteSheetUrl: normalizeSpriteUrl(spriteSheetUrl, `${label || "Throwable"} sprite sheet`),
+    glassSmashUrl: normalizeSpriteUrl(record.glassSmashUrl, `${label || "Throwable"} glass smash`, defaultSheepThrowSprite.glassSmashUrl),
+    frameCount: wholeNumber(record.frameCount, defaultSheepThrowSprite.frameCount, 1, 120),
+    columns: wholeNumber(record.columns, defaultSheepThrowSprite.columns, 1, 60),
+    rows: wholeNumber(record.rows, defaultSheepThrowSprite.rows, 1, 20),
+    frameWidth: wholeNumber(record.frameWidth, defaultSheepThrowSprite.frameWidth, 32, 2000),
+    frameHeight: wholeNumber(record.frameHeight, defaultSheepThrowSprite.frameHeight, 32, 2000),
+    enabled: typeof record.enabled === "boolean" ? record.enabled : true
+  };
+}
+
+function normalizeSprites(value: unknown): SheepThrowSprite[] {
+  const seen = new Set([defaultSheepThrowSprite.id]);
+  const customSprites = (Array.isArray(value) ? value : [])
+    .map((item, index) => normalizeSprite(item, index))
+    .filter((item): item is SheepThrowSprite => Boolean(item))
+    .filter((sprite) => {
+      if (sprite.id === defaultSheepThrowSprite.id) {
+        return false;
+      }
+
+      if (seen.has(sprite.id)) {
+        return false;
+      }
+
+      seen.add(sprite.id);
+      return true;
+    })
+    .slice(0, 12);
+
+  return [defaultSheepThrowSprite, ...customSprites];
+}
+
 export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings {
   if (!isObject(value)) {
     return defaultSheepThrowSettings;
@@ -74,7 +229,8 @@ export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings 
     costStars: wholeNumber(value.costStars, defaultSheepThrowSettings.costStars, 0, 1000000),
     overlayDurationMs: wholeNumber(value.overlayDurationMs, defaultSheepThrowSettings.overlayDurationMs, 1800, 10000),
     pollMs: wholeNumber(value.pollMs, defaultSheepThrowSettings.pollMs, 1000, 10000),
-    maxRecentEvents: wholeNumber(value.maxRecentEvents, defaultSheepThrowSettings.maxRecentEvents, 4, 50)
+    maxRecentEvents: wholeNumber(value.maxRecentEvents, defaultSheepThrowSettings.maxRecentEvents, 4, 50),
+    sprites: normalizeSprites(value.sprites)
   };
 }
 
@@ -107,8 +263,21 @@ export function normalizeSheepThrowSettingsInput(input: SheepThrowSettingsInput)
     costStars,
     overlayDurationMs: Math.round(overlayDurationSeconds * 1000),
     pollMs: Math.round(pollSeconds * 1000),
-    maxRecentEvents
+    maxRecentEvents,
+    sprites: normalizeSprites(input.sprites)
   };
+}
+
+export function getAvailableSheepThrowSprites(settings: SheepThrowSettings) {
+  const sprites = settings.sprites.filter((sprite) => sprite.enabled);
+
+  return sprites.length ? sprites : [defaultSheepThrowSprite];
+}
+
+export function getSheepThrowSprite(settings: SheepThrowSettings, spriteId?: string | null) {
+  const sprites = getAvailableSheepThrowSprites(settings);
+
+  return sprites.find((sprite) => sprite.id === spriteId) ?? sprites[0] ?? defaultSheepThrowSprite;
 }
 
 export function remainingSheepThrowCooldownSeconds(

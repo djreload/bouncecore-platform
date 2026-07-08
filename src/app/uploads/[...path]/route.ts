@@ -24,6 +24,7 @@ const allowedUploadRoots = new Set([
   "profile-avatars",
   "product-images",
   "stream-offline-images",
+  "throw-sprites",
   "track-artwork"
 ]);
 

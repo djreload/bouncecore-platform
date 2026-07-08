@@ -5,7 +5,6 @@ import { test } from "node:test";
 import {
   dedupeGifResults,
   normalizeGiphyResults,
-  normalizeImgurResults,
   normalizeKlipyResults
 } from "../src/lib/chat/gif-provider-service.ts";
 
@@ -61,43 +60,19 @@ test("KLIPY normalization supports Tenor-style media formats", () => {
   assert.equal(results[0].width, 320);
 });
 
-test("Imgur normalization skips NSFW items and converts gifv links to gif URLs", () => {
-  const results = normalizeImgurResults({
-    data: [
-      {
-        animated: true,
-        id: "safe-imgur",
-        link: "https://i.imgur.com/safe.gifv",
-        nsfw: false,
-        title: "Safe Imgur"
-      },
-      {
-        animated: true,
-        id: "nsfw-imgur",
-        link: "https://i.imgur.com/nsfw.gif",
-        nsfw: true
-      }
-    ]
-  });
-
-  assert.equal(results.length, 1);
-  assert.equal(results[0].provider, "imgur");
-  assert.equal(results[0].gifUrl, "https://i.imgur.com/safe.gif");
-});
-
-test("dedupe prefers GIPHY and KLIPY over Imgur duplicate GIF URLs", () => {
+test("dedupe prefers GIPHY over KLIPY duplicate GIF URLs", () => {
   const results = dedupeGifResults([
     {
-      gifUrl: "https://i.imgur.com/dup.gif",
-      id: "imgur-dup",
-      previewUrl: "https://i.imgur.com/dup.gif",
-      provider: "imgur",
-      title: "Imgur duplicate"
+      gifUrl: "https://media.example.com/dup.gif",
+      id: "klipy-dup",
+      previewUrl: "https://media.example.com/dup.gif",
+      provider: "klipy",
+      title: "KLIPY duplicate"
     },
     {
-      gifUrl: "https://i.imgur.com/dup.gif",
+      gifUrl: "https://media.example.com/dup.gif",
       id: "giphy-dup",
-      previewUrl: "https://i.imgur.com/dup.gif",
+      previewUrl: "https://media.example.com/dup.gif",
       provider: "giphy",
       title: "GIPHY duplicate"
     }

@@ -45,9 +45,6 @@ export function GifProviderSettingsForm({ data }: GifProviderSettingsFormProps) 
           <Badge tone={data.configured.klipy ? "acid" : "amber"}>
             KLIPY: {configuredLabel(data.configured.klipy, data.envConfigured.klipy)}
           </Badge>
-          <Badge tone={data.configured.imgur ? "acid" : "amber"}>
-            Imgur: {configuredLabel(data.configured.imgur, data.envConfigured.imgur)}
-          </Badge>
         </div>
       </div>
 
@@ -63,7 +60,7 @@ export function GifProviderSettingsForm({ data }: GifProviderSettingsFormProps) 
         </div>
       ) : null}
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div>
           <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="giphy-api-key">
             GIPHY API key
@@ -93,21 +90,6 @@ export function GifProviderSettingsForm({ data }: GifProviderSettingsFormProps) 
             type="password"
           />
           <p className="mt-1 text-xs text-bc-muted">Used for KLIPY/Tenor-style search requests with medium filtering.</p>
-        </div>
-        <div>
-          <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="imgur-client-id">
-            Imgur client ID
-          </label>
-          <input
-            autoComplete="off"
-            className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
-            disabled={pending}
-            id="imgur-client-id"
-            name="imgurClientId"
-            placeholder={data.configured.imgur ? "Stored - leave blank to keep" : "Imgur client ID"}
-            type="password"
-          />
-          <p className="mt-1 text-xs text-bc-muted">Used with Imgur Client-ID auth for gallery GIF search.</p>
         </div>
       </div>
 

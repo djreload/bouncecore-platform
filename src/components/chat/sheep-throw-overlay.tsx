@@ -2,18 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatSheepThrowOverlayData, ChatSheepThrowSummary } from "@/lib/chat/sheep-throw-service";
-import { defaultSheepThrowSettings, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
+import { defaultSheepThrowSettings, defaultSheepThrowSprite, type SheepThrowSettings, type SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
 
 type LoadedImages = {
   glass: HTMLImageElement;
-  sheep: HTMLImageElement;
+  sprite: SheepThrowSprite;
+  spriteImage: HTMLImageElement;
 };
 
-const sheepSpriteUrl = "/sheep-throw/SheepThrowSequence.png";
-const glassSmashUrl = "/sheep-throw/glass-smash.png";
-const totalFrames = 12;
-const frameWidth = 400;
-const frameHeight = 400;
 const approachMs = 1150;
 const frameMs = 38;
 const impactShakeMs = 650;
@@ -42,9 +38,12 @@ function hashText(value: string) {
 }
 
 function throwLabel(sheepThrow: ChatSheepThrowSummary) {
+  const spriteLabel = sheepThrow.sprite.label.toLowerCase();
+  const article = /^(uni|user|use|euro)/.test(spriteLabel) ? "a" : /^[aeiou]/.test(spriteLabel) ? "an" : "a";
+
   return sheepThrow.targetDisplayName
-    ? `${sheepThrow.throwerDisplayName} threw a sheep at ${sheepThrow.targetDisplayName}`
-    : `${sheepThrow.throwerDisplayName} threw a sheep`;
+    ? `${sheepThrow.throwerDisplayName} threw ${article} ${spriteLabel} at ${sheepThrow.targetDisplayName}`
+    : `${sheepThrow.throwerDisplayName} threw ${article} ${spriteLabel}`;
 }
 
 function reducedMotionEnabled() {
@@ -60,6 +59,7 @@ export function SheepThrowOverlay() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializedRef = useRef(false);
   const imageRef = useRef<LoadedImages | null>(null);
+  const imageCacheRef = useRef(new Map<string, LoadedImages>());
   const drawFrameRef = useRef<(timestamp: number) => void>(() => undefined);
   const playNextRef = useRef<() => void>(() => undefined);
   const queueRef = useRef<ChatSheepThrowSummary[]>([]);
@@ -68,8 +68,46 @@ export function SheepThrowOverlay() {
   const startTimeRef = useRef(0);
   const timeoutRef = useRef<number | null>(null);
   const impactTriggeredRef = useRef(false);
+  const loadingThrowRef = useRef(false);
   const wobbleTimeoutRef = useRef<number | null>(null);
   const activeLabel = useMemo(() => (activeThrow ? throwLabel(activeThrow) : ""), [activeThrow]);
+
+  const loadImagesForSprite = useCallback(async (sprite: SheepThrowSprite): Promise<LoadedImages> => {
+    const cacheKey = `${sprite.id}:${sprite.spriteSheetUrl}:${sprite.glassSmashUrl}`;
+    const cached = imageCacheRef.current.get(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    try {
+      const [spriteImage, glass] = await Promise.all([loadOverlayImage(sprite.spriteSheetUrl), loadOverlayImage(sprite.glassSmashUrl)]);
+      const images = { glass, sprite, spriteImage };
+
+      imageCacheRef.current.set(cacheKey, images);
+      return images;
+    } catch {
+      if (sprite.id === defaultSheepThrowSprite.id) {
+        throw new Error("Default throw sprite could not load.");
+      }
+
+      const fallbackCacheKey = `${defaultSheepThrowSprite.id}:${defaultSheepThrowSprite.spriteSheetUrl}:${defaultSheepThrowSprite.glassSmashUrl}`;
+      const cachedFallback = imageCacheRef.current.get(fallbackCacheKey);
+
+      if (cachedFallback) {
+        return cachedFallback;
+      }
+
+      const [spriteImage, glass] = await Promise.all([
+        loadOverlayImage(defaultSheepThrowSprite.spriteSheetUrl),
+        loadOverlayImage(defaultSheepThrowSprite.glassSmashUrl)
+      ]);
+      const fallbackImages = { glass, sprite: defaultSheepThrowSprite, spriteImage };
+
+      imageCacheRef.current.set(fallbackCacheKey, fallbackImages);
+      return fallbackImages;
+    }
+  }, []);
 
   const stopAnimation = useCallback(() => {
     if (animationFrameRef.current !== null) {
@@ -127,7 +165,12 @@ export function SheepThrowOverlay() {
       const y = startY + (targetY - startY) * progress;
       const maxSize = Math.min(width, height) * 0.56;
       const drawSize = Math.max(56, maxSize * (0.16 + progress * 0.84));
+      const totalFrames = Math.max(1, Math.min(images.sprite.frameCount, images.sprite.columns * images.sprite.rows));
+      const frameWidth = images.sprite.frameWidth;
+      const frameHeight = images.sprite.frameHeight;
       const frameIndex = impactStarted ? totalFrames - 1 : Math.min(totalFrames - 1, Math.floor(elapsed / frameMs) % totalFrames);
+      const frameColumn = frameIndex % images.sprite.columns;
+      const frameRow = Math.floor(frameIndex / images.sprite.columns);
       const rotation = (fromLeft ? 1 : -1) * (0.9 - progress * 0.9) + Math.sin(elapsed / 95) * 0.08;
 
       if (impactStarted && !impactTriggeredRef.current) {
@@ -166,9 +209,9 @@ export function SheepThrowOverlay() {
       context.translate(impactStarted ? targetX : x, impactStarted ? targetY : y);
       context.rotate(impactStarted ? 0 : rotation);
       context.drawImage(
-        images.sheep,
-        frameIndex * frameWidth,
-        0,
+        images.spriteImage,
+        frameColumn * frameWidth,
+        frameRow * frameHeight,
         frameWidth,
         frameHeight,
         -drawSize / 2,
@@ -192,43 +235,58 @@ export function SheepThrowOverlay() {
       return;
     }
 
+    if (loadingThrowRef.current) {
+      return;
+    }
+
     const nextThrow = queueRef.current.shift();
 
     if (!nextThrow) {
       return;
     }
 
-    activeThrowRef.current = nextThrow;
-    setActiveThrow(nextThrow);
-    impactTriggeredRef.current = false;
+    loadingThrowRef.current = true;
 
-    if (timeoutRef.current !== null) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
+    void loadImagesForSprite(nextThrow.sprite)
+      .then((images) => {
+        loadingThrowRef.current = false;
+        imageRef.current = images;
+        activeThrowRef.current = nextThrow;
+        setActiveThrow(nextThrow);
+        impactTriggeredRef.current = false;
 
-    if (reducedMotionEnabled()) {
-      setIncomingBlur(false);
-      timeoutRef.current = window.setTimeout(() => {
-        timeoutRef.current = null;
-        activeThrowRef.current = null;
-        setActiveThrow(null);
+        if (timeoutRef.current !== null) {
+          window.clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+
+        if (!reducedMotionEnabled()) {
+          stopAnimation();
+          setIncomingBlur(true);
+          startTimeRef.current = performance.now();
+          animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
+          timeoutRef.current = window.setTimeout(() => {
+            timeoutRef.current = null;
+            activeThrowRef.current = null;
+            setActiveThrow(null);
+            playNextRef.current();
+          }, settingsRef.current.overlayDurationMs);
+          return;
+        }
+
+        setIncomingBlur(false);
+        timeoutRef.current = window.setTimeout(() => {
+          timeoutRef.current = null;
+          activeThrowRef.current = null;
+          setActiveThrow(null);
+          playNextRef.current();
+        }, Math.min(2500, settingsRef.current.overlayDurationMs));
+      })
+      .catch(() => {
+        loadingThrowRef.current = false;
         playNextRef.current();
-      }, Math.min(2500, settingsRef.current.overlayDurationMs));
-      return;
-    }
-
-    stopAnimation();
-    setIncomingBlur(true);
-    startTimeRef.current = performance.now();
-    animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
-    timeoutRef.current = window.setTimeout(() => {
-      timeoutRef.current = null;
-      activeThrowRef.current = null;
-      setActiveThrow(null);
-      playNextRef.current();
-    }, settingsRef.current.overlayDurationMs);
-  }, [stopAnimation]);
+      });
+  }, [loadImagesForSprite, stopAnimation]);
 
   const enqueueThrows = useCallback(
     (throws: ChatSheepThrowSummary[]) => {
@@ -264,22 +322,10 @@ export function SheepThrowOverlay() {
   }, [settings]);
 
   useEffect(() => {
-    let active = true;
-
-    Promise.all([loadOverlayImage(sheepSpriteUrl), loadOverlayImage(glassSmashUrl)])
-      .then(([sheep, glass]) => {
-        if (active) {
-          imageRef.current = { sheep, glass };
-        }
-      })
-      .catch(() => {
-        imageRef.current = null;
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
+    void loadImagesForSprite(defaultSheepThrowSprite).catch(() => {
+      imageRef.current = null;
+    });
+  }, [loadImagesForSprite]);
 
   useEffect(() => {
     let active = true;

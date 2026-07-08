@@ -8,9 +8,11 @@ import { queueChatSheepThrowNotification } from "@/lib/chat/sheep-throw-notifica
 import {
   defaultSheepThrowSettings,
   formatSheepThrowToast,
+  getSheepThrowSprite,
   normalizeSheepThrowSettings,
   normalizeSheepThrowSettingsInput,
   remainingSheepThrowCooldownSeconds,
+  type SheepThrowSprite,
   type SheepThrowSettings,
   type SheepThrowSettingsInput
 } from "@/lib/chat/sheep-throw-settings";
@@ -22,6 +24,7 @@ const sheepThrowRetentionMs = 24 * 60 * 60 * 1000;
 export type ChatSheepThrowSummary = {
   id: string;
   createdAt: string;
+  sprite: SheepThrowSprite;
   throwerDisplayName: string;
   targetDisplayName: string | null;
 };
@@ -294,10 +297,11 @@ export async function getChatSheepThrowReadiness(
   };
 }
 
-export async function createChatSheepThrow(roomId: string, throwerId: string, targetMessageId?: string | null) {
+export async function createChatSheepThrow(roomId: string, throwerId: string, targetMessageId?: string | null, spriteId?: string | null) {
   await pruneExpiredSheepThrows();
 
   const settings = await getSheepThrowSettings();
+  const sprite = getSheepThrowSprite(settings, spriteId);
 
   if (!settings.enabled) {
     throw new Error("Sheep throws are currently disabled.");
@@ -387,8 +391,11 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
 
     const toastMessage = await tx.chatMessage.create({
       data: {
-        body: formatSheepThrowToast(throwContext.throwerDisplayName, target.targetDisplayName),
+        body: formatSheepThrowToast(throwContext.throwerDisplayName, target.targetDisplayName, sprite.label),
         kind: "sheep",
+        mediaAlt: sprite.label,
+        mediaSource: "throw-sprite",
+        mediaSourceId: sprite.id,
         roomId,
         userId: throwerId
       }
@@ -396,6 +403,7 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     const sheepThrow = await tx.chatSheepThrow.create({
       data: {
         roomId,
+        spriteId: sprite.id,
         throwerId,
         targetDisplayName: target.targetDisplayName,
         targetMessageId: target.targetMessageId,
@@ -420,6 +428,8 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
       roomSlug: throwContext.room.slug,
       costStars: result.costStars,
       freeThrowApplied: result.freeThrowApplied,
+      spriteId: sprite.id,
+      spriteLabel: sprite.label,
       toastMessageId: result.toastMessage.id,
       targetDisplayName: target.targetDisplayName,
       targetMessageId: target.targetMessageId,
@@ -430,6 +440,7 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     messageId: result.toastMessage.id,
     roomSlug: throwContext.room.slug,
     sheepThrowId: result.sheepThrow.id,
+    spriteLabel: sprite.label,
     targetUserId: target.targetUserId,
     throwerDisplayName: throwContext.throwerDisplayName,
     throwerUserId: throwerId
@@ -499,6 +510,7 @@ export async function getChatSheepThrowOverlayData(targetUserId?: string | null)
       .map((sheepThrow) => ({
         id: sheepThrow.id,
         createdAt: sheepThrow.createdAt.toISOString(),
+        sprite: getSheepThrowSprite(settings, sheepThrow.spriteId),
         throwerDisplayName: displayNameByUserId.get(sheepThrow.throwerId) ?? "Someone",
         targetDisplayName:
           sheepThrow.targetDisplayName ?? (sheepThrow.targetUserId ? displayNameByUserId.get(sheepThrow.targetUserId) ?? "Someone" : null)

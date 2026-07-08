@@ -34,6 +34,16 @@ test("sheep throw notification content is compact and chat categorized", () => {
   });
 
   assert.equal(content.type, "chat.sheep_throw");
-  assert.equal(content.title, "Reload threw a sheep at you 😂");
+  assert.equal(content.title, "Reload threw a sheep at you \u{1f602}");
   assert.equal(content.body, "Open #live to jump back into the chat.");
+});
+
+test("sheep throw notification content can name custom sprites", () => {
+  const content = chatSheepThrowNotificationContent({
+    roomSlug: "live",
+    spriteLabel: "Unicorn",
+    throwerDisplayName: "Reload"
+  });
+
+  assert.equal(content.title, "Reload threw a unicorn at you \u{1f602}");
 });

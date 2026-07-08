@@ -30,6 +30,7 @@ export type AdminChatSheepThrowRow = {
   id: string;
   roomName: string;
   roomSlug: string;
+  spriteId: string;
   throwerDisplayName: string;
   targetDisplayName: string;
   targetMessageId: string | null;

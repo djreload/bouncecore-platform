@@ -455,6 +455,7 @@ model ChatSheepThrow {
   id                String   @id @default(cuid())
   roomId            String
   throwerId         String
+  spriteId          String   @default("sheep")
   targetUserId      String?
   targetDisplayName String?
   targetMessageId   String?
@@ -462,6 +463,7 @@ model ChatSheepThrow {
 
   @@index([createdAt])
   @@index([roomId, createdAt])
+  @@index([spriteId])
   @@index([throwerId, createdAt])
   @@index([targetUserId])
 }

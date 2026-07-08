@@ -171,14 +171,8 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
       gifProviders.configured.klipy ? "Configured" : "Missing",
       "KLIPY_API_KEY or admin KLIPY key enables KLIPY results in the unified GIF picker."
     ),
-    check(
-      "Imgur client ID",
-      gifProviders.configured.imgur,
-      gifProviders.configured.imgur ? "Configured" : "Missing",
-      "IMGUR_CLIENT_ID or admin Imgur client ID enables Imgur GIF results."
-    ),
     check("Server proxy endpoint", true, absolutePath("/api/gifs/search"), "Frontend chat calls the server proxy so provider keys are never exposed."),
-    check("Safety filtering", true, "Enabled", "GIPHY is limited to PG-13 and Imgur NSFW gallery items are excluded when metadata is available.")
+    check("Safety filtering", true, "Enabled", "GIPHY is limited to PG-13 and KLIPY uses medium content filtering.")
   ];
   const mailChecks: IntegrationCheck[] = [
     check("Brevo SMTP host", configured("BREVO_SMTP_HOST") || configured("SMTP_HOST"), envValue("BREVO_SMTP_HOST") || envValue("SMTP_HOST") || "smtp-relay.brevo.com", "SMTP relay host for transactional account emails."),
@@ -299,7 +293,7 @@ export async function getAdminIntegrationsData(): Promise<AdminIntegrationsData>
     },
     {
       checks: gifChecks,
-      description: "Unified GIF search and selected media messages for live chat, backed by server-side GIPHY, KLIPY, and Imgur providers.",
+      description: "Unified GIF search and selected media messages for live chat, backed by server-side GIPHY and KLIPY providers.",
       eyebrow: "Chat media",
       id: "gifs",
       primaryHref: "/admin/integrations",
