@@ -9,7 +9,7 @@ import {
 } from "@/app/admin/prize-claims/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import type { AdminPrizeClaimsData } from "@/lib/rewards/prize-service";
 
 type AdminPrizeClaimsPanelProps = {
@@ -265,7 +265,7 @@ export function AdminPrizeClaimsPanel({ data }: AdminPrizeClaimsPanelProps) {
               <p className="font-semibold">{user.displayName}</p>
               <p className="mt-1 text-xs text-bc-muted">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {user.roles.map((role) => (
+                {visibleRoleBadges(user.roles).map((role) => (
                   <Badge key={role} tone={roleBadgeTone(role)}>
                     {roleDisplayName(role)}
                   </Badge>

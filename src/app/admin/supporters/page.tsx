@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminSupportersData } from "@/lib/admin/supporters";
 import { requireUserPermission } from "@/lib/auth/guards";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 
 export const dynamic = "force-dynamic";
@@ -130,7 +130,7 @@ export default async function AdminSupportersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      {supporter.roles.map((role) => (
+                      {visibleRoleBadges(supporter.roles).map((role) => (
                         <Badge key={role} tone={roleBadgeTone(role)}>
                           {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>

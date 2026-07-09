@@ -6,6 +6,7 @@ import { adminStarsAction } from "@/app/admin/stars/actions";
 import { initialAdminStarsActionState, type AdminStarsActionState } from "@/app/admin/stars/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { visibleRoleBadges } from "@/lib/auth/role-display";
 import type { AdminStarsData } from "@/lib/rewards/stars-service";
 import { starAlertEffectModes, starAlertScopes } from "@/lib/stars/star-alert-settings";
 
@@ -331,7 +332,7 @@ export function AdminStarsPanel({ data }: AdminStarsPanelProps) {
                   <div className="flex flex-wrap gap-2">
                     <Badge tone={user.hasWallet ? "acid" : "muted"}>{user.hasWallet ? "Wallet" : "No wallet"}</Badge>
                     <Badge tone={user.status === "active" ? "cyan" : "amber"}>{user.status}</Badge>
-                    {user.roles.map((role) => (
+                    {visibleRoleBadges(user.roles).map((role) => (
                       <Badge key={role} tone={roleTone(role)}>
                         {role}
                       </Badge>

@@ -14,7 +14,7 @@ import {
 } from "@/app/admin/schedules/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 
 type AdminSchedulesPanelProps = {
   channels: AdminScheduleChannelOption[];
@@ -289,9 +289,9 @@ export function AdminSchedulesPanel({ channels, hosts, roleDisplayLabels, schedu
                 </div>
               </div>
 
-              {schedule.hostRoles.length ? (
-                <div className="mb-4 flex flex-wrap gap-2">
-                  {schedule.hostRoles.map((role) => (
+                {visibleRoleBadges(schedule.hostRoles).length ? (
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {visibleRoleBadges(schedule.hostRoles).map((role) => (
                     <Badge key={role} tone={roleBadgeTone(role)}>
                       {roleDisplayName(role, roleDisplayLabels)}
                     </Badge>

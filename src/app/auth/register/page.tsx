@@ -1,7 +1,7 @@
 import { PublicShell } from "@/components/layout/public-shell";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { roleDisplayName } from "@/lib/auth/role-display";
+import { roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRegisterInvitePreview } from "@/lib/auth/user-invite-service";
 import { privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
 import Link from "next/link";
@@ -90,7 +90,7 @@ export default async function RegisterPage({
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {invitePreview ? (
-              invitePreview.roles.map((role) => (
+                visibleRoleBadges(invitePreview.roles).map((role) => (
                 <Badge key={role} tone="muted">
                   {roleDisplayName(role)}
                 </Badge>

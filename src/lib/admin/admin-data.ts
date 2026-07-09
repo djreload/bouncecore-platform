@@ -1,4 +1,27 @@
 import { prisma } from "@/lib/db/prisma";
+import { rolePermissions, type Permission, type Role } from "@/lib/auth/rbac";
+
+const systemRoleKeys = new Set<string>(Object.keys(rolePermissions));
+
+function isSystemRoleKey(value: string): value is Role {
+  return systemRoleKeys.has(value);
+}
+
+function effectivePermissionKeysForRole(roleName: string) {
+  if (!isSystemRoleKey(roleName)) {
+    return null;
+  }
+
+  return rolePermissions[roleName] as readonly Permission[];
+}
+
+function sortRolePermissionRows<T extends { permission: { key: string } }>(rows: T[]) {
+  return rows.sort((left, right) => left.permission.key.localeCompare(right.permission.key));
+}
+
+function sortPermissionRoleRows<T extends { role: { name: string } }>(rows: T[]) {
+  return rows.sort((left, right) => left.role.name.localeCompare(right.role.name));
+}
 
 export async function getAdminDashboardData() {
   const [users, roles, permissions, activeSessions, streamKeys, chatrooms, tracks, products, orders, auditLogs] =
@@ -64,45 +87,116 @@ export async function getAdminUsers() {
 }
 
 export async function getAdminRoles() {
-  return prisma.role.findMany({
-    orderBy: {
-      name: "asc"
-    },
-    include: {
-      permissions: {
-        include: {
-          permission: true
+  const [roles, permissions] = await Promise.all([
+    prisma.role.findMany({
+      orderBy: {
+        name: "asc"
+      },
+      include: {
+        permissions: {
+          include: {
+            permission: true
+          },
+          orderBy: {
+            permission: {
+              key: "asc"
+            }
+          }
         },
-        orderBy: {
-          permission: {
-            key: "asc"
+        _count: {
+          select: {
+            users: true
           }
         }
-      },
-      _count: {
-        select: {
-          users: true
-        }
       }
+    }),
+    prisma.permission.findMany()
+  ]);
+  const permissionsByKey = new Map(permissions.map((permission) => [permission.key, permission]));
+
+  return roles.map((role) => {
+    const effectivePermissionKeys = effectivePermissionKeysForRole(role.name);
+
+    if (!effectivePermissionKeys) {
+      return role;
     }
+
+    const existingRowsByKey = new Map(role.permissions.map((row) => [row.permission.key, row]));
+    const effectivePermissions = effectivePermissionKeys.flatMap((permissionKey) => {
+      const existingRow = existingRowsByKey.get(permissionKey);
+
+      if (existingRow) {
+        return [existingRow];
+      }
+
+      const permission = permissionsByKey.get(permissionKey);
+
+      if (!permission) {
+        return [];
+      }
+
+      return [
+        {
+          permission,
+          permissionId: permission.id,
+          roleId: role.id
+        }
+      ];
+    });
+
+    return {
+      ...role,
+      permissions: sortRolePermissionRows(effectivePermissions)
+    };
   });
 }
 
 export async function getAdminPermissions() {
-  return prisma.permission.findMany({
-    orderBy: [{ group: "asc" }, { key: "asc" }],
-    include: {
-      roles: {
-        include: {
-          role: true
-        },
-        orderBy: {
-          role: {
-            name: "asc"
+  const [permissions, roles] = await Promise.all([
+    prisma.permission.findMany({
+      orderBy: [{ group: "asc" }, { key: "asc" }],
+      include: {
+        roles: {
+          include: {
+            role: true
+          },
+          orderBy: {
+            role: {
+              name: "asc"
+            }
           }
         }
       }
+    }),
+    prisma.role.findMany({
+      orderBy: {
+        name: "asc"
+      }
+    })
+  ]);
+
+  return permissions.map((permission) => {
+    const existingRowsByRoleName = new Map(permission.roles.map((row) => [row.role.name, row]));
+    const effectiveRows = [...permission.roles];
+
+    for (const role of roles) {
+      const effectivePermissionKeys = effectivePermissionKeysForRole(role.name);
+
+      if (!effectivePermissionKeys?.includes(permission.key as Permission) || existingRowsByRoleName.has(role.name)) {
+        continue;
+      }
+
+      effectiveRows.push({
+        permissionId: permission.id,
+        role,
+        roleId: role.id
+      });
     }
+
+    return {
+      ...permission,
+      roles: sortPermissionRoleRows(effectiveRows)
+    };
   });
 }
 

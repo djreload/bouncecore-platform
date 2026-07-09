@@ -3,7 +3,7 @@ import { revokeAccountSessionAction, revokeOtherAccountSessionsAction } from "@/
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser, getSessionTokenHash } from "@/lib/auth/session";
 import { getActiveAccountSessions } from "@/lib/auth/session-management";
@@ -80,9 +80,9 @@ export default async function AccountSecurityPage() {
                 </div>
                 <div className="rounded-md border border-bc-line bg-bc-ink p-4 md:col-span-2">
                   <dt className="font-semibold">Roles</dt>
-                  <dd className="mt-2 flex flex-wrap gap-2">
-                    {user.roles.length ? (
-                      user.roles.map((role) => (
+                    <dd className="mt-2 flex flex-wrap gap-2">
+                      {visibleRoleBadges(user.roles).length ? (
+                        visibleRoleBadges(user.roles).map((role) => (
                         <Badge key={role} tone={roleBadgeTone(role)}>
                           {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>

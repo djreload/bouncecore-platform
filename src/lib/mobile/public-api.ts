@@ -19,6 +19,7 @@ import { starPackages } from "@/lib/rewards/stars-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
+import { visibleRoleBadges } from "@/lib/auth/role-display";
 
 export type MobileEndpoint = {
   href: string;
@@ -61,7 +62,7 @@ function publicMessage(message: ChatMessageSummary) {
       id: message.authorUserId,
       avatarUrl: message.authorAvatarUrl,
       displayName: message.authorDisplayName,
-      roles: message.authorRoles
+      roles: visibleRoleBadges(message.authorRoles)
     },
     reactions: message.reactions.map((reaction) => ({
       key: reaction.key,
@@ -76,7 +77,7 @@ function publicPresenceUser(user: ChatPresenceUserSummary) {
     id: user.id,
     displayName: user.displayName,
     avatarUrl: user.avatarUrl,
-    roles: user.roles,
+    roles: visibleRoleBadges(user.roles),
     status: user.status,
     lastActiveAt: user.lastActiveAt,
     throwHitCount: user.throwHitCount

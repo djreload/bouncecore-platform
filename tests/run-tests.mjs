@@ -57,6 +57,7 @@ import "./privacy-rights.test.mjs";
 import "./public-account-deletion.test.mjs";
 import "./public-smoke-check.test.mjs";
 import "./restream-settings.test.mjs";
+import "./role-permission-display.test.mjs";
 import "./reward-wheel-core.test.mjs";
 import "./sheep-throw-settings.test.mjs";
 import "./sheep-throw-overlay.test.mjs";

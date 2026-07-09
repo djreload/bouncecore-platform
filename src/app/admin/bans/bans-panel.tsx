@@ -6,7 +6,7 @@ import { adminBansAction } from "@/app/admin/bans/actions";
 import { initialAdminBansActionState, type AdminBansActionState } from "@/app/admin/bans/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import type { AdminBansData } from "@/lib/chat/moderation-service";
 
 type AdminBansPanelProps = {
@@ -240,7 +240,7 @@ export function AdminBansPanel({ data }: AdminBansPanelProps) {
               <p className="font-semibold">{user.displayName}</p>
               <p className="mt-1 text-xs text-bc-muted">{user.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
-                {user.roles.map((role) => (
+                {visibleRoleBadges(user.roles).map((role) => (
                   <Badge key={role} tone={roleBadgeTone(role)}>
                     {roleDisplayName(role)}
                   </Badge>

@@ -6,7 +6,7 @@ import { ImageIcon, Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles,
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import type { SheepThrowSettings, SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
 import {
   initialAdminChatroomsActionState,
@@ -746,7 +746,7 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
                   <td className="px-4 py-3">
                     <p className="font-semibold">{message.authorDisplayName}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {message.authorRoles.map((role) => (
+                      {visibleRoleBadges(message.authorRoles).map((role) => (
                         <Badge key={role} tone={roleBadgeTone(role)}>
                           {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>

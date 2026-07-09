@@ -6,7 +6,7 @@ import { ConsentPreferencesButton } from "@/components/privacy/consent-preferenc
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAccountSettingsData } from "@/lib/account/account-service";
 import { getUserNotificationPreferences } from "@/lib/account/notification-preferences-service";
@@ -96,7 +96,7 @@ export default async function AccountSettingsPage() {
             <h3 className="text-xl font-black">Roles</h3>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {data.roles.map((role) => (
+            {visibleRoleBadges(data.roles).map((role) => (
               <Badge key={role} tone={roleBadgeTone(role)}>
                 {roleDisplayName(role, roleDisplayLabels)}
               </Badge>

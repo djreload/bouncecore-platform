@@ -44,7 +44,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
 import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
 import { ChatEffectText } from "@/app/chat/chat-effect-text";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
 import { canEditChatMessage } from "@/lib/chat/chat-message-edit-core";
@@ -185,10 +185,6 @@ function slowModeLabel(seconds: number) {
   return `${seconds} second${seconds === 1 ? "" : "s"}`;
 }
 
-function visibleBadgeRoles<T extends string>(roles: T[]) {
-  return roles.filter((role) => role !== "viewer");
-}
-
 function authorInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || "?";
 }
@@ -325,9 +321,9 @@ function ChatPresenceRail({
                         </div>
                       </div>
                     </div>
-                    {visibleBadgeRoles(user.roles).length ? (
+                    {visibleRoleBadges(user.roles).length ? (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {visibleBadgeRoles(user.roles).slice(0, 2).map((role) => (
+                        {visibleRoleBadges(user.roles).slice(0, 2).map((role) => (
                           <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
                             {roleDisplayName(role, roleDisplayLabels)}
                           </Badge>
@@ -1101,7 +1097,7 @@ export function ChatRoomPanel({
             {currentUser ? (
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <Badge tone="acid">{currentUser.displayName}</Badge>
-                {currentUser.roles.map((role) => (
+                {visibleRoleBadges(currentUser.roles).map((role) => (
                   <Badge key={role} tone={roleBadgeTone(role)}>
                     {roleDisplayName(role, roleDisplayLabels)}
                   </Badge>
@@ -1224,7 +1220,7 @@ export function ChatRoomPanel({
                     <div className="min-w-0">
                       <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
-                        {visibleBadgeRoles(message.authorRoles).map((role) => (
+                        {visibleRoleBadges(message.authorRoles).map((role) => (
                           <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
                             {roleDisplayName(role, roleDisplayLabels)}
                           </Badge>
