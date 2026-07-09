@@ -55,15 +55,18 @@ function publicMessage(message: ChatMessageSummary) {
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,
+    deletedAt: message.deletedAt,
     editedAt: message.editedAt,
     author: {
+      id: message.authorUserId,
       avatarUrl: message.authorAvatarUrl,
       displayName: message.authorDisplayName,
       roles: message.authorRoles
     },
     reactions: message.reactions.map((reaction) => ({
       key: reaction.key,
-      count: reaction.count
+      count: reaction.count,
+      reacted: reaction.reacted
     }))
   };
 }

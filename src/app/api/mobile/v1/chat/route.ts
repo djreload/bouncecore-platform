@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
-import { createChatGifMessage, createChatMessage } from "@/lib/chat/chat-service";
+import {
+  createChatGifMessage,
+  createChatMessage,
+  editOwnChatMessage,
+  moderateChatMessage,
+  toggleChatMessageReaction
+} from "@/lib/chat/chat-service";
 import { createChatSheepThrow } from "@/lib/chat/sheep-throw-service";
+import { hasPermission } from "@/lib/auth/rbac";
 import { getCurrentUserFromRequest } from "@/lib/auth/session";
 import { getMobileChatPayload } from "@/lib/mobile/public-api";
 import { requireMobileUser } from "@/lib/mobile/account-api";
@@ -101,8 +108,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ id: sheepThrow.id, kind: "sheep", ok: true });
     }
 
+    if (intent === "reaction") {
+      await toggleChatMessageReaction(bodyString(payload, "messageId"), user.id, bodyString(payload, "reactionKey"));
+
+      return NextResponse.json({ kind: "reaction", ok: true });
+    }
+
+    if (intent === "edit-message") {
+      const message = await editOwnChatMessage(bodyString(payload, "messageId"), bodyString(payload, "body"), user.id);
+
+      return NextResponse.json({ id: message.id, kind: message.kind, ok: true });
+    }
+
+    if (intent === "delete-message") {
+      if (!hasPermission(user, "moderation.use")) {
+        return NextResponse.json({ error: "You do not have permission to remove chat messages." }, { status: 403 });
+      }
+
+      await moderateChatMessage(bodyString(payload, "messageId"), user.id);
+
+      return NextResponse.json({ kind: "delete-message", ok: true });
+    }
+
     if (intent !== "text") {
-      return NextResponse.json({ error: "intent must be text, gif, stars, or sheep." }, { status: 400 });
+      return NextResponse.json({ error: "intent must be text, gif, stars, sheep, reaction, edit-message, or delete-message." }, { status: 400 });
     }
 
     const message = await createChatMessage(
