@@ -1,4 +1,9 @@
-import { getPublicChatData, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
+import { getPublicChatData, type ChatMessageSummary, type ChatPresenceUserSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
+import {
+  getAvailableSheepThrowSprites,
+  type SheepThrowSettings
+} from "@/lib/chat/sheep-throw-settings";
+import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getPublicMusicTracks } from "@/lib/music/music-service";
 import { buildMobileMusicPayload } from "@/lib/mobile/music-payload-core";
 import { buildMobilePayPalCheckoutStatus } from "@/lib/mobile/paypal-checkout-status";
@@ -63,6 +68,31 @@ function publicMessage(message: ChatMessageSummary) {
   };
 }
 
+function publicPresenceUser(user: ChatPresenceUserSummary) {
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    roles: user.roles,
+    status: user.status,
+    lastActiveAt: user.lastActiveAt,
+    throwHitCount: user.throwHitCount
+  };
+}
+
+function publicSheepThrow(settings: SheepThrowSettings, readiness: Awaited<ReturnType<typeof getChatSheepThrowReadiness>>) {
+  return {
+    enabled: settings.enabled,
+    cooldownSeconds: settings.cooldownSeconds,
+    costStars: settings.costStars,
+    effectiveCostStars: readiness.effectiveCostStars,
+    freeThrowAvailable: readiness.freeThrowAvailable,
+    latestThrowAt: readiness.latestThrowAt,
+    remainingCooldownSeconds: readiness.remainingCooldownSeconds,
+    sprites: getAvailableSheepThrowSprites(settings)
+  };
+}
+
 export function getMobileEndpoints(): MobileEndpoint[] {
   return [
     { key: "config", href: "/api/mobile/v1/config" },
@@ -112,13 +142,19 @@ export async function getMobileLivePayload() {
   };
 }
 
-export async function getMobileChatPayload(roomSlug?: string) {
-  const data = await getPublicChatData(roomSlug);
+export async function getMobileChatPayload(roomSlug?: string, currentUserId?: string | null) {
+  const [data, sheepSettings] = await Promise.all([
+    getPublicChatData(roomSlug, currentUserId),
+    getSheepThrowSettings()
+  ]);
+  const sheepReadiness = await getChatSheepThrowReadiness(currentUserId, sheepSettings);
 
   return {
     rooms: data.rooms.map(publicRoom),
     selectedRoom: data.selectedRoom ? publicRoom(data.selectedRoom) : null,
     messages: data.messages.map(publicMessage),
+    presenceUsers: data.presenceUsers.map(publicPresenceUser),
+    sheepThrow: publicSheepThrow(sheepSettings, sheepReadiness),
     assets: data.assets.map((asset) => ({
       id: asset.id,
       packId: asset.packId,
