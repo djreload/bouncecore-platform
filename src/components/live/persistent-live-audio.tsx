@@ -5,6 +5,7 @@ import type { ErrorData } from "hls.js";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
+import { isBouncecoreAndroidRuntime } from "@/lib/runtime/mobile-app-runtime";
 
 const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
@@ -69,6 +70,18 @@ function setAudiblePreference(enabled: boolean, video?: HTMLVideoElement | null)
   storeAudioEnabled(enabled);
 }
 
+function isLivePath(pathname: string | null) {
+  return pathname === "/live" || Boolean(pathname?.startsWith("/live/"));
+}
+
+function shouldSuspendPersistentPlayback(pathname: string | null) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return true;
+  }
+
+  return isBouncecoreAndroidRuntime() && !isLivePath(pathname);
+}
+
 export function requestPersistentLiveAudio() {
   if (typeof window === "undefined") {
     return;
@@ -105,19 +118,46 @@ export function PersistentLiveAudio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const canPlayRef = useRef(false);
+  const suspendPlaybackRef = useRef(false);
   const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
+  const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname));
   const [userEnabled, setUserEnabled] = useState(false);
   const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
-  const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
+  const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline" && !suspendPlayback;
 
   useEffect(() => {
     canPlayRef.current = canPlay;
   }, [canPlay]);
 
   useEffect(() => {
+    suspendPlaybackRef.current = suspendPlayback;
+  }, [suspendPlayback]);
+
+  useEffect(() => {
     userEnabledRef.current = userEnabled;
   }, [userEnabled]);
+
+  useEffect(() => {
+    function updateSuspendState() {
+      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname));
+    }
+
+    function suspendForPageHide() {
+      setSuspendPlayback(true);
+    }
+
+    updateSuspendState();
+    document.addEventListener("visibilitychange", updateSuspendState);
+    window.addEventListener("pagehide", suspendForPageHide);
+    window.addEventListener("pageshow", updateSuspendState);
+
+    return () => {
+      document.removeEventListener("visibilitychange", updateSuspendState);
+      window.removeEventListener("pagehide", suspendForPageHide);
+      window.removeEventListener("pageshow", updateSuspendState);
+    };
+  }, [pathname]);
 
   const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
     const video = videoRef.current;
@@ -204,7 +244,7 @@ export function PersistentLiveAudio() {
     activeVideo.autoplay = true;
     activeVideo.muted = !userEnabledRef.current;
     activeVideo.playsInline = true;
-    activeVideo.preload = "auto";
+    activeVideo.preload = "metadata";
     keepNormalPlaybackSpeed(activeVideo);
     activeVideo.addEventListener("pointerdown", enableAudioFromUserGesture);
     activeVideo.addEventListener("keydown", enableAudioFromUserGesture);
@@ -217,7 +257,7 @@ export function PersistentLiveAudio() {
     }
 
     function recoverLivePlayback() {
-      if (!canPlayRef.current) {
+      if (!canPlayRef.current || suspendPlaybackRef.current) {
         return;
       }
 
@@ -301,7 +341,13 @@ export function PersistentLiveAudio() {
     };
   }, [parkVideo]);
 
-  useEffect(() => subscribeToLiveStatus(setLiveState), []);
+  useEffect(() => {
+    if (suspendPlayback) {
+      return () => undefined;
+    }
+
+    return subscribeToLiveStatus(setLiveState);
+  }, [suspendPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -320,7 +366,7 @@ export function PersistentLiveAudio() {
     video.removeAttribute("src");
     video.load();
 
-    if (!playbackUrl || !canPlay) {
+    if (!playbackUrl || !canPlay || suspendPlayback) {
       video.pause();
 
       return () => {
@@ -395,7 +441,7 @@ export function PersistentLiveAudio() {
     return () => {
       cancelled = true;
     };
-  }, [canPlay, primaryPlaybackUrl]);
+  }, [canPlay, primaryPlaybackUrl, suspendPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -404,7 +450,7 @@ export function PersistentLiveAudio() {
       return;
     }
 
-    if (!canPlay) {
+    if (!canPlay || suspendPlayback) {
       video.pause();
       return;
     }
@@ -412,14 +458,14 @@ export function PersistentLiveAudio() {
     video.muted = !userEnabled;
     keepNormalPlaybackSpeed(video);
     void video.play().catch(() => undefined);
-  }, [canPlay, userEnabled]);
+  }, [canPlay, suspendPlayback, userEnabled]);
 
   useEffect(() => {
     function enableAudio() {
       setUserEnabled(true);
       setAudiblePreference(true, videoRef.current);
 
-      if (canPlayRef.current) {
+      if (canPlayRef.current && !suspendPlaybackRef.current) {
         if (videoRef.current) {
           keepNormalPlaybackSpeed(videoRef.current);
         }

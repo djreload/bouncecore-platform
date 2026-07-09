@@ -60,6 +60,29 @@ function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
   }
 }
 
+function getPageVisible() {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
+}
+
+function usePageVisible() {
+  const [pageVisible, setPageVisible] = useState(getPageVisible);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      setPageVisible(getPageVisible());
+    }
+
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  return pageVisible;
+}
+
 function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
   return source?.presenterName ?? source?.title ?? fallback;
 }
@@ -81,6 +104,7 @@ function HlsVideo({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const pageVisible = usePageVisible();
 
   useEffect(() => {
     const video = videoRef.current;
@@ -99,6 +123,14 @@ function HlsVideo({
     activeVideo.removeAttribute("src");
     activeVideo.load();
     keepNormalPlaybackSpeed(activeVideo);
+
+    if (!pageVisible) {
+      activeVideo.pause();
+
+      return () => {
+        cancelled = true;
+      };
+    }
 
     function recoverLivePlayback() {
       hlsRef.current?.startLoad(-1);
@@ -198,7 +230,7 @@ function HlsVideo({
       activeVideo.removeEventListener("ended", recoverLivePlayback);
       activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
     };
-  }, [onPlaybackStarted, playbackUrl]);
+  }, [onPlaybackStarted, pageVisible, playbackUrl]);
 
   return (
     <video

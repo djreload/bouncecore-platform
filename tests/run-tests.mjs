@@ -41,6 +41,7 @@ import "./mobile-music-payload.test.mjs";
 import "./mobile-paypal-checkout-status.test.mjs";
 import "./mobile-shop-payload.test.mjs";
 import "./mobile-event-notifications.test.mjs";
+import "./mobile-thermal-resource.test.mjs";
 import "./mobile-version-policy.test.mjs";
 import "./notification-preferences.test.mjs";
 import "./offsite-backup-settings.test.mjs";

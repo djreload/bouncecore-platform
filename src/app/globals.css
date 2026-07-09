@@ -126,6 +126,18 @@ body::before {
   animation: bc-background-drift 32s var(--bc-ease-out) infinite alternate;
 }
 
+html[data-bc-android-webview="true"] body::before,
+html[data-bc-page-visibility="hidden"] body::before {
+  animation: none;
+}
+
+@supports (content-visibility: auto) {
+  [data-bc-visual-part="site-footer"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 18rem;
+  }
+}
+
 body > * {
   position: relative;
   z-index: 1;

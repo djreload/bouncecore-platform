@@ -14,6 +14,7 @@ const approachMs = 1150;
 const frameMs = 38;
 const impactShakeMs = 650;
 const fadeMs = 520;
+const maxOverlayDevicePixelRatio = 1.5;
 
 function loadOverlayImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -135,10 +136,16 @@ export function SheepThrowOverlay() {
         return;
       }
 
+      if (document.visibilityState === "hidden") {
+        animationFrameRef.current = null;
+        stopAnimation();
+        return;
+      }
+
       const elapsed = timestamp - startTimeRef.current;
       const width = window.innerWidth;
       const height = window.innerHeight;
-      const ratio = window.devicePixelRatio || 1;
+      const ratio = Math.min(window.devicePixelRatio || 1, maxOverlayDevicePixelRatio);
 
       if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
         canvas.width = Math.round(width * ratio);
@@ -331,6 +338,10 @@ export function SheepThrowOverlay() {
     let active = true;
 
     async function refresh() {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
       try {
         const response = await fetch("/api/chat/sheep-throws", {
           cache: "no-store"
@@ -371,9 +382,38 @@ export function SheepThrowOverlay() {
     void refresh();
     const interval = window.setInterval(refresh, settings.pollMs);
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        queueRef.current = [];
+        activeThrowRef.current = null;
+        setActiveThrow(null);
+        setIncomingBlur(false);
+        initializedRef.current = false;
+
+        if (timeoutRef.current !== null) {
+          window.clearTimeout(timeoutRef.current);
+          timeoutRef.current = null;
+        }
+
+        if (wobbleTimeoutRef.current !== null) {
+          window.clearTimeout(wobbleTimeoutRef.current);
+          wobbleTimeoutRef.current = null;
+        }
+
+        document.documentElement.classList.remove("bc-sheep-impact-wobble");
+        stopAnimation();
+        return;
+      }
+
+      void refresh();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       active = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [enqueueThrows, settings.pollMs, stopAnimation]);
 

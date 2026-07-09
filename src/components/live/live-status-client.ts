@@ -35,6 +35,10 @@ let fallbackPollTimer: number | null = null;
 let started = false;
 let lastPayload: LiveStatusPayload | null = null;
 
+function pageIsHidden() {
+  return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
+
 function stringOrNull(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -143,6 +147,10 @@ function publish(payload: LiveStatusPayload) {
 }
 
 async function fetchAndPublishStatus() {
+  if (pageIsHidden()) {
+    return;
+  }
+
   try {
     const response = await fetch(statusFetchUrl, {
       cache: "no-store"
@@ -172,7 +180,7 @@ function stopFallbackPolling() {
 }
 
 function startFallbackPolling() {
-  if (fallbackPollTimer !== null) {
+  if (fallbackPollTimer !== null || pageIsHidden()) {
     return;
   }
 
@@ -181,6 +189,10 @@ function startFallbackPolling() {
 }
 
 function startStatusStream() {
+  if (pageIsHidden() || eventSource) {
+    return;
+  }
+
   if (!("EventSource" in window)) {
     startFallbackPolling();
     return;
@@ -204,20 +216,40 @@ function startStatusStream() {
   };
 }
 
+function closeStatusTransport() {
+  eventSource?.close();
+  eventSource = null;
+  stopFallbackPolling();
+}
+
+function handleFeedVisibilityChange() {
+  if (!started || !listeners.size) {
+    return;
+  }
+
+  if (pageIsHidden()) {
+    closeStatusTransport();
+    return;
+  }
+
+  startStatusStream();
+  void fetchAndPublishStatus();
+}
+
 function startLiveStatusFeed() {
   if (started || typeof window === "undefined") {
     return;
   }
 
   started = true;
+  document.addEventListener("visibilitychange", handleFeedVisibilityChange);
   startStatusStream();
   void fetchAndPublishStatus();
 }
 
 function stopLiveStatusFeed() {
-  eventSource?.close();
-  eventSource = null;
-  stopFallbackPolling();
+  document.removeEventListener("visibilitychange", handleFeedVisibilityChange);
+  closeStatusTransport();
   started = false;
 }
 

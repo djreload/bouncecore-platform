@@ -177,6 +177,13 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        String userAgent = settings.getUserAgentString();
+        if (TextUtils.isEmpty(userAgent)) {
+            userAgent = "";
+        }
+        if (!userAgent.contains("BouncecoreAndroid/")) {
+            settings.setUserAgentString((userAgent + " BouncecoreAndroid/" + BuildConfig.VERSION_NAME).trim());
+        }
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
             public boolean onShowFileChooser(
@@ -879,6 +886,10 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         activityResumed = true;
+        if (webView != null) {
+            webView.onResume();
+            webView.resumeTimers();
+        }
         if (!pausedForInterstitial) {
             appOpenShownThisForeground = false;
         }
@@ -942,6 +953,10 @@ public class MainActivity extends Activity {
 
         mainHandler.removeCallbacks(configRefreshRunnable);
         activityResumed = false;
+        if (webView != null) {
+            webView.onPause();
+            webView.pauseTimers();
+        }
         super.onPause();
     }
 
