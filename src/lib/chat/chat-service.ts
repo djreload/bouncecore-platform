@@ -94,6 +94,7 @@ export type ChatPresenceUserSummary = {
   roles: Role[];
   status: "online" | "away";
   lastActiveAt: string;
+  throwHitCount: number;
 };
 
 export type PublicChatData = {
@@ -394,6 +395,51 @@ async function getChatEffectUserRoles(userId: string) {
   return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 }
 
+async function getCurrentLiveSheepThrowHitCounts(userIds: string[]) {
+  const uniqueUserIds = [...new Set(userIds)].filter(Boolean);
+
+  if (!uniqueUserIds.length) {
+    return new Map<string, number>();
+  }
+
+  const activeStreamSession = await prisma.streamSession.findFirst({
+    where: {
+      endedAt: null
+    },
+    orderBy: {
+      startedAt: "desc"
+    },
+    select: {
+      startedAt: true
+    }
+  });
+
+  if (!activeStreamSession) {
+    return new Map<string, number>();
+  }
+
+  const rows = await prisma.chatSheepThrow.groupBy({
+    by: ["targetUserId"],
+    where: {
+      createdAt: {
+        gte: activeStreamSession.startedAt
+      },
+      targetUserId: {
+        in: uniqueUserIds
+      }
+    },
+    _count: {
+      _all: true
+    }
+  });
+
+  return new Map(
+    rows
+      .filter((row) => row.targetUserId)
+      .map((row) => [row.targetUserId as string, row._count._all])
+  );
+}
+
 export async function getPublicChatPresence(_roomId: string, currentUserId?: string | null): Promise<ChatPresenceUserSummary[]> {
   if (!_roomId) {
     return [];
@@ -480,7 +526,8 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
       avatarUrl: session.user.profile?.avatarUrl ?? null,
       roles: normalizeRoles(session.user.roles.map((userRole) => userRole.role.name)),
       status: chatPresenceStatus(lastActiveAt, now),
-      lastActiveAt: lastActiveAt.toISOString()
+      lastActiveAt: lastActiveAt.toISOString(),
+      throwHitCount: 0
     };
   });
 
@@ -491,11 +538,18 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
       avatarUrl: currentUser.profile?.avatarUrl ?? null,
       roles: normalizeRoles(currentUser.roles.map((userRole) => userRole.role.name)),
       status: "online",
-      lastActiveAt: now.toISOString()
+      lastActiveAt: now.toISOString(),
+      throwHitCount: 0
     });
   }
 
+  const throwHitCounts = await getCurrentLiveSheepThrowHitCounts(users.map((user) => user.id));
+
   return users
+    .map((user) => ({
+      ...user,
+      throwHitCount: throwHitCounts.get(user.id) ?? 0
+    }))
     .sort((first, second) => {
       if (first.status !== second.status) {
         return first.status === "online" ? -1 : 1;

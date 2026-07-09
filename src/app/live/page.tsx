@@ -178,7 +178,8 @@ export default async function LivePage() {
     avatarUrl: user.avatarUrl,
     roles: user.roles,
     status: user.status,
-    lastActiveAt: user.lastActiveAt
+    lastActiveAt: user.lastActiveAt,
+    throwHitCount: user.throwHitCount
   }));
 
   return (

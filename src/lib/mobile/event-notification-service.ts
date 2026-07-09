@@ -186,14 +186,16 @@ async function queueEventNotificationForActiveMobileDevices({
 export async function queueStreamLiveNotifications(input: {
   channelId: string;
   channelTitle: string;
+  hostDisplayName?: string | null;
   sessionId: string;
 }) {
-  const notification = streamLiveNotificationContent(input.channelTitle);
+  const notification = streamLiveNotificationContent(input.channelTitle, input.hostDisplayName);
 
   return queueEventNotificationForActiveMobileDevices({
     auditAction: "mobile.push.stream_live.queue",
     auditMetadata: {
       channelId: input.channelId,
+      hostDisplayName: input.hostDisplayName ?? null,
       sessionId: input.sessionId
     },
     auditTarget: `stream-session:${input.sessionId}`,

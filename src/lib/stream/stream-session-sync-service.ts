@@ -57,6 +57,34 @@ function syncPayload(snapshot: StreamProviderSnapshot): StreamSyncPayload {
   };
 }
 
+async function getLiveNotificationHostDisplayName(snapshot: StreamProviderSnapshot) {
+  const primaryIngest = snapshot.activeIngests.find((ingest) => ingest.role === "primary") ?? snapshot.activeIngests[0];
+  const presenterName = primaryIngest?.presenterName?.trim();
+
+  if (presenterName) {
+    return presenterName;
+  }
+
+  if (!primaryIngest?.streamKeyFingerprint) {
+    return null;
+  }
+
+  const streamKey = await prisma.streamKey.findUnique({
+    where: {
+      fingerprint: primaryIngest.streamKeyFingerprint
+    },
+    select: {
+      user: {
+        select: {
+          displayName: true
+        }
+      }
+    }
+  });
+
+  return streamKey?.user.displayName ?? null;
+}
+
 async function ensurePrimaryChannel() {
   const existing = await prisma.streamChannel.findFirst({
     orderBy: {
@@ -201,6 +229,7 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
       liveNotification: await queueStreamLiveNotifications({
         channelId: result.channelId,
         channelTitle: channel.title,
+        hostDisplayName: await getLiveNotificationHostDisplayName(snapshot),
         sessionId: result.openSessionId
       })
     };

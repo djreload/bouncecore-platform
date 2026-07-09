@@ -102,7 +102,13 @@ export async function publicChatAction(
     } else if (intent === "edit-message") {
       await editOwnChatMessage(formString(formData, "messageId"), body, user.id);
     } else if (intent === "sheep") {
-      await createChatSheepThrow(roomId, user.id, formString(formData, "messageId"), formString(formData, "throwSpriteId"));
+      await createChatSheepThrow(
+        roomId,
+        user.id,
+        formString(formData, "messageId"),
+        formString(formData, "throwSpriteId"),
+        formString(formData, "targetUserId")
+      );
     } else if (intent === "stars") {
       await createLiveChatStarSend(roomId, user.id, {
         amount: formString(formData, "amount"),

@@ -58,6 +58,7 @@ export type PublicChatPresenceUserRow = {
   roles: Role[];
   status: "online" | "away";
   lastActiveAt: string;
+  throwHitCount: number;
 };
 
 export type PublicChatAssetRow = {

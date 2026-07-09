@@ -48,7 +48,7 @@ function roomSignature(room: ChatRoomSummary | null) {
 }
 
 function presenceSignature(presenceUsers: ChatPresenceUserSummary[]) {
-  return presenceUsers.map((user) => `${user.id}:${user.status}:${user.avatarUrl ?? ""}`).join("|");
+  return presenceUsers.map((user) => `${user.id}:${user.status}:${user.avatarUrl ?? ""}:${user.throwHitCount}`).join("|");
 }
 
 function waitForNextPoll(signal: AbortSignal, timeoutMs: number) {

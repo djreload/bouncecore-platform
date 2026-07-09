@@ -26,6 +26,14 @@ test("stream live notifications build readable push content", () => {
   });
 });
 
+test("stream live notifications can name the live presenter", () => {
+  assert.deepEqual(streamLiveNotificationContent("Bouncecore Live", "Reload"), {
+    body: "Tap to watch Bouncecore Live and join chat.",
+    title: "Reload is live",
+    type: streamLiveNotificationType
+  });
+});
+
 test("mobile event push delivery queues encrypted devices when encryption is configured", () => {
   assert.deepEqual(
     mobileEventDeliveryStatus({

@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ComponentProps,
   type FormEvent,
   type KeyboardEvent,
   type UIEvent
@@ -32,6 +33,7 @@ import {
   Smile,
   Sparkles,
   Star,
+  Target,
   Timer,
   Trash2,
   UsersRound,
@@ -51,6 +53,7 @@ import {
   defaultSheepThrowSettings,
   formatSheepThrowCooldownLabel,
   getAvailableSheepThrowSprites,
+  type SheepThrowSprite,
   type SheepThrowSettings
 } from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
@@ -135,6 +138,8 @@ type SyncedPresence = {
   roomId: string;
   users: PublicChatPresenceUserRow[];
 };
+
+type ChatFormAction = NonNullable<ComponentProps<"form">["action"]>;
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
 const inlineBanDurationOptions = [
@@ -221,13 +226,33 @@ function formatPresenceLastActive(value: string) {
 }
 
 function ChatPresenceRail({
+  availableThrowSprites,
+  currentUserCanThrowSheep,
+  currentUserId,
+  defaultThrowSprite,
+  formAction,
   open,
+  pending,
   roleDisplayLabels,
+  roomId,
+  roomLockedForUser,
+  sheepThrowDisabledReason,
+  sheepThrowStatusLabel,
   users,
   onToggle
 }: {
+  availableThrowSprites: SheepThrowSprite[];
+  currentUserCanThrowSheep: boolean;
+  currentUserId: string | null;
+  defaultThrowSprite: SheepThrowSprite | undefined;
+  formAction: ChatFormAction;
   open: boolean;
+  pending: boolean;
   roleDisplayLabels: RoleDisplayNameMap;
+  roomId: string | null;
+  roomLockedForUser: boolean;
+  sheepThrowDisabledReason: string | null;
+  sheepThrowStatusLabel: string;
   users: PublicChatPresenceUserRow[];
   onToggle: () => void;
 }) {
@@ -264,39 +289,97 @@ function ChatPresenceRail({
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {users.length ? (
             <div className="grid gap-2">
-              {users.map((user) => (
-                <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-panel text-xs font-black text-bc-electric">
-                      {user.avatarUrl ? (
-                        <Image alt="" className="h-full w-full object-cover" height={32} src={user.avatarUrl} unoptimized width={32} />
-                      ) : (
-                        authorInitial(user.displayName)
-                      )}
-                      <span
-                        aria-label={presenceStatusLabel(user.status)}
-                        className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-bc-ink", presenceStatusTone(user.status))}
-                        title={presenceStatusLabel(user.status)}
-                      />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-black">{user.displayName}</p>
-                      <p className="text-[11px] font-semibold text-bc-muted">
-                        {presenceStatusLabel(user.status)} / {formatPresenceLastActive(user.lastActiveAt)}
-                      </p>
+              {users.map((user) => {
+                const canShowThrowAction = Boolean(currentUserCanThrowSheep && currentUserId && roomId && user.id !== currentUserId);
+                const throwDisabled =
+                  pending ||
+                  roomLockedForUser ||
+                  user.status !== "online" ||
+                  Boolean(sheepThrowDisabledReason);
+
+                return (
+                  <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-panel text-xs font-black text-bc-electric">
+                        {user.avatarUrl ? (
+                          <Image alt="" className="h-full w-full object-cover" height={32} src={user.avatarUrl} unoptimized width={32} />
+                        ) : (
+                          authorInitial(user.displayName)
+                        )}
+                        <span
+                          aria-label={presenceStatusLabel(user.status)}
+                          className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-bc-ink", presenceStatusTone(user.status))}
+                          title={presenceStatusLabel(user.status)}
+                        />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black">{user.displayName}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold">
+                          <span className="text-bc-muted">
+                            {presenceStatusLabel(user.status)} / {formatPresenceLastActive(user.lastActiveAt)}
+                          </span>
+                          <span className="inline-flex items-center gap-1 font-black text-red-400" title="Throw hits this livestream">
+                            <Target className="h-3 w-3" aria-hidden="true" />
+                            {user.throwHitCount.toLocaleString("en-GB")}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  {visibleBadgeRoles(user.roles).length ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {visibleBadgeRoles(user.roles).slice(0, 2).map((role) => (
-                        <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
-                          {roleDisplayName(role, roleDisplayLabels)}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-                </article>
-              ))}
+                    {visibleBadgeRoles(user.roles).length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {visibleBadgeRoles(user.roles).slice(0, 2).map((role) => (
+                          <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
+                            {roleDisplayName(role, roleDisplayLabels)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                    {canShowThrowAction ? (
+                      <form
+                        action={formAction}
+                        className={cn("mt-2 grid gap-1", availableThrowSprites.length > 1 && "grid-cols-[minmax(0,1fr)_auto]")}
+                      >
+                        <input name="intent" type="hidden" value="sheep" />
+                        <input name="roomId" type="hidden" value={roomId ?? ""} />
+                        <input name="targetUserId" type="hidden" value={user.id} />
+                        {availableThrowSprites.length > 1 ? (
+                          <select
+                            aria-label="Throw type"
+                            className="min-h-7 min-w-0 rounded-md border border-bc-line bg-bc-panel px-2 text-[11px] font-black text-white"
+                            defaultValue={defaultThrowSprite?.id}
+                            disabled={throwDisabled}
+                            name="throwSpriteId"
+                            title="Choose what to throw"
+                          >
+                            {availableThrowSprites.map((sprite) => (
+                              <option key={sprite.id} value={sprite.id}>
+                                {sprite.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
+                        )}
+                        <Button
+                          className="min-h-7 px-2 text-[11px]"
+                          disabled={throwDisabled}
+                          size="sm"
+                          title={
+                            user.status !== "online"
+                              ? "User must be online and active."
+                              : sheepThrowDisabledReason ?? `Throw for ${sheepThrowStatusLabel}`
+                          }
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Target className="h-3.5 w-3.5 text-red-400" aria-hidden="true" />
+                          Throw
+                        </Button>
+                      </form>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="grid h-full min-h-40 place-items-center rounded-md border border-dashed border-bc-line bg-bc-ink p-4 text-center">
@@ -970,8 +1053,18 @@ export function ChatRoomPanel({
     <section className={cn("relative min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel lg:overflow-visible", className)}>
       {showPresenceRail ? (
         <ChatPresenceRail
+          availableThrowSprites={availableThrowSprites}
+          currentUserCanThrowSheep={currentUserCanThrowSheep}
+          currentUserId={currentUser?.id ?? null}
+          defaultThrowSprite={defaultThrowSprite}
+          formAction={formAction}
           open={presenceRailOpen}
+          pending={pending}
           roleDisplayLabels={roleDisplayLabels}
+          roomId={selectedRoom?.id ?? null}
+          roomLockedForUser={roomLockedForUser}
+          sheepThrowDisabledReason={sheepThrowDisabledReason}
+          sheepThrowStatusLabel={sheepThrowStatusLabel}
           users={visiblePresence}
           onToggle={() => setPresenceRailOpen((open) => !open)}
         />

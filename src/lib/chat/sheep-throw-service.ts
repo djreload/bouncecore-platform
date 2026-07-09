@@ -142,40 +142,14 @@ async function hasUsedFreeSheepThrowInCurrentStream(userId: string) {
   return throwCount > 0;
 }
 
-async function resolveTarget(roomId: string, throwerId: string, messageId?: string | null) {
-  const normalizedMessageId = messageId?.trim();
-
-  if (!normalizedMessageId) {
-    throw new Error("Choose a chat user to throw at.");
-  }
-
-  const message = await prisma.chatMessage.findFirst({
-    where: {
-      deletedAt: null,
-      id: normalizedMessageId,
-      roomId
-    },
-    select: {
-      id: true,
-      userId: true
-    }
-  });
-
-  if (!message) {
-    throw new Error("That chat message is no longer available.");
-  }
-
-  if (!message.userId) {
-    throw new Error("Choose a signed-in chat user to throw at.");
-  }
-
-  if (message.userId === throwerId) {
+async function resolveActiveTargetUser(throwerId: string, targetUserId: string, targetMessageId: string | null) {
+  if (targetUserId === throwerId) {
     throw new Error("Choose someone else to throw at.");
   }
 
   const target = await prisma.user.findUnique({
     where: {
-      id: message.userId
+      id: targetUserId
     },
     select: {
       displayName: true,
@@ -211,9 +185,50 @@ async function resolveTarget(roomId: string, throwerId: string, messageId?: stri
 
   return {
     targetDisplayName: target.displayName,
-    targetMessageId: message.id,
+    targetMessageId,
     targetUserId: target.id
   };
+}
+
+async function resolveTarget(
+  roomId: string,
+  throwerId: string,
+  messageId?: string | null,
+  targetUserIdInput?: string | null
+) {
+  const normalizedMessageId = messageId?.trim();
+
+  if (normalizedMessageId) {
+    const message = await prisma.chatMessage.findFirst({
+      where: {
+        deletedAt: null,
+        id: normalizedMessageId,
+        roomId
+      },
+      select: {
+        id: true,
+        userId: true
+      }
+    });
+
+    if (!message) {
+      throw new Error("That chat message is no longer available.");
+    }
+
+    if (!message.userId) {
+      throw new Error("Choose a signed-in chat user to throw at.");
+    }
+
+    return resolveActiveTargetUser(throwerId, message.userId, message.id);
+  }
+
+  const normalizedTargetUserId = targetUserIdInput?.trim();
+
+  if (!normalizedTargetUserId) {
+    throw new Error("Choose a chat user to throw at.");
+  }
+
+  return resolveActiveTargetUser(throwerId, normalizedTargetUserId, null);
 }
 
 export async function getSheepThrowSettings() {
@@ -297,7 +312,13 @@ export async function getChatSheepThrowReadiness(
   };
 }
 
-export async function createChatSheepThrow(roomId: string, throwerId: string, targetMessageId?: string | null, spriteId?: string | null) {
+export async function createChatSheepThrow(
+  roomId: string,
+  throwerId: string,
+  targetMessageId?: string | null,
+  spriteId?: string | null,
+  targetUserId?: string | null
+) {
   await pruneExpiredSheepThrows();
 
   const settings = await getSheepThrowSettings();
@@ -327,7 +348,7 @@ export async function createChatSheepThrow(roomId: string, throwerId: string, ta
     throw new Error(`Sheep throw cooldown is active. Wait ${remainingSeconds} more second${remainingSeconds === 1 ? "" : "s"}.`);
   }
 
-  const target = await resolveTarget(roomId, throwerId, targetMessageId);
+  const target = await resolveTarget(roomId, throwerId, targetMessageId, targetUserId);
   const result = await prisma.$transaction(async (tx) => {
     const activeStreamSession = await tx.streamSession.findFirst({
       where: {

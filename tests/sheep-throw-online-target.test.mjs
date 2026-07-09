@@ -14,7 +14,7 @@ test("sheep throws require an active online target session on the server", () =>
 
 test("sheep throws validate the target before star wallet deduction starts", () => {
   const content = readFileSync(join(process.cwd(), "src/lib/chat/sheep-throw-service.ts"), "utf8");
-  const targetIndex = content.indexOf("const target = await resolveTarget(roomId, throwerId, targetMessageId);");
+  const targetIndex = content.indexOf("const target = await resolveTarget(roomId, throwerId, targetMessageId, targetUserId);");
   const transactionIndex = content.indexOf("const result = await prisma.$transaction");
   const walletIndex = content.indexOf("tx.starWallet.upsert");
 
@@ -30,6 +30,27 @@ test("chat UI only shows sheep action for online message authors", () => {
 
   assert.match(content, /onlinePresenceUserIds/);
   assert.match(content, /onlinePresenceUserIds\.has\(message\.authorUserId\)/);
+});
+
+test("online user rail can target active users directly and shows live throw hits", () => {
+  const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/lib/chat/chat-service.ts"), "utf8");
+
+  assert.match(panel, /name="targetUserId"/);
+  assert.match(panel, /throwHitCount/);
+  assert.match(panel, /Target/);
+  assert.match(service, /groupBy\(\{/);
+  assert.match(service, /by:\s*\["targetUserId"\]/);
+  assert.match(service, /endedAt:\s*null/);
+  assert.match(service, /gte:\s*activeStreamSession\.startedAt/);
+});
+
+test("direct sheep throws can target a live online user without a message id", () => {
+  const content = readFileSync(join(process.cwd(), "src/lib/chat/sheep-throw-service.ts"), "utf8");
+
+  assert.match(content, /targetUserIdInput/);
+  assert.match(content, /normalizedTargetUserId/);
+  assert.match(content, /resolveActiveTargetUser\(throwerId, normalizedTargetUserId, null\)/);
 });
 
 test("supporters get one free sheep throw per active livestream before wallet deduction", () => {
