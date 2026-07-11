@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
 import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import type { SheepThrowSettings, SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
+import type { RaveWarSettings } from "@/lib/rave-wars/rave-war-settings";
 import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
@@ -20,6 +21,7 @@ import { chatRoomTypeOptions } from "@/lib/chat/chat-types";
 type AdminChatroomsPanelProps = {
   rooms: AdminChatRoomRow[];
   messages: AdminChatMessageRow[];
+  raveWarSettings: RaveWarSettings;
   sheepThrows: AdminChatSheepThrowRow[];
   roleDisplayLabels: RoleDisplayNameMap;
   sheepSettings: SheepThrowSettings;
@@ -105,7 +107,7 @@ function blankSpriteFormRow(): SpriteFormRow {
   };
 }
 
-export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
+export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThrows, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatroomsActionState, FormData>(
     adminChatroomsAction,
     initialAdminChatroomsActionState
@@ -247,6 +249,92 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create
           </Button>
+        </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="cyan">Chat games</Badge>
+            <h3 className="mt-4 text-2xl font-black">Rave War mini-game</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              Let signed-in chatters challenge one active online user to a private Hedgewars-style arena. The server enforces privacy, cooldown,
+              and star cost.
+            </p>
+          </div>
+          <Badge tone={raveWarSettings.enabled ? "acid" : "muted"}>{raveWarSettings.enabled ? "Enabled" : "Disabled"}</Badge>
+        </div>
+        <form action={formAction} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_repeat(3,minmax(160px,1fr))_auto]">
+          <input name="intent" type="hidden" value="rave-war-settings" />
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-enabled">
+              Status
+            </label>
+            <select
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={raveWarSettings.enabled ? "true" : "false"}
+              id="rave-war-enabled"
+              name="enabled"
+            >
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+            <p className="mt-1 text-xs text-bc-muted">Turns the Rave War chat challenge button on or off.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-cost">
+              Star cost
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(raveWarSettings.costStars)}
+              id="rave-war-cost"
+              min={0}
+              max={1000000}
+              name="costStars"
+              step={1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Deducted when a valid private challenge is created. Use 0 for free.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-cooldown">
+              Cooldown minutes
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(raveWarSettings.cooldownSeconds / 60)}
+              id="rave-war-cooldown"
+              min={0}
+              max={1440}
+              name="cooldownMinutes"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Per-user delay before starting another challenge.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-expiry">
+              Expiry minutes
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(raveWarSettings.challengeTtlSeconds / 60)}
+              id="rave-war-expiry"
+              min={1}
+              max={30}
+              name="challengeTtlMinutes"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">How long the private challenge prompt stays valid.</p>
+          </div>
+          <div className="flex items-end">
+            <Button disabled={pending} type="submit" variant="dark">
+              <Save className="h-4 w-4" aria-hidden="true" />
+              Save Rave War
+            </Button>
+          </div>
         </form>
       </section>
 

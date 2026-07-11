@@ -5,6 +5,7 @@ import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getRaveWarReadiness, getRaveWarSettings } from "@/lib/rave-wars/rave-war-service";
 import { getStarWalletBalance } from "@/lib/stars/star-send-service";
 
 export const dynamic = "force-dynamic";
@@ -22,13 +23,17 @@ function firstParam(value: string | string[] | undefined) {
 export default async function ChatPage({ searchParams }: ChatPageProps) {
   const params = searchParams ? await searchParams : {};
   const currentUser = await getCurrentUser();
-  const [{ rooms, selectedRoom, messages, presenceUsers, assets }, roleDisplayLabels, sheepSettings] = await Promise.all([
+  const [{ rooms, selectedRoom, messages, presenceUsers, assets }, roleDisplayLabels, sheepSettings, raveWarSettings] = await Promise.all([
     getPublicChatData(firstParam(params.room), currentUser?.id),
     getRoleDisplayNameOverrides(),
-    getSheepThrowSettings()
+    getSheepThrowSettings(),
+    getRaveWarSettings()
   ]);
   const currentStarBalance = await getStarWalletBalance(currentUser?.id);
-  const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
+  const [sheepReadiness, raveWarReadiness] = await Promise.all([
+    getChatSheepThrowReadiness(currentUser?.id, sheepSettings),
+    getRaveWarReadiness(currentUser?.id, raveWarSettings)
+  ]);
   const roomRows: PublicChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -110,6 +115,9 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
           assets={assetRows}
           messages={messageRows}
           presenceUsers={presenceRows}
+          raveWarEffectiveCostStars={raveWarReadiness.effectiveCostStars}
+          raveWarRemainingCooldownSeconds={raveWarReadiness.remainingCooldownSeconds}
+          raveWarSettings={raveWarSettings}
           roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}
           selectedRoom={selectedRoomRow}

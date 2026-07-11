@@ -33,6 +33,7 @@ import {
   Smile,
   Sparkles,
   Star,
+  Swords,
   Target,
   Timer,
   Trash2,
@@ -58,6 +59,11 @@ import {
 } from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
 import {
+  defaultRaveWarSettings,
+  formatRaveWarCooldownLabel,
+  type RaveWarSettings
+} from "@/lib/rave-wars/rave-war-settings";
+import {
   initialPublicChatActionState,
   type PublicChatActionState,
   type PublicChatAssetRow,
@@ -75,6 +81,9 @@ type ChatRoomPanelProps = {
   presenceUsers?: PublicChatPresenceUserRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
+  raveWarEffectiveCostStars?: number;
+  raveWarRemainingCooldownSeconds?: number;
+  raveWarSettings?: RaveWarSettings;
   sheepFreeThrowAvailable?: boolean;
   sheepRemainingCooldownSeconds?: number;
   sheepSettings?: SheepThrowSettings;
@@ -224,11 +233,14 @@ function formatPresenceLastActive(value: string) {
 function ChatPresenceRail({
   availableThrowSprites,
   currentUserCanThrowSheep,
+  currentUserCanStartRaveWars,
   currentUserId,
   defaultThrowSprite,
   formAction,
   open,
   pending,
+  raveWarDisabledReason,
+  raveWarStatusLabel,
   roleDisplayLabels,
   roomId,
   roomLockedForUser,
@@ -239,11 +251,14 @@ function ChatPresenceRail({
 }: {
   availableThrowSprites: SheepThrowSprite[];
   currentUserCanThrowSheep: boolean;
+  currentUserCanStartRaveWars: boolean;
   currentUserId: string | null;
   defaultThrowSprite: SheepThrowSprite | undefined;
   formAction: ChatFormAction;
   open: boolean;
   pending: boolean;
+  raveWarDisabledReason: string | null;
+  raveWarStatusLabel: string;
   roleDisplayLabels: RoleDisplayNameMap;
   roomId: string | null;
   roomLockedForUser: boolean;
@@ -287,11 +302,13 @@ function ChatPresenceRail({
             <div className="grid gap-2">
               {users.map((user) => {
                 const canShowThrowAction = Boolean(currentUserCanThrowSheep && currentUserId && roomId && user.id !== currentUserId);
+                const canShowRaveWarAction = Boolean(currentUserCanStartRaveWars && currentUserId && roomId && user.id !== currentUserId);
                 const throwDisabled =
                   pending ||
                   roomLockedForUser ||
                   user.status !== "online" ||
                   Boolean(sheepThrowDisabledReason);
+                const raveWarDisabled = pending || roomLockedForUser || user.status !== "online" || Boolean(raveWarDisabledReason);
 
                 return (
                   <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
@@ -329,6 +346,28 @@ function ChatPresenceRail({
                           </Badge>
                         ))}
                       </div>
+                    ) : null}
+                    {canShowRaveWarAction ? (
+                      <form action={formAction} className="mt-2">
+                        <input name="intent" type="hidden" value="rave-war" />
+                        <input name="roomId" type="hidden" value={roomId ?? ""} />
+                        <input name="targetUserId" type="hidden" value={user.id} />
+                        <Button
+                          className="w-full min-h-7 px-2 text-[11px]"
+                          disabled={raveWarDisabled}
+                          size="sm"
+                          title={
+                            user.status !== "online"
+                              ? "User must be online and active."
+                              : raveWarDisabledReason ?? `Start a private Rave War for ${raveWarStatusLabel}`
+                          }
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Swords className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
+                          Rave War
+                        </Button>
+                      </form>
                     ) : null}
                     {canShowThrowAction ? (
                       <form
@@ -399,6 +438,9 @@ export function ChatRoomPanel({
   presenceUsers = [],
   currentUser,
   currentStarBalance = 0,
+  raveWarEffectiveCostStars,
+  raveWarRemainingCooldownSeconds = 0,
+  raveWarSettings = defaultRaveWarSettings,
   sheepFreeThrowAvailable = false,
   sheepRemainingCooldownSeconds = 0,
   sheepSettings = defaultSheepThrowSettings,
@@ -454,8 +496,18 @@ export function ChatRoomPanel({
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
+  const currentUserCanStartRaveWars = Boolean(currentUser && raveWarSettings.enabled);
   const availableThrowSprites = useMemo(() => getAvailableSheepThrowSprites(sheepSettings), [sheepSettings]);
   const defaultThrowSprite = availableThrowSprites[0];
+  const effectiveRaveWarCostStars = raveWarEffectiveCostStars ?? raveWarSettings.costStars;
+  const raveWarDisabledReason = !raveWarSettings.enabled
+    ? "Rave Wars are disabled."
+    : raveWarRemainingCooldownSeconds > 0
+      ? `Rave War cooldown: ${formatRaveWarCooldownLabel(raveWarRemainingCooldownSeconds)}.`
+      : effectiveRaveWarCostStars > currentStarBalance
+        ? `You need ${effectiveRaveWarCostStars.toLocaleString("en-GB")} stars to start a Rave War.`
+        : null;
+  const raveWarStatusLabel = effectiveRaveWarCostStars > 0 ? `${effectiveRaveWarCostStars.toLocaleString("en-GB")} stars` : "free";
   const effectiveSheepCostStars = localSheepFreeThrowAvailable ? 0 : sheepSettings.costStars;
   const currentUserCanAffordSheep = localStarBalance >= effectiveSheepCostStars;
   const sheepThrowCostLabel = localSheepFreeThrowAvailable
@@ -1051,11 +1103,14 @@ export function ChatRoomPanel({
         <ChatPresenceRail
           availableThrowSprites={availableThrowSprites}
           currentUserCanThrowSheep={currentUserCanThrowSheep}
+          currentUserCanStartRaveWars={currentUserCanStartRaveWars}
           currentUserId={currentUser?.id ?? null}
           defaultThrowSprite={defaultThrowSprite}
           formAction={formAction}
           open={presenceRailOpen}
           pending={pending}
+          raveWarDisabledReason={raveWarDisabledReason}
+          raveWarStatusLabel={raveWarStatusLabel}
           roleDisplayLabels={roleDisplayLabels}
           roomId={selectedRoom?.id ?? null}
           roomLockedForUser={roomLockedForUser}

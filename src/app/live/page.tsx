@@ -22,6 +22,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
 import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getPublicSiteSettings, type LiveSocialLink } from "@/lib/admin/site-settings-service";
+import { getRaveWarReadiness, getRaveWarSettings } from "@/lib/rave-wars/rave-war-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicUpcomingStreamSchedules } from "@/lib/stream/stream-schedule-service";
 import { getLiveStarSupportData, getStarWalletBalance } from "@/lib/stars/star-send-service";
@@ -103,19 +104,23 @@ function LiveSocialLinks({ links }: { links: LiveSocialLink[] }) {
 
 export default async function LivePage() {
   const currentUser = await getCurrentUser();
-  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings, sheepSettings] = await Promise.all([
+  const [liveState, chatData, roleDisplayLabels, schedules, siteSettings, sheepSettings, raveWarSettings] = await Promise.all([
     getPublicLiveState(),
     getPublicChatData("live", currentUser?.id),
     getRoleDisplayNameOverrides(),
     getPublicUpcomingStreamSchedules(),
     getPublicSiteSettings(),
-    getSheepThrowSettings()
+    getSheepThrowSettings(),
+    getRaveWarSettings()
   ]);
   const [starSupport, currentStarBalance] = await Promise.all([
     getLiveStarSupportData(),
     getStarWalletBalance(currentUser?.id)
   ]);
-  const sheepReadiness = await getChatSheepThrowReadiness(currentUser?.id, sheepSettings);
+  const [sheepReadiness, raveWarReadiness] = await Promise.all([
+    getChatSheepThrowReadiness(currentUser?.id, sheepSettings),
+    getRaveWarReadiness(currentUser?.id, raveWarSettings)
+  ]);
   const { activeIngests, channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
@@ -265,6 +270,9 @@ export default async function LivePage() {
               messagesClassName="min-h-0 flex-1 max-h-none p-2 lg:p-3"
               messages={messageRows}
               presenceUsers={presenceRows}
+              raveWarEffectiveCostStars={raveWarReadiness.effectiveCostStars}
+              raveWarRemainingCooldownSeconds={raveWarReadiness.remainingCooldownSeconds}
+              raveWarSettings={raveWarSettings}
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}

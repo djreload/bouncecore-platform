@@ -14,6 +14,7 @@ import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { createChatBan, createChatReport } from "@/lib/chat/moderation-service";
 import { createChatSheepThrow } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
+import { createRaveWarChallenge } from "@/lib/rave-wars/rave-war-service";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
 import type { PublicChatActionState } from "@/app/chat/state";
 
@@ -109,6 +110,8 @@ export async function publicChatAction(
         formString(formData, "throwSpriteId"),
         formString(formData, "targetUserId")
       );
+    } else if (intent === "rave-war") {
+      await createRaveWarChallenge(roomId, user.id, formString(formData, "targetUserId"));
     } else if (intent === "stars") {
       await createLiveChatStarSend(roomId, user.id, {
         amount: formString(formData, "amount"),
@@ -150,6 +153,8 @@ export async function publicChatAction(
                   ? "Message updated."
                 : intent === "sheep"
                   ? "Sheep thrown."
+                : intent === "rave-war"
+                  ? "Rave War challenge sent."
             : intent === "stars"
               ? "Stars sent to live chat."
               : "Message sent."
@@ -188,6 +193,8 @@ export async function publicChatAction(
                   ? "Message was not updated."
                 : intent === "sheep"
                   ? "Sheep was not thrown."
+                : intent === "rave-war"
+                  ? "Rave War challenge was not sent."
             : intent === "stars"
               ? "Stars were not sent."
             : "Message was not sent. Keep it between 1 and 500 characters."
