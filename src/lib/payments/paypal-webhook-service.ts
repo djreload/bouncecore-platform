@@ -19,6 +19,7 @@ import {
   notifyProducerPayoutItemStatus,
   notifyProducerPayoutItemsForBatchStatus
 } from "@/lib/payments/producer-payout-notification-service";
+import { grantAutomaticSupporterRole } from "@/lib/rewards/supporter-role-service";
 import {
   certUrlIsAllowedPayPalUrl,
   extractPayPalWebhookHeaders,
@@ -885,6 +886,7 @@ async function reconcileStarsCapture(details: PayPalCaptureDetails): Promise<Rec
       });
     }
 
+    await grantAutomaticSupporterRole(purchase.userId);
     await notifyStarsPurchasePaid(purchase.id);
 
     return {
@@ -935,6 +937,8 @@ async function reconcileStarsCapture(details: PayPalCaptureDetails): Promise<Rec
         userId: purchase.userId
       }
     });
+
+    await grantAutomaticSupporterRole(purchase.userId, tx);
   });
 
   await writeAuditLog({

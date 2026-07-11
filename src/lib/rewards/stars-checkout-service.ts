@@ -9,6 +9,7 @@ import {
 import { createSquarePaymentLink, findCompletedSquarePaymentForOrder } from "@/lib/payments/square-service";
 import { prisma } from "@/lib/db/prisma";
 import { getStarPackage } from "@/lib/rewards/stars-service";
+import { grantAutomaticSupporterRole } from "@/lib/rewards/supporter-role-service";
 
 const starsCurrency = "GBP";
 const paymentProviders = ["paypal", "square"] as const;
@@ -199,6 +200,7 @@ export async function completeSquareStarsCheckout(userId: string, purchaseId: st
   }
 
   if (purchase.status === "paid") {
+    await grantAutomaticSupporterRole(purchase.userId);
     await notifyStarsPurchasePaid(purchase.id);
 
     return purchase;
@@ -252,6 +254,8 @@ export async function completeSquareStarsCheckout(userId: string, purchaseId: st
       }
     });
 
+    await grantAutomaticSupporterRole(userId, tx);
+
     return tx.starPurchase.findUniqueOrThrow({
       where: {
         id: purchase.id
@@ -299,6 +303,7 @@ export async function completeStarsCheckout(userId: string, purchaseId: string, 
   }
 
   if (purchase.status === "paid") {
+    await grantAutomaticSupporterRole(purchase.userId);
     await notifyStarsPurchasePaid(purchase.id);
 
     return purchase;
@@ -351,6 +356,8 @@ export async function completeStarsCheckout(userId: string, purchaseId: string, 
         userId
       }
     });
+
+    await grantAutomaticSupporterRole(userId, tx);
 
     return tx.starPurchase.findUniqueOrThrow({
       where: {

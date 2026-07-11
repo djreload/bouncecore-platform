@@ -67,6 +67,7 @@ import "./sheep-throw-online-target.test.mjs";
 import "./site-theme.test.mjs";
 import "./square-payments.test.mjs";
 import "./star-packages.test.mjs";
+import "./star-purchase-supporter-role.test.mjs";
 import "./stream-core-playback-url.test.mjs";
 import "./support-request.test.mjs";
 import "./system-health-paypal-readiness.test.mjs";
