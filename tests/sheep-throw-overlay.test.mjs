@@ -27,6 +27,15 @@ test("sheep throw overlay can play impact sounds and mobile haptics", () => {
   assert.match(content, /if \(!mobileVibrationAvailable\(\)\)/);
 });
 
+test("sheep throw overlay waits for the canvas before starting animation", () => {
+  const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+
+  assert.match(content, /startAnimationWhenCanvasReady/);
+  assert.match(content, /if \(!canvasRef\.current && attempt < 20\)/);
+  assert.match(content, /window\.requestAnimationFrame\(\(\) => startAnimationWhenCanvasReady\(attempt \+ 1\)\)/);
+  assert.match(content, /startTimeRef\.current = performance\.now\(\)/);
+});
+
 test("sheep throw impact wobble does not transform body or overlay", () => {
   const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
   const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");

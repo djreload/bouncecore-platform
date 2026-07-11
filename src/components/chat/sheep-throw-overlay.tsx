@@ -323,17 +323,43 @@ export function SheepThrowOverlay() {
         }
 
         if (!reducedMotionEnabled()) {
-          stopAnimation();
-          setIncomingBlur(true);
-          vibrateMobile(incomingVibrationPattern);
-          startTimeRef.current = performance.now();
-          animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
-          timeoutRef.current = window.setTimeout(() => {
-            timeoutRef.current = null;
-            activeThrowRef.current = null;
-            setActiveThrow(null);
-            playNextRef.current();
-          }, settingsRef.current.overlayDurationMs);
+          const startAnimationWhenCanvasReady = (attempt = 0) => {
+            if (activeThrowRef.current?.id !== nextThrow.id) {
+              animationFrameRef.current = null;
+              return;
+            }
+
+            if (!canvasRef.current && attempt < 20) {
+              animationFrameRef.current = window.requestAnimationFrame(() => startAnimationWhenCanvasReady(attempt + 1));
+              return;
+            }
+
+            if (!canvasRef.current) {
+              setIncomingBlur(false);
+              timeoutRef.current = window.setTimeout(() => {
+                timeoutRef.current = null;
+                activeThrowRef.current = null;
+                setActiveThrow(null);
+                playNextRef.current();
+              }, Math.min(2500, settingsRef.current.overlayDurationMs));
+              return;
+            }
+
+            animationFrameRef.current = null;
+            stopAnimation();
+            setIncomingBlur(true);
+            vibrateMobile(incomingVibrationPattern);
+            startTimeRef.current = performance.now();
+            animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
+            timeoutRef.current = window.setTimeout(() => {
+              timeoutRef.current = null;
+              activeThrowRef.current = null;
+              setActiveThrow(null);
+              playNextRef.current();
+            }, settingsRef.current.overlayDurationMs);
+          };
+
+          animationFrameRef.current = window.requestAnimationFrame(() => startAnimationWhenCanvasReady());
           return;
         }
 
