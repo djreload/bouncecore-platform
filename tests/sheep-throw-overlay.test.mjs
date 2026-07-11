@@ -13,6 +13,16 @@ test("sheep throw impact targets exact viewport center", () => {
   assert.doesNotMatch(content, /const targetY = height \* \(0\./);
 });
 
+test("sheep throw overlay can play impact sounds and mobile haptics", () => {
+  const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+
+  assert.match(content, /playImpactSound\(images\.sprite\.impactSoundUrl\)/);
+  assert.match(content, /navigator\.vibrate\(pattern\)/);
+  assert.match(content, /vibrateMobile\(\[45, 40, 45\]\)/);
+  assert.match(content, /vibrateMobile\(\[120, 45, 80\]\)/);
+  assert.match(content, /reducedMotionEnabled\(\) \|\| !mobileVibrationAvailable\(\)/);
+});
+
 test("sheep throw impact wobble does not transform body or overlay", () => {
   const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
   const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");

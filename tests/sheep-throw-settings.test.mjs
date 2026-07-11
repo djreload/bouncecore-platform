@@ -51,6 +51,7 @@ test("sheep throw settings keep sheep as fallback and accept uploaded custom spr
         frameCount: "16",
         frameHeight: "256",
         frameWidth: "256",
+        impactSoundUrl: "/uploads/throw-sounds/unicorn.wav",
         label: "Unicorn",
         rows: "2",
         spriteSheetUrl: "/uploads/throw-sprites/unicorn.png"
@@ -62,7 +63,27 @@ test("sheep throw settings keep sheep as fallback and accept uploaded custom spr
   assert.equal(settings.sprites[0].id, "sheep");
   assert.equal(settings.sprites[1].id, "unicorn");
   assert.equal(settings.sprites[1].frameCount, 16);
+  assert.equal(settings.sprites[1].impactSoundUrl, "/uploads/throw-sounds/unicorn.wav");
   assert.equal(settings.sprites[1].rows, 2);
+});
+
+test("sheep throw settings validate optional impact sounds", () => {
+  assert.throws(
+    () =>
+      normalizeSheepThrowSettingsInput({
+        enabled: true,
+        cooldownMinutes: "5",
+        costStars: "10",
+        sprites: [
+          {
+            impactSoundUrl: "/uploads/throw-sprites/not-a-sound.png",
+            label: "Unicorn",
+            spriteSheetUrl: "/uploads/throw-sprites/unicorn.png"
+          }
+        ]
+      }),
+    /impact sound/
+  );
 });
 
 test("sheep throw settings reject impossible cooldown values", () => {

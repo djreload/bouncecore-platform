@@ -28,6 +28,7 @@ function sheepSpriteInputs(formData: FormData) {
   const ids = formStrings(formData, "spriteId");
   const labels = formStrings(formData, "spriteLabel");
   const urls = formStrings(formData, "spriteSheetUrl");
+  const impactSoundUrls = formStrings(formData, "spriteImpactSoundUrl");
   const enabled = formStrings(formData, "spriteEnabled");
   const frameCounts = formStrings(formData, "spriteFrameCount");
   const columns = formStrings(formData, "spriteColumns");
@@ -43,6 +44,7 @@ function sheepSpriteInputs(formData: FormData) {
     frameHeight: frameHeights[index],
     frameWidth: frameWidths[index],
     id: ids[index],
+    impactSoundUrl: impactSoundUrls[index],
     label: labels[index],
     rows: rows[index],
     spriteSheetUrl: urls[index]

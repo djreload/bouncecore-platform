@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useActionState, useState, type ChangeEvent } from "react";
-import { ImageIcon, Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles, Timer, Trash2 } from "lucide-react";
+import { ImageIcon, Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles, Timer, Trash2, Volume2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
@@ -71,6 +71,7 @@ type SpriteFormRow = {
   id: string;
   label: string;
   spriteSheetUrl: string;
+  impactSoundUrl: string;
   frameCount: string;
   columns: string;
   rows: string;
@@ -87,6 +88,7 @@ function toSpriteFormRow(sprite: SheepThrowSprite): SpriteFormRow {
     frameHeight: String(sprite.frameHeight),
     frameWidth: String(sprite.frameWidth),
     id: sprite.id,
+    impactSoundUrl: sprite.impactSoundUrl ?? "",
     label: sprite.label,
     rows: String(sprite.rows),
     spriteSheetUrl: sprite.spriteSheetUrl
@@ -101,6 +103,7 @@ function blankSpriteFormRow(): SpriteFormRow {
     frameHeight: "400",
     frameWidth: "400",
     id: "",
+    impactSoundUrl: "",
     label: "",
     rows: "1",
     spriteSheetUrl: ""
@@ -120,6 +123,7 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
   });
   const [spriteUploadMessage, setSpriteUploadMessage] = useState<string | null>(null);
   const [uploadingSpriteIndex, setUploadingSpriteIndex] = useState<number | null>(null);
+  const [uploadingSoundIndex, setUploadingSoundIndex] = useState<number | null>(null);
   const visibleMessages = messages.filter((message) => !message.deletedAt).length;
   const defaultSprite = sheepSettings.sprites.find((sprite) => sprite.id === "sheep") ?? sheepSettings.sprites[0];
 
@@ -162,6 +166,41 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
       setSpriteUploadMessage(error instanceof Error ? error.message : "Sprite upload failed.");
     } finally {
       setUploadingSpriteIndex(null);
+      event.target.value = "";
+    }
+  }
+
+  async function uploadImpactSound(index: number, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const uploadForm = new FormData();
+
+    uploadForm.set("kind", "throw-sound");
+    uploadForm.set("file", file);
+    setUploadingSoundIndex(index);
+    setSpriteUploadMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/uploads", {
+        method: "POST",
+        body: uploadForm
+      });
+      const payload = (await response.json()) as { url?: string; error?: string };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error ?? "Impact sound upload failed.");
+      }
+
+      updateSpriteRow(index, { impactSoundUrl: payload.url });
+      setSpriteUploadMessage("Impact sound uploaded. Save the sheep throw settings to publish it.");
+    } catch (error) {
+      setSpriteUploadMessage(error instanceof Error ? error.message : "Impact sound upload failed.");
+    } finally {
+      setUploadingSoundIndex(null);
       event.target.value = "";
     }
   }
@@ -486,7 +525,7 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
               {spriteRows.map((row, index) => (
                 <div className="rounded-md border border-bc-line bg-bc-panel p-3" key={`${row.id || "sprite"}-${index}`}>
                   <input name="spriteId" type="hidden" value={row.id} />
-                  <div className="grid gap-3 lg:grid-cols-[160px_minmax(220px,1fr)_120px_100px_100px_100px_100px_auto]">
+                  <div className="grid gap-3 lg:grid-cols-[160px_minmax(220px,1fr)_minmax(220px,1fr)_120px]">
                     <div>
                       <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-label-${index}`}>
                         Name
@@ -516,6 +555,20 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
                       <p className="mt-1 text-xs text-bc-muted">Use the upload button or paste a direct HTTPS image URL.</p>
                     </div>
                     <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-impact-sound-${index}`}>
+                        Impact sound URL
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-impact-sound-${index}`}
+                        name="spriteImpactSoundUrl"
+                        onChange={(event) => updateSpriteRow(index, { impactSoundUrl: event.target.value })}
+                        placeholder="/uploads/throw-sounds/..."
+                        value={row.impactSoundUrl}
+                      />
+                      <p className="mt-1 text-xs text-bc-muted">Optional MP3, WAV, OGG, WebM, M4A, or AAC splat sound.</p>
+                    </div>
+                    <div>
                       <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-enabled-${index}`}>
                         Status
                       </label>
@@ -531,6 +584,8 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
                       </select>
                       <p className="mt-1 text-xs text-bc-muted">Disabled items do not appear in chat.</p>
                     </div>
+                  </div>
+                  <div className="mt-3 grid gap-3 lg:grid-cols-[100px_100px_100px_100px_auto]">
                     <div>
                       <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-frame-count-${index}`}>
                         Frames
@@ -615,6 +670,17 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
                           className="sr-only"
                           disabled={uploadingSpriteIndex !== null}
                           onChange={(event) => void uploadSpriteSheet(index, event)}
+                          type="file"
+                        />
+                      </label>
+                      <label className="bc-focus-ring inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-black text-white transition hover:border-bc-electric/60">
+                        <Volume2 className="h-4 w-4" aria-hidden="true" />
+                        {uploadingSoundIndex === index ? "Uploading" : "Sound"}
+                        <input
+                          accept=".mp3,.wav,.ogg,.oga,.webm,.m4a,.aac,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/aac"
+                          className="sr-only"
+                          disabled={uploadingSoundIndex !== null}
+                          onChange={(event) => void uploadImpactSound(index, event)}
                           type="file"
                         />
                       </label>

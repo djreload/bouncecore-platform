@@ -3,6 +3,7 @@ export type SheepThrowSprite = {
   label: string;
   spriteSheetUrl: string;
   glassSmashUrl: string;
+  impactSoundUrl: string | null;
   frameCount: number;
   columns: number;
   rows: number;
@@ -25,6 +26,8 @@ export type SheepThrowSpriteInput = {
   id?: string;
   label?: string;
   spriteSheetUrl?: string;
+  glassSmashUrl?: string;
+  impactSoundUrl?: string;
   frameCount?: string;
   columns?: string;
   rows?: string;
@@ -48,6 +51,7 @@ export const defaultSheepThrowSprite: SheepThrowSprite = {
   label: "Sheep",
   spriteSheetUrl: "/sheep-throw/SheepThrowSequence.png",
   glassSmashUrl: "/sheep-throw/glass-smash.png",
+  impactSoundUrl: null,
   frameCount: 12,
   columns: 12,
   rows: 1,
@@ -163,6 +167,36 @@ function normalizeSpriteUrl(value: unknown, label: string, fallback?: string) {
   return text;
 }
 
+function normalizeImpactSoundUrl(value: unknown, label: string) {
+  const text = typeof value === "string" ? value.trim() : "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error(`${label} must be 500 characters or fewer.`);
+  }
+
+  if (/^\/uploads\/throw-sounds\/[^/]+\.(mp3|wav|ogg|oga|webm|m4a|aac)$/i.test(text)) {
+    return text;
+  }
+
+  let url: URL;
+
+  try {
+    url = new URL(text);
+  } catch {
+    throw new Error(`${label} must be an uploaded sound file or a valid https URL.`);
+  }
+
+  if (url.protocol !== "https:" || !/\.(mp3|wav|ogg|oga|webm|m4a|aac)$/i.test(url.pathname)) {
+    throw new Error(`${label} must point to an MP3, WAV, OGG, WebM, M4A, or AAC audio file.`);
+  }
+
+  return text;
+}
+
 function normalizeSprite(value: unknown, index: number): SheepThrowSprite | null {
   const record = isObject(value) ? value : {};
   const rawLabel = compactText(record.label, "", 40);
@@ -187,6 +221,7 @@ function normalizeSprite(value: unknown, index: number): SheepThrowSprite | null
     label,
     spriteSheetUrl: normalizeSpriteUrl(spriteSheetUrl, `${label || "Throwable"} sprite sheet`),
     glassSmashUrl: normalizeSpriteUrl(record.glassSmashUrl, `${label || "Throwable"} glass smash`, defaultSheepThrowSprite.glassSmashUrl),
+    impactSoundUrl: normalizeImpactSoundUrl(record.impactSoundUrl, `${label || "Throwable"} impact sound`),
     frameCount: wholeNumber(record.frameCount, defaultSheepThrowSprite.frameCount, 1, 120),
     columns: wholeNumber(record.columns, defaultSheepThrowSprite.columns, 1, 60),
     rows: wholeNumber(record.rows, defaultSheepThrowSprite.rows, 1, 20),

@@ -9,11 +9,13 @@ const maxChatImageBytes = 150 * 1024 * 1024;
 const maxProfileAvatarBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 200 * 1024 * 1024;
 const maxAndroidApkBytes = 250 * 1024 * 1024;
+const maxThrowSoundBytes = 25 * 1024 * 1024;
 const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
 const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
 const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
 const faviconUploadTypes = ["image/x-icon", "image/vnd.microsoft.icon", "image/ico", "image/icon"];
 const profileAvatarExtensions = [".jpg", ".jpeg", ".png"];
+const throwSoundUploadExtensions = [".mp3", ".wav", ".ogg", ".oga", ".webm", ".m4a", ".aac"];
 const mp3UploadTypes = [
   "audio/mpeg",
   "audio/mp3",
@@ -26,6 +28,21 @@ const mp3UploadTypes = [
   "binary/octet-stream",
   ""
 ];
+const throwSoundUploadTypes = [
+  ...mp3UploadTypes,
+  "audio/aac",
+  "audio/aacp",
+  "audio/mp4",
+  "audio/ogg",
+  "audio/vnd.wav",
+  "audio/wav",
+  "audio/wave",
+  "audio/webm",
+  "audio/x-m4a",
+  "audio/x-wav",
+  "application/ogg",
+  "video/webm"
+];
 const androidApkUploadTypes = ["application/vnd.android.package-archive", ...genericUploadTypes];
 
 type UploadKind =
@@ -35,6 +52,7 @@ type UploadKind =
   | "profile-avatars"
   | "stream-offline-images"
   | "throw-sprites"
+  | "throw-sounds"
   | "chat-stickers"
   | "chat-emojis"
   | "mobile-apks"
@@ -210,6 +228,59 @@ function validateMp3Upload(file: File, label: string) {
   if (!mp3UploadTypes.includes(contentType)) {
     throw new Error(`${label} has an unsupported MIME type: ${file.type}.`);
   }
+}
+
+function canonicalThrowSoundExtension(extension: string) {
+  return extension === ".oga" ? ".ogg" : extension;
+}
+
+function sniffThrowSoundContentType(buffer: Buffer, extension: string) {
+  if (extension === ".mp3" && mp3BitrateKbps(buffer)) {
+    return "audio/mpeg";
+  }
+
+  if (buffer.length >= 12 && buffer.toString("ascii", 0, 4) === "RIFF" && buffer.toString("ascii", 8, 12) === "WAVE") {
+    return "audio/wav";
+  }
+
+  if (buffer.length >= 4 && buffer.toString("ascii", 0, 4) === "OggS") {
+    return "audio/ogg";
+  }
+
+  if (buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3) {
+    return "audio/webm";
+  }
+
+  if (buffer.length >= 12 && buffer.toString("ascii", 4, 8) === "ftyp") {
+    return "audio/mp4";
+  }
+
+  if (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf0) === 0xf0) {
+    return "audio/aac";
+  }
+
+  return null;
+}
+
+function validateThrowSoundUpload(file: File, buffer: Buffer) {
+  const extension = fileExtension(file.name);
+  const contentType = normalizedContentType(file.type);
+
+  if (!throwSoundUploadExtensions.includes(extension)) {
+    throw new Error("Throw impact sound must be an MP3, WAV, OGG, WebM, M4A, or AAC audio file.");
+  }
+
+  if (!throwSoundUploadTypes.includes(contentType)) {
+    throw new Error(`Throw impact sound has an unsupported MIME type: ${file.type}.`);
+  }
+
+  if (!sniffThrowSoundContentType(buffer, extension)) {
+    throw new Error("Throw impact sound must contain valid browser-playable audio data.");
+  }
+
+  return {
+    extension: canonicalThrowSoundExtension(extension)
+  };
 }
 
 function validateAndroidApkUpload(file: File) {
@@ -703,6 +774,21 @@ export async function saveOptionalThrowSpriteUpload(file: File | null | undefine
   const image = validateImageUpload(file, buffer, "Throw sprite upload");
 
   return savePublicUpload("throw-sprites", file, maxChatImageBytes, "Throw sprite upload", image.extension, buffer);
+}
+
+export async function saveOptionalThrowSoundUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxThrowSoundBytes) {
+    throw new Error(`Throw impact sound upload is too large. Maximum ${formatBytes(maxThrowSoundBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const sound = validateThrowSoundUpload(file, buffer);
+
+  return savePublicUpload("throw-sounds", file, maxThrowSoundBytes, "Throw impact sound upload", sound.extension, buffer);
 }
 
 export async function saveOptionalProfileAvatarUpload(file: File | null | undefined) {

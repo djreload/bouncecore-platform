@@ -10,6 +10,7 @@ import {
   saveOptionalImageUpload,
   saveOptionalPreviewMp3,
   saveOptionalStreamOfflineImageUpload,
+  saveOptionalThrowSoundUpload,
   saveOptionalThrowSpriteUpload
 } from "@/lib/media/media-service";
 
@@ -52,6 +53,10 @@ const uploadHandlers = {
   "throw-sprite": {
     permission: "admin.access",
     save: saveOptionalThrowSpriteUpload
+  },
+  "throw-sound": {
+    permission: "admin.access",
+    save: saveOptionalThrowSoundUpload
   },
   "track-artwork": {
     permission: "music.manage",

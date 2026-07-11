@@ -15,6 +15,7 @@ const png2x1 = Buffer.from(
   "hex"
 );
 const ico1x1 = Buffer.from("00000100010001010000010020006800000016000000", "hex");
+const wavTiny = Buffer.from("524946462400000057415645666d74201000000001000100401f0000803e0000020010006461746100000000", "hex");
 
 function mp3Frame(bitrateIndex) {
   const frame = Buffer.alloc(128);
@@ -146,6 +147,27 @@ test("chat sticker and emoji uploads use separate chat asset roots", async () =>
     assert.equal(existsSync(path.join(tempDir, "public", emojiPath)), true);
     assert.equal(mediaService.normalizeOptionalChatAssetUrl(stickerPath, "chat-stickers"), stickerPath);
     assert.equal(mediaService.normalizeOptionalChatAssetUrl(emojiPath, "chat-emojis"), emojiPath);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("throw impact sound uploads use the throw sound root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const sound = new File([wavTiny], "splat.wav", {
+      type: "audio/wav"
+    });
+    const uploadPath = await mediaService.saveOptionalThrowSoundUpload(sound);
+
+    assert.match(uploadPath, /^\/uploads\/throw-sounds\/.+\.wav$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
   } finally {
     restore();
     await rm(tempDir, {
@@ -354,6 +376,10 @@ test("upload limits match production asset requirements", async () => {
     await assert.rejects(
       () => mediaService.saveOptionalAndroidApkUpload(overLimitFile("bouncecore.apk", "application/vnd.android.package-archive", 251 * 1024 * 1024)),
       /Maximum 250MB/
+    );
+    await assert.rejects(
+      () => mediaService.saveOptionalThrowSoundUpload(overLimitFile("splat.wav", "audio/wav", 26 * 1024 * 1024)),
+      /Maximum 25MB/
     );
   } finally {
     restore();

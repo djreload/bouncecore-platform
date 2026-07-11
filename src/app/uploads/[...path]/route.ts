@@ -25,6 +25,7 @@ const allowedUploadRoots = new Set([
   "product-images",
   "stream-offline-images",
   "throw-sprites",
+  "throw-sounds",
   "track-artwork"
 ]);
 
@@ -44,8 +45,19 @@ function contentTypeForExtension(extension: string) {
       return "image/jpeg";
     case ".mp3":
       return "audio/mpeg";
+    case ".aac":
+      return "audio/aac";
+    case ".m4a":
+      return "audio/mp4";
+    case ".oga":
+    case ".ogg":
+      return "audio/ogg";
     case ".png":
       return "image/png";
+    case ".wav":
+      return "audio/wav";
+    case ".webm":
+      return "audio/webm";
     case ".webp":
       return "image/webp";
     default:

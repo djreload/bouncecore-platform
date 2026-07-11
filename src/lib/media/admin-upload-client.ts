@@ -9,7 +9,8 @@ export type AdminUploadKind =
   | "stream-offline-image"
   | "track-artwork"
   | "track-download"
-  | "track-preview";
+  | "track-preview"
+  | "throw-sound";
 
 export async function uploadAdminMedia(kind: AdminUploadKind, file: File) {
   const uploadData = new FormData();

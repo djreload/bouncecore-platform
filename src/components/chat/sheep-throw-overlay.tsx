@@ -51,12 +51,29 @@ function reducedMotionEnabled() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function mobileVibrationAvailable() {
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") {
+    return false;
+  }
+
+  return navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function vibrateMobile(pattern: number | number[]) {
+  if (reducedMotionEnabled() || !mobileVibrationAvailable()) {
+    return;
+  }
+
+  navigator.vibrate(pattern);
+}
+
 export function SheepThrowOverlay() {
   const [activeThrow, setActiveThrow] = useState<ChatSheepThrowSummary | null>(null);
   const [incomingBlur, setIncomingBlur] = useState(false);
   const [settings, setSettings] = useState<SheepThrowSettings>(defaultSheepThrowSettings);
   const activeThrowRef = useRef<ChatSheepThrowSummary | null>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const audioCacheRef = useRef(new Map<string, HTMLAudioElement>());
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializedRef = useRef(false);
   const imageRef = useRef<LoadedImages | null>(null);
@@ -73,8 +90,26 @@ export function SheepThrowOverlay() {
   const wobbleTimeoutRef = useRef<number | null>(null);
   const activeLabel = useMemo(() => (activeThrow ? throwLabel(activeThrow) : ""), [activeThrow]);
 
+  const playImpactSound = useCallback((soundUrl: string | null | undefined) => {
+    if (!soundUrl || typeof window === "undefined") {
+      return;
+    }
+
+    const cached = audioCacheRef.current.get(soundUrl) ?? new Audio(soundUrl);
+
+    cached.preload = "auto";
+    audioCacheRef.current.set(soundUrl, cached);
+
+    const player = cached.cloneNode(true) as HTMLAudioElement;
+
+    player.volume = 0.72;
+    void player.play().catch(() => {
+      // Mobile browsers can block autoplay-style sound until the viewer has interacted.
+    });
+  }, []);
+
   const loadImagesForSprite = useCallback(async (sprite: SheepThrowSprite): Promise<LoadedImages> => {
-    const cacheKey = `${sprite.id}:${sprite.spriteSheetUrl}:${sprite.glassSmashUrl}`;
+    const cacheKey = `${sprite.id}:${sprite.spriteSheetUrl}:${sprite.glassSmashUrl}:${sprite.impactSoundUrl ?? ""}`;
     const cached = imageCacheRef.current.get(cacheKey);
 
     if (cached) {
@@ -184,6 +219,8 @@ export function SheepThrowOverlay() {
         impactTriggeredRef.current = true;
         setIncomingBlur(false);
         document.documentElement.classList.add("bc-sheep-impact-wobble");
+        playImpactSound(images.sprite.impactSoundUrl);
+        vibrateMobile([120, 45, 80]);
 
         if (wobbleTimeoutRef.current !== null) {
           window.clearTimeout(wobbleTimeoutRef.current);
@@ -234,7 +271,7 @@ export function SheepThrowOverlay() {
         stopAnimation();
       }
     },
-    [stopAnimation]
+    [playImpactSound, stopAnimation]
   );
 
   const playNext = useCallback(() => {
@@ -270,6 +307,7 @@ export function SheepThrowOverlay() {
         if (!reducedMotionEnabled()) {
           stopAnimation();
           setIncomingBlur(true);
+          vibrateMobile([45, 40, 45]);
           startTimeRef.current = performance.now();
           animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
           timeoutRef.current = window.setTimeout(() => {
