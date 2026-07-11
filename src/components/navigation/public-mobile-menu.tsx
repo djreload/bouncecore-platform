@@ -3,18 +3,23 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogIn, Menu, Share2, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { BrandMark } from "@/components/branding/brand-mark";
 import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
+import { MobileOnlineUserList } from "@/components/chat/mobile-online-user-list";
 import { icons } from "@/components/navigation/icons";
 import { publicNavigation, type NavigationItem } from "@/config/navigation";
+import type { PublicChatPresenceUserRow } from "@/app/chat/state";
+import type { RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { cn } from "@/lib/utils";
 
 type PublicMobileMenuProps = {
   isSignedIn: boolean;
   items: NavigationItem[];
   logoUrl?: string | null;
+  mobilePresenceUsers?: PublicChatPresenceUserRow[];
+  roleDisplayLabels?: RoleDisplayNameMap;
   siteName: string;
 };
 
@@ -32,10 +37,27 @@ function navigationForAuth(items: NavigationItem[], signedIn: boolean) {
   });
 }
 
-export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: PublicMobileMenuProps) {
+export function PublicMobileMenu({ isSignedIn, items, logoUrl, mobilePresenceUsers = [], roleDisplayLabels, siteName }: PublicMobileMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [presenceUsers, setPresenceUsers] = useState(mobilePresenceUsers);
   const visibleItems = navigationForAuth(items.length ? items : publicNavigation, isSignedIn);
+
+  useEffect(() => {
+    function handlePresenceUpdate(event: Event) {
+      const detail = (event as CustomEvent<{ users?: PublicChatPresenceUserRow[] }>).detail;
+
+      if (Array.isArray(detail?.users)) {
+        setPresenceUsers(detail.users);
+      }
+    }
+
+    window.addEventListener("bouncecore:chat-presence", handlePresenceUpdate);
+
+    return () => {
+      window.removeEventListener("bouncecore:chat-presence", handlePresenceUpdate);
+    };
+  }, []);
 
   function closeMenu() {
     setOpen(false);
@@ -122,6 +144,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
                   <span className="truncate">Share on Facebook</span>
                 </button>
               </div>
+              <MobileOnlineUserList roleDisplayLabels={roleDisplayLabels} users={presenceUsers} />
             </nav>
 
             <div className="grid shrink-0 gap-2 border-t border-bc-line bg-bc-ink p-4">

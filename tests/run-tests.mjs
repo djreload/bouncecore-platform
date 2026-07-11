@@ -25,6 +25,7 @@ import "./legal-pages.test.mjs";
 import "./live-hls-transcoder-config.test.mjs";
 import "./live-playback-speed.test.mjs";
 import "./live-status-snapshot.test.mjs";
+import "./live-mobile-layout.test.mjs";
 import "./live-viewer-presence.test.mjs";
 import "./maintenance-core.test.mjs";
 import "./media-storage-core.test.mjs";

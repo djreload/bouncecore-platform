@@ -591,6 +591,14 @@ export function ChatRoomPanel({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.dispatchEvent(new CustomEvent("bouncecore:chat-presence", { detail: { users: visiblePresence } }));
+  }, [visiblePresence]);
+
+  useEffect(() => {
     if (!showPresenceRail) {
       return;
     }
@@ -1100,7 +1108,7 @@ export function ChatRoomPanel({
   }
 
   return (
-    <section className={cn("relative min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel lg:overflow-visible", className)}>
+    <section className={cn("relative min-h-0 min-w-0 max-w-full overflow-hidden rounded-md border border-bc-line bg-bc-panel lg:overflow-visible", className)}>
       {showPresenceRail ? (
         <ChatPresenceRail
           availableThrowSprites={availableThrowSprites}
@@ -1122,7 +1130,7 @@ export function ChatRoomPanel({
           onToggle={() => setPresenceRailOpen((open) => !open)}
         />
       ) : null}
-      <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[inherit] bg-inherit">
+      <div className="flex h-full min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-[inherit] bg-inherit">
       {!hideHeader ? (
         <div className={cn("shrink-0 border-b border-bc-line p-4", mobileLiveMode && "p-3")}>
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1186,7 +1194,7 @@ export function ChatRoomPanel({
       <div
         className={cn(
           compact ? "max-h-[380px]" : "max-h-[560px]",
-          "min-h-0 overflow-y-auto overflow-x-hidden p-4",
+          "min-h-0 w-full max-w-full overflow-y-auto overflow-x-hidden p-4",
           messagesClassName
         )}
         data-testid="chat-message-list"
@@ -1750,13 +1758,13 @@ export function ChatRoomPanel({
                   className={cn(
                     "flex w-full min-w-0 flex-wrap justify-start gap-2 sm:w-auto sm:justify-end",
                     mobileLiveMode &&
-                      "grid w-full grid-cols-[8.5rem_2rem_3.5rem] gap-1 overflow-visible pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2"
+                      "grid w-full max-w-full grid-cols-[minmax(0,1fr)_2rem_minmax(4.5rem,auto)] gap-1 overflow-hidden pb-0 lg:w-auto lg:flex lg:flex-wrap lg:gap-2 lg:overflow-visible"
                   )}
                 >
                   <ChatEffectSelector
                     className={cn(
                       "text-[10px] sm:text-xs",
-                      mobileLiveMode && "lg:text-xs"
+                      mobileLiveMode && "!w-full !flex-auto lg:!w-[8.5rem] lg:!flex-none lg:text-xs"
                     )}
                     disabled={roomLockedForUser}
                     onChange={setSelectedEffectId}

@@ -8,15 +8,19 @@ import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
 import { RaveWarChallengeOverlay } from "@/components/rave-wars/rave-war-challenge-overlay";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
+import type { PublicChatPresenceUserRow } from "@/app/chat/state";
 import type { NavigationItem } from "@/config/navigation";
 import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
 import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-settings-service";
+import type { RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { getCurrentUser } from "@/lib/auth/session";
 import { accountDeletionHref, privacyRequestsHref } from "@/lib/privacy/privacy-config";
 
 type PublicShellProps = {
   children: React.ReactNode;
   hideFooterOnMobile?: boolean;
+  mobilePresenceUsers?: PublicChatPresenceUserRow[];
+  roleDisplayLabels?: RoleDisplayNameMap;
   siteSettings?: Pick<SiteSettings, "branding" | "footerSummary" | "legalPages" | "siteName" | "stagingTarget" | "supportEmail">;
 };
 
@@ -34,7 +38,7 @@ function publicNavigationForAuth(items: NavigationItem[], signedIn: boolean) {
   });
 }
 
-export async function PublicShell({ children, hideFooterOnMobile = false, siteSettings }: PublicShellProps) {
+export async function PublicShell({ children, hideFooterOnMobile = false, mobilePresenceUsers, roleDisplayLabels, siteSettings }: PublicShellProps) {
   const [navigationItems, themeStyle, resolvedSiteSettings, user] = await Promise.all([
     getPublicMenuNavigation(),
     getSiteThemeStyle(),
@@ -84,7 +88,14 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             )}
           </div>
           <div className="ml-auto lg:hidden">
-            <PublicMobileMenu isSignedIn={signedIn} items={visibleNavigationItems} logoUrl={logoUrl} siteName={siteName} />
+            <PublicMobileMenu
+              isSignedIn={signedIn}
+              items={visibleNavigationItems}
+              logoUrl={logoUrl}
+              mobilePresenceUsers={mobilePresenceUsers}
+              roleDisplayLabels={roleDisplayLabels}
+              siteName={siteName}
+            />
           </div>
         </div>
       </header>

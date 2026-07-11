@@ -188,9 +188,9 @@ export default async function LivePage() {
   }));
 
   return (
-    <PublicShell hideFooterOnMobile siteSettings={siteSettings}>
-      <main className="h-[calc(100dvh-65px)] min-h-0 w-full overflow-hidden px-0 py-0 lg:-mt-[65px] lg:h-auto lg:overflow-visible lg:px-4 xl:px-5">
-        <section className="mx-auto flex h-full min-h-0 w-full max-w-[1920px] flex-col overflow-hidden lg:block lg:h-auto lg:min-h-[100dvh] lg:overflow-visible">
+    <PublicShell hideFooterOnMobile mobilePresenceUsers={presenceRows} roleDisplayLabels={roleDisplayLabels} siteSettings={siteSettings}>
+      <main className="h-[calc(100dvh-65px)] min-h-0 w-full max-w-[100vw] overflow-hidden px-0 py-0 lg:-mt-[65px] lg:h-auto lg:max-w-none lg:overflow-visible lg:px-4 xl:px-5">
+        <section className="mx-auto flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden lg:block lg:h-auto lg:min-h-[100dvh] lg:max-w-[1920px] lg:overflow-visible">
           <div className="min-w-0 shrink-0 transition-[margin-right] duration-300 ease-out lg:mr-[calc(340px+var(--bc-live-presence-rail-width,224px)+16px)] lg:pb-4 lg:pt-[81px] xl:mr-[calc(360px+var(--bc-live-presence-rail-width,224px)+20px)] 2xl:mr-[calc(380px+var(--bc-live-presence-rail-width,224px)+20px)]">
             <div className="relative z-20 shrink-0 lg:static lg:z-auto">
               <LivePlaybackPlayer
@@ -258,16 +258,16 @@ export default async function LivePage() {
             </section>
           </div>
 
-          <aside className="relative z-30 flex min-h-0 min-w-0 flex-1 overflow-hidden px-0 pb-0 lg:fixed lg:right-0 lg:top-[65px] lg:h-[calc(100dvh-65px)] lg:w-[340px] lg:overflow-visible lg:px-0 xl:w-[360px] 2xl:w-[380px]">
+          <aside className="relative z-30 flex min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden px-0 pb-0 lg:fixed lg:right-0 lg:top-[65px] lg:h-[calc(100dvh-65px)] lg:w-[340px] lg:overflow-visible lg:px-0 xl:w-[360px] 2xl:w-[380px]">
             <ChatRoomPanel
-              className="flex h-full min-h-0 flex-col overflow-hidden rounded-none border-x-0 border-b-0 border-white/15 bg-bc-panel/75 shadow-none backdrop-blur-md lg:border-y-0 lg:border-r-0 lg:border-bc-line lg:bg-[#050712]/95 lg:backdrop-blur-none"
+              className="flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden rounded-none border-x-0 border-b-0 border-white/15 bg-bc-panel/75 shadow-none backdrop-blur-md lg:border-y-0 lg:border-r-0 lg:border-bc-line lg:bg-[#050712]/95 lg:backdrop-blur-none"
               compact
               hideHeader
               mobileLiveMode
               currentUser={currentUser ? { id: currentUser.id, displayName: currentUser.displayName, roles: currentUser.roles } : null}
               currentStarBalance={currentStarBalance}
               assets={assetRows}
-              messagesClassName="min-h-0 flex-1 max-h-none p-2 lg:p-3"
+              messagesClassName="min-h-0 flex-1 max-h-none w-full max-w-full p-2 lg:p-3"
               messages={messageRows}
               presenceUsers={presenceRows}
               raveWarEffectiveCostStars={raveWarReadiness.effectiveCostStars}
