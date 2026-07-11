@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, 
 import { Crosshair, Flag, HeartPulse, Radio, Swords, Timer, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary } from "@/lib/rave-wars/rave-war-types";
+import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary, RaveWarWeaponId } from "@/lib/rave-wars/rave-war-types";
 
 type RaveWarGameProps = {
   currentUserId: string;
@@ -38,9 +38,44 @@ const shotAnimationMaxMs = 1350;
 const raveWarAssets = {
   explosion: "/rave-wars/assets/big-explosion.png",
   hedgehog: "/rave-wars/assets/hedgehog.png",
+  hedgehogIdle: "/rave-wars/assets/hedgehog-idle.png",
   hedgehogBazooka: "/rave-wars/assets/hedgehog-bazooka.png",
-  shell: "/rave-wars/assets/bazooka-shell.png"
+  shell: "/rave-wars/assets/bazooka-shell.png",
+  weaponGrenade: "/rave-wars/assets/weapon-grenade.png",
+  weaponShotgun: "/rave-wars/assets/weapon-shotgun.png"
 } as const;
+
+const raveWarWeapons: Array<{
+  description: string;
+  icon: string;
+  id: RaveWarWeaponId;
+  label: string;
+  projectile: string;
+}> = [
+  {
+    description: "Classic long arc, big terrain crater.",
+    icon: raveWarAssets.hedgehogBazooka,
+    id: "bazooka",
+    label: "Bazooka",
+    projectile: raveWarAssets.shell
+  },
+  {
+    description: "Heavier drop with a chunky blast.",
+    icon: raveWarAssets.weaponGrenade,
+    id: "grenade",
+    label: "Grenade",
+    projectile: raveWarAssets.weaponGrenade
+  },
+  {
+    description: "Fast direct shot, smaller crater.",
+    icon: raveWarAssets.weaponShotgun,
+    id: "shotgun",
+    label: "Shotgun",
+    projectile: raveWarAssets.weaponShotgun
+  }
+];
+
+const raveWarWeaponsById = new Map(raveWarWeapons.map((weapon) => [weapon.id, weapon]));
 
 let raveWarAudioContext: AudioContext | null = null;
 
@@ -74,7 +109,7 @@ function healthTone(health: number) {
 
 function shotKey(shot: RaveWarLastShot | null | undefined) {
   return shot
-    ? `${shot.firedAt}:${shot.shooterUserId}:${shot.targetUserId}:${shot.impactPoint.x}:${shot.impactPoint.y}:${shot.damage}`
+    ? `${shot.firedAt}:${shot.weaponId}:${shot.shooterUserId}:${shot.targetUserId}:${shot.impactPoint.x}:${shot.impactPoint.y}:${shot.damage}`
     : null;
 }
 
@@ -245,6 +280,20 @@ function playRaveWarSfx(kind: RaveWarSfx) {
   scheduleTone({ context, duration: 0.12, endFrequency: 130, frequency: 170, gain: 0.045, startAt: now, type: "square" });
 }
 
+function HedgehogFrame({ facing, isWalking }: { facing: RaveWarPlayerState["facing"]; isWalking: boolean }) {
+  return (
+    <span className="bc-rave-war-hog-shell" data-facing={facing}>
+      <span
+        className="bc-rave-war-hog-frame"
+        data-walking={isWalking ? "true" : "false"}
+        style={{
+          backgroundImage: `url(${raveWarAssets.hedgehogIdle})`
+        }}
+      />
+    </span>
+  );
+}
+
 export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [war, setWar] = useState(initialWar);
   const battlefieldRef = useRef<HTMLDivElement | null>(null);
@@ -256,18 +305,20 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const winner = war.winnerUserId ? war.state.players.find((player) => player.userId === war.winnerUserId) : null;
   const [angle, setAngle] = useState(currentPlayer?.angle ?? 45);
   const [power, setPower] = useState(currentPlayer?.power ?? 68);
+  const [selectedWeapon, setSelectedWeapon] = useState<RaveWarWeaponId>(currentPlayer?.selectedWeapon ?? "bazooka");
   const [isAiming, setIsAiming] = useState(false);
   const [animatedShot, setAnimatedShot] = useState<RaveWarAnimatedShot | null>(null);
   const [impactPulse, setImpactPulse] = useState<RaveWarImpactPulse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const mapStyle = useMemo(
     () => ({
-      backgroundColor: war.level.backgroundColor,
-      backgroundImage: `url(${war.level.mapImageUrl})`
+      backgroundColor: war.level.backgroundColor
     }),
-    [war.level.backgroundColor, war.level.mapImageUrl]
+    [war.level.backgroundColor]
   );
+  const terrainMaskId = useMemo(() => `rave-war-terrain-mask-${war.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, [war.id]);
   const canFire = war.status === "active" && war.turnUserId === currentUserId && !busy;
   const canAccept = war.status === "pending" && war.currentUserRole === "target";
   const currentShotKey = shotKey(war.state.lastShot);
@@ -276,6 +327,9 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const aimPreview = currentPlayer ? aimPreviewFromPlayer(currentPlayer, angle, power) : null;
   const shellRotation = projectileRotationFromTrail(animatedShot?.trail ?? []);
   const lastBlastRadius = war.state.lastShot?.blastRadius ?? 150;
+  const lastWeapon = raveWarWeaponsById.get(war.state.lastShot?.weaponId ?? "bazooka") ?? raveWarWeapons[0];
+  const turnEndsAtMs = war.state.turnEndsAt ? Date.parse(war.state.turnEndsAt) : Number.NaN;
+  const remainingTurnSeconds = Number.isFinite(turnEndsAtMs) ? Math.max(0, Math.ceil((turnEndsAtMs - nowMs) / 1000)) : null;
 
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
     setWar(nextWar);
@@ -423,8 +477,20 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     }
 
     playRaveWarSfx("fire");
-    await postWarAction("fire", { angle, power });
-  }, [angle, canFire, postWarAction, power]);
+    await postWarAction("fire", { angle, power, weaponId: selectedWeapon });
+  }, [angle, canFire, postWarAction, power, selectedWeapon]);
+
+  const moveCurrentPlayer = useCallback(
+    async (direction: "left" | "right") => {
+      if (!canFire) {
+        playRaveWarSfx("blocked");
+        return;
+      }
+
+      await postWarAction("move", { direction });
+    },
+    [canFire, postWarAction]
+  );
 
   const handleBattlefieldKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -434,25 +500,51 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
       if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
         event.preventDefault();
-        setAngle((current) => clampNumber(current - 2, 0, 90));
+        void moveCurrentPlayer("left");
         return;
       }
 
       if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
         event.preventDefault();
-        setAngle((current) => clampNumber(current + 2, 0, 90));
+        void moveCurrentPlayer("right");
         return;
       }
 
       if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") {
         event.preventDefault();
-        setPower((current) => clampNumber(current + 3, 10, 100));
+        setAngle((current) => clampNumber(current + 2, 0, 90));
         return;
       }
 
       if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") {
         event.preventDefault();
+        setAngle((current) => clampNumber(current - 2, 0, 90));
+        return;
+      }
+
+      if (event.key === "=" || event.key === "+") {
+        event.preventDefault();
+        setPower((current) => clampNumber(current + 3, 10, 100));
+        return;
+      }
+
+      if (event.key === "-" || event.key === "_") {
+        event.preventDefault();
         setPower((current) => clampNumber(current - 3, 10, 100));
+        return;
+      }
+
+      if (event.key.toLowerCase() === "q" || event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        setSelectedWeapon((current) => {
+          const currentIndex = raveWarWeapons.findIndex((weapon) => weapon.id === current);
+          const nextIndex =
+            event.key.toLowerCase() === "q"
+              ? (currentIndex - 1 + raveWarWeapons.length) % raveWarWeapons.length
+              : (currentIndex + 1) % raveWarWeapons.length;
+
+          return raveWarWeapons[nextIndex]?.id ?? "bazooka";
+        });
         return;
       }
 
@@ -461,8 +553,18 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         void fireCurrentShot();
       }
     },
-    [canFire, fireCurrentShot, setAngle, setPower]
+    [canFire, fireCurrentShot, moveCurrentPlayer, setAngle, setPower, setSelectedWeapon]
   );
+
+  useEffect(() => {
+    if (war.status !== "active") {
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => setNowMs(Date.now()), 500);
+
+    return () => window.clearInterval(interval);
+  }, [war.status]);
 
   useEffect(() => {
     let active = true;
@@ -630,7 +732,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-h-0 rounded-md border border-bc-line bg-bc-panel p-2">
           <div
-            aria-label="Rave War battlefield. Move the mouse or drag on the map to aim. Use arrow keys or W A S D to fine tune angle and power. Double click the map, press Enter, or press Space to shoot."
+            aria-label="Rave War battlefield. Move the mouse or drag on the map to aim. Use left and right or A and D to walk. Use up and down or W and S to aim. Use plus and minus for power. Press Q and E for weapons. Double click the map, press Enter, or press Space to shoot."
             className={`relative mx-auto aspect-[2/1] max-h-[calc(100dvh-190px)] min-h-[260px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
               canFire ? "cursor-crosshair touch-none" : "cursor-default"
             }`}
@@ -646,181 +748,176 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             style={mapStyle}
             tabIndex={canFire ? 0 : -1}
           >
-            {war.state.craters.length || visibleShotPath.length || war.state.lastShot || aimPreview ? (
-              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
-                <defs>
-                  <radialGradient id="rave-war-crater-gradient">
-                    <stop offset="0%" stopColor="#05070d" />
-                    <stop offset="63%" stopColor="#05070d" />
-                    <stop offset="86%" stopColor={war.level.backgroundColor} />
-                    <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-                  </radialGradient>
-                </defs>
-                {war.state.craters.map((crater, index) => (
-                  <g key={`${crater.x}-${crater.y}-${crater.radius}-${index}`}>
-                    <circle
-                      cx={crater.x}
-                      cy={crater.y}
-                      fill="url(#rave-war-crater-gradient)"
-                      r={crater.radius}
-                      stroke="rgba(0,0,0,0.55)"
-                      strokeWidth="10"
-                    />
-                    <circle cx={crater.x} cy={crater.y} fill="none" r={Math.max(16, crater.radius - 12)} stroke="rgba(163,255,18,0.12)" strokeWidth="5" />
-                  </g>
-                ))}
-                {visibleShotPath.length ? (
-                  <polyline
-                    fill="none"
-                    points={visibleShotPath.map((point) => `${point.x},${point.y}`).join(" ")}
-                    stroke="#a3ff12"
+            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
+              <defs>
+                <mask id={terrainMaskId}>
+                  <rect fill="#ffffff" height={war.level.height} width={war.level.width} x="0" y="0" />
+                  {war.state.craters.map((crater, index) => (
+                    <circle cx={crater.x} cy={crater.y} fill="#000000" key={`${crater.x}-${crater.y}-${crater.radius}-mask-${index}`} r={crater.radius} />
+                  ))}
+                </mask>
+                <radialGradient id="rave-war-crater-rim-gradient">
+                  <stop offset="0%" stopColor="rgba(0,0,0,0)" />
+                  <stop offset="68%" stopColor="rgba(0,0,0,0)" />
+                  <stop offset="82%" stopColor="rgba(0,0,0,0.58)" />
+                  <stop offset="100%" stopColor="rgba(255,255,255,0.18)" />
+                </radialGradient>
+              </defs>
+              <image height={war.level.height} href={war.level.mapImageUrl} mask={`url(#${terrainMaskId})`} preserveAspectRatio="none" width={war.level.width} x="0" y="0" />
+              {war.state.craters.map((crater, index) => (
+                <g key={`${crater.x}-${crater.y}-${crater.radius}-${index}`}>
+                  <circle cx={crater.x} cy={crater.y} fill="url(#rave-war-crater-rim-gradient)" r={crater.radius + 9} />
+                  <circle cx={crater.x} cy={crater.y} fill="none" r={Math.max(16, crater.radius - 6)} stroke="rgba(0,0,0,0.62)" strokeWidth="7" />
+                </g>
+              ))}
+              {visibleShotPath.length ? (
+                <polyline
+                  fill="none"
+                  points={visibleShotPath.map((point) => `${point.x},${point.y}`).join(" ")}
+                  stroke="#a3ff12"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="8"
+                />
+              ) : null}
+              {aimPreview && war.status === "active" ? (
+                <>
+                  <line
+                    stroke={canFire ? "#00d5ff" : "rgba(163,255,18,0.28)"}
+                    strokeDasharray="22 16"
                     strokeLinecap="round"
-                    strokeLinejoin="round"
+                    strokeWidth="7"
+                    x1={aimPreview.muzzleX}
+                    x2={aimPreview.endX}
+                    y1={aimPreview.muzzleY}
+                    y2={aimPreview.endY}
+                  />
+                  <circle cx={aimPreview.endX} cy={aimPreview.endY} fill="rgba(0,213,255,0.18)" r={Math.max(34, power)} stroke="#00d5ff" strokeWidth="5" />
+                </>
+              ) : null}
+              {war.state.lastShot && !animatedShot ? (
+                <>
+                  <circle
+                    cx={war.state.lastShot.impactPoint.x}
+                    cy={war.state.lastShot.impactPoint.y}
+                    fill="rgba(255,63,164,0.32)"
+                    r="54"
+                    stroke="#ff3fa4"
                     strokeWidth="8"
                   />
-                ) : null}
-                {aimPreview && war.status === "active" ? (
-                  <>
-                    <line
-                      stroke={canFire ? "#00d5ff" : "rgba(163,255,18,0.28)"}
-                      strokeDasharray="22 16"
-                      strokeLinecap="round"
-                      strokeWidth="7"
-                      x1={aimPreview.muzzleX}
-                      x2={aimPreview.endX}
-                      y1={aimPreview.muzzleY}
-                      y2={aimPreview.endY}
-                    />
-                    <circle cx={aimPreview.endX} cy={aimPreview.endY} fill="rgba(0,213,255,0.18)" r={Math.max(34, power)} stroke="#00d5ff" strokeWidth="5" />
-                  </>
-                ) : null}
-                {war.state.lastShot && !animatedShot ? (
-                  <>
-                    <circle
-                      cx={war.state.lastShot.impactPoint.x}
-                      cy={war.state.lastShot.impactPoint.y}
-                      fill="rgba(255,63,164,0.32)"
-                      r="54"
-                      stroke="#ff3fa4"
-                      strokeWidth="8"
-                    />
-                    <circle cx={war.state.lastShot.impactPoint.x} cy={war.state.lastShot.impactPoint.y} fill="#ffffff" r="10" />
-                  </>
-                ) : null}
-                {animatedShot ? (
-                  <>
-                    <circle cx={animatedShot.point.x} cy={animatedShot.point.y} fill="rgba(163,255,18,0.35)" r="34" />
-                    <image
-                      height="54"
-                      href={raveWarAssets.shell}
-                      transform={`rotate(${shellRotation} ${animatedShot.point.x} ${animatedShot.point.y})`}
-                      width="54"
-                      x={animatedShot.point.x - 27}
-                      y={animatedShot.point.y - 27}
-                    />
-                  </>
-                ) : null}
-                {impactPulse ? (
-                  <>
-                    <image
-                      className="animate-pulse"
-                      height={lastBlastRadius * 2.15}
-                      href={raveWarAssets.explosion}
-                      opacity="0.94"
-                      width={lastBlastRadius * 2.15}
-                      x={impactPulse.point.x - lastBlastRadius * 1.075}
-                      y={impactPulse.point.y - lastBlastRadius * 1.075}
-                    />
-                    <circle
-                      className="animate-ping"
-                      cx={impactPulse.point.x}
-                      cy={impactPulse.point.y}
-                      fill={impactPulse.damage > 0 ? "rgba(255,63,164,0.35)" : "rgba(0,213,255,0.24)"}
-                      r={lastBlastRadius}
-                    />
-                    <text
-                      fill={impactPulse.damage > 0 ? "#ff3fa4" : "#00d5ff"}
-                      fontSize="58"
-                      fontWeight="900"
-                      stroke="#05070d"
-                      strokeWidth="8"
-                      textAnchor="middle"
-                      x={impactPulse.point.x}
-                      y={Math.max(72, impactPulse.point.y - 70)}
-                    >
-                      {impactPulse.damage > 0 ? `-${impactPulse.damage}` : impactPulse.impactKind === "out-of-bounds" ? "MISS" : "BOOM"}
-                    </text>
-                    <text
-                      fill={impactPulse.damage > 0 ? "#ff3fa4" : "#00d5ff"}
-                      fontSize="58"
-                      fontWeight="900"
-                      textAnchor="middle"
-                      x={impactPulse.point.x}
-                      y={Math.max(72, impactPulse.point.y - 70)}
-                    >
-                      {impactPulse.damage > 0 ? `-${impactPulse.damage}` : impactPulse.impactKind === "out-of-bounds" ? "MISS" : "BOOM"}
-                    </text>
-                  </>
-                ) : null}
-              </svg>
-            ) : null}
+                  <circle cx={war.state.lastShot.impactPoint.x} cy={war.state.lastShot.impactPoint.y} fill="#ffffff" r="10" />
+                </>
+              ) : null}
+              {animatedShot ? (
+                <>
+                  <circle cx={animatedShot.point.x} cy={animatedShot.point.y} fill="rgba(163,255,18,0.35)" r="34" />
+                  <image
+                    height="54"
+                    href={lastWeapon.projectile}
+                    transform={`rotate(${shellRotation} ${animatedShot.point.x} ${animatedShot.point.y})`}
+                    width="54"
+                    x={animatedShot.point.x - 27}
+                    y={animatedShot.point.y - 27}
+                  />
+                </>
+              ) : null}
+              {impactPulse ? (
+                <>
+                  <image
+                    className="animate-pulse"
+                    height={lastBlastRadius * 2.15}
+                    href={raveWarAssets.explosion}
+                    opacity="0.94"
+                    width={lastBlastRadius * 2.15}
+                    x={impactPulse.point.x - lastBlastRadius * 1.075}
+                    y={impactPulse.point.y - lastBlastRadius * 1.075}
+                  />
+                  <circle
+                    className="animate-ping"
+                    cx={impactPulse.point.x}
+                    cy={impactPulse.point.y}
+                    fill={impactPulse.damage > 0 ? "rgba(255,63,164,0.35)" : "rgba(0,213,255,0.24)"}
+                    r={lastBlastRadius}
+                  />
+                  <text
+                    fill={impactPulse.damage > 0 ? "#ff3fa4" : "#00d5ff"}
+                    fontSize="58"
+                    fontWeight="900"
+                    stroke="#05070d"
+                    strokeWidth="8"
+                    textAnchor="middle"
+                    x={impactPulse.point.x}
+                    y={Math.max(72, impactPulse.point.y - 70)}
+                  >
+                    {impactPulse.damage > 0 ? `-${impactPulse.damage}` : impactPulse.impactKind === "out-of-bounds" ? "MISS" : "BOOM"}
+                  </text>
+                  <text
+                    fill={impactPulse.damage > 0 ? "#ff3fa4" : "#00d5ff"}
+                    fontSize="58"
+                    fontWeight="900"
+                    textAnchor="middle"
+                    x={impactPulse.point.x}
+                    y={Math.max(72, impactPulse.point.y - 70)}
+                  >
+                    {impactPulse.damage > 0 ? `-${impactPulse.damage}` : impactPulse.impactKind === "out-of-bounds" ? "MISS" : "BOOM"}
+                  </text>
+                </>
+              ) : null}
+            </svg>
 
-            {war.state.players.map((player) => (
-              <div
-                className="absolute -translate-x-1/2 -translate-y-full"
-                key={player.userId}
-                style={{
-                  left: percent(player.x, war.level.width),
-                  top: percent(player.y, war.level.height)
-                }}
-              >
-                <div className="relative h-20 w-20" title={player.displayName}>
-                  <div
-                    className={`absolute inset-x-2 bottom-1 h-3 rounded-full blur-md ${
-                      war.turnUserId === player.userId ? "bg-bc-acid/45" : "bg-black/55"
-                    }`}
-                  />
-                  <Image
-                    alt=""
-                    className={`absolute bottom-2 left-1/2 h-16 w-16 -translate-x-1/2 object-contain drop-shadow-[0_8px_10px_rgba(0,0,0,0.55)] ${
-                      player.facing === "left" ? "-scale-x-100" : ""
-                    }`}
-                    draggable={false}
-                    height={64}
-                    src={raveWarAssets.hedgehog}
-                    unoptimized
-                    width={64}
-                  />
-                  {war.turnUserId === player.userId ? (
-                    <Image
-                      alt=""
-                      className="absolute bottom-8 left-1/2 h-10 w-10 -translate-x-1/2 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
-                      draggable={false}
-                      height={40}
-                      src={raveWarAssets.hedgehogBazooka}
-                      style={{
-                        transform: `translateX(-50%) scaleX(${player.facing === "left" ? -1 : 1}) rotate(${player.facing === "left" ? -angle : angle}deg)`,
-                        transformOrigin: player.facing === "left" ? "42% 54%" : "58% 54%"
-                      }}
-                      unoptimized
-                      width={40}
+            {war.state.players.map((player) => {
+              const isActivePlayer = war.turnUserId === player.userId;
+              const playerWeapon = raveWarWeaponsById.get(player.userId === currentUserId ? selectedWeapon : player.selectedWeapon) ?? raveWarWeapons[0];
+
+              return (
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-full transition-[left,top] duration-200 ease-out"
+                  key={player.userId}
+                  style={{
+                    left: percent(player.x, war.level.width),
+                    top: percent(player.y, war.level.height)
+                  }}
+                >
+                  <div className="relative h-20 w-20" title={player.displayName}>
+                    <div
+                      className={`absolute inset-x-2 bottom-1 h-3 rounded-full blur-md ${
+                        isActivePlayer ? "bg-bc-acid/45" : "bg-black/55"
+                      }`}
                     />
-                  ) : null}
-                  <div
-                    className="absolute bottom-0 left-1/2 h-1.5 w-16 -translate-x-1/2 overflow-hidden rounded-full border border-black/60 bg-black/70"
-                    style={{ boxShadow: `0 0 0 1px ${player.color}` }}
-                  >
-                    <div className={healthTone(player.health)} style={{ height: "100%", width: `${player.health}%` }} />
-                  </div>
-                  <div
-                    className="absolute -top-1 left-1/2 max-w-28 -translate-x-1/2 truncate rounded-full border bg-black/65 px-2 py-0.5 text-center text-[10px] font-black text-white backdrop-blur-sm"
-                    style={{ borderColor: player.color }}
-                  >
-                    {player.displayName}
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                      <HedgehogFrame facing={player.facing} isWalking={isActivePlayer && war.status === "active"} />
+                    </div>
+                    {isActivePlayer ? (
+                      <Image
+                        alt=""
+                        className="absolute bottom-8 left-1/2 h-10 w-10 -translate-x-1/2 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
+                        draggable={false}
+                        height={40}
+                        src={playerWeapon.icon}
+                        style={{
+                          transform: `translateX(-50%) scaleX(${player.facing === "left" ? -1 : 1}) rotate(${player.facing === "left" ? -angle : angle}deg)`,
+                          transformOrigin: player.facing === "left" ? "42% 54%" : "58% 54%"
+                        }}
+                        unoptimized
+                        width={40}
+                      />
+                    ) : null}
+                    <div
+                      className="absolute bottom-0 left-1/2 h-1.5 w-16 -translate-x-1/2 overflow-hidden rounded-full border border-black/60 bg-black/70"
+                      style={{ boxShadow: `0 0 0 1px ${player.color}` }}
+                    >
+                      <div className={healthTone(player.health)} style={{ height: "100%", width: `${player.health}%` }} />
+                    </div>
+                    <div
+                      className="absolute -top-1 left-1/2 max-w-28 -translate-x-1/2 truncate rounded-full border bg-black/65 px-2 py-0.5 text-center text-[10px] font-black text-white backdrop-blur-sm"
+                      style={{ borderColor: player.color }}
+                    >
+                      {player.displayName}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -831,31 +928,39 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               <Badge tone="muted">Turn {war.state.turnNumber}</Badge>
             </div>
             <div className="mt-3 grid gap-2">
-              {war.state.players.map((player) => (
-                <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={player.userId}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-black">{player.displayName}</p>
-                      <p className="mt-1 text-xs text-bc-muted">{player.userId === currentUserId ? "You" : "Opponent"}</p>
+              {war.state.players.map((player) => {
+                const playerWeapon = raveWarWeaponsById.get(player.userId === currentUserId ? selectedWeapon : player.selectedWeapon) ?? raveWarWeapons[0];
+
+                return (
+                  <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={player.userId}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black">{player.displayName}</p>
+                        <p className="mt-1 text-xs text-bc-muted">{player.userId === currentUserId ? "You" : "Opponent"}</p>
+                      </div>
+                      <Badge tone={war.turnUserId === player.userId ? "acid" : "muted"}>{war.turnUserId === player.userId ? "Turn" : "Ready"}</Badge>
                     </div>
-                    <Badge tone={war.turnUserId === player.userId ? "acid" : "muted"}>{war.turnUserId === player.userId ? "Turn" : "Ready"}</Badge>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <HeartPulse className="h-4 w-4 text-bc-pink" aria-hidden="true" />
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-bc-panel">
-                      <div className={healthTone(player.health)} style={{ height: "100%", width: `${player.health}%` }} />
+                    <div className="mt-2 flex items-center gap-2">
+                      <HeartPulse className="h-4 w-4 text-bc-pink" aria-hidden="true" />
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-bc-panel">
+                        <div className={healthTone(player.health)} style={{ height: "100%", width: `${player.health}%` }} />
+                      </div>
+                      <span className="w-9 text-right text-xs font-black">{player.health}</span>
                     </div>
-                    <span className="w-9 text-right text-xs font-black">{player.health}</span>
-                  </div>
-                </article>
-              ))}
+                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-bc-muted">
+                      <span>{playerWeapon.label}</span>
+                      <span>{Math.round(player.movementLeft)} move</span>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </section>
 
           <section className="rounded-md border border-bc-line bg-bc-panel p-3">
             <div className="flex items-center gap-2">
               <Crosshair className="h-4 w-4 text-bc-electric" aria-hidden="true" />
-              <h2 className="text-sm font-black uppercase">Bazooka</h2>
+              <h2 className="text-sm font-black uppercase">Weapons</h2>
             </div>
 
             {war.status === "pending" ? (
@@ -879,15 +984,69 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             {war.status === "active" ? (
               <div className="mt-3 grid gap-3">
                 <div className="rounded-md border border-bc-line bg-bc-ink p-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Timer className="h-4 w-4 text-bc-amber" aria-hidden="true" />
-                    <span className="font-semibold">{activePlayer ? `${activePlayer.displayName}'s turn` : "Turn changing"}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Timer className="h-4 w-4 shrink-0 text-bc-amber" aria-hidden="true" />
+                      <span className="truncate font-semibold">{activePlayer ? `${activePlayer.displayName}'s turn` : "Turn changing"}</span>
+                    </div>
+                    <Badge tone={remainingTurnSeconds !== null && remainingTurnSeconds <= 10 ? "pink" : "amber"}>
+                      {remainingTurnSeconds !== null ? `${remainingTurnSeconds}s` : "--"}
+                    </Badge>
                   </div>
                   {canFire ? (
                     <p className="mt-2 text-xs text-bc-muted">
-                      Mouse/drag aims. Arrow keys or W/A/S/D fine tune. Space, Enter, double click, or Fire shoots.
+                      Mouse/drag aims. Left/right or A/D walks. Up/down or W/S aims. +/- power. Q/E weapons. Space, Enter, double click, or Fire shoots.
                     </p>
                   ) : null}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-ink px-3 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:opacity-50"
+                    disabled={!canFire || !currentPlayer?.movementLeft}
+                    onClick={() => void moveCurrentPlayer("left")}
+                    type="button"
+                  >
+                    Walk left
+                  </button>
+                  <button
+                    className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-ink px-3 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:opacity-50"
+                    disabled={!canFire || !currentPlayer?.movementLeft}
+                    onClick={() => void moveCurrentPlayer("right")}
+                    type="button"
+                  >
+                    Walk right
+                  </button>
+                </div>
+                <div className="grid gap-2 rounded-md border border-bc-line bg-bc-ink p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black uppercase text-bc-muted">Movement</p>
+                    <span className="text-xs font-black text-bc-acid">{currentPlayer ? Math.round(currentPlayer.movementLeft) : 0}px</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-bc-panel">
+                    <div className="h-full bg-bc-acid" style={{ width: percent(currentPlayer?.movementLeft ?? 0, 220) }} />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <p className="text-[10px] font-black uppercase text-bc-muted">Weapon</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {raveWarWeapons.map((weapon) => (
+                      <button
+                        className={`bc-focus-ring grid min-h-16 place-items-center rounded-md border px-2 py-2 text-center text-[11px] font-black transition ${
+                          selectedWeapon === weapon.id
+                            ? "border-bc-electric bg-bc-electric/15 text-white"
+                            : "border-bc-line bg-bc-ink text-bc-muted hover:border-bc-electric/50 hover:text-white"
+                        }`}
+                        disabled={!canFire}
+                        key={weapon.id}
+                        onClick={() => setSelectedWeapon(weapon.id)}
+                        title={weapon.description}
+                        type="button"
+                      >
+                        <Image alt="" className="h-7 w-7 object-contain" height={28} src={weapon.icon} unoptimized width={28} />
+                        <span>{weapon.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-md border border-bc-line bg-bc-ink p-2">

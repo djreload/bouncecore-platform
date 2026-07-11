@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { fireRaveWarShot, surrenderRaveWar } from "@/lib/rave-wars/rave-war-service";
+import { fireRaveWarShot, moveRaveWarPlayer, surrenderRaveWar } from "@/lib/rave-wars/rave-war-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -35,7 +35,16 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({
         war: await fireRaveWarShot(warId, user.id, {
           angle: payload.angle,
-          power: payload.power
+          power: payload.power,
+          weaponId: payload.weaponId
+        })
+      });
+    }
+
+    if (action === "move") {
+      return NextResponse.json({
+        war: await moveRaveWarPlayer(warId, user.id, {
+          direction: payload.direction
         })
       });
     }

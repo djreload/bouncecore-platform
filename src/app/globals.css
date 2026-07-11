@@ -1753,6 +1753,43 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   animation-delay: 0.72s;
 }
 
+.bc-rave-war-hog-shell {
+  display: block;
+  width: 64px;
+  height: 32px;
+  transform: scale(1.72);
+  transform-origin: center bottom;
+}
+
+.bc-rave-war-hog-shell[data-facing="left"] {
+  transform: scale(1.72) scaleX(-1);
+}
+
+.bc-rave-war-hog-frame {
+  display: block;
+  width: 64px;
+  height: 32px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  background-size: 64px 512px;
+  filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.55));
+  image-rendering: auto;
+}
+
+.bc-rave-war-hog-frame[data-walking="true"] {
+  animation: bc-rave-war-hog-walk 0.82s steps(16) infinite;
+}
+
+@keyframes bc-rave-war-hog-walk {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 0 -512px;
+  }
+}
+
 .bc-reward-payline {
   position: relative;
   overflow: hidden;
@@ -2151,6 +2188,7 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   .bc-chat-effect::after,
   .bc-chat-effect-particle,
   .bc-chat-effect .bc-chat-effect-letter,
+  .bc-rave-war-hog-frame,
   .bc-button,
   .bc-button::before,
   .bc-nav-link,

@@ -16,7 +16,7 @@ export function RaveWarChallengeOverlay() {
   const [challenges, setChallenges] = useState<RaveWarChallengeSummary[]>([]);
   const [busyWarId, setBusyWarId] = useState<string | null>(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
-  const visibleChallenge = challenges.find((challenge) => !dismissedIds.has(challenge.id));
+  const visibleChallenge = challenges.find((challenge) => challenge.status === "active" || !dismissedIds.has(challenge.id));
 
   const refreshChallenges = useCallback(async () => {
     if (document.visibilityState === "hidden") {
@@ -54,6 +54,7 @@ export function RaveWarChallengeOverlay() {
       });
 
       if (response.ok && action === "accept") {
+        window.sessionStorage.setItem(`rave-war-opened:${challenge.id}`, "1");
         window.location.assign(`/rave-wars/${challenge.id}`);
         return;
       }
@@ -83,12 +84,30 @@ export function RaveWarChallengeOverlay() {
     };
   }, [refreshChallenges]);
 
+  useEffect(() => {
+    const activeChallenge = challenges.find((challenge) => challenge.status === "active");
+
+    if (!activeChallenge || window.location.pathname.startsWith(`/rave-wars/${activeChallenge.id}`)) {
+      return;
+    }
+
+    const storageKey = `rave-war-opened:${activeChallenge.id}`;
+
+    if (window.sessionStorage.getItem(storageKey) === "1") {
+      return;
+    }
+
+    window.sessionStorage.setItem(storageKey, "1");
+    window.location.assign(`/rave-wars/${activeChallenge.id}`);
+  }, [challenges]);
+
   if (!visibleChallenge) {
     return null;
   }
 
   const busy = busyWarId === visibleChallenge.id;
   const isTarget = visibleChallenge.currentUserRole === "target";
+  const isActive = visibleChallenge.status === "active";
 
   return (
     <div className="fixed bottom-4 right-4 z-[74] w-[min(24rem,calc(100vw-2rem))] rounded-md border border-bc-electric/40 bg-bc-void/95 p-3 text-white shadow-2xl shadow-black/45 backdrop-blur">
@@ -99,27 +118,33 @@ export function RaveWarChallengeOverlay() {
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-bc-electric">Rave War</p>
+              <p className="text-sm font-black uppercase text-bc-electric">{isActive ? "Active Rave War" : "Rave War"}</p>
               <p className="mt-1 break-words text-sm font-semibold">
                 {visibleChallenge.challengerDisplayName} vs {visibleChallenge.targetDisplayName}
               </p>
             </div>
-            <button
-              aria-label="Dismiss Rave War prompt"
-              className="bc-focus-ring grid h-7 w-7 shrink-0 place-items-center rounded-md border border-bc-line text-bc-muted transition hover:text-white"
-              onClick={() => {
-                setDismissedIds((ids) => new Set(ids).add(visibleChallenge.id));
-              }}
-              type="button"
-            >
-              <X className="h-4 w-4" aria-hidden="true" />
-            </button>
+            {!isActive ? (
+              <button
+                aria-label="Dismiss Rave War prompt"
+                className="bc-focus-ring grid h-7 w-7 shrink-0 place-items-center rounded-md border border-bc-line text-bc-muted transition hover:text-white"
+                onClick={() => {
+                  setDismissedIds((ids) => new Set(ids).add(visibleChallenge.id));
+                }}
+                type="button"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
           <p className="mt-2 text-xs text-bc-muted">
             {visibleChallenge.levelName} in #{visibleChallenge.roomSlug}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {isTarget ? (
+            {isActive ? (
+              <ButtonLink className="min-h-8 px-3 text-xs" href={`/rave-wars/${visibleChallenge.id}`} size="sm">
+                Open Battle
+              </ButtonLink>
+            ) : isTarget ? (
               <>
                 <Button
                   className="min-h-8 px-3 text-xs"

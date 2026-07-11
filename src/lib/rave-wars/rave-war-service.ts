@@ -16,6 +16,7 @@ import {
   type RaveWarSettingsInput
 } from "@/lib/rave-wars/rave-war-settings";
 import {
+  raveWarWeaponIds,
   raveWarStatuses,
   type RaveWarChallengeSummary,
   type RaveWarLastShot,
@@ -25,17 +26,74 @@ import {
   type RaveWarState,
   type RaveWarStatus,
   type RaveWarSummary,
-  type RaveWarTerrainCrater
+  type RaveWarTerrainCrater,
+  type RaveWarWeaponId
 } from "@/lib/rave-wars/rave-war-types";
 
 const raveWarSettingsKey = "chat.rave_wars";
 const raveWarHealth = 100;
 const raveWarMaxLogEntries = 8;
-const projectileStepLimit = 360;
-const projectileGravity = 0.36;
-const hogHitRadius = 54;
 const explosionRadius = 150;
 const maxTerrainCraters = 36;
+const raveWarTurnSeconds = 45;
+const raveWarTurnMovement = 220;
+const raveWarMoveStep = 34;
+
+type RaveWarWeaponConfig = {
+  blastRadius: number;
+  craterMax: number;
+  craterMin: number;
+  craterPowerScale: number;
+  gravity: number;
+  hitRadius: number;
+  maxDamage: number;
+  pathStep: number;
+  projectileStepLimit: number;
+  speedBase: number;
+  speedPowerScale: number;
+};
+
+const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> = {
+  bazooka: {
+    blastRadius: 150,
+    craterMax: 174,
+    craterMin: 118,
+    craterPowerScale: 0.42,
+    gravity: 0.36,
+    hitRadius: 54,
+    maxDamage: 76,
+    pathStep: 2,
+    projectileStepLimit: 360,
+    speedBase: 10,
+    speedPowerScale: 0.35
+  },
+  grenade: {
+    blastRadius: 138,
+    craterMax: 152,
+    craterMin: 104,
+    craterPowerScale: 0.36,
+    gravity: 0.48,
+    hitRadius: 48,
+    maxDamage: 64,
+    pathStep: 2,
+    projectileStepLimit: 340,
+    speedBase: 7.5,
+    speedPowerScale: 0.31
+  },
+  shotgun: {
+    blastRadius: 72,
+    craterMax: 88,
+    craterMin: 48,
+    craterPowerScale: 0.2,
+    gravity: 0.015,
+    hitRadius: 42,
+    maxDamage: 34,
+    pathStep: 1,
+    projectileStepLimit: 92,
+    speedBase: 38,
+    speedPowerScale: 0.12
+  }
+};
 
 type RaveWarParticipantSource = {
   acceptedAt: Date | null;
@@ -96,6 +154,21 @@ function normalizeShotNumber(value: unknown, fallback: number, min: number, max:
   return Number.isFinite(number) ? clamp(number, min, max) : fallback;
 }
 
+function normalizeWeaponId(value: unknown): RaveWarWeaponId {
+  return raveWarWeaponIds.includes(value as RaveWarWeaponId) ? (value as RaveWarWeaponId) : "bazooka";
+}
+
+function turnWindow(now = new Date()) {
+  return {
+    turnEndsAt: new Date(now.getTime() + raveWarTurnSeconds * 1000).toISOString(),
+    turnStartedAt: now.toISOString()
+  };
+}
+
+function isTurnExpired(state: Pick<RaveWarState, "turnEndsAt">, now = new Date()) {
+  return Boolean(state.turnEndsAt && new Date(state.turnEndsAt).getTime() <= now.getTime());
+}
+
 function participantDisplayName(participant: RaveWarParticipantSource | null | undefined) {
   return participant?.displayNameSnapshot.trim() || "Raver";
 }
@@ -126,14 +199,18 @@ function createInitialState(input: {
         displayName: player.displayName,
         facing: spawn.facing,
         health: raveWarHealth,
+        movementLeft: raveWarTurnMovement,
         playerIndex: player.playerIndex,
         power: 68,
+        selectedWeapon: "bazooka",
         userId: player.userId,
         x: spawn.x,
         y: spawn.y
       };
     }),
+    turnEndsAt: null,
     turnNumber: 1,
+    turnStartedAt: null,
     version: 1,
     winnerUserId: null
   };
@@ -169,8 +246,10 @@ function normalizePlayerState(value: unknown): RaveWarPlayerState | null {
     displayName,
     facing: value.facing === "left" ? "left" : "right",
     health: normalizeShotNumber(value.health, raveWarHealth, 0, raveWarHealth),
+    movementLeft: normalizeShotNumber(value.movementLeft, raveWarTurnMovement, 0, raveWarTurnMovement),
     playerIndex: normalizeShotNumber(value.playerIndex, 0, 0, 7),
     power: normalizeShotNumber(value.power, 68, 10, 100),
+    selectedWeapon: normalizeWeaponId(value.selectedWeapon),
     userId,
     x: normalizeShotNumber(value.x, 0, 0, 4096),
     y: normalizeShotNumber(value.y, 0, 0, 4096)
@@ -218,7 +297,8 @@ function normalizeShotPath(value: unknown): RaveWarLastShot | null {
       .slice(0, 140),
     power: normalizeShotNumber(value.power, 68, 10, 100),
     shooterUserId,
-    targetUserId
+    targetUserId,
+    weaponId: normalizeWeaponId(value.weaponId)
   };
 }
 
@@ -248,7 +328,9 @@ function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarPar
     levelKey: typeof value.levelKey === "string" ? value.levelKey : level.key,
     log: Array.isArray(value.log) ? value.log.filter((entry): entry is string => typeof entry === "string").slice(-raveWarMaxLogEntries) : [],
     players,
+    turnEndsAt: typeof value.turnEndsAt === "string" ? value.turnEndsAt : null,
     turnNumber: normalizeShotNumber(value.turnNumber, 1, 1, 999),
+    turnStartedAt: typeof value.turnStartedAt === "string" ? value.turnStartedAt : null,
     version: 1,
     winnerUserId: typeof value.winnerUserId === "string" ? value.winnerUserId : null
   };
@@ -560,13 +642,21 @@ function settlePlayersOnTerrain(level: RaveWarLevel, craters: RaveWarTerrainCrat
   return players.map((player) => settlePlayerOnTerrain(level, craters, player));
 }
 
-function craterForImpact(input: { impactKind: RaveWarLastShot["impactKind"]; impactPoint: RaveWarShotPoint; level: RaveWarLevel; power: number }) {
+function craterForImpact(input: {
+  impactKind: RaveWarLastShot["impactKind"];
+  impactPoint: RaveWarShotPoint;
+  level: RaveWarLevel;
+  power: number;
+  weaponId: RaveWarWeaponId;
+}) {
   if (input.impactKind === "out-of-bounds") {
     return null;
   }
 
+  const weapon = raveWarWeaponConfigs[input.weaponId];
+
   return {
-    radius: Math.round(clamp(explosionRadius * 0.78 + input.power * 0.34, 112, 168)),
+    radius: Math.round(clamp(weapon.blastRadius * 0.78 + input.power * weapon.craterPowerScale, weapon.craterMin, weapon.craterMax)),
     x: Math.round(clamp(input.impactPoint.x, 0, input.level.width)),
     y: Math.round(clamp(input.impactPoint.y, 0, input.level.height + 120))
   } satisfies RaveWarTerrainCrater;
@@ -576,8 +666,8 @@ function appendTerrainCrater(craters: RaveWarTerrainCrater[], crater: RaveWarTer
   return crater ? [...craters, crater].slice(-maxTerrainCraters) : craters;
 }
 
-function shotDamageForDistance(distance: number) {
-  return distance <= explosionRadius ? Math.max(10, Math.round((1 - distance / explosionRadius) * 72)) : 0;
+function shotDamageForDistance(distance: number, weapon: RaveWarWeaponConfig) {
+  return distance <= weapon.blastRadius ? Math.max(10, Math.round((1 - distance / weapon.blastRadius) * weapon.maxDamage)) : 0;
 }
 
 export async function createRaveWarChallenge(roomId: string, challengerId: string, targetUserId: string) {
@@ -838,9 +928,6 @@ export async function getPendingRaveWarChallenges(userId: string) {
 
   const wars = await prisma.raveWar.findMany({
     where: {
-      expiresAt: {
-        gt: new Date()
-      },
       OR: [
         {
           challengerId: userId
@@ -849,7 +936,9 @@ export async function getPendingRaveWarChallenges(userId: string) {
           targetId: userId
         }
       ],
-      status: "pending"
+      status: {
+        in: ["pending", "active"]
+      }
     },
     include: {
       participants: {
@@ -889,12 +978,22 @@ export async function acceptRaveWarChallenge(warId: string, userId: string) {
 
   const level = getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
+  const now = new Date();
+  const nextTurnWindow = turnWindow(now);
   const activeState = {
     ...state,
     activeUserId: war.challengerId,
-    log: compactLog([...state.log, "Challenge accepted. Rave War started."])
+    log: compactLog([...state.log, "Challenge accepted. Rave War started."]),
+    players: state.players.map((player) =>
+      player.userId === war.challengerId
+        ? {
+            ...player,
+            movementLeft: raveWarTurnMovement
+          }
+        : player
+    ),
+    ...nextTurnWindow
   } satisfies RaveWarState;
-  const now = new Date();
   const result = await prisma.$transaction(async (tx) => {
     await tx.raveWarParticipant.update({
       where: {
@@ -1087,6 +1186,109 @@ export async function cancelRaveWarChallenge(warId: string, userId: string) {
   return toWarSummary(result.war, userId);
 }
 
+export async function moveRaveWarPlayer(warId: string, userId: string, input: { direction: unknown }) {
+  const war = await getWarForUserRecord(warId, userId);
+
+  if (!war) {
+    throw new Error("Rave War not found.");
+  }
+
+  if (war.status !== "active") {
+    throw new Error("That Rave War is not active.");
+  }
+
+  if (war.turnUserId !== userId) {
+    throw new Error("Wait for your Rave War turn.");
+  }
+
+  const direction = input.direction === "left" ? "left" : input.direction === "right" ? "right" : null;
+
+  if (!direction) {
+    throw new Error("Choose a valid movement direction.");
+  }
+
+  const level = getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
+
+  if (isTurnExpired(state)) {
+    throw new Error("Your Rave War turn timer expired.");
+  }
+
+  const mover = state.players.find((player) => player.userId === userId);
+
+  if (!mover || mover.health <= 0) {
+    throw new Error("Rave War player is not ready.");
+  }
+
+  if (mover.movementLeft <= 0) {
+    throw new Error("No movement left this turn.");
+  }
+
+  const directionAmount = direction === "left" ? -1 : 1;
+  const step = Math.min(raveWarMoveStep, mover.movementLeft);
+  const nextX = Math.round(clamp(mover.x + directionAmount * step, 42, level.width - 42));
+  const distanceMoved = Math.abs(nextX - mover.x);
+  const nextPlayers = state.players.map((player) => {
+    if (player.userId !== userId) {
+      return player;
+    }
+
+    return settlePlayerOnTerrain(level, state.craters, {
+      ...player,
+      facing: direction,
+      movementLeft: Math.max(0, player.movementLeft - distanceMoved),
+      x: nextX
+    });
+  });
+  const nextState: RaveWarState = {
+    ...state,
+    log: compactLog([...state.log, `${mover.displayName} moved ${direction}.`]),
+    players: nextPlayers
+  };
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedWar = await tx.raveWar.update({
+      where: {
+        id: warId
+      },
+      data: {
+        state: nextState as Prisma.InputJsonValue
+      },
+      include: {
+        participants: {
+          orderBy: {
+            playerIndex: "asc"
+          }
+        },
+        room: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }
+      }
+    });
+    const event = await writeWarEvent(tx, {
+      payload: {
+        direction,
+        x: nextX
+      },
+      type: "player.moved",
+      userId,
+      warId
+    });
+
+    return {
+      event,
+      war: updatedWar
+    };
+  });
+
+  await publishRaveWarChanged(warId, result.event.id);
+
+  return toWarSummary(result.war, userId);
+}
+
 function simulateShot(input: {
   angle: number;
   craters: RaveWarTerrainCrater[];
@@ -1094,10 +1296,12 @@ function simulateShot(input: {
   power: number;
   shooter: RaveWarPlayerState;
   target: RaveWarPlayerState;
+  weaponId: RaveWarWeaponId;
 }) {
+  const weapon = raveWarWeaponConfigs[input.weaponId];
   const radians = (input.angle * Math.PI) / 180;
   const direction = input.shooter.facing === "left" ? -1 : 1;
-  const speed = 10 + input.power * 0.35;
+  const speed = weapon.speedBase + input.power * weapon.speedPowerScale;
   let x = input.shooter.x + direction * 30;
   let y = input.shooter.y - 46;
   const vx = Math.cos(radians) * speed * direction;
@@ -1110,12 +1314,12 @@ function simulateShot(input: {
   };
   const path: Array<{ x: number; y: number }> = [];
 
-  for (let step = 0; step < projectileStepLimit; step += 1) {
+  for (let step = 0; step < weapon.projectileStepLimit; step += 1) {
     x += vx;
     y += vy;
-    vy += projectileGravity;
+    vy += weapon.gravity;
 
-    if (step % 2 === 0) {
+    if (step % weapon.pathStep === 0) {
       path.push({
         x: Math.round(x),
         y: Math.round(y)
@@ -1126,7 +1330,7 @@ function simulateShot(input: {
 
     closestDistance = Math.min(closestDistance, distance);
 
-    if (distance <= hogHitRadius) {
+    if (distance <= weapon.hitRadius) {
       impactKind = "hog";
       impactPoint = {
         x,
@@ -1155,7 +1359,7 @@ function simulateShot(input: {
   }
 
   const impactDistance = Math.hypot(impactPoint.x - input.target.x, impactPoint.y - (input.target.y - 34));
-  const damage = shotDamageForDistance(impactKind === "out-of-bounds" ? closestDistance : impactDistance);
+  const damage = shotDamageForDistance(impactKind === "out-of-bounds" ? closestDistance : impactDistance, weapon);
   const normalizedImpactPoint = {
     x: Math.round(impactPoint.x),
     y: Math.round(impactPoint.y)
@@ -1164,11 +1368,12 @@ function simulateShot(input: {
     impactKind,
     impactPoint: normalizedImpactPoint,
     level: input.level,
-    power: input.power
+    power: input.power,
+    weaponId: input.weaponId
   });
 
   return {
-    blastRadius: explosionRadius,
+    blastRadius: weapon.blastRadius,
     crater,
     damage,
     distance: Math.round(impactKind === "out-of-bounds" ? closestDistance : impactDistance),
@@ -1178,7 +1383,7 @@ function simulateShot(input: {
   };
 }
 
-export async function fireRaveWarShot(warId: string, userId: string, input: { angle: unknown; power: unknown }) {
+export async function fireRaveWarShot(warId: string, userId: string, input: { angle: unknown; power: unknown; weaponId?: unknown }) {
   const war = await getWarForUserRecord(warId, userId);
 
   if (!war) {
@@ -1195,6 +1400,11 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
 
   const level = getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
+
+  if (isTurnExpired(state)) {
+    throw new Error("Your Rave War turn timer expired.");
+  }
+
   const shooter = state.players.find((player) => player.userId === userId);
   const target = state.players.find((player) => player.userId !== userId && player.health > 0);
 
@@ -1204,13 +1414,15 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
 
   const angle = normalizeShotNumber(input.angle, shooter.angle, 0, 90);
   const power = normalizeShotNumber(input.power, shooter.power, 10, 100);
+  const weaponId = normalizeWeaponId(input.weaponId ?? shooter.selectedWeapon);
   const shot = simulateShot({
     angle,
     craters: state.craters,
     level,
     power,
     shooter,
-    target
+    target,
+    weaponId
   });
   const nextCraters = appendTerrainCrater(state.craters, shot.crater);
   const damagedPlayers = state.players.map((player) => {
@@ -1218,7 +1430,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
       return {
         ...player,
         angle,
-        power
+        power,
+        selectedWeapon: weaponId
       };
     }
 
@@ -1231,11 +1444,20 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
 
     return player;
   });
-  const nextPlayers = settlePlayersOnTerrain(level, nextCraters, damagedPlayers);
-  const updatedTarget = nextPlayers.find((player) => player.userId === target.userId);
+  const settledPlayers = settlePlayersOnTerrain(level, nextCraters, damagedPlayers);
+  const updatedTarget = settledPlayers.find((player) => player.userId === target.userId);
   const winnerUserId = updatedTarget && updatedTarget.health <= 0 ? shooter.userId : null;
+  const nextPlayers = settledPlayers.map((player) =>
+    !winnerUserId && player.userId === target.userId
+      ? {
+          ...player,
+          movementLeft: raveWarTurnMovement
+        }
+      : player
+  );
   const activeUserId = winnerUserId ? null : target.userId;
   const firedAt = new Date().toISOString();
+  const nextTurnWindow = winnerUserId ? { turnEndsAt: null, turnStartedAt: null } : turnWindow(new Date(firedAt));
   const lastShot: RaveWarLastShot = {
     angle,
     blastRadius: shot.blastRadius,
@@ -1248,7 +1470,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     path: shot.path,
     power,
     shooterUserId: shooter.userId,
-    targetUserId: target.userId
+    targetUserId: target.userId,
+    weaponId
   };
   const nextState: RaveWarState = {
     ...state,
@@ -1264,6 +1487,7 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
           : `${shooter.displayName} fired and missed.`
     ]),
     players: nextPlayers,
+    ...nextTurnWindow,
     turnNumber: state.turnNumber + 1,
     winnerUserId
   };
@@ -1346,6 +1570,8 @@ export async function surrenderRaveWar(warId: string, userId: string) {
     ...state,
     activeUserId: null,
     log: compactLog([...state.log, `${state.players.find((player) => player.userId === userId)?.displayName ?? "A raver"} surrendered.`]),
+    turnEndsAt: null,
+    turnStartedAt: null,
     winnerUserId: winner.userId
   };
   const result = await prisma.$transaction(async (tx) => {

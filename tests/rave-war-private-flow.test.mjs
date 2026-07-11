@@ -17,8 +17,12 @@ test("rave war stream and action routes require the current signed-in participan
 
   assert.match(streamRoute, /getCurrentUser/);
   assert.match(streamRoute, /getRaveWarForUser\(warId, currentUserId\)/);
+  assert.match(streamRoute, /player\.x/);
+  assert.match(streamRoute, /player\.movementLeft/);
+  assert.match(streamRoute, /war\.state\.craters/);
   assert.match(actionRoute, /getCurrentUser/);
   assert.match(actionRoute, /fireRaveWarShot\(warId, user\.id/);
+  assert.match(actionRoute, /moveRaveWarPlayer\(warId, user\.id/);
   assert.match(actionRoute, /surrenderRaveWar\(warId, user\.id\)/);
 });
 
@@ -62,18 +66,44 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");
 
   assert.match(types, /export type RaveWarTerrainCrater/);
+  assert.match(types, /export const raveWarWeaponIds/);
   assert.match(types, /craters: RaveWarTerrainCrater\[\]/);
   assert.match(types, /blastRadius: number/);
+  assert.match(types, /turnEndsAt: string \| null/);
   assert.match(service, /appendTerrainCrater/);
   assert.match(service, /terrainSurfaceY\(level, craters/);
+  assert.match(service, /moveRaveWarPlayer/);
+  assert.match(service, /raveWarWeaponConfigs/);
   assert.match(service, /settlePlayersOnTerrain/);
   assert.match(service, /craters: nextCraters/);
+  assert.match(game, /mask id=\{terrainMaskId\}/);
   assert.match(game, /war\.state\.craters\.map/);
   assert.match(game, /onKeyDown=\{handleBattlefieldKeyDown\}/);
-  assert.match(game, /raveWarAssets\.hedgehog/);
+  assert.match(game, /bc-rave-war-hog-frame/);
+  assert.match(game, /moveCurrentPlayer/);
+  assert.match(game, /selectedWeapon/);
   assert.match(game, /raveWarAssets\.shell/);
   assert.match(game, /raveWarAssets\.explosion/);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/hedgehog.png")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/hedgehog-idle.png")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/bazooka-shell.png")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/big-explosion.png")), true);
+});
+
+test("rave war prompts auto open accepted wars and leave an active reopen button", () => {
+  const overlay = readFileSync(join(process.cwd(), "src/components/rave-wars/rave-war-challenge-overlay.tsx"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+
+  assert.match(service, /in: \["pending", "active"\]/);
+  assert.match(overlay, /rave-war-opened:/);
+  assert.match(overlay, /window\.location\.assign\(`\/rave-wars\/\$\{activeChallenge\.id\}`\)/);
+  assert.match(overlay, /Open Battle/);
+});
+
+test("ci workflow uses node24-compatible official actions", () => {
+  const workflow = readFileSync(join(process.cwd(), ".github/workflows/ci.yml"), "utf8");
+
+  assert.match(workflow, /actions\/checkout@v5/);
+  assert.match(workflow, /actions\/setup-node@v5/);
+  assert.match(workflow, /node-version: 24/);
 });

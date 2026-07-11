@@ -29,11 +29,17 @@ function encodeServerComment(comment: string) {
 function warSignature(war: RaveWarSummary) {
   return JSON.stringify({
     endedAt: war.endedAt,
+    craters: war.state.craters,
     lastShot: war.state.lastShot,
     log: war.state.log,
-    players: war.state.players.map((player) => `${player.userId}:${player.health}:${player.angle}:${player.power}`),
+    players: war.state.players.map(
+      (player) =>
+        `${player.userId}:${player.health}:${player.angle}:${player.power}:${player.x}:${player.y}:${player.facing}:${player.movementLeft}:${player.selectedWeapon}`
+    ),
     status: war.status,
+    turnEndsAt: war.state.turnEndsAt,
     turnNumber: war.state.turnNumber,
+    turnStartedAt: war.state.turnStartedAt,
     turnUserId: war.turnUserId,
     winnerUserId: war.winnerUserId
   });

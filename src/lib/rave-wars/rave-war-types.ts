@@ -4,14 +4,20 @@ export const raveWarStatuses = ["pending", "active", "declined", "cancelled", "e
 
 export type RaveWarStatus = (typeof raveWarStatuses)[number];
 
+export const raveWarWeaponIds = ["bazooka", "grenade", "shotgun"] as const;
+
+export type RaveWarWeaponId = (typeof raveWarWeaponIds)[number];
+
 export type RaveWarPlayerState = {
   angle: number;
   color: string;
   displayName: string;
   facing: "left" | "right";
   health: number;
+  movementLeft: number;
   playerIndex: number;
   power: number;
+  selectedWeapon: RaveWarWeaponId;
   userId: string;
   x: number;
   y: number;
@@ -41,6 +47,7 @@ export type RaveWarLastShot = {
   power: number;
   shooterUserId: string;
   targetUserId: string;
+  weaponId: RaveWarWeaponId;
 };
 
 export type RaveWarState = {
@@ -50,7 +57,9 @@ export type RaveWarState = {
   levelKey: string;
   log: string[];
   players: RaveWarPlayerState[];
+  turnEndsAt: string | null;
   turnNumber: number;
+  turnStartedAt: string | null;
   version: 1;
   winnerUserId: string | null;
 };
