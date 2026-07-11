@@ -45,6 +45,10 @@ model User {
   chatBansCreated         ChatBan[]                   @relation("ChatBanCreatedBy")
   chatBansRevoked         ChatBan[]                   @relation("ChatBanRevokedBy")
   chatReactions           ChatReaction[]
+  raveWarsChallenged      RaveWar[]                   @relation("RaveWarChallenger")
+  raveWarsTargeted        RaveWar[]                   @relation("RaveWarTarget")
+  raveWarParticipants     RaveWarParticipant[]
+  raveWarEvents           RaveWarEvent[]
   prizeClaims             PrizeClaim[]                @relation("PrizeClaimUser")
   prizeClaimsResolved     PrizeClaim[]                @relation("PrizeClaimResolvedBy")
   invitesCreated          UserInvite[]                @relation("UserInviteCreatedBy")
@@ -448,7 +452,73 @@ model ChatRoom {
   reports         ChatReport[]
   bans            ChatBan[]
   starSends       StarSend[]
+  raveWars        RaveWar[]
   createdAt       DateTime      @default(now())
+}
+
+model RaveWar {
+  id            String               @id @default(cuid())
+  roomId        String
+  challengerId  String
+  targetId      String
+  levelKey      String               @default("bazooka-battlefield")
+  status        String               @default("pending")
+  seed          String
+  turnUserId    String?
+  winnerUserId  String?
+  state         Json
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  startedAt     DateTime?
+  endedAt       DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  room          ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  challenger    User                 @relation("RaveWarChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  target        User                 @relation("RaveWarTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  participants  RaveWarParticipant[]
+  events        RaveWarEvent[]
+
+  @@index([roomId, createdAt])
+  @@index([challengerId, createdAt])
+  @@index([targetId, createdAt])
+  @@index([status, expiresAt])
+  @@index([turnUserId])
+  @@index([winnerUserId])
+}
+
+model RaveWarParticipant {
+  id                  String    @id @default(cuid())
+  warId               String
+  userId              String
+  playerIndex         Int
+  displayNameSnapshot String
+  acceptedAt          DateTime?
+  lastSeenAt          DateTime?
+  createdAt           DateTime  @default(now())
+  war                 RaveWar   @relation(fields: [warId], references: [id], onDelete: Cascade)
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([warId, userId])
+  @@unique([warId, playerIndex])
+  @@index([userId, createdAt])
+}
+
+model RaveWarEvent {
+  id        String   @id @default(cuid())
+  warId     String
+  userId    String?
+  type      String
+  payload   Json?
+  sequence  Int
+  createdAt DateTime @default(now())
+  war       RaveWar  @relation(fields: [warId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([warId, sequence])
+  @@index([warId, createdAt])
+  @@index([userId])
+  @@index([type])
 }
 
 model ChatSheepThrow {

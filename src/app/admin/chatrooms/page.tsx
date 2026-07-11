@@ -5,15 +5,17 @@ import { requireUserPermission } from "@/lib/auth/guards";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAdminChatroomsData } from "@/lib/chat/chat-service";
 import { getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
+import { getRaveWarSettings } from "@/lib/rave-wars/rave-war-service";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminChatroomsPage() {
   await requireUserPermission("moderation.use");
-  const [{ rooms, messages, sheepThrows }, roleDisplayLabels, sheepSettings] = await Promise.all([
+  const [{ rooms, messages, sheepThrows }, roleDisplayLabels, sheepSettings, raveWarSettings] = await Promise.all([
     getAdminChatroomsData(),
     getRoleDisplayNameOverrides(),
-    getSheepThrowSettings()
+    getSheepThrowSettings(),
+    getRaveWarSettings()
   ]);
   const roomRows: AdminChatRoomRow[] = rooms.map((room) => ({
     id: room.id,
@@ -58,6 +60,7 @@ export default async function AdminChatroomsPage() {
     >
       <AdminChatroomsPanel
         messages={messageRows}
+        raveWarSettings={raveWarSettings}
         roleDisplayLabels={roleDisplayLabels}
         rooms={roomRows}
         sheepSettings={sheepSettings}

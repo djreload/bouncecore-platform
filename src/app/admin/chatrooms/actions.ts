@@ -11,6 +11,7 @@ import {
   type ChatRoomInput
 } from "@/lib/chat/chat-service";
 import { updateSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
+import { updateRaveWarSettings } from "@/lib/rave-wars/rave-war-service";
 import { chatRoomTypeOptions, type ChatRoomType } from "@/lib/chat/chat-types";
 import type { AdminChatroomsActionState } from "@/app/admin/chatrooms/state";
 
@@ -140,6 +141,24 @@ export async function adminChatroomsAction(
       return {
         status: "success",
         message: "Sheep throw settings updated."
+      };
+    }
+
+    if (intent === "rave-war-settings") {
+      await updateRaveWarSettings(
+        {
+          enabled: formString(formData, "enabled") === "true",
+          challengeTtlMinutes: formString(formData, "challengeTtlMinutes"),
+          cooldownMinutes: formString(formData, "cooldownMinutes"),
+          costStars: formString(formData, "costStars")
+        },
+        actor.id
+      );
+      revalidateChatViews();
+
+      return {
+        status: "success",
+        message: "Rave War settings updated."
       };
     }
 

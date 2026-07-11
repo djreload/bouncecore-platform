@@ -33,6 +33,7 @@ import {
   Smile,
   Sparkles,
   Star,
+  Swords,
   Target,
   Timer,
   Trash2,
@@ -58,6 +59,11 @@ import {
 } from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
 import {
+  defaultRaveWarSettings,
+  formatRaveWarCooldownLabel,
+  type RaveWarSettings
+} from "@/lib/rave-wars/rave-war-settings";
+import {
   initialPublicChatActionState,
   type PublicChatActionState,
   type PublicChatAssetRow,
@@ -75,6 +81,9 @@ type ChatRoomPanelProps = {
   presenceUsers?: PublicChatPresenceUserRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
+  raveWarEffectiveCostStars?: number;
+  raveWarRemainingCooldownSeconds?: number;
+  raveWarSettings?: RaveWarSettings;
   sheepFreeThrowAvailable?: boolean;
   sheepRemainingCooldownSeconds?: number;
   sheepSettings?: SheepThrowSettings;
@@ -149,6 +158,8 @@ const inlineBanDurationOptions = [
   { label: "Permanent", value: "permanent" }
 ] as const;
 const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
+const messageActionButtonClass =
+  "bc-focus-ring inline-flex min-h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:pointer-events-none disabled:opacity-50";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(
@@ -224,11 +235,14 @@ function formatPresenceLastActive(value: string) {
 function ChatPresenceRail({
   availableThrowSprites,
   currentUserCanThrowSheep,
+  currentUserCanStartRaveWars,
   currentUserId,
   defaultThrowSprite,
   formAction,
   open,
   pending,
+  raveWarDisabledReason,
+  raveWarStatusLabel,
   roleDisplayLabels,
   roomId,
   roomLockedForUser,
@@ -239,11 +253,14 @@ function ChatPresenceRail({
 }: {
   availableThrowSprites: SheepThrowSprite[];
   currentUserCanThrowSheep: boolean;
+  currentUserCanStartRaveWars: boolean;
   currentUserId: string | null;
   defaultThrowSprite: SheepThrowSprite | undefined;
   formAction: ChatFormAction;
   open: boolean;
   pending: boolean;
+  raveWarDisabledReason: string | null;
+  raveWarStatusLabel: string;
   roleDisplayLabels: RoleDisplayNameMap;
   roomId: string | null;
   roomLockedForUser: boolean;
@@ -287,11 +304,13 @@ function ChatPresenceRail({
             <div className="grid gap-2">
               {users.map((user) => {
                 const canShowThrowAction = Boolean(currentUserCanThrowSheep && currentUserId && roomId && user.id !== currentUserId);
+                const canShowRaveWarAction = Boolean(currentUserCanStartRaveWars && currentUserId && roomId && user.id !== currentUserId);
                 const throwDisabled =
                   pending ||
                   roomLockedForUser ||
                   user.status !== "online" ||
                   Boolean(sheepThrowDisabledReason);
+                const raveWarDisabled = pending || roomLockedForUser || user.status !== "online" || Boolean(raveWarDisabledReason);
 
                 return (
                   <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
@@ -329,6 +348,28 @@ function ChatPresenceRail({
                           </Badge>
                         ))}
                       </div>
+                    ) : null}
+                    {canShowRaveWarAction ? (
+                      <form action={formAction} className="mt-2">
+                        <input name="intent" type="hidden" value="rave-war" />
+                        <input name="roomId" type="hidden" value={roomId ?? ""} />
+                        <input name="targetUserId" type="hidden" value={user.id} />
+                        <Button
+                          className="w-full min-h-7 px-2 text-[11px]"
+                          disabled={raveWarDisabled}
+                          size="sm"
+                          title={
+                            user.status !== "online"
+                              ? "User must be online and active."
+                              : raveWarDisabledReason ?? `Start a private Rave War for ${raveWarStatusLabel}`
+                          }
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Swords className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
+                          Rave War
+                        </Button>
+                      </form>
                     ) : null}
                     {canShowThrowAction ? (
                       <form
@@ -399,6 +440,9 @@ export function ChatRoomPanel({
   presenceUsers = [],
   currentUser,
   currentStarBalance = 0,
+  raveWarEffectiveCostStars,
+  raveWarRemainingCooldownSeconds = 0,
+  raveWarSettings = defaultRaveWarSettings,
   sheepFreeThrowAvailable = false,
   sheepRemainingCooldownSeconds = 0,
   sheepSettings = defaultSheepThrowSettings,
@@ -454,8 +498,18 @@ export function ChatRoomPanel({
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
+  const currentUserCanStartRaveWars = Boolean(currentUser && raveWarSettings.enabled);
   const availableThrowSprites = useMemo(() => getAvailableSheepThrowSprites(sheepSettings), [sheepSettings]);
   const defaultThrowSprite = availableThrowSprites[0];
+  const effectiveRaveWarCostStars = raveWarEffectiveCostStars ?? raveWarSettings.costStars;
+  const raveWarDisabledReason = !raveWarSettings.enabled
+    ? "Rave Wars are disabled."
+    : raveWarRemainingCooldownSeconds > 0
+      ? `Rave War cooldown: ${formatRaveWarCooldownLabel(raveWarRemainingCooldownSeconds)}.`
+      : effectiveRaveWarCostStars > currentStarBalance
+        ? `You need ${effectiveRaveWarCostStars.toLocaleString("en-GB")} stars to start a Rave War.`
+        : null;
+  const raveWarStatusLabel = effectiveRaveWarCostStars > 0 ? `${effectiveRaveWarCostStars.toLocaleString("en-GB")} stars` : "free";
   const effectiveSheepCostStars = localSheepFreeThrowAvailable ? 0 : sheepSettings.costStars;
   const currentUserCanAffordSheep = localStarBalance >= effectiveSheepCostStars;
   const sheepThrowCostLabel = localSheepFreeThrowAvailable
@@ -1051,11 +1105,14 @@ export function ChatRoomPanel({
         <ChatPresenceRail
           availableThrowSprites={availableThrowSprites}
           currentUserCanThrowSheep={currentUserCanThrowSheep}
+          currentUserCanStartRaveWars={currentUserCanStartRaveWars}
           currentUserId={currentUser?.id ?? null}
           defaultThrowSprite={defaultThrowSprite}
           formAction={formAction}
           open={presenceRailOpen}
           pending={pending}
+          raveWarDisabledReason={raveWarDisabledReason}
+          raveWarStatusLabel={raveWarStatusLabel}
           roleDisplayLabels={roleDisplayLabels}
           roomId={selectedRoom?.id ?? null}
           roomLockedForUser={roomLockedForUser}
@@ -1151,6 +1208,13 @@ export function ChatRoomPanel({
             const canThrowAtMessageAuthor = Boolean(
               canUseMessageActions &&
                 currentUserCanThrowSheep &&
+                message.authorUserId &&
+                message.authorUserId !== currentUser?.id &&
+                onlinePresenceUserIds.has(message.authorUserId)
+            );
+            const canStartRaveWarAtMessageAuthor = Boolean(
+              canUseMessageActions &&
+                currentUserCanStartRaveWars &&
                 message.authorUserId &&
                 message.authorUserId !== currentUser?.id &&
                 onlinePresenceUserIds.has(message.authorUserId)
@@ -1361,67 +1425,86 @@ export function ChatRoomPanel({
 
                 {messageActionsOpen && selectedRoom ? (
                   <div className="mt-2 space-y-2 rounded-md border border-bc-line bg-bc-panel/85 p-2">
-                    <button
-                      className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
-                      onClick={() => startReplyToMessage(message)}
-                      type="button"
-                    >
-                      <Reply className="h-3.5 w-3.5" aria-hidden="true" />
-                      Reply
-                    </button>
-                    {canEditOwnMessage ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
-                        className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
-                        onClick={() => startEditingChatMessage(message)}
+                        className={messageActionButtonClass}
+                        onClick={() => startReplyToMessage(message)}
                         type="button"
                       >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                        Edit
+                        <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+                        Reply
                       </button>
-                    ) : null}
-                    {canThrowAtMessageAuthor ? (
-                      <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
-                        <input name="intent" type="hidden" value="sheep" />
-                        <input name="roomId" type="hidden" value={selectedRoom.id} />
-                        <input name="messageId" type="hidden" value={message.id} />
-                        {availableThrowSprites.length > 1 ? (
-                          <select
-                            className="min-h-7 max-w-[9rem] rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white"
-                            defaultValue={defaultThrowSprite?.id}
+
+                      {canStartRaveWarAtMessageAuthor ? (
+                        <form action={formAction} className="inline-flex">
+                          <input name="intent" type="hidden" value="rave-war" />
+                          <input name="roomId" type="hidden" value={selectedRoom.id} />
+                          <input name="targetUserId" type="hidden" value={message.authorUserId ?? ""} />
+                          <button
+                            className={messageActionButtonClass}
+                            disabled={pending || roomLockedForUser || Boolean(raveWarDisabledReason)}
+                            title={raveWarDisabledReason ?? `Start a private Rave War for ${raveWarStatusLabel}`}
+                            type="submit"
+                          >
+                            <Swords className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
+                            Rave War
+                          </button>
+                        </form>
+                      ) : null}
+
+                      {canThrowAtMessageAuthor ? (
+                        <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
+                          <input name="intent" type="hidden" value="sheep" />
+                          <input name="roomId" type="hidden" value={selectedRoom.id} />
+                          <input name="messageId" type="hidden" value={message.id} />
+                          {availableThrowSprites.length > 1 ? (
+                            <select
+                              className="min-h-7 max-w-[9rem] rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white"
+                              defaultValue={defaultThrowSprite?.id}
+                              disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
+                              name="throwSpriteId"
+                              title="Choose what to throw"
+                            >
+                              {availableThrowSprites.map((sprite) => (
+                                <option key={sprite.id} value={sprite.id}>
+                                  {sprite.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
+                          )}
+                          <button
+                            className={messageActionButtonClass}
                             disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
-                            name="throwSpriteId"
-                            title="Choose what to throw"
+                            title={sheepThrowDisabledReason ?? `Throw for ${sheepThrowCostLabel}`}
+                            type="submit"
                           >
-                            {availableThrowSprites.map((sprite) => (
-                              <option key={sprite.id} value={sprite.id}>
-                                {sprite.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
-                        )}
-                        <Button
-                          className="min-h-7 px-2 text-xs"
-                          disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
-                          size="sm"
-                          title={sheepThrowDisabledReason ?? `Throw for ${sheepThrowCostLabel}`}
-                          type="submit"
-                          variant="ghost"
+                            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                            {availableThrowSprites.length > 1 ? "Throw" : `Throw ${(defaultThrowSprite?.label ?? "sheep").toLowerCase()}`}
+                            <span
+                              className={cn(
+                                "rounded-full px-1.5 py-0.5 text-[10px] font-black",
+                                sheepThrowDisabledReason ? "bg-bc-muted/15 text-bc-muted" : "bg-bc-acid/15 text-bc-acid"
+                              )}
+                            >
+                              {sheepThrowStatusLabel}
+                            </span>
+                          </button>
+                        </form>
+                      ) : null}
+
+                      {canEditOwnMessage ? (
+                        <button
+                          className={messageActionButtonClass}
+                          onClick={() => startEditingChatMessage(message)}
+                          type="button"
                         >
-                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                          {availableThrowSprites.length > 1 ? "Throw" : `Throw ${(defaultThrowSprite?.label ?? "sheep").toLowerCase()}`}
-                          <span
-                            className={cn(
-                              "rounded-full px-1.5 py-0.5 text-[10px] font-black",
-                              sheepThrowDisabledReason ? "bg-bc-muted/15 text-bc-muted" : "bg-bc-acid/15 text-bc-acid"
-                            )}
-                          >
-                            {sheepThrowStatusLabel}
-                          </span>
-                        </Button>
-                      </form>
-                    ) : null}
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
                     <div>
                       <p className="text-[11px] font-black uppercase text-bc-muted">Reactions</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">

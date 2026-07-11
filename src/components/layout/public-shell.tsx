@@ -5,6 +5,7 @@ import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { SheepThrowOverlay } from "@/components/chat/sheep-throw-overlay";
 import { NavList } from "@/components/navigation/nav-list";
 import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
+import { RaveWarChallengeOverlay } from "@/components/rave-wars/rave-war-challenge-overlay";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
 import type { NavigationItem } from "@/config/navigation";
@@ -89,6 +90,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
       </header>
       <StarSupportOverlay />
       <SheepThrowOverlay />
+      <RaveWarChallengeOverlay />
       {children}
       <footer
         className={`${hideFooterOnMobile ? "hidden lg:block" : ""} bc-site-footer border-t border-bc-line bg-bc-ink`}
