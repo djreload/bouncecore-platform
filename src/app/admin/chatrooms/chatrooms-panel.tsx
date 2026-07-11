@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
 import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
-import type { SheepThrowSettings, SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
+import { defaultSheepThrowSprite, type SheepThrowSettings, type SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
 import type { RaveWarSettings } from "@/lib/rave-wars/rave-war-settings";
 import {
   initialAdminChatroomsActionState,
@@ -115,6 +115,9 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
     adminChatroomsAction,
     initialAdminChatroomsActionState
   );
+  const [defaultSpriteRow, setDefaultSpriteRow] = useState<SpriteFormRow>(() =>
+    toSpriteFormRow(sheepSettings.sprites.find((sprite) => sprite.id === "sheep") ?? sheepSettings.sprites[0] ?? defaultSheepThrowSprite)
+  );
   const [spriteRows, setSpriteRows] = useState<SpriteFormRow[]>(() => {
     const customRows = sheepSettings.sprites.filter((sprite) => sprite.id !== "sheep").map(toSpriteFormRow);
     const blankRows = Array.from({ length: Math.max(2, 4 - customRows.length) }, () => blankSpriteFormRow());
@@ -124,8 +127,9 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
   const [spriteUploadMessage, setSpriteUploadMessage] = useState<string | null>(null);
   const [uploadingSpriteIndex, setUploadingSpriteIndex] = useState<number | null>(null);
   const [uploadingSoundIndex, setUploadingSoundIndex] = useState<number | null>(null);
+  const [uploadingDefaultSound, setUploadingDefaultSound] = useState(false);
   const visibleMessages = messages.filter((message) => !message.deletedAt).length;
-  const defaultSprite = sheepSettings.sprites.find((sprite) => sprite.id === "sheep") ?? sheepSettings.sprites[0];
+  const defaultSprite = sheepSettings.sprites.find((sprite) => sprite.id === "sheep") ?? sheepSettings.sprites[0] ?? defaultSheepThrowSprite;
 
   function updateSpriteRow(index: number, patch: Partial<SpriteFormRow>) {
     setSpriteRows((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
@@ -133,6 +137,43 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
 
   function removeSpriteRow(index: number) {
     setSpriteRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+  }
+
+  async function uploadDefaultImpactSound(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const uploadForm = new FormData();
+
+    uploadForm.set("kind", "throw-sound");
+    uploadForm.set("file", file);
+    setUploadingDefaultSound(true);
+    setSpriteUploadMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/uploads", {
+        method: "POST",
+        body: uploadForm
+      });
+      const payload = (await response.json()) as { url?: string; error?: string };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error ?? "Default impact sound upload failed.");
+      }
+
+      const uploadedUrl = payload.url;
+
+      setDefaultSpriteRow((row) => ({ ...row, impactSoundUrl: uploadedUrl }));
+      setSpriteUploadMessage("Default sheep impact sound uploaded. Save the sheep throw settings to publish it.");
+    } catch (error) {
+      setSpriteUploadMessage(error instanceof Error ? error.message : "Default impact sound upload failed.");
+    } finally {
+      setUploadingDefaultSound(false);
+      event.target.value = "";
+    }
   }
 
   async function uploadSpriteSheet(index: number, event: ChangeEvent<HTMLInputElement>) {
@@ -512,12 +553,50 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
 
             {defaultSprite ? (
               <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <input name="spriteId" type="hidden" value="sheep" />
+                <input name="spriteLabel" type="hidden" value={defaultSpriteRow.label} />
+                <input name="spriteSheetUrl" type="hidden" value={defaultSpriteRow.spriteSheetUrl} />
+                <input name="spriteEnabled" type="hidden" value={defaultSpriteRow.enabled ? "true" : "false"} />
+                <input name="spriteFrameCount" type="hidden" value={defaultSpriteRow.frameCount} />
+                <input name="spriteColumns" type="hidden" value={defaultSpriteRow.columns} />
+                <input name="spriteRows" type="hidden" value={defaultSpriteRow.rows} />
+                <input name="spriteFrameWidth" type="hidden" value={defaultSpriteRow.frameWidth} />
+                <input name="spriteFrameHeight" type="hidden" value={defaultSpriteRow.frameHeight} />
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="acid">Default</Badge>
                   <span className="font-black">{defaultSprite.label}</span>
                   <span className="text-bc-muted">{defaultSprite.frameCount} frames</span>
                 </div>
                 <p className="mt-2 break-all text-xs text-bc-muted">{defaultSprite.spriteSheetUrl}</p>
+                <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(220px,1fr)_auto]">
+                  <div>
+                    <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="default-sheep-impact-sound">
+                      Default sheep impact sound
+                    </label>
+                    <input
+                      className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      id="default-sheep-impact-sound"
+                      name="spriteImpactSoundUrl"
+                      onChange={(event) => setDefaultSpriteRow((row) => ({ ...row, impactSoundUrl: event.target.value }))}
+                      placeholder="/uploads/throw-sounds/..."
+                      value={defaultSpriteRow.impactSoundUrl}
+                    />
+                    <p className="mt-1 text-xs text-bc-muted">This sound plays when the built-in Sheep throwable splats.</p>
+                  </div>
+                  <div className="flex items-end">
+                    <label className="bc-focus-ring inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-black text-white transition hover:border-bc-electric/60">
+                      <Volume2 className="h-4 w-4" aria-hidden="true" />
+                      {uploadingDefaultSound ? "Uploading" : "Sound"}
+                      <input
+                        accept=".mp3,.wav,.ogg,.oga,.webm,.m4a,.aac,audio/mpeg,audio/wav,audio/ogg,audio/webm,audio/mp4,audio/aac"
+                        className="sr-only"
+                        disabled={uploadingDefaultSound}
+                        onChange={(event) => void uploadDefaultImpactSound(event)}
+                        type="file"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
             ) : null}
 

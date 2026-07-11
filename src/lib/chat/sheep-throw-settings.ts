@@ -212,6 +212,7 @@ function normalizeSprite(value: unknown, index: number): SheepThrowSprite | null
   if (id === defaultSheepThrowSprite.id) {
     return {
       ...defaultSheepThrowSprite,
+      impactSoundUrl: normalizeImpactSoundUrl(record.impactSoundUrl, "Default sheep impact sound"),
       enabled: typeof record.enabled === "boolean" ? record.enabled : defaultSheepThrowSprite.enabled
     };
   }
@@ -232,10 +233,12 @@ function normalizeSprite(value: unknown, index: number): SheepThrowSprite | null
 }
 
 function normalizeSprites(value: unknown): SheepThrowSprite[] {
-  const seen = new Set([defaultSheepThrowSprite.id]);
-  const customSprites = (Array.isArray(value) ? value : [])
+  const normalizedSprites = (Array.isArray(value) ? value : [])
     .map((item, index) => normalizeSprite(item, index))
-    .filter((item): item is SheepThrowSprite => Boolean(item))
+    .filter((item): item is SheepThrowSprite => Boolean(item));
+  const defaultSprite = normalizedSprites.find((sprite) => sprite.id === defaultSheepThrowSprite.id) ?? defaultSheepThrowSprite;
+  const seen = new Set([defaultSheepThrowSprite.id]);
+  const customSprites = normalizedSprites
     .filter((sprite) => {
       if (sprite.id === defaultSheepThrowSprite.id) {
         return false;
@@ -250,7 +253,7 @@ function normalizeSprites(value: unknown): SheepThrowSprite[] {
     })
     .slice(0, 12);
 
-  return [defaultSheepThrowSprite, ...customSprites];
+  return [defaultSprite, ...customSprites];
 }
 
 export function normalizeSheepThrowSettings(value: unknown): SheepThrowSettings {

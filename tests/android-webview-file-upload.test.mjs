@@ -14,6 +14,8 @@ test("Android WebView exposes file uploads through the system file chooser", () 
   assert.match(activity, /FILE_CHOOSER_REQUEST_CODE/);
   assert.match(activity, /FileChooserParams\.parseResult/);
   assert.match(activity, /ValueCallback<Uri\[\]>/);
+  assert.match(activity, /addJavascriptInterface\(new BouncecoreJavascriptBridge\(\), "BouncecoreAndroid"\)/);
+  assert.match(activity, /@JavascriptInterface\s+public void vibrate\(String patternCsv\)/);
   assert.match(manifest, /android\.permission\.VIBRATE/);
   assert.doesNotMatch(manifest, /READ_EXTERNAL_STORAGE|READ_MEDIA_IMAGES|READ_MEDIA_VIDEO|READ_MEDIA_AUDIO/);
 });

@@ -10,6 +10,12 @@ type LoadedImages = {
   spriteImage: HTMLImageElement;
 };
 
+type AndroidVibrationBridgeWindow = Window & {
+  BouncecoreAndroid?: {
+    vibrate?: (pattern: string) => void;
+  };
+};
+
 const approachMs = 1150;
 const frameMs = 38;
 const impactShakeMs = 650;
@@ -60,7 +66,17 @@ function mobileVibrationAvailable() {
 }
 
 function vibrateMobile(pattern: number | number[]) {
-  if (reducedMotionEnabled() || !mobileVibrationAvailable()) {
+  if (reducedMotionEnabled()) {
+    return;
+  }
+
+  const androidBridge = (window as AndroidVibrationBridgeWindow).BouncecoreAndroid;
+  if (typeof androidBridge?.vibrate === "function") {
+    androidBridge.vibrate(Array.isArray(pattern) ? pattern.join(",") : String(pattern));
+    return;
+  }
+
+  if (!mobileVibrationAvailable()) {
     return;
   }
 

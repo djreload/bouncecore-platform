@@ -67,6 +67,25 @@ test("sheep throw settings keep sheep as fallback and accept uploaded custom spr
   assert.equal(settings.sprites[1].rows, 2);
 });
 
+test("sheep throw settings preserve default sheep impact sound", () => {
+  const settings = normalizeSheepThrowSettingsInput({
+    enabled: true,
+    cooldownMinutes: "5",
+    costStars: "10",
+    sprites: [
+      {
+        id: "sheep",
+        impactSoundUrl: "/uploads/throw-sounds/sheep-splat.mp3",
+        label: "Sheep",
+        spriteSheetUrl: "/sheep-throw/SheepThrowSequence.png"
+      }
+    ]
+  });
+
+  assert.equal(settings.sprites[0].id, "sheep");
+  assert.equal(settings.sprites[0].impactSoundUrl, "/uploads/throw-sounds/sheep-splat.mp3");
+});
+
 test("sheep throw settings validate optional impact sounds", () => {
   assert.throws(
     () =>

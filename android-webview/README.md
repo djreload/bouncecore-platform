@@ -107,4 +107,4 @@ It also accepts Firebase fallback values for offline/local config testing: `-Fir
 - LevelPlay does not document a separate app-open ad format in the Android guide, so the app uses the configured interstitial ad unit as the app-open full-screen ad.
 - The app-open full-screen ad shows once per foreground app open when the interstitial ad unit has a ready ad.
 - Web uploads use Android's system file picker through the WebView file chooser; the app does not request broad storage permission.
-- The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `POST_NOTIFICATIONS`, and `AD_ID`.
+- The Android manifest declares `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`, `POST_NOTIFICATIONS`, `VIBRATE`, and `AD_ID`.

@@ -13,6 +13,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -22,6 +24,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -177,6 +180,7 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        webView.addJavascriptInterface(new BouncecoreJavascriptBridge(), "BouncecoreAndroid");
         String userAgent = settings.getUserAgentString();
         if (TextUtils.isEmpty(userAgent)) {
             userAgent = "";
@@ -250,6 +254,71 @@ public class MainActivity extends Activity {
                 maybeShowAppOpenInterstitial("page-finished");
             }
         });
+    }
+
+    private class BouncecoreJavascriptBridge {
+        @JavascriptInterface
+        public void vibrate(String patternCsv) {
+            mainHandler.post(() -> performVibration(patternCsv));
+        }
+    }
+
+    private void performVibration(String patternCsv) {
+        if (TextUtils.isEmpty(patternCsv)) {
+            return;
+        }
+
+        Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            return;
+        }
+
+        long[] pattern = parseVibrationPattern(patternCsv);
+        if (pattern.length == 0) {
+            return;
+        }
+
+        if (pattern.length == 1) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(pattern[0], VibrationEffect.DEFAULT_AMPLITUDE));
+            } else {
+                vibrator.vibrate(pattern[0]);
+            }
+            return;
+        }
+
+        long[] waveform = new long[pattern.length + 1];
+        waveform[0] = 0L;
+        System.arraycopy(pattern, 0, waveform, 1, pattern.length);
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(waveform, -1));
+        } else {
+            vibrator.vibrate(waveform, -1);
+        }
+    }
+
+    private long[] parseVibrationPattern(String patternCsv) {
+        String[] parts = patternCsv.split(",");
+        int maxParts = Math.min(parts.length, 8);
+        long[] values = new long[maxParts];
+        int count = 0;
+
+        for (int index = 0; index < maxParts; index += 1) {
+            try {
+                long value = Long.parseLong(parts[index].trim());
+                if (value > 0L) {
+                    values[count] = Math.min(600L, value);
+                    count += 1;
+                }
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed vibration segments from JavaScript.
+            }
+        }
+
+        long[] normalized = new long[count];
+        System.arraycopy(values, 0, normalized, 0, count);
+        return normalized;
     }
 
     private void fetchMobileConfig(boolean force) {

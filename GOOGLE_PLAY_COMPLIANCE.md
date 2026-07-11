@@ -28,6 +28,7 @@ No native analytics SDK, crash reporting SDK, attribution SDK, location SDK, cam
 | `android.permission.ACCESS_NETWORK_STATE` | Network availability checks by app/SDKs. | No | Required for app/SDK operation. |
 | `android.permission.ACCESS_WIFI_STATE` | Network status by app/SDKs. | Low | Disclose as device/network data. |
 | `android.permission.POST_NOTIFICATIONS` | Android push notifications. | Runtime permission | Pre-permission disclosure added before request. |
+| `android.permission.VIBRATE` | Short haptic feedback for live chat throwable impact effects. | Low | Triggered only for user-visible in-app effects, respects reduced-motion preferences where the web layer can detect them. |
 | `com.google.android.gms.permission.AD_ID` | Mobile ads / measurement through LevelPlay dependencies. | Yes for Play Data Safety | Ads are gated behind native ad consent. Declare Advertising ID usage. |
 
 No camera, microphone, location, contacts, SMS, call log, calendar, or storage permissions were detected.
