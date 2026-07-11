@@ -20,8 +20,10 @@ test("sheep throw overlay can play impact sounds and mobile haptics", () => {
   assert.match(content, /BouncecoreAndroid/);
   assert.match(content, /androidBridge\.vibrate/);
   assert.match(content, /navigator\.vibrate\(pattern\)/);
-  assert.match(content, /vibrateMobile\(\[45, 40, 45\]\)/);
-  assert.match(content, /vibrateMobile\(\[120, 45, 80\]\)/);
+  assert.match(content, /const incomingVibrationPattern = \[80, 55, 120, 55, 170, 55, 230, 55, 300\]/);
+  assert.match(content, /const impactVibrationPattern = \[180, 45, 120, 45, 90\]/);
+  assert.match(content, /vibrateMobile\(incomingVibrationPattern\)/);
+  assert.match(content, /vibrateMobile\(impactVibrationPattern\)/);
   assert.match(content, /if \(!mobileVibrationAvailable\(\)\)/);
 });
 

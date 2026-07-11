@@ -300,7 +300,7 @@ public class MainActivity extends Activity {
 
     private long[] parseVibrationPattern(String patternCsv) {
         String[] parts = patternCsv.split(",");
-        int maxParts = Math.min(parts.length, 8);
+        int maxParts = Math.min(parts.length, 12);
         long[] values = new long[maxParts];
         int count = 0;
 
@@ -308,7 +308,7 @@ public class MainActivity extends Activity {
             try {
                 long value = Long.parseLong(parts[index].trim());
                 if (value > 0L) {
-                    values[count] = Math.min(600L, value);
+                    values[count] = Math.min(900L, value);
                     count += 1;
                 }
             } catch (NumberFormatException ignored) {

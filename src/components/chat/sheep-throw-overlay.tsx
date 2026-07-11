@@ -21,6 +21,8 @@ const frameMs = 38;
 const impactShakeMs = 650;
 const fadeMs = 520;
 const maxOverlayDevicePixelRatio = 1.5;
+const incomingVibrationPattern = [80, 55, 120, 55, 170, 55, 230, 55, 300];
+const impactVibrationPattern = [180, 45, 120, 45, 90];
 
 function loadOverlayImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -236,7 +238,7 @@ export function SheepThrowOverlay() {
         setIncomingBlur(false);
         document.documentElement.classList.add("bc-sheep-impact-wobble");
         playImpactSound(images.sprite.impactSoundUrl);
-        vibrateMobile([120, 45, 80]);
+        vibrateMobile(impactVibrationPattern);
 
         if (wobbleTimeoutRef.current !== null) {
           window.clearTimeout(wobbleTimeoutRef.current);
@@ -323,7 +325,7 @@ export function SheepThrowOverlay() {
         if (!reducedMotionEnabled()) {
           stopAnimation();
           setIncomingBlur(true);
-          vibrateMobile([45, 40, 45]);
+          vibrateMobile(incomingVibrationPattern);
           startTimeRef.current = performance.now();
           animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
           timeoutRef.current = window.setTimeout(() => {
