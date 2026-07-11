@@ -41,3 +41,17 @@ test("chat message action menu exposes compact rave war and throw buttons for on
   assert.match(panel, /name="targetUserId" type="hidden" value=\{message\.authorUserId \?\? ""\}/);
   assert.match(panel, /className=\{messageActionButtonClass\}/);
 });
+
+test("rave war battlefield supports mouse aiming animated shots and sfx only", () => {
+  const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
+
+  assert.match(game, /aimSettingsFromLevelPoint/);
+  assert.match(game, /onPointerDown=\{handleBattlefieldPointerDown\}/);
+  assert.match(game, /onPointerMove=\{handleBattlefieldPointerMove\}/);
+  assert.match(game, /requestAnimationFrame\(tick\)/);
+  assert.match(game, /setAnimatedShot/);
+  assert.match(game, /playRaveWarSfx/);
+  assert.match(game, /AudioContext/);
+  assert.doesNotMatch(game, /new Audio\(/);
+  assert.doesNotMatch(game, /loop/);
+});

@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Crosshair, Flag, HeartPulse, Radio, Swords, Timer, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { RaveWarSummary } from "@/lib/rave-wars/rave-war-types";
+import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary } from "@/lib/rave-wars/rave-war-types";
 
 type RaveWarGameProps = {
   currentUserId: string;
@@ -17,8 +17,32 @@ type WarPayload = {
   war?: RaveWarSummary;
 };
 
+type RaveWarAnimatedShot = {
+  key: string;
+  point: RaveWarShotPoint;
+  trail: RaveWarShotPoint[];
+};
+
+type RaveWarImpactPulse = {
+  damage: number;
+  impactKind: RaveWarLastShot["impactKind"];
+  key: string;
+  point: RaveWarShotPoint;
+};
+
+type RaveWarSfx = "blocked" | "fire" | "hit" | "impact" | "miss";
+
+const shotAnimationMinMs = 700;
+const shotAnimationMaxMs = 1350;
+
+let raveWarAudioContext: AudioContext | null = null;
+
 function playerInitial(value: string) {
   return value.trim().charAt(0).toUpperCase() || "?";
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function percent(value: number, max: number) {
@@ -45,14 +69,182 @@ function healthTone(health: number) {
   return "bg-bc-pink";
 }
 
+function shotKey(shot: RaveWarLastShot | null | undefined) {
+  return shot
+    ? `${shot.firedAt}:${shot.shooterUserId}:${shot.targetUserId}:${shot.impactPoint.x}:${shot.impactPoint.y}:${shot.damage}`
+    : null;
+}
+
+function levelPointFromPointer(
+  event: PointerEvent<HTMLDivElement>,
+  element: HTMLDivElement,
+  level: RaveWarSummary["level"]
+): RaveWarShotPoint {
+  const rect = element.getBoundingClientRect();
+  const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
+  const relativeY = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0;
+
+  return {
+    x: Math.round(clampNumber(relativeX, 0, 1) * level.width),
+    y: Math.round(clampNumber(relativeY, 0, 1) * level.height)
+  };
+}
+
+function aimSettingsFromLevelPoint(player: RaveWarPlayerState, point: RaveWarShotPoint, level: RaveWarSummary["level"]) {
+  const muzzleY = player.y - 34;
+  const facingX = player.facing === "left" ? player.x - point.x : point.x - player.x;
+  const vertical = muzzleY - point.y;
+  const angle = clampNumber((Math.atan2(Math.max(0, vertical), Math.max(12, facingX)) * 180) / Math.PI, 0, 90);
+  const distance = Math.hypot(facingX, vertical);
+  const powerScale = level.width / 130;
+  const power = clampNumber(distance / powerScale, 10, 100);
+
+  return {
+    angle: Math.round(angle),
+    power: Math.round(power)
+  };
+}
+
+function aimPreviewFromPlayer(player: RaveWarPlayerState, angle: number, power: number) {
+  const radians = (angle * Math.PI) / 180;
+  const direction = player.facing === "left" ? -1 : 1;
+  const muzzleX = player.x + 28 * direction;
+  const muzzleY = player.y - 38;
+  const length = 110 + power * 4.4;
+
+  return {
+    endX: muzzleX + Math.cos(radians) * length * direction,
+    endY: muzzleY - Math.sin(radians) * length,
+    muzzleX,
+    muzzleY
+  };
+}
+
+function getRaveWarAudioContext() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const AudioContextCtor = window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+  if (!AudioContextCtor) {
+    return null;
+  }
+
+  raveWarAudioContext ??= new AudioContextCtor();
+
+  if (raveWarAudioContext.state === "suspended") {
+    void raveWarAudioContext.resume().catch(() => undefined);
+  }
+
+  return raveWarAudioContext;
+}
+
+function scheduleTone(input: {
+  context: AudioContext;
+  duration: number;
+  endFrequency?: number;
+  frequency: number;
+  gain: number;
+  startAt: number;
+  type: OscillatorType;
+}) {
+  const oscillator = input.context.createOscillator();
+  const gain = input.context.createGain();
+  const endFrequency = input.endFrequency ?? input.frequency;
+  const endAt = input.startAt + input.duration;
+
+  oscillator.type = input.type;
+  oscillator.frequency.setValueAtTime(input.frequency, input.startAt);
+  oscillator.frequency.exponentialRampToValueAtTime(Math.max(1, endFrequency), endAt);
+  gain.gain.setValueAtTime(0.0001, input.startAt);
+  gain.gain.exponentialRampToValueAtTime(input.gain, input.startAt + 0.018);
+  gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+  oscillator.connect(gain);
+  gain.connect(input.context.destination);
+  oscillator.start(input.startAt);
+  oscillator.stop(endAt + 0.02);
+}
+
+function scheduleNoiseBurst(input: { context: AudioContext; duration: number; frequency: number; gain: number; startAt: number }) {
+  const frameCount = Math.max(1, Math.floor(input.context.sampleRate * input.duration));
+  const buffer = input.context.createBuffer(1, frameCount, input.context.sampleRate);
+  const channel = buffer.getChannelData(0);
+
+  for (let index = 0; index < frameCount; index += 1) {
+    const fade = 1 - index / frameCount;
+
+    channel[index] = (Math.random() * 2 - 1) * fade;
+  }
+
+  const source = input.context.createBufferSource();
+  const filter = input.context.createBiquadFilter();
+  const gain = input.context.createGain();
+  const endAt = input.startAt + input.duration;
+
+  source.buffer = buffer;
+  filter.type = "bandpass";
+  filter.frequency.setValueAtTime(input.frequency, input.startAt);
+  filter.Q.setValueAtTime(0.8, input.startAt);
+  gain.gain.setValueAtTime(input.gain, input.startAt);
+  gain.gain.exponentialRampToValueAtTime(0.0001, endAt);
+  source.connect(filter);
+  filter.connect(gain);
+  gain.connect(input.context.destination);
+  source.start(input.startAt);
+  source.stop(endAt + 0.02);
+}
+
+function playRaveWarSfx(kind: RaveWarSfx) {
+  const context = getRaveWarAudioContext();
+
+  if (!context) {
+    return;
+  }
+
+  const now = context.currentTime + 0.015;
+
+  if (kind === "fire") {
+    scheduleTone({ context, duration: 0.22, endFrequency: 90, frequency: 360, gain: 0.08, startAt: now, type: "sawtooth" });
+    scheduleNoiseBurst({ context, duration: 0.18, frequency: 1550, gain: 0.045, startAt: now });
+    return;
+  }
+
+  if (kind === "hit") {
+    scheduleTone({ context, duration: 0.22, endFrequency: 46, frequency: 120, gain: 0.1, startAt: now, type: "sine" });
+    scheduleTone({ context, duration: 0.16, endFrequency: 760, frequency: 540, gain: 0.045, startAt: now + 0.04, type: "square" });
+    scheduleNoiseBurst({ context, duration: 0.24, frequency: 420, gain: 0.075, startAt: now });
+    return;
+  }
+
+  if (kind === "impact") {
+    scheduleTone({ context, duration: 0.24, endFrequency: 38, frequency: 96, gain: 0.09, startAt: now, type: "sine" });
+    scheduleNoiseBurst({ context, duration: 0.28, frequency: 360, gain: 0.07, startAt: now });
+    return;
+  }
+
+  if (kind === "miss") {
+    scheduleTone({ context, duration: 0.24, endFrequency: 170, frequency: 480, gain: 0.045, startAt: now, type: "triangle" });
+    return;
+  }
+
+  scheduleTone({ context, duration: 0.12, endFrequency: 130, frequency: 170, gain: 0.045, startAt: now, type: "square" });
+}
+
 export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [war, setWar] = useState(initialWar);
+  const battlefieldRef = useRef<HTMLDivElement | null>(null);
+  const latestAnimatedShotKeyRef = useRef<string | null>(shotKey(initialWar.state.lastShot));
+  const impactPulseTimeoutRef = useRef<number | null>(null);
   const currentPlayer = war.state.players.find((player) => player.userId === currentUserId) ?? null;
   const activePlayer = war.state.players.find((player) => player.userId === war.turnUserId) ?? null;
   const opponent = war.state.players.find((player) => player.userId !== currentUserId) ?? null;
   const winner = war.winnerUserId ? war.state.players.find((player) => player.userId === war.winnerUserId) : null;
   const [angle, setAngle] = useState(currentPlayer?.angle ?? 45);
   const [power, setPower] = useState(currentPlayer?.power ?? 68);
+  const [isAiming, setIsAiming] = useState(false);
+  const [animatedShot, setAnimatedShot] = useState<RaveWarAnimatedShot | null>(null);
+  const [impactPulse, setImpactPulse] = useState<RaveWarImpactPulse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mapStyle = useMemo(
@@ -64,6 +256,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
   const canFire = war.status === "active" && war.turnUserId === currentUserId && !busy;
   const canAccept = war.status === "pending" && war.currentUserRole === "target";
+  const currentShotKey = shotKey(war.state.lastShot);
+  const visibleShotPath =
+    animatedShot && animatedShot.key === currentShotKey ? animatedShot.trail : war.state.lastShot?.path ?? [];
+  const aimPreview = currentPlayer ? aimPreviewFromPlayer(currentPlayer, angle, power) : null;
 
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
     setWar(nextWar);
@@ -75,7 +271,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       setAngle(nextCurrentPlayer.angle);
       setPower(nextCurrentPlayer.power);
     }
-  }, [currentUserId]);
+  }, [currentUserId, setAngle, setError, setPower, setWar]);
 
   const refreshWarFromPayload = useCallback((payload: WarPayload) => {
     if (payload.war) {
@@ -83,7 +279,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     } else if (payload.error) {
       setError(payload.error);
     }
-  }, [applyWar]);
+  }, [applyWar, setError]);
 
   const postWarAction = useCallback(
     async (action: string, body: Record<string, unknown> = {}) => {
@@ -111,11 +307,14 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         refreshWarFromPayload(payload);
       } catch (nextError) {
         setError(nextError instanceof Error ? nextError.message : "Rave War action failed.");
+        if (action === "fire") {
+          playRaveWarSfx("blocked");
+        }
       } finally {
         setBusy(false);
       }
     },
-    [refreshWarFromPayload, war.id]
+    [refreshWarFromPayload, setBusy, setError, war.id]
   );
 
   const postChallengeAction = useCallback(
@@ -148,8 +347,68 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         setBusy(false);
       }
     },
-    [refreshWarFromPayload, war.id]
+    [refreshWarFromPayload, setBusy, setError, war.id]
   );
+
+  const updateAimFromPointer = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const element = battlefieldRef.current;
+
+      if (!element || !currentPlayer || !canFire) {
+        return;
+      }
+
+      const nextAim = aimSettingsFromLevelPoint(currentPlayer, levelPointFromPointer(event, element, war.level), war.level);
+
+      setAngle(nextAim.angle);
+      setPower(nextAim.power);
+    },
+    [canFire, currentPlayer, setAngle, setPower, war.level]
+  );
+
+  const handleBattlefieldPointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!canFire) {
+        return;
+      }
+
+      setIsAiming(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      updateAimFromPointer(event);
+    },
+    [canFire, setIsAiming, updateAimFromPointer]
+  );
+
+  const handleBattlefieldPointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!canFire) {
+        return;
+      }
+
+      if (event.pointerType === "mouse" || isAiming) {
+        updateAimFromPointer(event);
+      }
+    },
+    [canFire, isAiming, updateAimFromPointer]
+  );
+
+  const handleBattlefieldPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    setIsAiming(false);
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, [setIsAiming]);
+
+  const fireCurrentShot = useCallback(async () => {
+    if (!canFire) {
+      playRaveWarSfx("blocked");
+      return;
+    }
+
+    playRaveWarSfx("fire");
+    await postWarAction("fire", { angle, power });
+  }, [angle, canFire, postWarAction, power]);
 
   useEffect(() => {
     let active = true;
@@ -219,6 +478,81 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     };
   }, [refreshWarFromPayload, war.id]);
 
+  useEffect(() => {
+    const lastShot = war.state.lastShot;
+    const nextShotKey = shotKey(lastShot);
+
+    if (!lastShot || !nextShotKey || latestAnimatedShotKeyRef.current === nextShotKey) {
+      return undefined;
+    }
+
+    const animationKey = nextShotKey;
+    const shot = lastShot;
+
+    latestAnimatedShotKeyRef.current = animationKey;
+
+    if (impactPulseTimeoutRef.current !== null) {
+      window.clearTimeout(impactPulseTimeoutRef.current);
+      impactPulseTimeoutRef.current = null;
+    }
+
+    const path = [...shot.path, shot.impactPoint];
+    const duration = clampNumber(path.length * 18, shotAnimationMinMs, shotAnimationMaxMs);
+    const startedAt = window.performance.now();
+    let animationFrame = 0;
+
+    if (shot.shooterUserId !== currentUserId) {
+      playRaveWarSfx("fire");
+    }
+
+    setImpactPulse(null);
+
+    function tick(now: number) {
+      const progress = clampNumber((now - startedAt) / duration, 0, 1);
+      const index = Math.min(path.length - 1, Math.floor(progress * (path.length - 1)));
+
+      setAnimatedShot({
+        key: animationKey,
+        point: path[index] ?? shot.impactPoint,
+        trail: path.slice(0, index + 1)
+      });
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(tick);
+        return;
+      }
+
+      setAnimatedShot(null);
+      setImpactPulse({
+        damage: shot.damage,
+        impactKind: shot.impactKind,
+        key: animationKey,
+        point: shot.impactPoint
+      });
+      playRaveWarSfx(shot.damage > 0 ? "hit" : shot.impactKind === "out-of-bounds" ? "miss" : "impact");
+
+      impactPulseTimeoutRef.current = window.setTimeout(() => {
+        setImpactPulse((current) => (current?.key === animationKey ? null : current));
+        impactPulseTimeoutRef.current = null;
+      }, 900);
+    }
+
+    animationFrame = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [currentUserId, war.state.lastShot]);
+
+  useEffect(
+    () => () => {
+      if (impactPulseTimeoutRef.current !== null) {
+        window.clearTimeout(impactPulseTimeoutRef.current);
+      }
+    },
+    []
+  );
+
   return (
     <section className="mx-auto flex h-full min-h-[calc(100dvh-97px)] w-full max-w-[1680px] flex-col gap-3">
       <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-panel p-3">
@@ -242,28 +576,100 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-h-0 rounded-md border border-bc-line bg-bc-panel p-2">
           <div
-            className="relative mx-auto aspect-[2/1] max-h-[calc(100dvh-190px)] min-h-[260px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center"
+            aria-label="Rave War battlefield. Move the mouse or drag on the map to aim. Double click the map or press Fire to shoot."
+            className={`relative mx-auto aspect-[2/1] max-h-[calc(100dvh-190px)] min-h-[260px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
+              canFire ? "cursor-crosshair touch-none" : "cursor-default"
+            }`}
+            onDoubleClick={() => void fireCurrentShot()}
+            onPointerCancel={handleBattlefieldPointerUp}
+            onPointerDown={handleBattlefieldPointerDown}
+            onPointerLeave={() => setIsAiming(false)}
+            onPointerMove={handleBattlefieldPointerMove}
+            onPointerUp={handleBattlefieldPointerUp}
+            ref={battlefieldRef}
+            role="application"
             style={mapStyle}
+            tabIndex={canFire ? 0 : -1}
           >
-            {war.state.lastShot?.path.length ? (
+            {visibleShotPath.length || war.state.lastShot || aimPreview ? (
               <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
-                <polyline
-                  fill="none"
-                  points={war.state.lastShot.path.map((point) => `${point.x},${point.y}`).join(" ")}
-                  stroke="#a3ff12"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="8"
-                />
-                <circle
-                  cx={war.state.lastShot.impactPoint.x}
-                  cy={war.state.lastShot.impactPoint.y}
-                  fill="rgba(255,63,164,0.32)"
-                  r="54"
-                  stroke="#ff3fa4"
-                  strokeWidth="8"
-                />
-                <circle cx={war.state.lastShot.impactPoint.x} cy={war.state.lastShot.impactPoint.y} fill="#ffffff" r="10" />
+                {visibleShotPath.length ? (
+                  <polyline
+                    fill="none"
+                    points={visibleShotPath.map((point) => `${point.x},${point.y}`).join(" ")}
+                    stroke="#a3ff12"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="8"
+                  />
+                ) : null}
+                {aimPreview && war.status === "active" ? (
+                  <>
+                    <line
+                      stroke={canFire ? "#00d5ff" : "rgba(163,255,18,0.28)"}
+                      strokeDasharray="22 16"
+                      strokeLinecap="round"
+                      strokeWidth="7"
+                      x1={aimPreview.muzzleX}
+                      x2={aimPreview.endX}
+                      y1={aimPreview.muzzleY}
+                      y2={aimPreview.endY}
+                    />
+                    <circle cx={aimPreview.endX} cy={aimPreview.endY} fill="rgba(0,213,255,0.18)" r={Math.max(34, power)} stroke="#00d5ff" strokeWidth="5" />
+                  </>
+                ) : null}
+                {war.state.lastShot && !animatedShot ? (
+                  <>
+                    <circle
+                      cx={war.state.lastShot.impactPoint.x}
+                      cy={war.state.lastShot.impactPoint.y}
+                      fill="rgba(255,63,164,0.32)"
+                      r="54"
+                      stroke="#ff3fa4"
+                      strokeWidth="8"
+                    />
+                    <circle cx={war.state.lastShot.impactPoint.x} cy={war.state.lastShot.impactPoint.y} fill="#ffffff" r="10" />
+                  </>
+                ) : null}
+                {animatedShot ? (
+                  <>
+                    <circle cx={animatedShot.point.x} cy={animatedShot.point.y} fill="#ffffff" r="15" stroke="#ff3fa4" strokeWidth="8" />
+                    <circle cx={animatedShot.point.x} cy={animatedShot.point.y} fill="#a3ff12" r="7" />
+                  </>
+                ) : null}
+                {impactPulse ? (
+                  <>
+                    <circle
+                      className="animate-ping"
+                      cx={impactPulse.point.x}
+                      cy={impactPulse.point.y}
+                      fill={impactPulse.damage > 0 ? "rgba(255,63,164,0.35)" : "rgba(0,213,255,0.24)"}
+                      r={impactPulse.damage > 0 ? "92" : "62"}
+                    />
+                    <text
+                      fill={impactPulse.damage > 0 ? "#ff3fa4" : "#00d5ff"}
+                      fontSize="58"
+                      fontWeight="900"
+                      stroke="#05070d"
+                      strokeWidth="8"
+                      textAnchor="middle"
+                      x={impactPulse.point.x}
+                      y={Math.max(72, impactPulse.point.y - 70)}
+                    >
+                      {impactPulse.damage > 0 ? `-${impactPulse.damage}` : impactPulse.impactKind === "out-of-bounds" ? "MISS" : "BOOM"}
+                    </text>
+                    <text
+                      fill={impactPulse.damage > 0 ? "#ff3fa4" : "#00d5ff"}
+                      fontSize="58"
+                      fontWeight="900"
+                      textAnchor="middle"
+                      x={impactPulse.point.x}
+                      y={Math.max(72, impactPulse.point.y - 70)}
+                    >
+                      {impactPulse.damage > 0 ? `-${impactPulse.damage}` : impactPulse.impactKind === "out-of-bounds" ? "MISS" : "BOOM"}
+                    </text>
+                  </>
+                ) : null}
               </svg>
             ) : null}
 
@@ -353,6 +759,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                     <Timer className="h-4 w-4 text-bc-amber" aria-hidden="true" />
                     <span className="font-semibold">{activePlayer ? `${activePlayer.displayName}'s turn` : "Turn changing"}</span>
                   </div>
+                  {canFire ? <p className="mt-2 text-xs text-bc-muted">Move the mouse over the map or drag to aim. Double click the map to fire.</p> : null}
                 </div>
                 <label className="grid gap-1 text-xs font-black uppercase text-bc-muted">
                   Angle {Math.round(angle)}
@@ -379,7 +786,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                   />
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  <Button disabled={!canFire} onClick={() => void postWarAction("fire", { angle, power })} size="sm" type="button">
+                  <Button disabled={!canFire} onClick={() => void fireCurrentShot()} size="sm" type="button">
                     <Crosshair className="h-4 w-4" aria-hidden="true" />
                     Fire
                   </Button>
