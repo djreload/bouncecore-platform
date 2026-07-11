@@ -22,8 +22,16 @@ export type RaveWarShotPoint = {
   y: number;
 };
 
+export type RaveWarTerrainCrater = {
+  radius: number;
+  x: number;
+  y: number;
+};
+
 export type RaveWarLastShot = {
   angle: number;
+  blastRadius: number;
+  crater: RaveWarTerrainCrater | null;
   damage: number;
   distance: number;
   firedAt: string;
@@ -37,6 +45,7 @@ export type RaveWarLastShot = {
 
 export type RaveWarState = {
   activeUserId: string | null;
+  craters: RaveWarTerrainCrater[];
   lastShot: RaveWarLastShot | null;
   levelKey: string;
   log: string[];
