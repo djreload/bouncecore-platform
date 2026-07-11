@@ -17,6 +17,14 @@ export function roleDisplayName(role: Role | string, overrides?: RoleDisplayName
   return defaultRoleDisplayNames[role as Role] ?? role;
 }
 
+export function shouldShowRoleBadge(role: Role | string) {
+  return role !== "viewer";
+}
+
+export function visibleRoleBadges<T extends string>(roles: readonly T[]) {
+  return roles.filter((role) => shouldShowRoleBadge(role));
+}
+
 export function roleBadgeTone(role: Role | string) {
   if (role === "owner") {
     return "pink" as const;

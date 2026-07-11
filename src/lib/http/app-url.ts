@@ -1,4 +1,4 @@
-function configuredAppOrigin() {
+export function configuredAppOrigin() {
   const value = process.env.NEXT_PUBLIC_APP_URL?.trim();
 
   if (!value) {
@@ -6,25 +6,82 @@ function configuredAppOrigin() {
   }
 
   try {
-    return new URL(value).origin;
+    const url = new URL(value);
+
+    if (url.protocol !== "https:" && url.protocol !== "http:") {
+      return null;
+    }
+
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+function cleanForwardedHost(value: string | null) {
+  const host = value?.split(",")[0]?.trim() ?? "";
+
+  if (!host || /[\s/@\\]/.test(host)) {
+    return null;
+  }
+
+  return host;
+}
+
+function cleanForwardedProtocol(value: string | null, fallback: string) {
+  const protocol = value?.split(",")[0]?.trim().toLowerCase() || fallback;
+
+  return protocol === "https" || protocol === "http" ? protocol : fallback;
+}
+
+function forwardedOriginFromParts({
+  fallbackProtocol,
+  forwardedHost,
+  forwardedProtocol,
+  host
+}: {
+  fallbackProtocol: string;
+  forwardedHost: string | null;
+  forwardedProtocol: string | null;
+  host: string | null;
+}) {
+  const cleanHost = cleanForwardedHost(forwardedHost) || cleanForwardedHost(host);
+
+  if (!cleanHost) {
+    return null;
+  }
+
+  const protocol = cleanForwardedProtocol(forwardedProtocol, fallbackProtocol);
+
+  try {
+    return new URL(`${protocol}://${cleanHost}`).origin;
   } catch {
     return null;
   }
 }
 
 function forwardedOrigin(request: Request) {
-  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const host = forwardedHost || request.headers.get("host")?.split(",")[0]?.trim();
+  const requestUrl = new URL(request.url);
+  const requestProtocol = requestUrl.protocol === "http:" ? "http" : "https";
 
-  if (!host) {
-    return null;
-  }
+  return forwardedOriginFromParts({
+    fallbackProtocol: requestProtocol,
+    forwardedHost: request.headers.get("x-forwarded-host"),
+    forwardedProtocol: request.headers.get("x-forwarded-proto"),
+    host: request.headers.get("host")
+  });
+}
 
-  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const requestProtocol = new URL(request.url).protocol.replace(":", "");
-  const protocol = forwardedProto || requestProtocol || "https";
-
-  return `${protocol}://${host}`;
+export function appOriginFromHeaders(requestHeaders: Headers) {
+  return (
+    configuredAppOrigin() ??
+    forwardedOriginFromParts({
+      fallbackProtocol: "https",
+      forwardedHost: requestHeaders.get("x-forwarded-host"),
+      forwardedProtocol: requestHeaders.get("x-forwarded-proto"),
+      host: requestHeaders.get("host")
+    })
+  );
 }
 
 export function appOrigin(request: Request) {

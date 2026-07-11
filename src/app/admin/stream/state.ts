@@ -1,5 +1,6 @@
 import type { StreamHealth, StreamStatus } from "@/lib/stream/stream-provider";
 import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
+import type { AdminRestreamSettings } from "@/lib/stream/restream-settings";
 
 export type AdminStreamChannelRow = {
   id: string;
@@ -15,6 +16,8 @@ export type AdminStreamChannelRow = {
 };
 
 export type AdminStreamProfileRow = StreamProfileSummary;
+
+export type AdminRestreamSettingsRow = AdminRestreamSettings;
 
 export type AdminStreamProviderState = {
   status: StreamStatus;

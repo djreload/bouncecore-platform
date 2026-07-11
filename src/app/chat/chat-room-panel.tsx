@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   type ChangeEvent,
+  type ComponentProps,
   type FormEvent,
   type KeyboardEvent,
   type UIEvent
@@ -24,6 +25,7 @@ import {
   Lock,
   LogIn,
   MessageSquare,
+  Pencil,
   Plus,
   Reply,
   Search,
@@ -31,6 +33,7 @@ import {
   Smile,
   Sparkles,
   Star,
+  Target,
   Timer,
   Trash2,
   UsersRound,
@@ -41,11 +44,18 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { publicChatAction } from "@/app/chat/actions";
 import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
 import { ChatEffectText } from "@/app/chat/chat-effect-text";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
+import { canEditChatMessage } from "@/lib/chat/chat-message-edit-core";
 import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
-import { defaultSheepThrowSettings, formatSheepThrowCooldownLabel, type SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
+import {
+  defaultSheepThrowSettings,
+  formatSheepThrowCooldownLabel,
+  getAvailableSheepThrowSprites,
+  type SheepThrowSprite,
+  type SheepThrowSettings
+} from "@/lib/chat/sheep-throw-settings";
 import { cn } from "@/lib/utils";
 import {
   initialPublicChatActionState,
@@ -65,6 +75,7 @@ type ChatRoomPanelProps = {
   presenceUsers?: PublicChatPresenceUserRow[];
   currentUser: PublicChatUser | null;
   currentStarBalance?: number;
+  sheepFreeThrowAvailable?: boolean;
   sheepRemainingCooldownSeconds?: number;
   sheepSettings?: SheepThrowSettings;
   roleDisplayLabels: RoleDisplayNameMap;
@@ -79,11 +90,14 @@ type ChatRoomPanelProps = {
 
 type GifResult = {
   id: string;
+  provider: "giphy" | "klipy";
   title: string;
-  url: string;
+  gifUrl: string;
   previewUrl: string;
-  width: number | null;
-  height: number | null;
+  width?: number | null;
+  height?: number | null;
+  sourceUrl?: string;
+  rating?: string;
 };
 
 type SyncedMessages = {
@@ -125,6 +139,8 @@ type SyncedPresence = {
   users: PublicChatPresenceUserRow[];
 };
 
+type ChatFormAction = NonNullable<ComponentProps<"form">["action"]>;
+
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
 const inlineBanDurationOptions = [
   { label: "1 hour", value: "1h" },
@@ -152,7 +168,7 @@ function roomTone(type: string) {
   return "cyan" as const;
 }
 
-function imageSize(width: number | null, height: number | null) {
+function imageSize(width: number | null | undefined, height: number | null | undefined) {
   return {
     width: width ?? 360,
     height: height ?? 260
@@ -206,13 +222,33 @@ function formatPresenceLastActive(value: string) {
 }
 
 function ChatPresenceRail({
+  availableThrowSprites,
+  currentUserCanThrowSheep,
+  currentUserId,
+  defaultThrowSprite,
+  formAction,
   open,
+  pending,
   roleDisplayLabels,
+  roomId,
+  roomLockedForUser,
+  sheepThrowDisabledReason,
+  sheepThrowStatusLabel,
   users,
   onToggle
 }: {
+  availableThrowSprites: SheepThrowSprite[];
+  currentUserCanThrowSheep: boolean;
+  currentUserId: string | null;
+  defaultThrowSprite: SheepThrowSprite | undefined;
+  formAction: ChatFormAction;
   open: boolean;
+  pending: boolean;
   roleDisplayLabels: RoleDisplayNameMap;
+  roomId: string | null;
+  roomLockedForUser: boolean;
+  sheepThrowDisabledReason: string | null;
+  sheepThrowStatusLabel: string;
   users: PublicChatPresenceUserRow[];
   onToggle: () => void;
 }) {
@@ -249,39 +285,97 @@ function ChatPresenceRail({
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {users.length ? (
             <div className="grid gap-2">
-              {users.map((user) => (
-                <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-panel text-xs font-black text-bc-electric">
-                      {user.avatarUrl ? (
-                        <Image alt="" className="h-full w-full object-cover" height={32} src={user.avatarUrl} unoptimized width={32} />
-                      ) : (
-                        authorInitial(user.displayName)
-                      )}
-                      <span
-                        aria-label={presenceStatusLabel(user.status)}
-                        className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-bc-ink", presenceStatusTone(user.status))}
-                        title={presenceStatusLabel(user.status)}
-                      />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-black">{user.displayName}</p>
-                      <p className="text-[11px] font-semibold text-bc-muted">
-                        {presenceStatusLabel(user.status)} / {formatPresenceLastActive(user.lastActiveAt)}
-                      </p>
+              {users.map((user) => {
+                const canShowThrowAction = Boolean(currentUserCanThrowSheep && currentUserId && roomId && user.id !== currentUserId);
+                const throwDisabled =
+                  pending ||
+                  roomLockedForUser ||
+                  user.status !== "online" ||
+                  Boolean(sheepThrowDisabledReason);
+
+                return (
+                  <article className="rounded-md border border-bc-line bg-bc-ink p-2" key={user.id}>
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="relative grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-panel text-xs font-black text-bc-electric">
+                        {user.avatarUrl ? (
+                          <Image alt="" className="h-full w-full object-cover" height={32} src={user.avatarUrl} unoptimized width={32} />
+                        ) : (
+                          authorInitial(user.displayName)
+                        )}
+                        <span
+                          aria-label={presenceStatusLabel(user.status)}
+                          className={cn("absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-bc-ink", presenceStatusTone(user.status))}
+                          title={presenceStatusLabel(user.status)}
+                        />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-black">{user.displayName}</p>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold">
+                          <span className="text-bc-muted">
+                            {presenceStatusLabel(user.status)} / {formatPresenceLastActive(user.lastActiveAt)}
+                          </span>
+                          <span className="inline-flex items-center gap-1 font-black text-red-400" title="Throw hits this livestream">
+                            <Target className="h-3 w-3" aria-hidden="true" />
+                            {user.throwHitCount.toLocaleString("en-GB")}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  {user.roles.length ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {user.roles.slice(0, 2).map((role) => (
-                        <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
-                          {roleDisplayName(role, roleDisplayLabels)}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-                </article>
-              ))}
+                    {visibleRoleBadges(user.roles).length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {visibleRoleBadges(user.roles).slice(0, 2).map((role) => (
+                          <Badge className="py-0 text-[10px]" key={role} tone={roleBadgeTone(role)}>
+                            {roleDisplayName(role, roleDisplayLabels)}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                    {canShowThrowAction ? (
+                      <form
+                        action={formAction}
+                        className={cn("mt-2 grid gap-1", availableThrowSprites.length > 1 && "grid-cols-[minmax(0,1fr)_auto]")}
+                      >
+                        <input name="intent" type="hidden" value="sheep" />
+                        <input name="roomId" type="hidden" value={roomId ?? ""} />
+                        <input name="targetUserId" type="hidden" value={user.id} />
+                        {availableThrowSprites.length > 1 ? (
+                          <select
+                            aria-label="Throw type"
+                            className="min-h-7 min-w-0 rounded-md border border-bc-line bg-bc-panel px-2 text-[11px] font-black text-white"
+                            defaultValue={defaultThrowSprite?.id}
+                            disabled={throwDisabled}
+                            name="throwSpriteId"
+                            title="Choose what to throw"
+                          >
+                            {availableThrowSprites.map((sprite) => (
+                              <option key={sprite.id} value={sprite.id}>
+                                {sprite.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
+                        )}
+                        <Button
+                          className="min-h-7 px-2 text-[11px]"
+                          disabled={throwDisabled}
+                          size="sm"
+                          title={
+                            user.status !== "online"
+                              ? "User must be online and active."
+                              : sheepThrowDisabledReason ?? `Throw for ${sheepThrowStatusLabel}`
+                          }
+                          type="submit"
+                          variant="ghost"
+                        >
+                          <Target className="h-3.5 w-3.5 text-red-400" aria-hidden="true" />
+                          Throw
+                        </Button>
+                      </form>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="grid h-full min-h-40 place-items-center rounded-md border border-dashed border-bc-line bg-bc-ink p-4 text-center">
@@ -305,6 +399,7 @@ export function ChatRoomPanel({
   presenceUsers = [],
   currentUser,
   currentStarBalance = 0,
+  sheepFreeThrowAvailable = false,
   sheepRemainingCooldownSeconds = 0,
   sheepSettings = defaultSheepThrowSettings,
   roleDisplayLabels,
@@ -327,32 +422,47 @@ export function ChatRoomPanel({
   const [presenceRailOpen, setPresenceRailOpen] = useState(true);
   const [gifQuery, setGifQuery] = useState("rave");
   const [gifResults, setGifResults] = useState<GifResult[]>([]);
-  const [gifNextPosition, setGifNextPosition] = useState<string | null>(null);
   const [gifError, setGifError] = useState<string | null>(null);
   const [gifLoading, setGifLoading] = useState(false);
+  const [gifLoadedQuery, setGifLoadedQuery] = useState("rave");
+  const [gifNextOffset, setGifNextOffset] = useState<number | null>(null);
   const [composerBody, setComposerBody] = useState("");
   const [selectedEffectId, setSelectedEffectId] = useState("");
   const [replyTarget, setReplyTarget] = useState<ChatReplyTarget | null>(null);
+  const [editingMessage, setEditingMessage] = useState<PublicChatMessageRow | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedPresence, setSyncedPresence] = useState<SyncedPresence | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
   const [localStarBalance, setLocalStarBalance] = useState(currentStarBalance);
+  const [localSheepFreeThrowAvailable, setLocalSheepFreeThrowAvailable] = useState(sheepFreeThrowAvailable);
   const [sheepCooldownRemaining, setSheepCooldownRemaining] = useState(sheepRemainingCooldownSeconds);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const gifResultsViewportRef = useRef<HTMLDivElement>(null);
+  const gifLoadingRef = useRef(false);
   const selectedRoomId = selectedRoom?.id;
   const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const visiblePresence = syncedPresence && syncedPresence.roomId === selectedRoomId ? syncedPresence.users : presenceUsers;
+  const onlinePresenceUserIds = useMemo(
+    () => new Set(visiblePresence.filter((user) => user.status === "online").map((user) => user.id)),
+    [visiblePresence]
+  );
   const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
-  const currentUserCanAffordSheep = localStarBalance >= sheepSettings.costStars;
-  const sheepThrowCostLabel = sheepSettings.costStars > 0 ? `${sheepSettings.costStars.toLocaleString("en-GB")} stars` : "Free";
+  const availableThrowSprites = useMemo(() => getAvailableSheepThrowSprites(sheepSettings), [sheepSettings]);
+  const defaultThrowSprite = availableThrowSprites[0];
+  const effectiveSheepCostStars = localSheepFreeThrowAvailable ? 0 : sheepSettings.costStars;
+  const currentUserCanAffordSheep = localStarBalance >= effectiveSheepCostStars;
+  const sheepThrowCostLabel = localSheepFreeThrowAvailable
+    ? "Free live throw"
+    : effectiveSheepCostStars > 0
+      ? `${effectiveSheepCostStars.toLocaleString("en-GB")} stars`
+      : "Free";
   const sheepCooldownActive = sheepCooldownRemaining > 0;
   const sheepCooldownLabel = formatSheepThrowCooldownLabel(sheepCooldownRemaining);
   const sheepThrowStatusLabel = !sheepSettings.enabled
@@ -591,7 +701,8 @@ export function ChatRoomPanel({
       state.intent === "sheep"
         ? window.setTimeout(() => {
             setSheepCooldownRemaining(sheepSettings.cooldownSeconds);
-            setLocalStarBalance((balance) => Math.max(0, balance - sheepSettings.costStars));
+            setLocalStarBalance((balance) => Math.max(0, balance - effectiveSheepCostStars));
+            setLocalSheepFreeThrowAvailable(false);
           }, 0)
         : null;
     const resetTimer = window.setTimeout(() => {
@@ -599,6 +710,7 @@ export function ChatRoomPanel({
       setOpenMessageActionsId(null);
       closeComposerPanels();
       setReplyTarget(null);
+      setEditingMessage(null);
       setMentionQuery(null);
     }, 0);
     const syncTimer = selectedRoomId
@@ -620,11 +732,11 @@ export function ChatRoomPanel({
     };
   }, [
     closeComposerPanels,
+    effectiveSheepCostStars,
     loadLatestMessages,
     sheepSettings.cooldownSeconds,
-    sheepSettings.costStars,
     state.intent,
-    state.message,
+    state.revision,
     state.status,
     selectedRoomId
   ]);
@@ -652,6 +764,16 @@ export function ChatRoomPanel({
       window.clearTimeout(timer);
     };
   }, [sheepRemainingCooldownSeconds]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setLocalSheepFreeThrowAvailable(sheepFreeThrowAvailable);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [sheepFreeThrowAvailable]);
 
   useEffect(() => {
     if (!sheepCooldownActive) {
@@ -749,6 +871,11 @@ export function ChatRoomPanel({
     textareaRef.current?.focus();
   }
 
+  function startEditingChatMessage(message: PublicChatMessageRow) {
+    setEditingMessage(message);
+    setOpenMessageActionsId(null);
+  }
+
   function handleComposerFocus() {
     if (!mobileLiveMode) {
       return;
@@ -762,7 +889,7 @@ export function ChatRoomPanel({
     window.setTimeout(keepComposerVisible, 320);
   }
 
-  async function loadGifs(query: string, position: string | null, append: boolean) {
+  async function loadGifs(query: string, offset = 0, append = false) {
     const normalizedQuery = query.trim();
 
     if (!normalizedQuery) {
@@ -770,42 +897,66 @@ export function ChatRoomPanel({
       return;
     }
 
+    if (gifLoadingRef.current) {
+      return;
+    }
+
+    gifLoadingRef.current = true;
     setGifLoading(true);
     setGifError(null);
 
     try {
       const params = new URLSearchParams({
+        limit: "48",
+        offset: String(offset),
         q: normalizedQuery
       });
 
-      if (position) {
-        params.set("pos", position);
-      }
-
-      const response = await fetch(`/api/chat/gifs?${params.toString()}`, {
+      const response = await fetch(`/api/gifs/search?${params.toString()}`, {
         cache: "no-store"
       });
-      const payload = (await response.json()) as { gifs?: GifResult[]; next?: string | null; error?: string };
+      const payload = (await response.json()) as { nextOffset?: number | null; results?: GifResult[]; error?: string };
 
       if (!response.ok) {
         throw new Error(payload.error ?? "GIF search failed.");
       }
 
-      const nextGifs = payload.gifs ?? [];
+      const nextGifs = payload.results ?? [];
 
-      setGifResults((current) => (append ? [...current, ...nextGifs] : nextGifs));
-      setGifNextPosition(payload.next ?? null);
-      setGifError(nextGifs.length || append ? null : "No GIFs found.");
+      if (append) {
+        setGifResults((currentResults) => {
+          const seen = new Set(currentResults.map((gif) => gif.gifUrl.toLowerCase()));
+          const uniqueNextGifs = nextGifs.filter((gif) => {
+            const key = gif.gifUrl.toLowerCase();
 
-      if (!append) {
+            if (seen.has(key)) {
+              return false;
+            }
+
+            seen.add(key);
+            return true;
+          });
+
+          return [...currentResults, ...uniqueNextGifs];
+        });
+      } else {
+        setGifResults(nextGifs);
         gifResultsViewportRef.current?.scrollTo({ top: 0 });
       }
+
+      setGifLoadedQuery(normalizedQuery);
+      setGifNextOffset(typeof payload.nextOffset === "number" ? payload.nextOffset : null);
+      setGifError(nextGifs.length || append ? null : "No GIFs found.");
+
     } catch (error) {
       if (!append) {
         setGifResults([]);
+        setGifNextOffset(null);
       }
+
       setGifError(error instanceof Error ? error.message : "GIF search failed.");
     } finally {
+      gifLoadingRef.current = false;
       setGifLoading(false);
     }
   }
@@ -813,20 +964,19 @@ export function ChatRoomPanel({
   async function searchGifs(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    setGifNextPosition(null);
-    await loadGifs(gifQuery, null, false);
+    await loadGifs(gifQuery);
   }
 
   function handleGifResultsScroll(event: UIEvent<HTMLDivElement>) {
-    if (!gifNextPosition || gifLoading) {
+    if (gifNextOffset === null || gifLoadingRef.current) {
       return;
     }
 
-    const element = event.currentTarget;
-    const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+    const viewport = event.currentTarget;
+    const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
 
-    if (remaining < 180) {
-      void loadGifs(gifQuery, gifNextPosition, true);
+    if (remaining <= 220) {
+      void loadGifs(gifLoadedQuery || gifQuery, gifNextOffset, true);
     }
   }
 
@@ -899,8 +1049,18 @@ export function ChatRoomPanel({
     <section className={cn("relative min-h-0 min-w-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel lg:overflow-visible", className)}>
       {showPresenceRail ? (
         <ChatPresenceRail
+          availableThrowSprites={availableThrowSprites}
+          currentUserCanThrowSheep={currentUserCanThrowSheep}
+          currentUserId={currentUser?.id ?? null}
+          defaultThrowSprite={defaultThrowSprite}
+          formAction={formAction}
           open={presenceRailOpen}
+          pending={pending}
           roleDisplayLabels={roleDisplayLabels}
+          roomId={selectedRoom?.id ?? null}
+          roomLockedForUser={roomLockedForUser}
+          sheepThrowDisabledReason={sheepThrowDisabledReason}
+          sheepThrowStatusLabel={sheepThrowStatusLabel}
           users={visiblePresence}
           onToggle={() => setPresenceRailOpen((open) => !open)}
         />
@@ -937,7 +1097,7 @@ export function ChatRoomPanel({
             {currentUser ? (
               <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
                 <Badge tone="acid">{currentUser.displayName}</Badge>
-                {currentUser.roles.map((role) => (
+                {visibleRoleBadges(currentUser.roles).map((role) => (
                   <Badge key={role} tone={roleBadgeTone(role)}>
                     {roleDisplayName(role, roleDisplayLabels)}
                   </Badge>
@@ -980,13 +1140,33 @@ export function ChatRoomPanel({
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
             const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
             const canUseMessageActions = Boolean(currentUser && selectedRoom && !message.deletedAt);
+            const canEditOwnMessage = canEditChatMessage({
+              authorUserId: message.authorUserId,
+              currentUserId: currentUser?.id,
+              deletedAt: message.deletedAt,
+              kind: message.kind
+            });
             const canModerateMessage = Boolean(canUseMessageActions && currentUserCanModerate);
             const canBanMessageAuthor = Boolean(canModerateMessage && message.authorUserId && message.authorUserId !== currentUser?.id);
             const canThrowAtMessageAuthor = Boolean(
-              canUseMessageActions && currentUserCanThrowSheep && message.authorUserId && message.authorUserId !== currentUser?.id
+              canUseMessageActions &&
+                currentUserCanThrowSheep &&
+                message.authorUserId &&
+                message.authorUserId !== currentUser?.id &&
+                onlinePresenceUserIds.has(message.authorUserId)
             );
             const messageActionsOpen = openMessageActionsId === message.id;
+            const editingThisMessage = editingMessage?.id === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
+            const visibleReactionSummaries = message.reactions
+              .filter((reaction) => reaction.count > 0)
+              .map((summary) => ({
+                option: chatReactionOptions.find((option) => option.key === summary.key),
+                summary
+              }))
+              .filter((reaction): reaction is { option: (typeof chatReactionOptions)[number]; summary: (typeof message.reactions)[number] } =>
+                Boolean(reaction.option)
+              );
 
             if (message.kind === "sheep") {
               return (
@@ -1037,17 +1217,41 @@ export function ChatRoomPanel({
                         authorInitial(message.authorDisplayName)
                       )}
                     </span>
-                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                      <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
-                      {message.authorRoles.map((role) => (
-                        <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
-                          {roleDisplayName(role, roleDisplayLabels)}
-                        </Badge>
-                      ))}
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="min-w-0 break-words font-semibold">{message.authorDisplayName}</span>
+                        {visibleRoleBadges(message.authorRoles).map((role) => (
+                          <Badge className="py-0.5" key={role} tone={roleBadgeTone(role)}>
+                            {roleDisplayName(role, roleDisplayLabels)}
+                          </Badge>
+                        ))}
+                      </div>
+                      {visibleReactionSummaries.length ? (
+                        <div
+                          aria-label="Message reactions"
+                          className={cn("mt-1 flex min-h-4 flex-wrap items-center gap-2", mobileLiveMode && "mt-0.5 gap-1.5")}
+                        >
+                          {visibleReactionSummaries.map(({ option, summary }) => (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-0.5 text-[11px] font-black leading-none text-bc-muted",
+                                summary.reacted && "text-bc-electric",
+                                mobileLiveMode && "text-[10px]"
+                              )}
+                              key={summary.key}
+                              title={`${option.label}: ${summary.count.toLocaleString("en-GB")}`}
+                            >
+                              <span aria-hidden="true">{option.icon}</span>
+                              <span>{summary.count.toLocaleString("en-GB")}</span>
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <div className="ml-auto flex shrink-0 items-center gap-1">
                     <span className="text-xs text-bc-muted">{formatTime(message.createdAt)}</span>
+                    {message.editedAt ? <span className="text-[10px] font-semibold text-bc-muted">(edited)</span> : null}
                     {canUseMessageActions ? (
                       <button
                         aria-expanded={messageActionsOpen}
@@ -1080,7 +1284,37 @@ export function ChatRoomPanel({
                   </div>
                 ) : null}
 
-                {message.kind === "stars" ? (
+                {editingThisMessage ? (
+                  <form action={formAction} className="mt-3 grid gap-2 rounded-md border border-bc-electric/30 bg-bc-electric/10 p-2">
+                    <input name="intent" type="hidden" value="edit-message" />
+                    <input name="roomId" type="hidden" value={selectedRoom?.id ?? message.roomId} />
+                    <input name="messageId" type="hidden" value={message.id} />
+                    <textarea
+                      aria-label="Edit message"
+                      className="min-h-20 w-full resize-none rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white outline-none transition placeholder:text-bc-muted focus:border-bc-electric focus:ring-2 focus:ring-bc-electric/20"
+                      defaultValue={message.body}
+                      maxLength={500}
+                      name="body"
+                      required
+                    />
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        className="min-h-8 px-2 text-[11px]"
+                        disabled={pending}
+                        onClick={() => setEditingMessage(null)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        Cancel
+                      </Button>
+                      <Button className="min-h-8 px-2 text-[11px]" disabled={pending || roomLockedForUser} size="sm" type="submit">
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Save edit
+                      </Button>
+                    </div>
+                  </form>
+                ) : message.kind === "stars" ? (
                   <div className="mt-3 rounded-md border border-bc-acid/30 bg-bc-acid/10 p-3">
                     <div className="flex flex-wrap items-center gap-2">
                       <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
@@ -1135,21 +1369,48 @@ export function ChatRoomPanel({
                       <Reply className="h-3.5 w-3.5" aria-hidden="true" />
                       Reply
                     </button>
+                    {canEditOwnMessage ? (
+                      <button
+                        className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
+                        onClick={() => startEditingChatMessage(message)}
+                        type="button"
+                      >
+                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        Edit
+                      </button>
+                    ) : null}
                     {canThrowAtMessageAuthor ? (
-                      <form action={formAction} className="inline-flex">
+                      <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
                         <input name="intent" type="hidden" value="sheep" />
                         <input name="roomId" type="hidden" value={selectedRoom.id} />
                         <input name="messageId" type="hidden" value={message.id} />
+                        {availableThrowSprites.length > 1 ? (
+                          <select
+                            className="min-h-7 max-w-[9rem] rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white"
+                            defaultValue={defaultThrowSprite?.id}
+                            disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
+                            name="throwSpriteId"
+                            title="Choose what to throw"
+                          >
+                            {availableThrowSprites.map((sprite) => (
+                              <option key={sprite.id} value={sprite.id}>
+                                {sprite.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
+                        )}
                         <Button
                           className="min-h-7 px-2 text-xs"
                           disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
                           size="sm"
-                          title={sheepThrowDisabledReason ?? `Throw sheep for ${sheepThrowCostLabel}`}
+                          title={sheepThrowDisabledReason ?? `Throw for ${sheepThrowCostLabel}`}
                           type="submit"
                           variant="ghost"
                         >
                           <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                          Throw sheep
+                          {availableThrowSprites.length > 1 ? "Throw" : `Throw ${(defaultThrowSprite?.label ?? "sheep").toLowerCase()}`}
                           <span
                             className={cn(
                               "rounded-full px-1.5 py-0.5 text-[10px] font-black",
@@ -1591,7 +1852,7 @@ export function ChatRoomPanel({
               <section className="rounded-md border border-bc-line bg-bc-ink p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <Badge tone="cyan">GIFs</Badge>
-                  <span className="text-xs font-semibold text-bc-muted">GIFs by Tenor</span>
+                  <span className="text-xs font-semibold text-bc-muted">Unified search</span>
                 </div>
                 <form className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]" onSubmit={searchGifs}>
                   <input
@@ -1608,6 +1869,7 @@ export function ChatRoomPanel({
                   </Button>
                 </form>
 
+                {gifLoading && !gifResults.length ? <p className="mt-3 text-sm text-bc-muted">Loading GIFs...</p> : null}
                 {gifError ? <p className="mt-3 text-sm text-bc-muted">{gifError}</p> : null}
 
                 {gifResults.length ? (
@@ -1629,7 +1891,8 @@ export function ChatRoomPanel({
                             <input name="intent" type="hidden" value="gif" />
                             <input name="roomId" type="hidden" value={selectedRoom.id} />
                             <input name="gifId" type="hidden" value={gif.id} />
-                            <input name="gifUrl" type="hidden" value={gif.url} />
+                            <input name="gifProvider" type="hidden" value={gif.provider} />
+                            <input name="gifUrl" type="hidden" value={gif.gifUrl} />
                             <input name="gifPreviewUrl" type="hidden" value={gif.previewUrl} />
                             <input name="gifAlt" type="hidden" value={gif.title} />
                             <input name="gifWidth" type="hidden" value={gif.width ?? ""} />
@@ -1655,18 +1918,9 @@ export function ChatRoomPanel({
                         );
                       })}
                     </div>
-                    {gifNextPosition ? (
-                      <div className="sticky bottom-0 mt-2 border-t border-bc-line bg-bc-ink/95 py-2 backdrop-blur">
-                        <Button
-                          className="w-full"
-                          disabled={gifLoading}
-                          onClick={() => void loadGifs(gifQuery, gifNextPosition, true)}
-                          type="button"
-                          variant="ghost"
-                        >
-                          {gifLoading ? "Loading..." : "Load more GIFs"}
-                        </Button>
-                      </div>
+                    {gifLoading ? <p className="py-3 text-center text-xs font-semibold text-bc-muted">Loading more GIFs...</p> : null}
+                    {!gifLoading && gifNextOffset === null ? (
+                      <p className="py-3 text-center text-xs font-semibold text-bc-muted">End of results.</p>
                     ) : null}
                   </div>
                 ) : null}

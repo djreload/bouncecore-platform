@@ -455,6 +455,7 @@ model ChatSheepThrow {
   id                String   @id @default(cuid())
   roomId            String
   throwerId         String
+  spriteId          String   @default("sheep")
   targetUserId      String?
   targetDisplayName String?
   targetMessageId   String?
@@ -462,6 +463,7 @@ model ChatSheepThrow {
 
   @@index([createdAt])
   @@index([roomId, createdAt])
+  @@index([spriteId])
   @@index([throwerId, createdAt])
   @@index([targetUserId])
 }
@@ -482,6 +484,7 @@ model ChatMessage {
   mediaHeight      Int?
   effectId         String?
   deletedAt        DateTime?
+  editedAt         DateTime?
   createdAt        DateTime       @default(now())
   room             ChatRoom       @relation(fields: [roomId], references: [id], onDelete: Cascade)
   replyToMessage   ChatMessage?   @relation("ChatMessageReplies", fields: [replyToMessageId], references: [id], onDelete: SetNull)
@@ -491,6 +494,7 @@ model ChatMessage {
   reactions        ChatReaction[]
 
   @@index([replyToMessageId])
+  @@index([roomId, createdAt])
 }
 
 model ChatStickerPack {
@@ -638,29 +642,35 @@ model ProductVariant {
 }
 
 model Order {
-  id               String      @id @default(cuid())
-  userId           String
-  status           String      @default("pending")
-  totalPence       Int
-  currency         String      @default("GBP")
-  paypalOrderId    String?     @unique
-  paypalCaptureId  String?
-  paypalPayerEmail String?
-  shippingName     String?
-  shippingEmail    String?
-  shippingPhone    String?
-  shippingLine1    String?
-  shippingLine2    String?
-  shippingCity     String?
-  shippingCounty   String?
-  shippingPostcode String?
-  shippingCountry  String?
-  completedAt      DateTime?
-  cancelledAt      DateTime?
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  items            OrderItem[]
+  id                  String      @id @default(cuid())
+  userId              String
+  status              String      @default("pending")
+  totalPence          Int
+  currency            String      @default("GBP")
+  paymentProvider     String      @default("paypal")
+  paypalOrderId       String?     @unique
+  paypalCaptureId     String?
+  paypalPayerEmail    String?
+  squarePaymentLinkId String?     @unique
+  squareOrderId       String?     @unique
+  squarePaymentId     String?
+  squareReceiptUrl    String?
+  squareBuyerEmail    String?
+  shippingName        String?
+  shippingEmail       String?
+  shippingPhone       String?
+  shippingLine1       String?
+  shippingLine2       String?
+  shippingCity        String?
+  shippingCounty      String?
+  shippingPostcode    String?
+  shippingCountry     String?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items               OrderItem[]
 
   @@index([status])
   @@index([createdAt])
@@ -859,21 +869,27 @@ model StarWallet {
 }
 
 model StarPurchase {
-  id               String    @id @default(cuid())
-  userId           String
-  status           String    @default("pending")
-  stars            Int
-  totalPence       Int
-  currency         String    @default("GBP")
-  packageLabel     String
-  paypalOrderId    String?   @unique
-  paypalCaptureId  String?
-  paypalPayerEmail String?
-  completedAt      DateTime?
-  cancelledAt      DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(cuid())
+  userId              String
+  status              String    @default("pending")
+  stars               Int
+  totalPence          Int
+  currency            String    @default("GBP")
+  packageLabel        String
+  paymentProvider     String    @default("paypal")
+  paypalOrderId       String?   @unique
+  paypalCaptureId     String?
+  paypalPayerEmail    String?
+  squarePaymentLinkId String?   @unique
+  squareOrderId       String?   @unique
+  squarePaymentId     String?
+  squareReceiptUrl    String?
+  squareBuyerEmail    String?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])

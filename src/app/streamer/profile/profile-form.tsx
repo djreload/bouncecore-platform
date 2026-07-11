@@ -10,7 +10,7 @@ import {
 } from "@/app/streamer/profile/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import type { StreamerProfileData } from "@/lib/profile/dj-profile-service";
 
 type ProfileFormProps = {
@@ -208,7 +208,7 @@ export function ProfileForm({ profileData, roleDisplayLabels }: ProfileFormProps
           <h3 className="mt-4 text-xl font-black">{profileData.displayName}</h3>
           <p className="mt-2 text-sm text-bc-muted">{profileData.email}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            {profileData.roles.map((role) => (
+            {visibleRoleBadges(profileData.roles).map((role) => (
               <Badge key={role} tone={roleBadgeTone(role)}>
                 {roleDisplayName(role, roleDisplayLabels)}
               </Badge>

@@ -28,6 +28,7 @@ export type PublicChatMessageRow = {
   starNote: string | null;
   createdAt: string;
   deletedAt: string | null;
+  editedAt: string | null;
   authorDisplayName: string;
   authorAvatarUrl: string | null;
   authorUserId: string | null;
@@ -57,6 +58,7 @@ export type PublicChatPresenceUserRow = {
   roles: Role[];
   status: "online" | "away";
   lastActiveAt: string;
+  throwHitCount: number;
 };
 
 export type PublicChatAssetRow = {
@@ -78,6 +80,7 @@ export type PublicChatUser = {
 
 export type PublicChatActionState = {
   intent?: string;
+  revision?: number;
   status: "idle" | "success" | "error";
   message?: string;
 };

@@ -21,13 +21,15 @@ export function chatSheepThrowDedupeKey(input: { sheepThrowId: string; userId: s
   return `${chatSheepThrowNotificationType}:${input.sheepThrowId}:user:${input.userId}`;
 }
 
-export function chatSheepThrowNotificationContent(input: { roomSlug: string; throwerDisplayName: string }) {
+export function chatSheepThrowNotificationContent(input: { roomSlug: string; spriteLabel?: string; throwerDisplayName: string }) {
   const thrower = compactText(input.throwerDisplayName, 48) || "Someone";
   const room = compactText(input.roomSlug, 48) || "chat";
+  const sprite = compactText(input.spriteLabel ?? "sheep", 32).toLowerCase() || "sheep";
+  const article = /^(uni|user|use|euro)/.test(sprite) ? "a" : /^[aeiou]/.test(sprite) ? "an" : "a";
 
   return {
     body: `Open #${room} to jump back into the chat.`,
-    title: `${thrower} threw a sheep at you 😂`,
+    title: `${thrower} threw ${article} ${sprite} at you \u{1f602}`,
     type: chatSheepThrowNotificationType
   };
 }

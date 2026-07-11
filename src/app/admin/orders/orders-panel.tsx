@@ -89,9 +89,9 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
             <Badge tone={mode === "fulfilment" ? "amber" : "pink"}>{mode === "fulfilment" ? "Fulfilment" : "Merch shop"}</Badge>
             <h3 className="mt-4 text-2xl font-black">{mode === "fulfilment" ? "Fulfilment queue" : "Order management"}</h3>
             <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-              {mode === "fulfilment"
-                ? "Move paid orders through processing and fulfilled states as they are handled."
-                : "Review PayPal-backed order totals and manage order lifecycle status."}
+                {mode === "fulfilment"
+                  ? "Move paid orders through processing and fulfilled states as they are handled."
+                  : "Review payment-backed order totals and manage order lifecycle status."}
             </p>
           </div>
           {mode === "fulfilment" ? (
@@ -118,7 +118,7 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
         <div className="border-b border-bc-line p-4">
           <h3 className="text-xl font-black">{mode === "fulfilment" ? "Ready to fulfil" : "Recent orders"}</h3>
           <p className="mt-1 text-sm text-bc-muted">
-            Order records include customer, status, PayPal order total, line items, and capture references.
+            Order records include customer, status, order total, line items, and payment capture references.
           </p>
         </div>
         <div className="grid gap-4 p-4">
@@ -127,21 +127,25 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone={statusTone(order.status)}>{order.status}</Badge>
-                    <Badge tone="muted">#{order.id.slice(0, 8)}</Badge>
+                      <Badge tone={statusTone(order.status)}>{order.status}</Badge>
+                      <Badge tone="muted">#{order.id.slice(0, 8)}</Badge>
+                      <Badge tone="cyan">{order.paymentProvider}</Badge>
                   </div>
                   <h4 className="mt-3 text-lg font-black">{order.customerName}</h4>
                   <p className="mt-1 text-sm text-bc-muted">{order.customerEmail}</p>
                   <p className="mt-1 text-xs text-bc-muted">{formatDate(order.createdAt)}</p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {order.paypalOrderId ? <Badge tone="muted">PayPal {order.paypalOrderId.slice(0, 10)}</Badge> : null}
-                    {order.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
-                    {order.paypalPayerEmail ? <Badge tone="cyan">{order.paypalPayerEmail}</Badge> : null}
-                  </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {order.paypalOrderId ? <Badge tone="muted">PayPal {order.paypalOrderId.slice(0, 10)}</Badge> : null}
+                      {order.paypalCaptureId ? <Badge tone="acid">Captured</Badge> : null}
+                      {order.paypalPayerEmail ? <Badge tone="cyan">{order.paypalPayerEmail}</Badge> : null}
+                      {order.squareOrderId ? <Badge tone="muted">Square {order.squareOrderId.slice(0, 10)}</Badge> : null}
+                      {order.squarePaymentId ? <Badge tone="acid">Captured</Badge> : null}
+                      {order.squareBuyerEmail ? <Badge tone="cyan">{order.squareBuyerEmail}</Badge> : null}
+                    </div>
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-black">{formatMoney(order.totalPence)}</p>
-                  <p className="mt-1 text-xs text-bc-muted">PayPal order total</p>
+                  <p className="mt-1 text-xs text-bc-muted">Order total</p>
                 </div>
               </div>
 
@@ -222,7 +226,7 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
               <p className="mt-2 text-sm text-bc-muted">
                 {mode === "fulfilment"
                   ? "Paid and processing orders will appear here automatically."
-                  : "PayPal checkout orders will appear here once purchases are connected."}
+                  : "Checkout orders will appear here once purchases are connected."}
               </p>
             </article>
           ) : null}
@@ -231,10 +235,10 @@ export function AdminOrdersPanel({ data, mode = "orders" }: AdminOrdersPanelProp
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <PackageCheck className="h-7 w-7 text-bc-acid" aria-hidden="true" />
-        <h3 className="mt-4 text-xl font-black">PayPal fulfilment trail</h3>
+        <h3 className="mt-4 text-xl font-black">Fulfilment trail</h3>
         <p className="mt-2 text-sm text-bc-muted">
-          New shop checkouts create pending orders, redirect through PayPal approval, capture on return, and move paid orders into this
-          queue.
+          New shop checkouts create pending orders, redirect through payment approval, capture on return or webhook, and move paid orders into
+          this queue.
         </p>
       </section>
     </div>

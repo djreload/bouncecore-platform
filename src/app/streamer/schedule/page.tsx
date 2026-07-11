@@ -2,7 +2,7 @@ import { CalendarClock, Clock3, Radio, UserRound } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
 import { requireUserPermission } from "@/lib/auth/guards";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getStreamerScheduleData, type PublicStreamScheduleRow } from "@/lib/stream/stream-schedule-service";
 
@@ -53,7 +53,7 @@ function ScheduleCard({
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
         <span className="text-sm text-bc-muted">{schedule.hostDisplayName ?? "No host assigned"}</span>
-        {schedule.hostRoles.map((role) => (
+        {visibleRoleBadges(schedule.hostRoles).map((role) => (
           <Badge key={role} tone={roleBadgeTone(role)}>
             {roleDisplayName(role, roleDisplayLabels)}
           </Badge>

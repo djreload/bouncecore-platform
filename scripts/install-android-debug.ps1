@@ -1,5 +1,5 @@
 param(
-    [string]$WebUrl = "https://develop.k-nrg.co.uk",
+    [string]$WebUrl = "https://bouncecore.co.uk",
     [string]$Serial = "",
     [switch]$LevelPlayTestSuite,
     [string]$LevelPlayAppKey = "",
@@ -65,7 +65,7 @@ $gradleArgs = @(
     "-p", $androidDir,
     "--no-daemon",
     "assembleDebug",
-    "-PBOUNCECORE_WEB_URL=$WebUrl",
+    "-PBOUNCECORE_DEBUG_WEB_URL=$WebUrl",
     "-PLEVELPLAY_TEST_SUITE_ENABLED=$($LevelPlayTestSuite.IsPresent.ToString().ToLowerInvariant())"
 )
 

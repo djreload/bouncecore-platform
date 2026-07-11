@@ -84,7 +84,7 @@ function inviteEmailBody(input: VerificationEmailInput & { inviteUrl: string; ro
     "",
     `Assigned roles: ${input.roles.join(", ")}`,
     "",
-    "After registration, Bouncecore will ask you to verify this email address."
+    "This invite verifies the email address it was sent to and signs you in after registration."
   ].join("\n");
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">
@@ -93,7 +93,7 @@ function inviteEmailBody(input: VerificationEmailInput & { inviteUrl: string; ro
       <p>You have been invited to Bouncecore.</p>
       <p><a href="${input.inviteUrl}" style="display:inline-block;background:#ff2bd6;color:#fff;padding:12px 16px;border-radius:6px;font-weight:700;text-decoration:none">Accept invite</a></p>
       <p style="font-size:13px;color:#555">Assigned roles: ${escapeHtml(input.roles.join(", "))}</p>
-      <p style="font-size:13px;color:#555">After registration, Bouncecore will ask you to verify this email address.</p>
+      <p style="font-size:13px;color:#555">This invite verifies the email address it was sent to and signs you in after registration.</p>
     </div>
   `;
 

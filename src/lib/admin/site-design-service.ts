@@ -1,8 +1,17 @@
 import { Prisma } from "@prisma/client";
 import type { CSSProperties } from "react";
 import { publicNavigation, type IconName, type NavigationItem } from "@/config/navigation";
+import {
+  editableThemeTokenDefinitions,
+  mergeThemeTokens,
+  normalizeThemeInput,
+  type EditableThemeToken,
+  type SiteThemeInput
+} from "@/lib/admin/site-theme-core";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+
+export type { EditableThemeToken, SiteThemeInput } from "@/lib/admin/site-theme-core";
 
 const sitePagesSettingKey = "site.pages";
 const siteMenusSettingKey = "site.menus";
@@ -32,15 +41,6 @@ export type EditablePublicMenuItem = {
   order: number;
 };
 
-export type EditableThemeToken = {
-  css: string;
-  defaultValue: string;
-  key: string;
-  label: string;
-  use: string;
-  value: string;
-};
-
 export type SitePagesInput = {
   pages: Array<{
     description?: string;
@@ -57,13 +57,6 @@ export type SiteMenusInput = {
     key: string;
     label?: string;
     order?: number;
-  }>;
-};
-
-export type SiteThemeInput = {
-  tokens: Array<{
-    key: string;
-    value?: string;
   }>;
 };
 
@@ -188,23 +181,8 @@ export const editablePublicPageDefinitions = [
   tone: BadgeTone;
 }>;
 
-export const editableThemeTokenDefinitions = [
-  { css: "--color-bc-void", defaultValue: "#05050a", key: "void", label: "Void", use: "Global page background" },
-  { css: "--color-bc-ink", defaultValue: "#0b0d14", key: "ink", label: "Ink", use: "Shell sidebars and footer bands" },
-  { css: "--color-bc-panel", defaultValue: "#111421", key: "panel", label: "Panel", use: "Primary panels and cards" },
-  { css: "--color-bc-panel-2", defaultValue: "#171a2a", key: "panel2", label: "Panel 2", use: "Secondary panels" },
-  { css: "--color-bc-line", defaultValue: "#2b3148", key: "line", label: "Line", use: "Borders and dividers" },
-  { css: "--color-bc-muted", defaultValue: "#a7b0c4", key: "muted", label: "Muted", use: "Secondary text" },
-  { css: "--color-bc-electric", defaultValue: "#00d5ff", key: "electric", label: "Electric", use: "Primary actions and cyan badges" },
-  { css: "--color-bc-pink", defaultValue: "#ff2bd6", key: "pink", label: "Pink", use: "Accent actions and alerts" },
-  { css: "--color-bc-acid", defaultValue: "#b6ff2e", key: "acid", label: "Acid", use: "Success, stars, and positive status" },
-  { css: "--color-bc-violet", defaultValue: "#8b5cf6", key: "violet", label: "Violet", use: "Secondary accent" },
-  { css: "--color-bc-amber", defaultValue: "#ffb020", key: "amber", label: "Amber", use: "Warnings and attention states" }
-] as const;
-
 const featuredPageDefaults = new Set(["live", "chat", "music", "shop"]);
 const pageKeys: Set<string> = new Set(editablePublicPageDefinitions.map((page) => page.key));
-const themeTokenKeys: Set<string> = new Set(editableThemeTokenDefinitions.map((token) => token.key));
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -222,16 +200,6 @@ function normalizedText(value: string | undefined, maxLength: number, label: str
   }
 
   return text;
-}
-
-function normalizedHexColor(value: string | undefined, label: string) {
-  const color = normalizedText(value, 9, label);
-
-  if (!/^#[0-9a-fA-F]{6}$/.test(color)) {
-    throw new Error(`${label} must be a 6-digit hex colour, for example #00d5ff.`);
-  }
-
-  return color.toLowerCase();
 }
 
 function readSettingPayload(value: unknown, property: string) {
@@ -302,19 +270,6 @@ function mergeMenuItems(value: unknown): EditablePublicMenuItem[] {
     .sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
 }
 
-function mergeThemeTokens(value: unknown): EditableThemeToken[] {
-  const payload = readSettingPayload(value, "tokens");
-
-  return editableThemeTokenDefinitions.map((definition) => {
-    const saved = payload[definition.key];
-
-    return {
-      ...definition,
-      value: typeof saved === "string" && /^#[0-9a-fA-F]{6}$/.test(saved) ? saved.toLowerCase() : definition.defaultValue
-    };
-  });
-}
-
 function normalizePagesInput(input: SitePagesInput) {
   const pages = input.pages.reduce<Record<string, { description: string; enabled: boolean; featured: boolean; title: string }>>(
     (settings, page) => {
@@ -374,24 +329,6 @@ function normalizeMenusInput(input: SiteMenusInput) {
 
   return {
     public: publicItems,
-    version: 1
-  };
-}
-
-function normalizeThemeInput(input: SiteThemeInput) {
-  return {
-    tokens: input.tokens.reduce<Record<string, string>>((settings, token) => {
-      if (!themeTokenKeys.has(token.key)) {
-        throw new Error("Unknown theme token.");
-      }
-
-      const definition = editableThemeTokenDefinitions.find((item) => item.key === token.key);
-
-      return {
-        ...settings,
-        [token.key]: normalizedHexColor(token.value, definition?.label ?? "Theme colour")
-      };
-    }, {}),
     version: 1
   };
 }

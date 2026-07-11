@@ -41,12 +41,13 @@ export function streamLiveNotificationDedupePrefix(input: { channelId: string; s
   return `${streamLiveNotificationType}:${input.channelId}:${input.sessionId}`;
 }
 
-export function streamLiveNotificationContent(channelTitle: string) {
+export function streamLiveNotificationContent(channelTitle: string, hostDisplayName?: string | null) {
   const title = channelTitle.trim() || "Bouncecore Live";
+  const host = hostDisplayName?.trim();
 
   return {
-    body: "Tap to watch the stream and join chat.",
-    title: `${title} is live`,
+    body: host ? `Tap to watch ${title} and join chat.` : "Tap to watch the stream and join chat.",
+    title: host ? `${host} is live` : `${title} is live`,
     type: streamLiveNotificationType
   };
 }

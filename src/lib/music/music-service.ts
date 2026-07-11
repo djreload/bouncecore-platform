@@ -2,6 +2,7 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { prisma } from "@/lib/db/prisma";
 import { normalizeDownloadUrl, normalizeOptionalImageUrl, normalizeOptionalPreviewUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUploads } from "@/lib/media/upload-cleanup-service";
 
 export const digitalTrackStatusOptions = ["draft", "pending", "approved", "archived"] as const;
 
@@ -733,6 +734,21 @@ export async function updateProducerTrack(userId: string, input: DigitalTrackInp
     },
     data: trackInput
   });
+
+  await cleanupReplacedManagedUploads([
+    {
+      previous: existing.artworkUrl,
+      next: track.artworkUrl
+    },
+    {
+      previous: existing.previewUrl,
+      next: track.previewUrl
+    },
+    {
+      previous: existing.downloadUrl,
+      next: track.downloadUrl
+    }
+  ]);
 
   await writeAuditLog({
     actorId: userId,

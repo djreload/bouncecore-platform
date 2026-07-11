@@ -50,7 +50,7 @@ export function HeaderAjaxCart({ compact = false }: HeaderAjaxCartProps) {
       <button
         aria-expanded={open}
         aria-label={`Open basket, ${summary.totalCount} item${summary.totalCount === 1 ? "" : "s"}`}
-        className={`bc-focus-ring inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-bc-line bg-white/5 px-3 text-xs font-semibold text-white transition hover:border-bc-electric/60 hover:bg-bc-electric/10 ${
+        className={`bc-button bc-button-ghost bc-focus-ring inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-bc-line px-3 text-xs font-semibold text-white ${
           compact ? "w-full" : ""
         }`}
         onClick={() => setOpen((current) => !current)}

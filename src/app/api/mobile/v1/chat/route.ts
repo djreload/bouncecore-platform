@@ -1,5 +1,14 @@
 import { NextResponse } from "next/server";
-import { createChatGifMessage, createChatMessage } from "@/lib/chat/chat-service";
+import {
+  createChatGifMessage,
+  createChatMessage,
+  editOwnChatMessage,
+  moderateChatMessage,
+  toggleChatMessageReaction
+} from "@/lib/chat/chat-service";
+import { createChatSheepThrow } from "@/lib/chat/sheep-throw-service";
+import { hasPermission } from "@/lib/auth/rbac";
+import { getCurrentUserFromRequest } from "@/lib/auth/session";
 import { getMobileChatPayload } from "@/lib/mobile/public-api";
 import { requireMobileUser } from "@/lib/mobile/account-api";
 import { mobileActionError } from "@/lib/mobile/responses";
@@ -14,8 +23,9 @@ function firstParam(value: string | null) {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
+    const user = await getCurrentUserFromRequest();
 
-    return NextResponse.json(await getMobileChatPayload(firstParam(url.searchParams.get("room"))));
+    return NextResponse.json(await getMobileChatPayload(firstParam(url.searchParams.get("room")), user?.id));
   } catch {
     return NextResponse.json({ error: "Chat data is not available right now." }, { status: 500 });
   }
@@ -68,6 +78,7 @@ export async function POST(request: Request) {
         height: bodyNumber(gif, "height"),
         id: bodyString(gif, "id"),
         previewUrl: bodyString(gif, "previewUrl"),
+        provider: bodyString(gif, "provider"),
         searchTerm: bodyString(payload, "searchTerm") || bodyString(gif, "searchTerm"),
         url: bodyString(gif, "url"),
         width: bodyNumber(gif, "width")
@@ -85,8 +96,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ kind: "stars", ok: true, sendId: result.sendId });
     }
 
+    if (intent === "sheep") {
+      const sheepThrow = await createChatSheepThrow(
+        roomId,
+        user.id,
+        bodyString(payload, "messageId"),
+        bodyString(payload, "throwSpriteId"),
+        bodyString(payload, "targetUserId")
+      );
+
+      return NextResponse.json({ id: sheepThrow.id, kind: "sheep", ok: true });
+    }
+
+    if (intent === "reaction") {
+      await toggleChatMessageReaction(bodyString(payload, "messageId"), user.id, bodyString(payload, "reactionKey"));
+
+      return NextResponse.json({ kind: "reaction", ok: true });
+    }
+
+    if (intent === "edit-message") {
+      const message = await editOwnChatMessage(bodyString(payload, "messageId"), bodyString(payload, "body"), user.id);
+
+      return NextResponse.json({ id: message.id, kind: message.kind, ok: true });
+    }
+
+    if (intent === "delete-message") {
+      if (!hasPermission(user, "moderation.use")) {
+        return NextResponse.json({ error: "You do not have permission to remove chat messages." }, { status: 403 });
+      }
+
+      await moderateChatMessage(bodyString(payload, "messageId"), user.id);
+
+      return NextResponse.json({ kind: "delete-message", ok: true });
+    }
+
     if (intent !== "text") {
-      return NextResponse.json({ error: "intent must be text, gif, or stars." }, { status: 400 });
+      return NextResponse.json({ error: "intent must be text, gif, stars, sheep, reaction, edit-message, or delete-message." }, { status: 400 });
     }
 
     const message = await createChatMessage(

@@ -36,9 +36,14 @@ export type OrderRow = {
   status: string;
   totalPence: number;
   currency: string;
+  paymentProvider: string;
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
   paypalPayerEmail: string | null;
+  squareOrderId: string | null;
+  squarePaymentId: string | null;
+  squareBuyerEmail: string | null;
+  squareReceiptUrl: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -75,9 +80,14 @@ function toOrderRow(order: {
   status: string;
   totalPence: number;
   currency: string;
+  paymentProvider: string;
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
   paypalPayerEmail: string | null;
+  squareOrderId: string | null;
+  squarePaymentId: string | null;
+  squareBuyerEmail: string | null;
+  squareReceiptUrl: string | null;
   shippingName: string | null;
   shippingEmail: string | null;
   shippingPhone: string | null;
@@ -104,9 +114,14 @@ function toOrderRow(order: {
     status: order.status,
     totalPence: order.totalPence,
     currency: order.currency,
+    paymentProvider: order.paymentProvider,
     paypalOrderId: order.paypalOrderId,
     paypalCaptureId: order.paypalCaptureId,
     paypalPayerEmail: order.paypalPayerEmail,
+    squareBuyerEmail: order.squareBuyerEmail,
+    squareOrderId: order.squareOrderId,
+    squarePaymentId: order.squarePaymentId,
+    squareReceiptUrl: order.squareReceiptUrl,
     completedAt: order.completedAt?.toISOString() ?? null,
     cancelledAt: order.cancelledAt?.toISOString() ?? null,
     createdAt: order.createdAt.toISOString(),

@@ -38,6 +38,7 @@ export function adminSettingsInput(formData: FormData): SiteSettingsInput {
     legalPages,
     liveSocialLinks,
     logoUrl: formString(formData, "logoUrl"),
+    openGraphImageUrl: formString(formData, "openGraphImageUrl"),
     siteName: formString(formData, "siteName"),
     stagingTarget: formString(formData, "stagingTarget"),
     supportEmail: formString(formData, "supportEmail")

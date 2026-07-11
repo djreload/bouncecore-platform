@@ -7,7 +7,7 @@ import { updateAccountProfileAction } from "@/app/account/profile/actions";
 import { initialAccountProfileActionState, type AccountProfileActionState } from "@/app/account/profile/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import type { AccountProfileData } from "@/lib/account/account-service";
 
 type AccountProfileFormProps = {
@@ -225,7 +225,7 @@ export function AccountProfileForm({ data, roleDisplayLabels }: AccountProfileFo
           <p className="mt-2 text-sm text-bc-muted">{data.email}</p>
           <p className="mt-2 text-xs text-bc-muted">Joined {formatDate(data.createdAt)}</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            {data.roles.map((role) => (
+            {visibleRoleBadges(data.roles).map((role) => (
               <Badge key={role} tone={roleBadgeTone(role)}>
                 {roleDisplayName(role, roleDisplayLabels)}
               </Badge>

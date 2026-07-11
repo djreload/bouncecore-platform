@@ -1,5 +1,5 @@
 param(
-    [string]$WebUrl = "https://your-domain.example",
+    [string]$WebUrl = "",
     [string]$KeystorePath = "",
     [string]$CredentialsPath = "",
     [string]$KeyAlias = "",
@@ -68,8 +68,47 @@ function Import-SigningProperties {
     }
 }
 
+function Assert-ReleaseWebUrl {
+    param([string]$Value)
+
+    if (-not $Value) {
+        throw "WebUrl is required for release builds. Use -WebUrl <production-https-url>"
+    }
+
+    try {
+        $uri = [uri]$Value
+    } catch {
+        throw "WebUrl must be a valid HTTPS URL."
+    }
+
+    if ($uri.Scheme -ne "https" -or -not $uri.Host) {
+        throw "WebUrl must be a valid HTTPS URL."
+    }
+
+    $hostName = $uri.Host.ToLowerInvariant()
+    $isPrivate172 = $hostName -match "^172\.(1[6-9]|2[0-9]|3[0-1])\."
+    $isUnsafeHost =
+        $hostName -eq "localhost" `
+        -or $hostName -eq "127.0.0.1" `
+        -or $hostName -eq "::1" `
+        -or $hostName.StartsWith("10.") `
+        -or $hostName.StartsWith("192.168.") `
+        -or $isPrivate172 `
+        -or $hostName -eq "your-domain.example" `
+        -or $hostName.EndsWith(".example") `
+        -or $hostName.StartsWith("develop.") `
+        -or $hostName.StartsWith("staging.")
+
+    if ($isUnsafeHost) {
+        throw "WebUrl must point to the public production HTTPS site, not a local, placeholder, or staging host."
+    }
+
+    return $Value.TrimEnd("/")
+}
+
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $androidDir = Join-Path $repoRoot "android-webview"
+$WebUrl = Assert-ReleaseWebUrl -Value $WebUrl
 
 if (-not $CredentialsPath) {
     $defaultCredentialsPath = Join-Path $androidDir "release\signing.properties"

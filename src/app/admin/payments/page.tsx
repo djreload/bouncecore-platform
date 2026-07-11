@@ -1,26 +1,56 @@
 import { AdminShell } from "@/components/layout/admin-shell";
 import { AdminPaymentsPanel } from "@/app/admin/payments/payments-panel";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { getPaymentReconciliationData } from "@/lib/payments/payment-reconciliation-service";
 import { getPayPalIntegrationData } from "@/lib/payments/paypal-service";
+import { getSquareIntegrationData } from "@/lib/payments/square-service";
+import { getPaymentSmokeData } from "@/lib/payments/payment-smoke-service";
+import { normalizePayPalWebhookFilters } from "@/lib/payments/paypal-webhook-filter-core";
 import { getRecentPayPalWebhookEvents } from "@/lib/payments/paypal-webhook-service";
 import { getAdminProducerPayoutsData } from "@/lib/payments/producer-payout-service";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminPaymentsPage() {
-  await requireUserPermission("payments.manage");
-  const [data, payouts, webhookEvents] = await Promise.all([
+type AdminPaymentsPageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function firstSearchParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsPageProps) {
+  const user = await requireUserPermission("payments.manage");
+  const params = await searchParams;
+  const webhookFilters = normalizePayPalWebhookFilters({
+    eventType: firstSearchParam(params.webhookEventType),
+    limit: firstSearchParam(params.webhookLimit),
+    query: firstSearchParam(params.webhookQuery),
+    status: firstSearchParam(params.webhookStatus)
+  });
+  const [data, square, payouts, webhookEvents, reconciliation, smoke] = await Promise.all([
     getPayPalIntegrationData(),
+    getSquareIntegrationData(),
     getAdminProducerPayoutsData(),
-    getRecentPayPalWebhookEvents()
+    getRecentPayPalWebhookEvents(webhookFilters),
+    getPaymentReconciliationData(),
+    getPaymentSmokeData(user.id)
   ]);
 
   return (
     <AdminShell
       title="Payments"
-      description="PayPal integration control for stars purchases, merch checkout, and producer payouts."
+      description="Payment integration control for Square stars/merch checkout and PayPal producer music payouts."
     >
-      <AdminPaymentsPanel data={data} payouts={payouts} webhookEvents={webhookEvents} />
+      <AdminPaymentsPanel
+        data={data}
+        square={square}
+        payouts={payouts}
+        reconciliation={reconciliation}
+        smoke={smoke}
+        webhookEvents={webhookEvents}
+        webhookFilters={webhookFilters}
+      />
     </AdminShell>
   );
 }

@@ -4,6 +4,7 @@ import type { Role } from "@/lib/auth/rbac";
 import { makeProfileSlug } from "@/lib/auth/slugs";
 import { prisma } from "@/lib/db/prisma";
 import { normalizeOptionalProfileAvatarUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUpload } from "@/lib/media/upload-cleanup-service";
 
 export type AccountProfileInput = {
   avatarUrl?: string;
@@ -206,6 +207,16 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
     throw new Error("That profile slug is already in use.");
   }
 
+  const existingProfile = await prisma.profile.findUnique({
+    where: {
+      userId
+    },
+    select: {
+      avatarUrl: true
+    }
+  });
+  const avatarUrl = normalizeOptionalProfileAvatarUrl(input.avatarUrl);
+
   const profile = await prisma.$transaction(async (tx) => {
     await tx.user.update({
       where: {
@@ -221,7 +232,7 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
         userId
       },
       update: {
-        avatarUrl: normalizeOptionalProfileAvatarUrl(input.avatarUrl),
+        avatarUrl,
         bio: normalizedText(input.bio, 600),
         isPublic: input.isPublic,
         location: normalizedText(input.location, 80),
@@ -229,7 +240,7 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
         websiteUrl: normalizedUrl(input.websiteUrl, 300)
       },
       create: {
-        avatarUrl: normalizeOptionalProfileAvatarUrl(input.avatarUrl),
+        avatarUrl,
         bio: normalizedText(input.bio, 600),
         isPublic: input.isPublic,
         location: normalizedText(input.location, 80),
@@ -239,6 +250,8 @@ export async function updateAccountProfile(userId: string, input: AccountProfile
       }
     });
   });
+
+  await cleanupReplacedManagedUpload(existingProfile?.avatarUrl, profile.avatarUrl);
 
   await writeAuditLog({
     actorId: userId,

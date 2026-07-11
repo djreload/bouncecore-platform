@@ -14,6 +14,7 @@ const png2x1 = Buffer.from(
   "89504e470d0a1a0a0000000d4948445200000002000000010806000000000000000000000049454e44ae426082",
   "hex"
 );
+const ico1x1 = Buffer.from("00000100010001010000010020006800000016000000", "hex");
 
 function mp3Frame(bitrateIndex) {
   const frame = Buffer.alloc(128);
@@ -72,6 +73,79 @@ test("branding image uploads use the branding upload root", async () => {
 
     assert.match(uploadPath, /^\/uploads\/branding-images\/.+\.png$/);
     assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("favicon uploads accept ico files in the branding upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const icon = new File([ico1x1], "favicon.ico", {
+      type: "image/x-icon"
+    });
+    const uploadPath = await mediaService.saveOptionalFaviconUpload(icon);
+
+    assert.match(uploadPath, /^\/uploads\/branding-images\/.+\.ico$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    assert.equal(mediaService.normalizeOptionalFaviconUrl(uploadPath), uploadPath);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("stream offline image uploads use the stream offline upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const image = new File([png1x1], "offline.png", {
+      type: "image/png"
+    });
+    const uploadPath = await mediaService.saveOptionalStreamOfflineImageUpload(image);
+
+    assert.match(uploadPath, /^\/uploads\/stream-offline-images\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    assert.equal(mediaService.normalizeOptionalStreamOfflineImageUrl(uploadPath), uploadPath);
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
+test("chat sticker and emoji uploads use separate chat asset roots", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const sticker = new File([png1x1], "sticker.png", {
+      type: "image/png"
+    });
+    const emoji = new File([png1x1], "emoji.png", {
+      type: "image/png"
+    });
+    const stickerPath = await mediaService.saveOptionalChatAssetUpload(sticker, "chat-stickers");
+    const emojiPath = await mediaService.saveOptionalChatAssetUpload(emoji, "chat-emojis");
+
+    assert.match(stickerPath, /^\/uploads\/chat-stickers\/.+\.png$/);
+    assert.match(emojiPath, /^\/uploads\/chat-emojis\/.+\.png$/);
+    assert.equal(existsSync(path.join(tempDir, "public", stickerPath)), true);
+    assert.equal(existsSync(path.join(tempDir, "public", emojiPath)), true);
+    assert.equal(mediaService.normalizeOptionalChatAssetUrl(stickerPath, "chat-stickers"), stickerPath);
+    assert.equal(mediaService.normalizeOptionalChatAssetUrl(emojiPath, "chat-emojis"), emojiPath);
   } finally {
     restore();
     await rm(tempDir, {
@@ -218,6 +292,36 @@ test("download MP3 uploads still require 320kbps frames", async () => {
   }
 });
 
+test("Android APK uploads use the mobile APK upload root", async () => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
+  const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
+
+  try {
+    const apk = new File([Buffer.from("apk")], "bouncecore.apk", {
+      type: "application/vnd.android.package-archive"
+    });
+    const uploadPath = await mediaService.saveOptionalAndroidApkUpload(apk);
+
+    assert.match(uploadPath, /^\/uploads\/mobile-apks\/.+\.apk$/);
+    assert.equal(existsSync(path.join(tempDir, "public", uploadPath)), true);
+    await assert.rejects(
+      () =>
+        mediaService.saveOptionalAndroidApkUpload(
+          new File([Buffer.from("zip")], "bouncecore.zip", {
+            type: "application/zip"
+          })
+        ),
+      /\.apk file extension/
+    );
+  } finally {
+    restore();
+    await rm(tempDir, {
+      force: true,
+      recursive: true
+    });
+  }
+});
+
 test("upload limits match production asset requirements", async () => {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), "bouncecore-media-"));
   const { mediaService, restore } = await importMediaServiceForTempCwd(tempDir);
@@ -246,6 +350,10 @@ test("upload limits match production asset requirements", async () => {
     await assert.rejects(
       () => mediaService.saveOptionalDownloadMp3(overLimitFile("download.mp3", "audio/mpeg", 201 * 1024 * 1024)),
       /Maximum 200MB/
+    );
+    await assert.rejects(
+      () => mediaService.saveOptionalAndroidApkUpload(overLimitFile("bouncecore.apk", "application/vnd.android.package-archive", 251 * 1024 * 1024)),
+      /Maximum 250MB/
     );
   } finally {
     restore();

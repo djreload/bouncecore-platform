@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db/prisma";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { normalizeOptionalStreamOfflineImageUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUpload } from "@/lib/media/upload-cleanup-service";
 import { getStreamProvider, type StreamHealth, type StreamPlaybackSource, type StreamStatus } from "@/lib/stream/stream-provider";
 import {
   ensureDefaultStreamProfiles,
@@ -9,7 +10,9 @@ import {
   streamProfileToSummary,
   type StreamProfileSummary
 } from "@/lib/stream/stream-profile-service";
+import { getAdminRestreamSettings } from "@/lib/stream/restream-settings-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
+import { getLiveViewerPresenceCount } from "@/lib/presence/live-viewer-presence";
 
 export type StreamChannelInput = {
   channelId?: string;
@@ -59,6 +62,12 @@ export type PublicLiveState = {
   viewerCount: number;
   health: StreamHealth;
 };
+
+export const defaultStreamOfflineImageUrl = "/images/bouncecore-stage-hero.png";
+
+export function resolveStreamOfflineImageUrl(value: string | null | undefined) {
+  return value?.trim() || defaultStreamOfflineImageUrl;
+}
 
 function normalizeSlug(slug: string) {
   const normalized = slug
@@ -148,7 +157,7 @@ export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
 export async function getAdminStreamControlData() {
   await ensureDefaultStreamProfiles();
 
-  const [channels, provider, streamProfiles] = await Promise.all([
+  const [channels, provider, restreamSettings, streamProfiles] = await Promise.all([
     prisma.streamChannel.findMany({
       orderBy: {
         slug: "asc"
@@ -165,6 +174,7 @@ export async function getAdminStreamControlData() {
       }
     }),
     getProviderSnapshot(),
+    getAdminRestreamSettings(),
     getStreamProfiles({
       includeDisabled: true
     })
@@ -173,6 +183,7 @@ export async function getAdminStreamControlData() {
   return {
     channels: channels.map(toSummary),
     provider,
+    restreamSettings,
     streamProfiles
   };
 }
@@ -364,6 +375,8 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
     return updated;
   });
 
+  await cleanupReplacedManagedUpload(existing.offlineImageUrl, channel.offlineImageUrl);
+
   await writeAuditLog({
     actorId,
     action: "stream.channel.update",
@@ -380,7 +393,11 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
 }
 
 export async function getPublicLiveState(): Promise<PublicLiveState> {
-  const [provider, defaultProfile] = await Promise.all([getProviderSnapshot(), getDefaultStreamProfile()]);
+  const [provider, defaultProfile, liveViewerCount] = await Promise.all([
+    getProviderSnapshot(),
+    getDefaultStreamProfile(),
+    getLiveViewerPresenceCount()
+  ]);
 
   try {
     const channel = await prisma.streamChannel.findFirst({
@@ -392,6 +409,8 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       }
     });
     const status = provider.status !== "offline" ? provider.status : channel?.status ?? provider.status;
+    const viewerCount = status === "offline" ? 0 : Math.max(provider.viewerCount, liveViewerCount);
+    const offlineImageUrl = resolveStreamOfflineImageUrl(channel?.offlineImageUrl);
 
     return {
       activeIngests: provider.activeIngests,
@@ -401,26 +420,28 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
             title: channel.title,
             status: channel.status,
             playbackUrl: channel.playbackUrl,
-            offlineImageUrl: channel.offlineImageUrl,
+            offlineImageUrl,
             streamProfile: streamProfileToSummary(channel.streamProfile) ?? defaultProfile
           }
         : null,
       provider,
       status,
       playbackUrl: channel?.playbackUrl ?? provider.playbackUrl,
-      offlineImageUrl: channel?.offlineImageUrl ?? null,
-      viewerCount: provider.viewerCount,
+      offlineImageUrl,
+      viewerCount,
       health: provider.health
     };
   } catch {
+    const viewerCount = provider.status === "offline" ? 0 : Math.max(provider.viewerCount, liveViewerCount);
+
     return {
       activeIngests: provider.activeIngests,
       channel: null,
       provider,
       status: provider.status,
       playbackUrl: provider.playbackUrl,
-      offlineImageUrl: null,
-      viewerCount: provider.viewerCount,
+      offlineImageUrl: defaultStreamOfflineImageUrl,
+      viewerCount,
       health: provider.health
     };
   }

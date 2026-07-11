@@ -1,17 +1,37 @@
 import { cpus, freemem, totalmem, uptime } from "node:os";
+import { readFile } from "node:fs/promises";
+import { getAdminBackupRunData, manualBackupRunHealthCheckFromData } from "@/lib/admin/backup-run-requests";
 import { prisma } from "@/lib/db/prisma";
-import { getProviderSnapshot } from "@/lib/stream/stream-channel-service";
+import { mailIsConfigured } from "@/lib/mail/smtp-service";
+import { getAdminMobileConfigData } from "@/lib/admin/mobile-service";
+import { getAdminOffsiteBackupSettingsData, type OffsiteBackupSettings } from "@/lib/admin/offsite-backup-settings";
+import { getAdminSiteSettingsData } from "@/lib/admin/site-settings-service";
+import { getPayPalIntegrationData, type PayPalIntegrationData } from "@/lib/payments/paypal-service";
+import { defaultStreamOfflineImageUrl, getProviderSnapshot } from "@/lib/stream/stream-channel-service";
 import { getHlsPlaybackHealth } from "@/lib/stream/hls-playback-health";
 import { getLatestWorkerHeartbeat, getWorkerHeartbeatStatus } from "@/lib/workers/worker-heartbeat";
 
-type HealthStatus = "healthy" | "warning" | "critical";
+export type HealthStatus = "healthy" | "warning" | "critical";
 
-type HealthCheck = {
+export type HealthCheck = {
   label: string;
   status: HealthStatus;
   value: string;
   detail: string;
   href?: string;
+};
+
+export type ProductionReadinessGroup = {
+  description: string;
+  id: string;
+  items: HealthCheck[];
+  status: HealthStatus;
+  title: string;
+};
+
+export type ProductionReadinessIssue = HealthCheck & {
+  groupId: string;
+  groupTitle: string;
 };
 
 function formatBytes(bytes: number) {
@@ -42,6 +62,153 @@ function envCheck(label: string, key: string): HealthCheck {
   };
 }
 
+const productionReadinessRepairLinks: Record<string, string> = {
+  "Payment rail": "/admin/payments",
+  "PayPal client ID": "/admin/payments",
+  "PayPal client secret": "/admin/payments",
+  "PayPal webhook ID": "/admin/payments",
+  "PayPal webhooks": "/admin/payments",
+  "Brevo SMTP": "/admin/integrations",
+  "Site support email": "/admin/settings",
+  "Site config source": "/admin/settings",
+  "Push token encryption": "/admin/push",
+  "Mobile android push": "/admin/mobile",
+  "Mobile config source": "/admin/mobile",
+  "Mobile update URL": "/admin/mobile?repair=update-url",
+  "Queue backlog": "/admin/push",
+  "RTMPS ingest": "/admin/stream",
+  "RTMP ingest URL": "/admin/stream",
+  "Stream key validation URL": "/admin/stream",
+  "Playback URL": "/admin/stream",
+  "Playback manifest": "/admin/stream",
+  "Track artwork": "/admin/tracks?repair=missing-artwork",
+  "Product images": "/admin/products?repair=missing-images",
+  "Product variants": "/admin/products?repair=missing-variants",
+  "Sticker packs": "/admin/chat-assets?repair=empty-packs",
+  "Offline stream images": "/admin/stream?repair=missing-offline-image",
+  "Site legal pages": "/admin/settings",
+  "Site branding": "/admin/settings",
+  "Site live social links": "/admin/settings",
+  "Public app URL": "/admin/integrations",
+  "Internal task token": "/admin/integrations",
+  "Verified backups": "/admin/storage",
+  "Manual backup requests": "/admin/storage",
+  "Off-server backups": "/admin/storage"
+};
+
+export function productionReadinessRepairHref(label: string) {
+  return productionReadinessRepairLinks[label];
+}
+
+export function paypalIntegrationHealthChecks(paypal: PayPalIntegrationData): HealthCheck[] {
+  return paypal.checks.map((check) => ({
+    detail: check.detail,
+    label: check.label,
+    status: check.status === "ready" ? "healthy" : "warning",
+    value: check.value
+  }));
+}
+
+export function productionReadinessStatus(items: Array<{ status: HealthStatus }>): HealthStatus {
+  if (items.some((item) => item.status === "critical")) {
+    return "critical";
+  }
+
+  if (items.some((item) => item.status === "warning")) {
+    return "warning";
+  }
+
+  return "healthy";
+}
+
+export function productionReadinessIssues(groups: ProductionReadinessGroup[]): ProductionReadinessIssue[] {
+  const severityRank: Record<HealthStatus, number> = {
+    critical: 0,
+    warning: 1,
+    healthy: 2
+  };
+
+  const sortedIssues = groups
+    .flatMap((group) =>
+      group.items
+        .filter((item) => item.status !== "healthy")
+        .map((item) => ({
+          ...item,
+          groupId: group.id,
+          groupTitle: group.title
+        }))
+    )
+    .sort(
+      (left, right) =>
+        severityRank[left.status] - severityRank[right.status] ||
+        left.groupTitle.localeCompare(right.groupTitle) ||
+        left.label.localeCompare(right.label)
+    );
+  const seenLabels = new Set<string>();
+
+  return sortedIssues.filter((issue) => {
+    if (seenLabels.has(issue.label)) {
+      return false;
+    }
+
+    seenLabels.add(issue.label);
+    return true;
+  });
+}
+
+function productionReadinessGroup({
+  description,
+  id,
+  items,
+  title
+}: {
+  description: string;
+  id: string;
+  items: HealthCheck[];
+  title: string;
+}): ProductionReadinessGroup {
+  return {
+    description,
+    id,
+    items,
+    status: productionReadinessStatus(items),
+    title
+  };
+}
+
+function checkFromSource(checks: HealthCheck[], label: string): HealthCheck {
+  const check = checks.find((sourceCheck) => sourceCheck.label === label);
+  const href = productionReadinessRepairHref(label);
+
+  if (check) {
+    return {
+      ...check,
+      href: check.href ?? href
+    };
+  }
+
+  return {
+    detail: `${label} check was not available.`,
+    href,
+    label,
+    status: "warning",
+    value: "Missing"
+  };
+}
+
+function smtpHealthCheck(): HealthCheck {
+  const configured = mailIsConfigured();
+
+  return {
+    detail: configured
+      ? "Brevo/SMTP credentials are present for account verification, password reset, and system email."
+      : "Configure BREVO_SMTP_USER, BREVO_SMTP_KEY, and MAIL_FROM before production email can send.",
+    label: "Brevo SMTP",
+    status: configured ? "healthy" : "warning",
+    value: configured ? "Configured" : "Missing"
+  };
+}
+
 function enabled(key: string) {
   return process.env[key]?.trim().toLowerCase() === "true";
 }
@@ -54,6 +221,249 @@ function envNumber(key: string, fallback: number) {
   const value = Number(envValue(key));
 
   return Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
+}
+
+function parseEnvFileContent(input: string) {
+  const values = new Map<string, string>();
+
+  for (const line of input.split(/\r?\n/)) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) {
+      continue;
+    }
+
+    const [key, ...valueParts] = trimmed.split("=");
+    values.set(key.trim(), valueParts.join("=").trim());
+  }
+
+  return values;
+}
+
+export function backupStatusFilePath() {
+  return process.env.BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/backup-status.env";
+}
+
+export function offsiteBackupStatusFilePath() {
+  return process.env.OFFSITE_BACKUP_STATUS_FILE?.trim() || "public/uploads/.ops/offsite-backup-status.env";
+}
+
+export function backupStatusHealthCheckFromValues(
+  values: Map<string, string>,
+  {
+    maxAgeHours = 30,
+    now = new Date()
+  }: {
+    maxAgeHours?: number;
+    now?: Date;
+  } = {}
+): HealthCheck {
+  const status = values.get("status") || "unknown";
+  const verifiedAtValue = values.get("verified_at") || "";
+  const backupDir = values.get("backup_dir") || "unknown backup location";
+  const failures = values.get("failures") || "0";
+  const warnings = values.get("warnings") || "0";
+  const verifiedAt = new Date(verifiedAtValue);
+  const verifiedAtIsValid = Number.isFinite(verifiedAt.getTime());
+  const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+  const ageMs = verifiedAtIsValid ? now.getTime() - verifiedAt.getTime() : Number.POSITIVE_INFINITY;
+  const ageHours = verifiedAtIsValid ? Math.max(0, Math.round(ageMs / 60 / 60 / 1000)) : null;
+  const stale = !verifiedAtIsValid || ageMs > maxAgeMs;
+
+  if (status === "failed") {
+    return {
+      detail: `Latest backup verification failed with ${failures} failures. Backup: ${backupDir}`,
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "critical",
+      value: "Failed"
+    };
+  }
+
+  if (status !== "healthy" && status !== "warning") {
+    return {
+      detail: "Backup status file exists but does not contain a recognized status.",
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "warning",
+      value: "Unknown"
+    };
+  }
+
+  if (stale) {
+    return {
+      detail: verifiedAtIsValid
+        ? `Latest verified backup is ${ageHours} hours old. Backup: ${backupDir}`
+        : "Backup status file does not contain a valid verified_at timestamp.",
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "warning",
+      value: "Stale"
+    };
+  }
+
+  return {
+    detail:
+      status === "warning"
+        ? `Latest backup verified ${ageHours} hours ago with ${warnings} warnings. Backup: ${backupDir}`
+        : `Latest backup verified ${ageHours} hours ago. Backup: ${backupDir}`,
+    href: "/admin/storage",
+    label: "Verified backups",
+    status: status === "warning" ? "warning" : "healthy",
+    value: status === "warning" ? "Verified with warnings" : "Fresh"
+  };
+}
+
+export async function backupStatusHealthCheck(): Promise<HealthCheck> {
+  const statusFile = backupStatusFilePath();
+
+  try {
+    const content = await readFile(/*turbopackIgnore: true*/ statusFile, "utf8");
+
+    return backupStatusHealthCheckFromValues(parseEnvFileContent(content), {
+      maxAgeHours: envNumber("BACKUP_MAX_AGE_HOURS", 30)
+    });
+  } catch (error) {
+    return {
+      detail:
+        error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT"
+          ? `No backup status file found at ${statusFile}. Run a verified backup or install the backup timer.`
+          : error instanceof Error
+            ? error.message
+            : "Backup status file could not be read.",
+      href: "/admin/storage",
+      label: "Verified backups",
+      status: "warning",
+      value: "No status"
+    };
+  }
+}
+
+export function offsiteBackupStatusHealthCheckFromValues(
+  values: Map<string, string>,
+  {
+    maxAgeHours = 30,
+    now = new Date()
+  }: {
+    maxAgeHours?: number;
+    now?: Date;
+  } = {}
+): HealthCheck {
+  const status = values.get("status") || "unknown";
+  const exportedAtValue = values.get("exported_at") || "";
+  const backupDir = values.get("backup_dir") || "unknown backup location";
+  const uploaded = values.get("uploaded") === "true";
+  const remote = values.get("rclone_remote") || "";
+  const exportedAt = new Date(exportedAtValue);
+  const exportedAtIsValid = Number.isFinite(exportedAt.getTime());
+  const maxAgeMs = maxAgeHours * 60 * 60 * 1000;
+  const ageMs = exportedAtIsValid ? now.getTime() - exportedAt.getTime() : Number.POSITIVE_INFINITY;
+  const ageHours = exportedAtIsValid ? Math.max(0, Math.round(ageMs / 60 / 60 / 1000)) : null;
+  const stale = !exportedAtIsValid || ageMs > maxAgeMs;
+
+  if (status === "failed") {
+    return {
+      detail: `Latest encrypted off-server export failed. Backup: ${backupDir}`,
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "critical",
+      value: "Failed"
+    };
+  }
+
+  if (status !== "healthy") {
+    return {
+      detail: "Off-server backup status file exists but does not contain status=healthy.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "Unknown"
+    };
+  }
+
+  if (stale) {
+    return {
+      detail: exportedAtIsValid
+        ? `Latest encrypted backup export is ${ageHours} hours old. Backup: ${backupDir}`
+        : "Off-server backup status file does not contain a valid exported_at timestamp.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "Stale"
+    };
+  }
+
+  if (!uploaded || !remote) {
+    return {
+      detail: `Latest encrypted backup export is fresh but was not uploaded with rclone. Backup: ${backupDir}`,
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "Local only"
+    };
+  }
+
+  return {
+    detail: `Latest encrypted backup export uploaded ${ageHours} hours ago to ${remote}. Backup: ${backupDir}`,
+    href: "/admin/storage",
+    label: "Off-server backups",
+    status: "healthy",
+    value: "Fresh"
+  };
+}
+
+export async function offsiteBackupStatusHealthCheck(): Promise<HealthCheck> {
+  const statusFile = offsiteBackupStatusFilePath();
+
+  try {
+    const content = await readFile(/*turbopackIgnore: true*/ statusFile, "utf8");
+
+    return offsiteBackupStatusHealthCheckFromValues(parseEnvFileContent(content), {
+      maxAgeHours: envNumber("OFFSITE_BACKUP_MAX_AGE_HOURS", envNumber("BACKUP_MAX_AGE_HOURS", 30))
+    });
+  } catch (error) {
+    return {
+      detail:
+        error && typeof error === "object" && "code" in error && (error as { code?: unknown }).code === "ENOENT"
+          ? `No off-server backup export status file found at ${statusFile}. Configure encrypted off-server exports for the backup timer.`
+          : error instanceof Error
+            ? error.message
+            : "Off-server backup status file could not be read.",
+      href: "/admin/storage",
+      label: "Off-server backups",
+      status: "warning",
+      value: "No status"
+    };
+  }
+}
+
+export function offsiteBackupStatusHealthCheckWithSettings(
+  check: HealthCheck,
+  settings: OffsiteBackupSettings,
+  {
+    statusFile = offsiteBackupStatusFilePath()
+  }: {
+    statusFile?: string;
+  } = {}
+): HealthCheck {
+  if (check.label !== "Off-server backups" || check.value !== "No status") {
+    return check;
+  }
+
+  if (!settings.enabled) {
+    return {
+      ...check,
+      detail:
+        "External encrypted backup export is not enabled yet. Save the rclone destination and public age recipient in Admin -> Storage, then run or wait for the verified backup timer.",
+      value: "Not configured"
+    };
+  }
+
+  return {
+    ...check,
+    detail: `External backup destination is configured${settings.rcloneRemote ? ` as ${settings.rcloneRemote}` : ""}, but no off-server export status file exists yet at ${statusFile}. Run a verified backup or wait for the backup timer to upload the first encrypted export.`,
+    value: "Awaiting export"
+  };
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -168,7 +578,14 @@ export async function getAdminSystemHealthData() {
     activeProductsWithoutVariants,
     activeStickerPacksWithoutStickers,
     streamChannelsMissingOfflineImage,
-    mobileConfigSetting
+    mobileConfigSetting,
+    paypalIntegration,
+    mobileConfigData,
+    siteSettingsData,
+    backupStatus,
+    manualBackupRunData,
+    offsiteBackupStatus,
+    offsiteBackupSettingsData
   ] = await Promise.all([
     databaseCheck().catch<HealthCheck>((error) => ({
       label: "Database",
@@ -285,7 +702,14 @@ export async function getAdminSystemHealthData() {
       select: {
         value: true
       }
-    })
+    }),
+    getPayPalIntegrationData(),
+    getAdminMobileConfigData(),
+    getAdminSiteSettingsData(),
+    backupStatusHealthCheck(),
+    getAdminBackupRunData(),
+    offsiteBackupStatusHealthCheck(),
+    getAdminOffsiteBackupSettingsData()
   ]);
   const memoryTotal = totalmem();
   const memoryFree = freemem();
@@ -316,6 +740,22 @@ export async function getAdminSystemHealthData() {
     "details" in streamResult.health && typeof streamResult.health.details === "string"
       ? streamResult.health.details
       : `Ingest connected: ${streamResult.health.ingestConnected ? "yes" : "no"}. Checked ${streamResult.health.checkedAt}`;
+  const mobileChecks = mobileConfigData.checks.map((check): HealthCheck => ({
+    detail: check.detail,
+    label: `Mobile ${check.label.toLowerCase()}`,
+    status: check.status === "ready" ? "healthy" : "warning",
+    value: check.value
+  }));
+  const siteSettingsChecks = siteSettingsData.checks.map((check): HealthCheck => ({
+    detail: check.detail,
+    label: `Site ${check.label.toLowerCase()}`,
+    status: check.status === "ready" ? "healthy" : "warning",
+    value: check.value
+  }));
+  const offsiteBackupReadiness = offsiteBackupStatusHealthCheckWithSettings(
+    offsiteBackupStatus,
+    offsiteBackupSettingsData.settings
+  );
   const checks: HealthCheck[] = [
     {
       label: "App runtime",
@@ -330,6 +770,12 @@ export async function getAdminSystemHealthData() {
       value: workerHeartbeatStatus.value,
       detail: workerHeartbeatStatus.detail
     },
+    backupStatus,
+    manualBackupRunHealthCheckFromData(manualBackupRunData, {
+      queuedWarningMinutes: envNumber("BACKUP_RUN_QUEUED_WARNING_MINUTES", 5),
+      runningWarningMinutes: envNumber("BACKUP_RUN_RUNNING_WARNING_MINUTES", 180)
+    }),
+    offsiteBackupReadiness,
     {
       label: "Stream provider",
       status: streamResult.health.status === "healthy" ? "healthy" : "warning",
@@ -338,11 +784,11 @@ export async function getAdminSystemHealthData() {
     },
     envCheck("Public app URL", "NEXT_PUBLIC_APP_URL"),
     envCheck("Internal task token", "INTERNAL_TASK_TOKEN"),
+    smtpHealthCheck(),
     envCheck("Tenor GIF API", "TENOR_API_KEY"),
     envCheck("Push token encryption", "PUSH_TOKEN_ENCRYPTION_KEY"),
-    envCheck("PayPal client ID", "PAYPAL_CLIENT_ID"),
-    envCheck("PayPal client secret", "PAYPAL_CLIENT_SECRET"),
-    envCheck("PayPal webhook ID", "PAYPAL_WEBHOOK_ID"),
+    ...paypalIntegrationHealthChecks(paypalIntegration),
+    ...mobileChecks,
     envCheck("RTMP ingest URL", "RTMP_INGEST_URL"),
     {
       detail: rtmpsEnabled
@@ -460,15 +906,18 @@ export async function getAdminSystemHealthData() {
       singular: "pack",
       plural: "packs"
     }),
-    countQualityCheck({
-      count: streamChannelsMissingOfflineImage,
-      detail: "Stream channels without offline images fall back to the default offline presentation.",
-      healthyDetail: "All stream channels have offline images.",
-      href: "/admin/stream?repair=missing-offline-image",
+    {
+      detail:
+        streamChannelsMissingOfflineImage > 0
+          ? `${streamChannelsMissingOfflineImage.toLocaleString("en-GB")} stream ${
+              streamChannelsMissingOfflineImage === 1 ? "channel uses" : "channels use"
+            } the built-in offline image at ${defaultStreamOfflineImageUrl}. Upload custom offline images when each channel needs its own artwork.`
+          : "All stream channels have custom offline images.",
+      href: streamChannelsMissingOfflineImage > 0 ? "/admin/stream?repair=missing-offline-image" : undefined,
       label: "Offline stream images",
-      singular: "channel",
-      plural: "channels"
-    }),
+      status: "healthy",
+      value: streamChannelsMissingOfflineImage > 0 ? "Default fallback" : "Clean"
+    },
     {
       detail: mobileUpdateUrlInvalid
         ? "Saved mobile update URL is invalid or not HTTPS. The public mobile config now ignores it until repaired."
@@ -479,15 +928,107 @@ export async function getAdminSystemHealthData() {
       value: mobileUpdateUrlInvalid ? "Repair needed" : "Clean"
     }
   ];
-  const allChecks = [...checks, ...dataQuality];
+  const checkSources = [...checks, ...dataQuality, ...siteSettingsChecks];
+  const productionReadiness: ProductionReadinessGroup[] = [
+    productionReadinessGroup({
+      description: "PayPal credentials, checkout surfaces, webhook processing, and customer delivery integrity.",
+      id: "payments",
+      title: "Payments",
+      items: [
+        checkFromSource(checkSources, "Payment rail"),
+        checkFromSource(checkSources, "PayPal client ID"),
+        checkFromSource(checkSources, "PayPal client secret"),
+        checkFromSource(checkSources, "PayPal webhook ID"),
+        checkFromSource(checkSources, "PayPal webhooks"),
+        checkFromSource(checkSources, "Paid track delivery"),
+        checkFromSource(checkSources, "Paid purchase delivery")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Account verification, password reset, sender identity, and public support contact readiness.",
+      id: "email-support",
+      title: "Email and support",
+      items: [
+        checkFromSource(checkSources, "Brevo SMTP"),
+        checkFromSource(checkSources, "Site support email"),
+        checkFromSource(checkSources, "Site config source")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Mobile FCM configuration, encrypted device tokens, worker dispatch, and queue backlog.",
+      id: "push-mobile",
+      title: "Push and mobile",
+      items: [
+        checkFromSource(checkSources, "Push token encryption"),
+        checkFromSource(checkSources, "Mobile android push"),
+        checkFromSource(checkSources, "Mobile config source"),
+        checkFromSource(checkSources, "Mobile update URL"),
+        checkFromSource(checkSources, "Queue backlog")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "RTMPS ingest, stream-key validation, playback manifest, and adaptive/direct HLS readiness.",
+      id: "streaming",
+      title: "Streaming",
+      items: [
+        checkFromSource(checkSources, "RTMPS ingest"),
+        checkFromSource(checkSources, "RTMP ingest URL"),
+        checkFromSource(checkSources, "Stream key validation URL"),
+        checkFromSource(checkSources, "Playback URL"),
+        checkFromSource(checkSources, "Playback manifest")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Public catalogue images, track artwork, stickers, product variants, and offline stream presentation.",
+      id: "uploads-content",
+      title: "Uploads and content",
+      items: [
+        checkFromSource(checkSources, "Track artwork"),
+        checkFromSource(checkSources, "Product images"),
+        checkFromSource(checkSources, "Product variants"),
+        checkFromSource(checkSources, "Sticker packs"),
+        checkFromSource(checkSources, "Offline stream images")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Privacy policy, cookie/terms pages, branding, live links, and consent-facing public configuration.",
+      id: "legal-privacy",
+      title: "Legal and privacy",
+      items: [
+        checkFromSource(checkSources, "Site legal pages"),
+        checkFromSource(checkSources, "Site branding"),
+        checkFromSource(checkSources, "Site live social links"),
+        checkFromSource(checkSources, "Site support email")
+      ]
+    }),
+    productionReadinessGroup({
+      description: "Runtime, database, worker heartbeat, verified backups, off-server exports, internal task security, and public URL configuration.",
+      id: "operations",
+      title: "Operations",
+      items: [
+        checkFromSource(checkSources, "App runtime"),
+        checkFromSource(checkSources, "Database"),
+        checkFromSource(checkSources, "Worker heartbeat"),
+        checkFromSource(checkSources, "Verified backups"),
+        checkFromSource(checkSources, "Manual backup requests"),
+        checkFromSource(checkSources, "Off-server backups"),
+        checkFromSource(checkSources, "Public app URL"),
+        checkFromSource(checkSources, "Internal task token")
+      ]
+    })
+  ];
+  const allChecks = [...checks, ...dataQuality, ...siteSettingsChecks];
   const criticalChecks = allChecks.filter((check) => check.status === "critical").length;
   const warningChecks = allChecks.filter((check) => check.status === "warning").length;
+  const productionIssues = productionReadinessIssues(productionReadiness);
 
   return {
     checkedAt: new Date().toISOString(),
     overallStatus: criticalChecks ? "critical" : warningChecks ? "warning" : "healthy",
     checks,
     dataQuality,
+    productionReadiness,
+    productionIssues,
     metrics: [
       {
         label: "Active sessions",

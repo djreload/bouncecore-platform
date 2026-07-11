@@ -36,6 +36,20 @@ All notable project changes are tracked here. Dates use UTC.
 - Added worker-backed stream-provider sync, stream sessions, stream events, manual admin sync, and readiness checks.
 - Added database-backed stream profiles for low bitrate through high-HD stream configurations.
 - Added backup and restore scripts for PostgreSQL and Docker volumes used by uploads, Redis, stream-core state, and transcoder HLS output.
+- Added backup verification, local retention pruning, and a Debian/Ubuntu systemd timer installer for automated Bouncecore instance backups.
+- Added backup status tracking in the uploads volume and production readiness warnings for missing, failed, or stale verified backups.
+- Added a non-destructive restore drill script that restores backups into temporary Docker resources and reports database/table and volume extraction status.
+- Added encrypted off-server backup export using age, optional rclone upload, and scheduled-backup integration flags.
+- Added off-server backup status reporting in Admin -> System health and production readiness.
+- Added a recovery-side verifier for encrypted off-server backup packages.
+- Added a guided off-server backup setup helper that validates age/rclone, probes the remote, and installs the backup timer.
+- Added verified-backup and off-server backup status cards to Admin -> Storage with the exact repair commands owners need.
+- Added Admin -> Storage controls for the external encrypted backup location, with scheduled backups auto-loading the saved config from the uploads volume.
+- Added Google Drive as a first-class Admin -> Storage backup destination backed by a configured rclone Drive remote.
+- Improved off-server backup readiness wording so it distinguishes missing admin config from a configured destination awaiting its first export.
+- Added an Admin -> Storage rewrite action for regenerating the off-server backup config file from saved settings after restores or volume repairs.
+- Added an Admin -> Storage `Run backup now` request flow with host-side systemd processing and manual run status reporting.
+- Added System health monitoring for queued, running, failed, and completed admin-requested backup runs.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
 

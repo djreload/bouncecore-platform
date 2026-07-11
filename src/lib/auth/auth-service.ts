@@ -115,12 +115,15 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
   try {
     const createdUser = await prisma.$transaction(async (tx) => {
       const invite = await loadRegistrationInvite(tx, input.inviteToken, input.email);
+      const inviteAccepted = Boolean(invite);
+      const now = new Date();
       const user = await tx.user.create({
         data: {
           email: input.email,
+          emailVerifiedAt: inviteAccepted ? now : null,
           displayName: input.displayName,
           passwordHash,
-          status: "pending",
+          status: inviteAccepted ? "active" : "pending",
           profile: {
             create: {
               slug: makeProfileSlug(input.displayName)
@@ -137,7 +140,7 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
             id: invite.id
           },
           data: {
-            acceptedAt: new Date(),
+            acceptedAt: now,
             acceptedById: user.id,
             status: "accepted"
           }
@@ -162,9 +165,47 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
       return {
         displayName: user.displayName,
         email: user.email,
-        id: user.id
+        id: user.id,
+        inviteAccepted
       };
     });
+
+    if (createdUser.inviteAccepted) {
+      const token = createSecretToken("bc_session");
+
+      await prisma.authSession.create({
+        data: {
+          userId: createdUser.id,
+          tokenHash: hashSecretToken(token),
+          expiresAt: sessionExpiry(),
+          ipAddress: context.ipAddress,
+          userAgent: context.userAgent
+        }
+      });
+
+      await prisma.user.update({
+        where: { id: createdUser.id },
+        data: { lastLoginAt: new Date() }
+      });
+
+      await writeAuditLog({
+        actorId: createdUser.id,
+        action: "auth.invite_register_login",
+        target: `user:${createdUser.id}`,
+        severity: "info",
+        metadata: {
+          sessionFingerprint: tokenFingerprint(token)
+        },
+        ipAddress: context.ipAddress,
+        userAgent: context.userAgent
+      });
+
+      return {
+        ok: true,
+        token,
+        redirectTo: "/account/security"
+      };
+    }
 
     const verification = await issueEmailVerification({
       displayName: createdUser.displayName,

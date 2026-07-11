@@ -3,6 +3,7 @@ import { AdminUserInvitesPanel } from "@/app/admin/users/invites-panel";
 import {
   AddUserRoleForm,
   DeleteUserForm,
+  PasswordResetForm,
   RemoveUserRoleForm,
   UserStatusForm
 } from "@/app/admin/users/user-management-forms";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { getAdminRoles, getAdminUsers } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { hasPermission } from "@/lib/auth/rbac";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { userStatusOptions } from "@/lib/auth/user-admin-service";
 import { getAdminUserInvites, inviteAssignableRoles } from "@/lib/auth/user-invite-service";
@@ -99,6 +100,7 @@ export default async function AdminUsersPage() {
                 const assignedRoleNames = new Set(user.roles.map((userRole) => userRole.role.name));
                 const assignableRoles = roles.filter((role) => !assignedRoleNames.has(role.name));
                 const isLastOwner = assignedRoleNames.has("owner") && ownerUsers <= 1;
+                const visibleUserRoles = user.roles.filter((userRole) => visibleRoleBadges([userRole.role.name]).length);
                 const statusChoices = userStatusOptions.filter((status) => {
                   if ((user.id === actor.id || isLastOwner) && (status === "suspended" || status === "banned")) {
                     return false;
@@ -124,8 +126,8 @@ export default async function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="grid gap-2">
-                        {user.roles.length ? (
-                          user.roles.map((userRole) => (
+                          {visibleUserRoles.length ? (
+                            visibleUserRoles.map((userRole) => (
                             <div className="flex flex-wrap items-center gap-2" key={userRole.roleId}>
                               <Badge tone={roleBadgeTone(userRole.role.name)}>
                                 {roleDisplayName(userRole.role.name, roleDisplayLabels)}
@@ -170,6 +172,8 @@ export default async function AdminUsersPage() {
                         ) : (
                           <Badge tone="muted">All roles assigned</Badge>
                         )}
+
+                        {canDeleteUsers ? <PasswordResetForm email={user.email} userId={user.id} /> : null}
 
                         {canDeleteUsers ? (
                           user.id === actor.id ? (

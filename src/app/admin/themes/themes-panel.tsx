@@ -1,12 +1,19 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useActionState } from "react";
+import { useMemo, useState } from "react";
 import { Palette, Save } from "lucide-react";
 import { adminThemesAction } from "@/app/admin/themes/actions";
 import { initialAdminSiteDesignActionState, type AdminSiteDesignActionState } from "@/app/admin/site-design-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AdminSiteThemeData } from "@/lib/admin/site-design-service";
+import {
+  defaultThemeTokenValues,
+  siteThemePresets,
+  type ThemeTokenKey
+} from "@/lib/admin/site-theme-core";
 
 type AdminThemesPanelProps = {
   data: AdminSiteThemeData;
@@ -17,10 +24,36 @@ function formatDate(value: string | null) {
 }
 
 export function AdminThemesPanel({ data }: AdminThemesPanelProps) {
+  const initialValues = useMemo(
+    () =>
+      data.tokens.reduce<Record<ThemeTokenKey, string>>((values, token) => {
+        values[token.key] = token.value;
+
+        return values;
+      }, {} as Record<ThemeTokenKey, string>),
+    [data.tokens]
+  );
   const [state, formAction, pending] = useActionState<AdminSiteDesignActionState, FormData>(
     adminThemesAction,
     initialAdminSiteDesignActionState
   );
+  const [themeValues, setThemeValues] = useState<Record<ThemeTokenKey, string>>(initialValues);
+  const previewStyle = data.tokens.reduce<Record<string, string>>((style, token) => {
+    style[token.css] = themeValues[token.key] || token.value;
+
+    return style;
+  }, {}) as CSSProperties;
+
+  function setTokenValue(key: ThemeTokenKey, value: string) {
+    setThemeValues((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }
+
+  function applyPreset(tokens: Record<ThemeTokenKey, string>) {
+    setThemeValues({ ...tokens });
+  }
 
   return (
     <div className="space-y-5">
@@ -67,6 +100,72 @@ export function AdminThemesPanel({ data }: AdminThemesPanelProps) {
         ) : null}
 
         <form action={formAction} className="mt-5 grid gap-3">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <div className="grid gap-3 md:grid-cols-2">
+              {siteThemePresets.map((preset) => (
+                <button
+                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink p-4 text-left transition hover:border-bc-electric/60"
+                  disabled={pending}
+                  key={preset.key}
+                  onClick={() => applyPreset(preset.tokens)}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h4 className="font-black">{preset.label}</h4>
+                      <p className="mt-1 text-sm text-bc-muted">{preset.description}</p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(["electric", "pink", "acid", "violet", "amber", "panel"] as const).map((key) => (
+                        <span
+                          aria-hidden="true"
+                          className="h-4 w-4 rounded border border-white/15"
+                          key={key}
+                          style={{ backgroundColor: preset.tokens[key] }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </button>
+              ))}
+              <button
+                className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink p-4 text-left transition hover:border-bc-acid/60"
+                disabled={pending}
+                onClick={() => applyPreset(defaultThemeTokenValues())}
+                type="button"
+              >
+                <h4 className="font-black">Reset defaults</h4>
+                <p className="mt-1 text-sm text-bc-muted">Restore the original Bouncecore design-system token values before saving.</p>
+              </button>
+            </div>
+
+            <aside className="rounded-md border border-bc-line bg-bc-ink p-4" style={previewStyle}>
+              <Badge tone="cyan">Live preview</Badge>
+              <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-4">
+                <p className="text-xs font-semibold uppercase text-bc-muted">Bouncecore theme</p>
+                <h4 className="mt-2 text-2xl font-black">Control room</h4>
+                <p className="mt-2 text-sm text-bc-muted">
+                  Preview panels, actions, status colours, and readable muted text before saving.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded border border-bc-electric/40 bg-bc-electric/10 px-2 py-1 text-xs font-semibold text-bc-electric">
+                    Electric
+                  </span>
+                  <span className="rounded border border-bc-pink/40 bg-bc-pink/10 px-2 py-1 text-xs font-semibold text-bc-pink">
+                    Pink
+                  </span>
+                  <span className="rounded border border-bc-acid/40 bg-bc-acid/10 px-2 py-1 text-xs font-semibold text-bc-acid">
+                    Acid
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <span className="rounded-md bg-bc-electric px-3 py-2 text-center text-sm font-black text-bc-void">Primary</span>
+                  <span className="rounded-md bg-bc-pink px-3 py-2 text-center text-sm font-black text-white">Accent</span>
+                </div>
+              </div>
+            </aside>
+          </div>
+
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {data.tokens.map((token) => (
               <article className="rounded-md border border-bc-line bg-bc-ink p-4" key={token.key}>
@@ -92,17 +191,19 @@ export function AdminThemesPanel({ data }: AdminThemesPanelProps) {
                   <input
                     aria-label={`${token.label} colour picker`}
                     className="min-h-10 w-full rounded-md border border-bc-line bg-bc-panel p-1"
-                    defaultValue={token.value}
+                    value={/^#[0-9a-fA-F]{6}$/.test(themeValues[token.key]) ? themeValues[token.key] : token.defaultValue}
                     disabled={pending}
-                    name={`value_${token.key}`}
+                    onChange={(event) => setTokenValue(token.key, event.target.value)}
                     type="color"
                   />
                   <input
                     className="min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
-                    defaultValue={token.value}
                     disabled={pending}
+                    maxLength={7}
+                    name={`value_${token.key}`}
+                    onChange={(event) => setTokenValue(token.key, event.target.value)}
                     pattern="^#[0-9a-fA-F]{6}$"
-                    readOnly
+                    value={themeValues[token.key]}
                   />
                 </div>
                 <p className="mt-2 text-xs text-bc-muted">Default: {token.defaultValue}</p>

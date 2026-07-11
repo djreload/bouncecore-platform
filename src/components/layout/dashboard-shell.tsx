@@ -30,9 +30,14 @@ export async function DashboardShell({ children, title, description, mode = "acc
   const visibleNavigation = filterNavigationByRoles([...accountNavigation, ...accountFeatureItems, ...roleItems], user.roles);
 
   return (
-    <main className="min-h-screen bg-bc-void text-white" style={themeStyle}>
+    <main
+      className="bc-dashboard-shell min-h-screen bg-bc-void text-white"
+      data-bc-visual-shell={mode}
+      data-bc-visual-part="dashboard-shell"
+      style={themeStyle}
+    >
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[290px_1fr]">
-        <aside className="rounded-md border border-bc-line bg-bc-ink p-4">
+        <aside className="bc-dashboard-sidebar rounded-md border border-bc-line bg-bc-ink p-4" data-bc-visual-part="dashboard-sidebar">
           <div className="mb-5">
             <p className="text-xs font-semibold uppercase text-bc-electric">Bouncecore account</p>
             <h1 className="mt-1 text-xl font-black">{mode === "account" ? "Dashboard" : title}</h1>
@@ -47,7 +52,7 @@ export async function DashboardShell({ children, title, description, mode = "acc
           <GroupedNav items={visibleNavigation} />
         </aside>
         <section>
-          <div className="mb-5 rounded-md border border-bc-line bg-bc-panel p-5">
+          <div className="bc-dashboard-hero mb-5 rounded-md border border-bc-line bg-bc-panel p-5" data-bc-visual-part="dashboard-hero">
             <p className="text-sm text-bc-muted">Account / {title}</p>
             <h2 className="mt-1 text-3xl font-black">{title}</h2>
             <p className="mt-2 max-w-3xl text-bc-muted">{description}</p>

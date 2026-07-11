@@ -3,7 +3,7 @@ import { CalendarClock, Globe, Headphones, MapPin, Radio } from "lucide-react";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
 import { getPublicDjProfileBySlug } from "@/lib/profile/dj-profile-service";
@@ -48,7 +48,7 @@ export default async function DjProfilePage({ params }: { params: Promise<{ slug
           </div>
 
           <div className="mt-6 flex flex-wrap gap-3">
-            {profile.roles.map((role) => (
+            {visibleRoleBadges(profile.roles).map((role) => (
               <Badge key={role} tone={roleBadgeTone(role)}>
                 {roleDisplayName(role, roleDisplayLabels)}
               </Badge>

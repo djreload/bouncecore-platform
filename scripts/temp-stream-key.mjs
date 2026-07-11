@@ -7,7 +7,7 @@ import { Pool } from "pg";
 
 function usage() {
   console.error(`Usage:
-  node scripts/temp-stream-key.mjs create --email user@example.com [--env-file .env.instance]
+  node scripts/temp-stream-key.mjs create --email user@example.com [--create-user] [--display-name "Stream Smoke"] [--env-file .env.instance]
   node scripts/temp-stream-key.mjs revoke --key-id stream_key_id [--env-file .env.instance]`);
 }
 
@@ -73,6 +73,10 @@ function requireOption(options, key) {
   return value;
 }
 
+function booleanOption(options, key) {
+  return ["1", "true", "yes", "on"].includes((options[key] ?? "").trim().toLowerCase());
+}
+
 function createSecretToken(prefix) {
   return `${prefix}_${randomBytes(32).toString("base64url")}`;
 }
@@ -104,8 +108,8 @@ function prismaClient() {
   };
 }
 
-async function createTemporaryKey(prisma, email) {
-  const user = await prisma.user.findUnique({
+async function findOrCreateSmokeUser(prisma, email, options) {
+  const existing = await prisma.user.findUnique({
     where: {
       email
     },
@@ -114,10 +118,44 @@ async function createTemporaryKey(prisma, email) {
     }
   });
 
-  if (!user) {
+  if (existing) {
+    return existing;
+  }
+
+  if (!options.createUser) {
     throw new Error(`No user found for ${email}.`);
   }
 
+  const user = await prisma.user.create({
+    data: {
+      displayName: options.displayName || "Stream Smoke",
+      email,
+      emailVerifiedAt: new Date(),
+      status: "active"
+    },
+    select: {
+      id: true
+    }
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: user.id,
+      action: "stream.key.temp_smoke_user_create",
+      metadata: {
+        email,
+        source: "temp-stream-key"
+      },
+      severity: "warning",
+      target: `user:${user.id}`
+    }
+  });
+
+  return user;
+}
+
+async function createTemporaryKey(prisma, email, options) {
+  const user = await findOrCreateSmokeUser(prisma, email, options);
   const channel = await prisma.streamChannel.findFirst({
     orderBy: {
       slug: "asc"
@@ -220,7 +258,10 @@ try {
   client = prismaClient();
   const result =
     command === "create"
-      ? await createTemporaryKey(client.prisma, requireOption(options, "email").toLowerCase())
+      ? await createTemporaryKey(client.prisma, requireOption(options, "email").toLowerCase(), {
+          createUser: booleanOption(options, "create-user"),
+          displayName: options["display-name"]?.trim() ?? ""
+        })
       : await revokeTemporaryKey(client.prisma, requireOption(options, "key-id"));
 
   process.stdout.write(`${JSON.stringify(result)}\n`);

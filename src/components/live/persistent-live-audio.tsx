@@ -2,25 +2,14 @@
 
 import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
-import { Pause, Play, Radio, Volume2, WifiOff } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
+import { isBouncecoreAndroidRuntime } from "@/lib/runtime/mobile-app-runtime";
 
-type LiveAudioState = {
-  playbackUrl: string | null;
-  status: string;
-  title: string;
-  viewerCount: number;
-};
-
-type LiveStatusPayload = {
-  playbackUrl?: unknown;
-  status?: unknown;
-  viewerCount?: unknown;
-  channel?: {
-    title?: unknown;
-  } | null;
-};
+const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
+const liveAudioEnableEvent = "bouncecore:live-audio-enable";
+const liveVideoSlotSelector = "[data-live-primary-video-slot]";
 
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
@@ -34,116 +23,391 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
-function normalizePayload(payload: LiveStatusPayload, current: LiveAudioState): LiveAudioState {
-  return {
-    playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
-    status: typeof payload.status === "string" ? payload.status : current.status,
-    title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
-    viewerCount: typeof payload.viewerCount === "number" && Number.isFinite(payload.viewerCount) ? payload.viewerCount : current.viewerCount
-  };
+function seekToLiveEdge(video: HTMLVideoElement) {
+  const seekable = video.seekable;
+
+  if (!seekable.length) {
+    return;
+  }
+
+  const end = seekable.end(seekable.length - 1);
+  const start = seekable.start(seekable.length - 1);
+
+  if (Number.isFinite(end)) {
+    video.currentTime = Math.max(start, end - 0.35);
+  }
+}
+
+function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
+  video.defaultPlaybackRate = 1;
+
+  if (video.playbackRate !== 1) {
+    video.playbackRate = 1;
+  }
+}
+
+function storedAudioEnabled() {
+  try {
+    return window.localStorage.getItem(liveAudioEnabledStorageKey) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function storeAudioEnabled(enabled: boolean) {
+  try {
+    window.localStorage.setItem(liveAudioEnabledStorageKey, enabled ? "true" : "false");
+  } catch {
+    // Storage can be unavailable in strict privacy modes; playback still works for this page lifetime.
+  }
+}
+
+function setAudiblePreference(enabled: boolean, video?: HTMLVideoElement | null) {
+  if (video) {
+    video.muted = !enabled;
+  }
+
+  storeAudioEnabled(enabled);
+}
+
+function isLivePath(pathname: string | null) {
+  return pathname === "/live" || Boolean(pathname?.startsWith("/live/"));
+}
+
+function shouldSuspendPersistentPlayback(pathname: string | null) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+    return true;
+  }
+
+  return isBouncecoreAndroidRuntime() && !isLivePath(pathname);
+}
+
+export function requestPersistentLiveAudio() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(liveAudioEnableEvent));
+}
+
+const initialLiveStatus: LiveStatusPayload = {
+  activeIngests: [],
+  channel: null,
+  health: {
+    checkedAt: new Date(0).toISOString(),
+    ingestConnected: false,
+    status: "unknown"
+  },
+  offlineImageUrl: null,
+  playbackUrl: null,
+  status: "checking",
+  viewerCount: 0
+};
+
+function getPrimaryPlaybackUrl(liveState: LiveStatusPayload) {
+  const primaryIngest =
+    liveState.activeIngests.find((ingest) => ingest.role === "primary" && ingest.playbackUrl) ??
+    liveState.activeIngests.find((ingest) => ingest.playbackUrl);
+
+  return primaryIngest?.playbackUrl ?? liveState.playbackUrl;
 }
 
 export function PersistentLiveAudio() {
   const pathname = usePathname();
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const parkingRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [liveState, setLiveState] = useState<LiveAudioState>({
-    playbackUrl: null,
-    status: "checking",
-    title: "Bouncecore Live",
-    viewerCount: 0
-  });
+  const canPlayRef = useRef(false);
+  const suspendPlaybackRef = useRef(false);
+  const userEnabledRef = useRef(false);
+  const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
+  const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname));
   const [userEnabled, setUserEnabled] = useState(false);
-  const [playing, setPlaying] = useState(false);
-  const [blocked, setBlocked] = useState(false);
-  const canPlay = Boolean(liveState.playbackUrl) && liveState.status !== "offline";
-  const visible = canPlay || userEnabled;
-  const onLivePage = pathname === "/live" || pathname.startsWith("/live?");
+  const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
+  const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline" && !suspendPlayback;
+
+  useEffect(() => {
+    canPlayRef.current = canPlay;
+  }, [canPlay]);
+
+  useEffect(() => {
+    suspendPlaybackRef.current = suspendPlayback;
+  }, [suspendPlayback]);
+
+  useEffect(() => {
+    userEnabledRef.current = userEnabled;
+  }, [userEnabled]);
+
+  useEffect(() => {
+    function updateSuspendState() {
+      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname));
+    }
+
+    function suspendForPageHide() {
+      setSuspendPlayback(true);
+    }
+
+    updateSuspendState();
+    document.addEventListener("visibilitychange", updateSuspendState);
+    window.addEventListener("pagehide", suspendForPageHide);
+    window.addEventListener("pageshow", updateSuspendState);
+
+    return () => {
+      document.removeEventListener("visibilitychange", updateSuspendState);
+      window.removeEventListener("pagehide", suspendForPageHide);
+      window.removeEventListener("pageshow", updateSuspendState);
+    };
+  }, [pathname]);
+
+  const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (video.parentElement !== host) {
+      host.appendChild(video);
+    }
+
+    video.controls = docked;
+    video.setAttribute("aria-label", "Primary live stream");
+    video.style.backgroundColor = "#000000";
+    video.style.objectFit = "contain";
+    video.style.pointerEvents = docked ? "auto" : "none";
+    video.style.position = docked ? "absolute" : "fixed";
+    video.style.inset = docked ? "0" : "auto";
+    video.style.left = docked ? "0" : "-9999px";
+    video.style.top = docked ? "0" : "0";
+    video.style.width = docked ? "100%" : "1px";
+    video.style.height = docked ? "100%" : "1px";
+    video.style.opacity = docked ? "1" : "0";
+    video.style.zIndex = docked ? "1" : "-1";
+  }, []);
+
+  const parkVideo = useCallback(() => {
+    const parking = parkingRef.current;
+
+    if (parking) {
+      placeVideo(parking, false);
+    }
+  }, [placeVideo]);
+
+  const updateVideoPlacement = useCallback(() => {
+    const parking = parkingRef.current;
+
+    if (!parking) {
+      return;
+    }
+
+    const slot = document.querySelector<HTMLElement>(liveVideoSlotSelector);
+    placeVideo(slot ?? parking, Boolean(slot));
+  }, [placeVideo]);
 
   useEffect(() => {
     let cancelled = false;
-
-    async function refreshStatus() {
-      try {
-        const response = await fetch("/internal/stream/status", {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as LiveStatusPayload;
-
-        if (!cancelled) {
-          setLiveState((current) => normalizePayload(payload, current));
-        }
-      } catch {
-        // Keep the last known stream state if polling fails.
+    const timer = window.setTimeout(() => {
+      if (!cancelled) {
+        setUserEnabled(storedAudioEnabled());
       }
-    }
-
-    void refreshStatus();
-    const interval = window.setInterval(refreshStatus, 5000);
+    }, 0);
 
     return () => {
       cancelled = true;
-      window.clearInterval(interval);
+      window.clearTimeout(timer);
     };
   }, []);
 
   useEffect(() => {
-    const audio = audioRef.current;
-    const playbackUrl = liveState.playbackUrl;
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    const activeVideo = video;
+
+    function rememberAudiblePlayback() {
+      if (activeVideo.muted || activeVideo.volume <= 0) {
+        return;
+      }
+
+      setUserEnabled(true);
+      setAudiblePreference(true, activeVideo);
+    }
+
+    function enableAudioFromUserGesture() {
+      setUserEnabled(true);
+      setAudiblePreference(true, activeVideo);
+    }
+
+    activeVideo.autoplay = true;
+    activeVideo.muted = !userEnabledRef.current;
+    activeVideo.playsInline = true;
+    activeVideo.preload = "metadata";
+    keepNormalPlaybackSpeed(activeVideo);
+    activeVideo.addEventListener("pointerdown", enableAudioFromUserGesture);
+    activeVideo.addEventListener("keydown", enableAudioFromUserGesture);
+    activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
+    activeVideo.addEventListener("volumechange", rememberAudiblePlayback);
+    activeVideo.addEventListener("ended", recoverLivePlayback);
+
+    function resetPlaybackSpeed() {
+      keepNormalPlaybackSpeed(activeVideo);
+    }
+
+    function recoverLivePlayback() {
+      if (!canPlayRef.current || suspendPlaybackRef.current) {
+        return;
+      }
+
+      hlsRef.current?.startLoad(-1);
+      seekToLiveEdge(activeVideo);
+      keepNormalPlaybackSpeed(activeVideo);
+      activeVideo.muted = !userEnabledRef.current;
+      void activeVideo.play().catch(() => undefined);
+    }
+
+    updateVideoPlacement();
+
+    let frame = 0;
+    const schedulePlacementUpdate = () => {
+      if (frame) {
+        return;
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        updateVideoPlacement();
+      });
+    };
+    const throttledObserver = new MutationObserver(schedulePlacementUpdate);
+    throttledObserver.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return () => {
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+
+      throttledObserver.disconnect();
+      activeVideo.removeEventListener("pointerdown", enableAudioFromUserGesture);
+      activeVideo.removeEventListener("keydown", enableAudioFromUserGesture);
+      activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
+      activeVideo.removeEventListener("volumechange", rememberAudiblePlayback);
+      activeVideo.removeEventListener("ended", recoverLivePlayback);
+    };
+  }, [updateVideoPlacement]);
+
+  useEffect(() => {
+    updateVideoPlacement();
+  }, [pathname, updateVideoPlacement]);
+
+  useEffect(() => {
+    function sameSiteNavigationAwayFromLive(event: Event) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return false;
+      }
+
+      const anchor = target.closest("a[href]");
+
+      if (!(anchor instanceof HTMLAnchorElement) || !anchor.href) {
+        return false;
+      }
+
+      try {
+        const url = new URL(anchor.href);
+
+        return url.origin === window.location.origin && url.pathname !== "/live";
+      } catch {
+        return false;
+      }
+    }
+
+    function parkBeforeNavigation(event: Event) {
+      if (sameSiteNavigationAwayFromLive(event)) {
+        parkVideo();
+      }
+    }
+
+    document.addEventListener("pointerdown", parkBeforeNavigation, { capture: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", parkBeforeNavigation, { capture: true });
+    };
+  }, [parkVideo]);
+
+  useEffect(() => {
+    if (suspendPlayback) {
+      return () => undefined;
+    }
+
+    return subscribeToLiveStatus(setLiveState);
+  }, [suspendPlayback]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    const playbackUrl = primaryPlaybackUrl;
     let cancelled = false;
 
     hlsRef.current?.destroy();
     hlsRef.current = null;
 
-    if (!audio) {
+    if (!video) {
       return () => {
         cancelled = true;
       };
     }
 
-    audio.removeAttribute("src");
-    audio.load();
-    setPlaying(false);
+    video.removeAttribute("src");
+    video.load();
 
-    if (!playbackUrl || !canPlay) {
+    if (!playbackUrl || !canPlay || suspendPlayback) {
+      video.pause();
+
       return () => {
         cancelled = true;
       };
-    }
-
-    async function playIfRequested() {
-      if (!audio || !userEnabled || cancelled) {
-        return;
-      }
-
-      try {
-        await audio.play();
-        if (!cancelled) {
-          setBlocked(false);
-          setPlaying(true);
-        }
-      } catch {
-        if (!cancelled) {
-          setBlocked(true);
-          setPlaying(false);
-        }
-      }
     }
 
     if (isLikelyHls(playbackUrl) && Hls.isSupported()) {
       const hls = new Hls({
+        backBufferLength: 30,
         enableWorker: true,
+        fragLoadingMaxRetry: 8,
+        levelLoadingMaxRetry: 8,
+        liveDurationInfinity: true,
+        liveMaxLatencyDurationCount: 10,
+        liveSyncDurationCount: 3,
         lowLatencyMode: true,
+        manifestLoadingMaxRetry: 8,
+        maxBufferLength: 30,
+        maxLiveSyncPlaybackRate: 1,
         startLevel: -1
       });
       hlsRef.current = hls;
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        void playIfRequested();
+        if (cancelled) {
+          return;
+        }
+
+        video.muted = !userEnabledRef.current;
+        keepNormalPlaybackSpeed(video);
+        void video.play().catch(() => undefined);
+      });
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (!data.details.live || cancelled || !video.paused) {
+          return;
+        }
+
+        seekToLiveEdge(video);
+        video.muted = !userEnabledRef.current;
+        keepNormalPlaybackSpeed(video);
+        void video.play().catch(() => undefined);
       });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (!data.fatal || cancelled) {
@@ -162,7 +426,7 @@ export function PersistentLiveAudio() {
 
         hls.destroy();
       });
-      hls.attachMedia(audio);
+      hls.attachMedia(video);
       hls.loadSource(playbackUrl);
 
       return () => {
@@ -171,106 +435,57 @@ export function PersistentLiveAudio() {
       };
     }
 
-    audio.src = playbackUrl;
-    void playIfRequested();
+    video.src = playbackUrl;
+    keepNormalPlaybackSpeed(video);
 
     return () => {
       cancelled = true;
     };
-  }, [canPlay, liveState.playbackUrl, userEnabled]);
+  }, [canPlay, primaryPlaybackUrl, suspendPlayback]);
 
   useEffect(() => {
-    const audio = audioRef.current;
+    const video = videoRef.current;
 
-    if (!audio) {
+    if (!video) {
       return;
     }
 
-    function onPlay() {
-      setPlaying(true);
-      setBlocked(false);
+    if (!canPlay || suspendPlayback) {
+      video.pause();
+      return;
     }
 
-    function onPause() {
-      setPlaying(false);
+    video.muted = !userEnabled;
+    keepNormalPlaybackSpeed(video);
+    void video.play().catch(() => undefined);
+  }, [canPlay, suspendPlayback, userEnabled]);
+
+  useEffect(() => {
+    function enableAudio() {
+      setUserEnabled(true);
+      setAudiblePreference(true, videoRef.current);
+
+      if (canPlayRef.current && !suspendPlaybackRef.current) {
+        if (videoRef.current) {
+          keepNormalPlaybackSpeed(videoRef.current);
+        }
+
+        void videoRef.current?.play().catch(() => undefined);
+      }
     }
 
-    audio.addEventListener("play", onPlay);
-    audio.addEventListener("pause", onPause);
+    window.addEventListener(liveAudioEnableEvent, enableAudio);
+    window.addEventListener("bouncecore:live-video-play", enableAudio);
 
     return () => {
-      audio.removeEventListener("play", onPlay);
-      audio.removeEventListener("pause", onPause);
+      window.removeEventListener(liveAudioEnableEvent, enableAudio);
+      window.removeEventListener("bouncecore:live-video-play", enableAudio);
     };
   }, []);
 
-  async function togglePlayback() {
-    const audio = audioRef.current;
-
-    if (!audio || !canPlay) {
-      setUserEnabled(false);
-      return;
-    }
-
-    if (userEnabled && !audio.paused) {
-      audio.pause();
-      setUserEnabled(false);
-      return;
-    }
-
-    setUserEnabled(true);
-
-    try {
-      await audio.play();
-      setBlocked(false);
-      setPlaying(true);
-    } catch {
-      setBlocked(true);
-      setPlaying(false);
-    }
-  }
-
   return (
-    <>
-      <audio ref={audioRef} preload="none" />
-      {visible ? (
-        <section
-          className={`fixed z-[65] w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-bc-line bg-bc-panel/95 p-3 text-white shadow-[0_18px_60px_rgba(0,0,0,0.55)] backdrop-blur ${
-            onLivePage ? "right-3 top-20" : "bottom-16 right-4"
-          }`}
-          aria-label="Persistent live audio"
-        >
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-bc-electric/40 bg-bc-electric/10 text-bc-electric">
-              {canPlay ? <Volume2 className="h-5 w-5" aria-hidden="true" /> : <WifiOff className="h-5 w-5" aria-hidden="true" />}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black">{liveState.title}</p>
-              <p className="mt-0.5 truncate text-xs text-bc-muted">
-                {canPlay
-                  ? `${playing ? "Playing" : "Live audio ready"} / ${liveState.viewerCount.toLocaleString("en-GB")} viewers`
-                  : "Live audio is offline"}
-              </p>
-              {blocked ? <p className="mt-1 text-xs text-bc-amber">Tap play again if the browser blocked autoplay.</p> : null}
-            </div>
-            <button
-              aria-label={playing ? "Pause live audio" : "Play live audio"}
-              className="bc-focus-ring grid h-10 w-10 shrink-0 place-items-center rounded-md border border-bc-line bg-bc-ink text-white hover:border-bc-electric/60"
-              disabled={!canPlay}
-              onClick={togglePlayback}
-              type="button"
-            >
-              {playing ? <Pause className="h-4 w-4" aria-hidden="true" /> : <Play className="h-4 w-4" aria-hidden="true" />}
-            </button>
-          </div>
-          {!canPlay ? (
-            <div className="mt-2 flex items-center gap-2 text-xs text-bc-muted">
-              <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-              Audio will become available when the stream is live.
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-    </>
+    <div aria-hidden="true" data-persistent-live-parking ref={parkingRef}>
+      <video data-persistent-live-video ref={videoRef} />
+    </div>
   );
 }

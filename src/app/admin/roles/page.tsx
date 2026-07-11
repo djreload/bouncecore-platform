@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAdminRoles } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
+import { permissionDefinitions } from "@/lib/auth/rbac";
 import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 
@@ -13,12 +14,36 @@ export const dynamic = "force-dynamic";
 export default async function AdminRolesPage() {
   await requireUserPermission("admin.access");
   const [roles, roleDisplayLabels] = await Promise.all([getAdminRoles(), getRoleDisplayNameOverrides()]);
+  const totalPermissions = permissionDefinitions.length;
+  const ownerPermissionCount = roles.find((role) => role.name === "owner")?.permissions.length ?? 0;
+  const adminPermissionCount = roles.find((role) => role.name === "admin")?.permissions.length ?? 0;
 
   return (
     <AdminShell
       title="Roles"
       description="System role map for Bouncecore account, admin, streaming, marketplace, commerce, and supporter access."
     >
+      <section className="mb-5 rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Badge tone={ownerPermissionCount === totalPermissions && adminPermissionCount === totalPermissions ? "acid" : "amber"}>
+              Owner/Admin parity
+            </Badge>
+            <h2 className="mt-3 text-xl font-black">Server-owner and stream-owner roles share full admin permissions.</h2>
+            <p className="mt-2 text-sm text-bc-muted">
+              Both role cards below use the effective runtime permission map, so stale database grants cannot hide active permissions.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Badge tone={ownerPermissionCount === totalPermissions ? "acid" : "amber"}>
+              Owner {ownerPermissionCount}/{totalPermissions}
+            </Badge>
+            <Badge tone={adminPermissionCount === totalPermissions ? "acid" : "amber"}>
+              Admin {adminPermissionCount}/{totalPermissions}
+            </Badge>
+          </div>
+        </div>
+      </section>
       <div className="grid gap-4 lg:grid-cols-2">
         {roles.map((role) => (
           <article className="rounded-md border border-bc-line bg-bc-panel p-5" key={role.id}>

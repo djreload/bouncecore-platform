@@ -16,7 +16,7 @@ import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
 import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatPresenceUserRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPublicChatData } from "@/lib/chat/chat-service";
@@ -155,6 +155,7 @@ export default async function LivePage() {
     starNote: message.starNote,
     createdAt: message.createdAt,
     deletedAt: message.deletedAt,
+    editedAt: message.editedAt,
     authorDisplayName: message.authorDisplayName,
     authorAvatarUrl: message.authorAvatarUrl,
     authorUserId: message.authorUserId,
@@ -177,7 +178,8 @@ export default async function LivePage() {
     avatarUrl: user.avatarUrl,
     roles: user.roles,
     status: user.status,
-    lastActiveAt: user.lastActiveAt
+    lastActiveAt: user.lastActiveAt,
+    throwHitCount: user.throwHitCount
   }));
 
   return (
@@ -237,7 +239,7 @@ export default async function LivePage() {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <UserRound className="h-4 w-4 text-bc-muted" aria-hidden="true" />
                         <span className="text-xs text-bc-muted">{schedule.hostDisplayName ?? "Host TBC"}</span>
-                        {schedule.hostRoles.map((role) => (
+                        {visibleRoleBadges(schedule.hostRoles).map((role) => (
                           <Badge key={role} tone={roleBadgeTone(role)}>
                             {roleDisplayName(role, roleDisplayLabels)}
                           </Badge>
@@ -266,6 +268,7 @@ export default async function LivePage() {
               roleDisplayLabels={roleDisplayLabels}
               rooms={roomRows}
               selectedRoom={selectedRoomRow}
+              sheepFreeThrowAvailable={sheepReadiness.freeThrowAvailable}
               sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
               sheepSettings={sheepSettings}
               showPresenceRail

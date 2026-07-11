@@ -6,15 +6,20 @@ import {
   getPayPalCheckoutReadiness,
   getPayPalSettings
 } from "@/lib/payments/paypal-service";
+import { createSquarePaymentLink, findCompletedSquarePaymentForOrder } from "@/lib/payments/square-service";
 import { prisma } from "@/lib/db/prisma";
 import { normalizeEmailAddress } from "@/lib/mail/email-address";
 
 const checkoutCurrency = "GBP";
 const maxCheckoutQuantity = 10;
 const maxCheckoutItems = 30;
+const paymentProviders = ["paypal", "square"] as const;
+
+type PaymentProvider = (typeof paymentProviders)[number];
 
 export type StartShopCheckoutInput = {
   origin: string;
+  provider?: string;
   quantity: string;
   shippingAddress: ShippingAddressInput;
   variantId: string;
@@ -28,12 +33,14 @@ export type ShopCheckoutItemInput = {
 export type StartShopCartCheckoutInput = {
   items: ShopCheckoutItemInput[];
   origin: string;
+  provider?: string;
   shippingAddress: ShippingAddressInput;
 };
 
 export type StartedShopCheckout = {
   approvalUrl: string;
   orderId: string;
+  provider: PaymentProvider;
 };
 
 export type ShippingAddressInput = {
@@ -64,6 +71,10 @@ function checkoutUrl(origin: string, path: string, params: Record<string, string
   Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
 
   return url.toString();
+}
+
+function normalizePaymentProvider(value: string | undefined): PaymentProvider {
+  return paymentProviders.includes(value as PaymentProvider) ? (value as PaymentProvider) : "paypal";
 }
 
 function normalizedText(value: string | undefined, maxLength: number) {
@@ -208,13 +219,20 @@ function shopCheckoutDescription(items: { quantity: number; variant: CheckoutVar
 }
 
 export async function startShopCartCheckout(userId: string, input: StartShopCartCheckoutInput): Promise<StartedShopCheckout> {
+  const provider = normalizePaymentProvider(input.provider);
   const normalizedItems = normalizeCartItems(input.items);
   const shippingAddress = normalizeShippingAddress(input.shippingAddress);
-  const [settings, checkoutItems] = await Promise.all([getPayPalSettings(), loadCheckoutVariants(normalizedItems)]);
-  const readiness = getPayPalCheckoutReadiness(settings);
+  const [settings, checkoutItems] = await Promise.all([
+    provider === "paypal" ? getPayPalSettings() : Promise.resolve(null),
+    loadCheckoutVariants(normalizedItems)
+  ]);
 
-  if (!readiness.ready) {
-    throw new Error(readiness.reason ?? "PayPal checkout is not ready.");
+  if (provider === "paypal") {
+    const readiness = settings ? getPayPalCheckoutReadiness(settings) : { ready: false, reason: "PayPal settings are not available." };
+
+    if (!readiness.ready) {
+      throw new Error(readiness.reason ?? "PayPal checkout is not ready.");
+    }
   }
 
   const lineItems = checkoutItems.map(orderItemData);
@@ -225,6 +243,7 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
       items: {
         create: lineItems
       },
+      paymentProvider: provider,
       ...shippingAddress,
       status: "pending",
       totalPence,
@@ -233,6 +252,64 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
   });
 
   try {
+    if (provider === "square") {
+      const square = await createSquarePaymentLink({
+        currencyCode: checkoutCurrency,
+        description: shopCheckoutDescription(checkoutItems),
+        items: checkoutItems.map((item) => ({
+          name: payPalDescription(item.variant.product.name, item.variant.name),
+          quantity: item.quantity,
+          sku: item.variant.sku,
+          unitAmountPence: item.variant.pricePence
+        })),
+        localOrderId: order.id,
+        returnUrl: checkoutUrl(input.origin, "/shop/checkout/return", {
+          orderId: order.id,
+          provider: "square"
+        })
+      });
+
+      await prisma.order.update({
+        where: {
+          id: order.id
+        },
+        data: {
+          squareOrderId: square.squareOrderId,
+          squarePaymentLinkId: square.squarePaymentLinkId
+        }
+      });
+
+      await writeAuditLog({
+        actorId: userId,
+        action: "shop.checkout.start",
+        target: `order:${order.id}`,
+        severity: "info",
+        metadata: {
+          provider,
+          squareOrderId: square.squareOrderId,
+          squarePaymentLinkId: square.squarePaymentLinkId,
+          items: lineItems.map((item) => ({
+            quantity: item.quantity,
+            sku: item.sku,
+            totalPence: item.totalPence
+          })),
+          shippingCountry: order.shippingCountry,
+          shippingPostcode: order.shippingPostcode,
+          totalPence
+        }
+      });
+
+      return {
+        approvalUrl: square.approvalUrl,
+        orderId: order.id,
+        provider
+      };
+    }
+
+    if (!settings) {
+      throw new Error("PayPal settings are not available.");
+    }
+
     const paypal = await createPayPalCheckoutOrder(
       {
         cancelUrl: checkoutUrl(input.origin, "/shop/checkout/cancel", {
@@ -271,6 +348,7 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
       target: `order:${order.id}`,
       severity: "info",
       metadata: {
+        provider,
         paypalOrderId: paypal.paypalOrderId,
         items: lineItems.map((item) => ({
           quantity: item.quantity,
@@ -285,7 +363,8 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
 
     return {
       approvalUrl: paypal.approvalUrl,
-      orderId: order.id
+      orderId: order.id,
+      provider
     };
   } catch (error) {
     await prisma.order.delete({
@@ -301,6 +380,7 @@ export async function startShopCartCheckout(userId: string, input: StartShopCart
 export async function startShopCheckout(userId: string, input: StartShopCheckoutInput): Promise<StartedShopCheckout> {
   return startShopCartCheckout(userId, {
     origin: input.origin,
+    provider: input.provider,
     shippingAddress: input.shippingAddress,
     items: [
       {
@@ -309,6 +389,27 @@ export async function startShopCheckout(userId: string, input: StartShopCheckout
       }
     ]
   });
+}
+
+async function assertOrderStockAvailable(order: { items: { productVariantId: string | null; quantity: number; sku: string }[] }) {
+  for (const item of order.items) {
+    if (!item.productVariantId) {
+      continue;
+    }
+
+    const variant = await prisma.productVariant.findUnique({
+      where: {
+        id: item.productVariantId
+      },
+      select: {
+        stock: true
+      }
+    });
+
+    if (!variant || variant.stock < item.quantity) {
+      throw new Error(`Stock changed before checkout completed for ${item.sku}.`);
+    }
+  }
 }
 
 export async function completeShopCheckout(userId: string, orderId: string, paypalOrderId: string) {
@@ -344,24 +445,7 @@ export async function completeShopCheckout(userId: string, orderId: string, payp
     throw new Error("This order can no longer be captured.");
   }
 
-  for (const item of order.items) {
-    if (!item.productVariantId) {
-      continue;
-    }
-
-    const variant = await prisma.productVariant.findUnique({
-      where: {
-        id: item.productVariantId
-      },
-      select: {
-        stock: true
-      }
-    });
-
-    if (!variant || variant.stock < item.quantity) {
-      throw new Error(`Stock changed before checkout completed for ${item.sku}.`);
-    }
-  }
+  await assertOrderStockAvailable(order);
 
   const settings = await getPayPalSettings();
   const capture = await capturePayPalCheckoutOrder(paypalOrderId, settings);
@@ -434,6 +518,122 @@ export async function completeShopCheckout(userId: string, orderId: string, payp
     metadata: {
       paypalCaptureId: updated.paypalCaptureId,
       paypalOrderId: updated.paypalOrderId,
+      totalPence: updated.totalPence
+    }
+  });
+
+  await notifyShopOrderPaid(updated.id);
+
+  return updated;
+}
+
+export async function completeSquareShopCheckout(userId: string, orderId: string) {
+  if (!orderId) {
+    throw new Error("Missing Square checkout details.");
+  }
+
+  const order = await prisma.order.findFirst({
+    where: {
+      id: orderId,
+      userId
+    },
+    include: {
+      items: true
+    }
+  });
+
+  if (!order) {
+    throw new Error("Order not found.");
+  }
+
+  if (order.paymentProvider !== "square" || !order.squareOrderId) {
+    throw new Error("Square order did not match this checkout.");
+  }
+
+  if (["paid", "processing", "fulfilled"].includes(order.status)) {
+    await notifyShopOrderPaid(order.id);
+
+    return order;
+  }
+
+  if (order.status !== "pending") {
+    throw new Error("This order can no longer be captured.");
+  }
+
+  await assertOrderStockAvailable(order);
+
+  const payment = await findCompletedSquarePaymentForOrder(order.squareOrderId, order.totalPence);
+
+  if (!payment || payment.status !== "COMPLETED") {
+    throw new Error("Square payment is not completed yet.");
+  }
+
+  if (payment.amountPence !== null && payment.amountPence !== order.totalPence) {
+    throw new Error("Square captured amount did not match this order.");
+  }
+
+  const updated = await prisma.$transaction(async (tx) => {
+    const claim = await tx.order.updateMany({
+      where: {
+        id: order.id,
+        status: "pending"
+      },
+      data: {
+        status: "processing"
+      }
+    });
+
+    if (claim.count !== 1) {
+      throw new Error("This order was already processed.");
+    }
+
+    for (const item of order.items) {
+      if (!item.productVariantId) {
+        continue;
+      }
+
+      const stockUpdate = await tx.productVariant.updateMany({
+        where: {
+          id: item.productVariantId,
+          stock: {
+            gte: item.quantity
+          }
+        },
+        data: {
+          stock: {
+            decrement: item.quantity
+          }
+        }
+      });
+
+      if (stockUpdate.count !== 1) {
+        throw new Error(`Stock changed before checkout completed for ${item.sku}.`);
+      }
+    }
+
+    return tx.order.update({
+      where: {
+        id: order.id
+      },
+      data: {
+        completedAt: new Date(),
+        squareBuyerEmail: payment.buyerEmail,
+        squarePaymentId: payment.paymentId,
+        squareReceiptUrl: payment.receiptUrl,
+        status: "paid"
+      }
+    });
+  });
+
+  await writeAuditLog({
+    actorId: userId,
+    action: "shop.checkout.capture",
+    target: `order:${updated.id}`,
+    severity: "warning",
+    metadata: {
+      provider: "square",
+      squareOrderId: updated.squareOrderId,
+      squarePaymentId: updated.squarePaymentId,
       totalPence: updated.totalPence
     }
   });

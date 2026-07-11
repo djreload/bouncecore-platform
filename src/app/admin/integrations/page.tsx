@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminIntegrationsData, type IntegrationStatus } from "@/lib/admin/integrations-service";
 import { AdminEmailTestForm } from "@/app/admin/integrations/email-test-form";
+import { GifProviderSettingsForm } from "@/app/admin/integrations/gif-provider-settings-form";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ function groupIcon(id: string) {
     return CreditCard;
   }
 
-  if (id === "tenor") {
+  if (id === "gifs") {
     return Image;
   }
 
@@ -42,7 +43,7 @@ export default async function AdminIntegrationsPage() {
   return (
     <AdminShell
       title="Integrations"
-      description="Readiness overview for PayPal, Brevo SMTP email, Tenor GIF search, stream-provider wiring, public URLs, and external app surfaces."
+      description="Readiness overview for PayPal, Brevo SMTP email, GIF search providers, stream-provider wiring, public URLs, and external app surfaces."
     >
       <div className="space-y-5">
         <section className="grid gap-4 md:grid-cols-3">
@@ -131,6 +132,7 @@ export default async function AdminIntegrationsPage() {
                 </div>
 
                 {group.id === "mail" ? <AdminEmailTestForm defaultRecipientEmail={user.email} /> : null}
+                {group.id === "gifs" ? <GifProviderSettingsForm data={data.gifProviders} /> : null}
               </article>
             );
           })}

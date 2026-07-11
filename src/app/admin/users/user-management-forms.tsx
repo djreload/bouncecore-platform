@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Ban, Plus, Save, Trash2, X } from "lucide-react";
+import { Ban, KeyRound, Plus, Save, Trash2, X } from "lucide-react";
 import {
   addAdminUserRoleAction,
   deleteAdminUserAction,
   removeAdminUserRoleAction,
   revokeAdminUserInviteAction,
+  sendAdminPasswordResetAction,
   updateAdminUserStatusAction
 } from "@/app/admin/users/actions";
 import {
@@ -144,6 +145,25 @@ export function DeleteUserForm({ email, userId }: { email: string; userId: strin
           {pending ? "Deleting" : "Delete"}
         </Button>
       </div>
+      <InlineActionMessage state={state} />
+    </form>
+  );
+}
+
+export function PasswordResetForm({ email, userId }: { email: string; userId: string }) {
+  const [state, formAction, pending] = useActionState<AdminUserManagementActionState, FormData>(
+    sendAdminPasswordResetAction,
+    initialAdminUserManagementActionState
+  );
+
+  return (
+    <form action={formAction} className="grid gap-2">
+      <input name="userId" type="hidden" value={userId} />
+      <Button disabled={pending} size="sm" type="submit" variant="ghost">
+        <KeyRound className="h-4 w-4" aria-hidden="true" />
+        {pending ? "Sending" : "Send password reset"}
+      </Button>
+      <p className="text-xs text-bc-muted">Emails a one-hour reset link to {email}.</p>
       <InlineActionMessage state={state} />
     </form>
   );

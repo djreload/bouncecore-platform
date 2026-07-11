@@ -8,9 +8,11 @@ const maxImageBytes = 100 * 1024 * 1024;
 const maxChatImageBytes = 150 * 1024 * 1024;
 const maxProfileAvatarBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 200 * 1024 * 1024;
+const maxAndroidApkBytes = 250 * 1024 * 1024;
 const genericUploadTypes = ["", "application/octet-stream", "binary/octet-stream"];
 const imageUploadExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".webp", ".gif", ".avif"];
 const imageUploadTypes = ["image/jpeg", "image/jpg", "image/pjpeg", "image/png", "image/x-png", "image/webp", "image/gif", "image/avif"];
+const faviconUploadTypes = ["image/x-icon", "image/vnd.microsoft.icon", "image/ico", "image/icon"];
 const profileAvatarExtensions = [".jpg", ".jpeg", ".png"];
 const mp3UploadTypes = [
   "audio/mpeg",
@@ -24,6 +26,7 @@ const mp3UploadTypes = [
   "binary/octet-stream",
   ""
 ];
+const androidApkUploadTypes = ["application/vnd.android.package-archive", ...genericUploadTypes];
 
 type UploadKind =
   | "branding-images"
@@ -31,8 +34,10 @@ type UploadKind =
   | "track-artwork"
   | "profile-avatars"
   | "stream-offline-images"
+  | "throw-sprites"
   | "chat-stickers"
   | "chat-emojis"
+  | "mobile-apks"
   | "music-previews"
   | "music-downloads";
 
@@ -132,6 +137,14 @@ function sniffImageContentType(buffer: Buffer) {
   return null;
 }
 
+function sniffFaviconContentType(buffer: Buffer) {
+  if (buffer.length >= 4 && buffer[0] === 0x00 && buffer[1] === 0x00 && buffer[2] === 0x01 && buffer[3] === 0x00) {
+    return "image/x-icon";
+  }
+
+  return sniffImageContentType(buffer);
+}
+
 function validateImageUpload(file: File, buffer: Buffer, label: string) {
   const extension = fileExtension(file.name);
   const contentType = canonicalImageContentType(file.type);
@@ -154,6 +167,21 @@ function validateImageUpload(file: File, buffer: Buffer, label: string) {
     contentType: resolvedContentType,
     extension: canonicalImageExtension(extension, resolvedContentType)
   };
+}
+
+function validateFaviconUpload(file: File, buffer: Buffer) {
+  const extension = fileExtension(file.name);
+  const contentType = normalizedContentType(file.type);
+  const sniffedContentType = sniffFaviconContentType(buffer);
+
+  if (extension === ".ico" || faviconUploadTypes.includes(contentType) || sniffedContentType === "image/x-icon") {
+    return {
+      contentType: "image/x-icon",
+      extension: ".ico"
+    };
+  }
+
+  return validateImageUpload(file, buffer, "Favicon upload");
 }
 
 function validateProfileAvatarUpload(file: File, buffer: Buffer) {
@@ -181,6 +209,19 @@ function validateMp3Upload(file: File, label: string) {
 
   if (!mp3UploadTypes.includes(contentType)) {
     throw new Error(`${label} has an unsupported MIME type: ${file.type}.`);
+  }
+}
+
+function validateAndroidApkUpload(file: File) {
+  const extension = fileExtension(file.name);
+  const contentType = normalizedContentType(file.type);
+
+  if (extension !== ".apk") {
+    throw new Error("Android APK upload must use a .apk file extension.");
+  }
+
+  if (!androidApkUploadTypes.includes(contentType)) {
+    throw new Error(`Android APK upload has an unsupported MIME type: ${file.type}.`);
   }
 }
 
@@ -353,6 +394,35 @@ export function normalizeOptionalBrandingImageUrl(value: string | undefined, lab
 
   if (!/\.(jpg|jpeg|png|webp|gif|avif)$/.test(pathname)) {
     throw new Error(`${label} must point to a JPG, PNG, WebP, GIF, or AVIF image file.`);
+  }
+
+  return text;
+}
+
+export function normalizeOptionalFaviconUrl(value: string | undefined) {
+  const text = value?.trim() ?? "";
+
+  if (!text) {
+    return null;
+  }
+
+  if (text.length > 500) {
+    throw new Error("Favicon URL must be 500 characters or fewer.");
+  }
+
+  if (text.startsWith("/uploads/")) {
+    if (/^\/uploads\/branding-images\/[^/]+\.(jpg|jpeg|png|webp|gif|avif|ico)$/i.test(text)) {
+      return text;
+    }
+
+    throw new Error("Favicon upload path must point to an uploaded branding image or .ico file.");
+  }
+
+  const url = assertHttpUrl(text, "Favicon URL");
+  const pathname = url.pathname.toLowerCase();
+
+  if (!/\.(jpg|jpeg|png|webp|gif|avif|ico)$/.test(pathname)) {
+    throw new Error("Favicon URL must point to a JPG, PNG, WebP, GIF, AVIF, or ICO image file.");
   }
 
   return text;
@@ -575,6 +645,21 @@ export async function saveOptionalBrandingImageUpload(file: File | null | undefi
   return savePublicUpload("branding-images", file, maxImageBytes, "Branding image upload", image.extension, buffer);
 }
 
+export async function saveOptionalFaviconUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxImageBytes) {
+    throw new Error(`Favicon upload is too large. Maximum ${formatBytes(maxImageBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateFaviconUpload(file, buffer);
+
+  return savePublicUpload("branding-images", file, maxImageBytes, "Favicon upload", image.extension, buffer);
+}
+
 export async function saveOptionalStreamOfflineImageUpload(file: File | null | undefined) {
   if (!file || !file.size) {
     return null;
@@ -603,6 +688,21 @@ export async function saveOptionalChatAssetUpload(file: File | null | undefined,
   const image = validateImageUpload(file, buffer, "Chat image upload");
 
   return savePublicUpload(kind, file, maxChatImageBytes, "Chat image upload", image.extension, buffer);
+}
+
+export async function saveOptionalThrowSpriteUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxChatImageBytes) {
+    throw new Error(`Throw sprite upload is too large. Maximum ${formatBytes(maxChatImageBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const image = validateImageUpload(file, buffer, "Throw sprite upload");
+
+  return savePublicUpload("throw-sprites", file, maxChatImageBytes, "Throw sprite upload", image.extension, buffer);
 }
 
 export async function saveOptionalProfileAvatarUpload(file: File | null | undefined) {
@@ -652,4 +752,18 @@ export async function saveOptionalDownloadMp3(file: File | null | undefined) {
   assertMp3Upload(buffer, true, "Download MP3 upload");
 
   return savePublicUpload("music-downloads", file, maxDownloadBytes, "Download MP3 upload", ".mp3", buffer);
+}
+
+export async function saveOptionalAndroidApkUpload(file: File | null | undefined) {
+  if (!file || !file.size) {
+    return null;
+  }
+
+  if (file.size > maxAndroidApkBytes) {
+    throw new Error(`Android APK upload is too large. Maximum ${formatBytes(maxAndroidApkBytes)}.`);
+  }
+
+  validateAndroidApkUpload(file);
+
+  return savePublicUpload("mobile-apks", file, maxAndroidApkBytes, "Android APK upload", ".apk");
 }

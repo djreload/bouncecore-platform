@@ -79,7 +79,9 @@ Useful checks:
 npm.cmd run lint
 npm.cmd run typecheck
 npm.cmd run test
+npm.cmd run security:audit
 npm.cmd run build
+npm.cmd run smoke:public -- --base-url https://bouncecore.example.com
 ```
 
 ## Production Install
@@ -118,7 +120,7 @@ BREVO_SMTP_USER=
 BREVO_SMTP_KEY=
 MAIL_FROM=no-reply@example.com
 
-STREAM_PROVIDER=mock
+STREAM_PROVIDER=stream-core
 INTERNAL_TASK_TOKEN=
 STREAM_CORE_INTERNAL_TOKEN=
 STREAM_CORE_KEY_VALIDATION_TOKEN=
@@ -210,8 +212,51 @@ Production nginx, Apache, Plesk, Caddy, or CDN limits must be raised to match th
 Create a backup:
 
 ```bash
-bash scripts/backup-instance.sh
+bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
 ```
+
+Verify a backup without restoring it:
+
+```bash
+bash scripts/verify-backup-instance.sh --backup-root /srv/bouncecore-backups --latest
+```
+
+Run a non-destructive restore drill against a dated backup:
+
+```bash
+bash scripts/restore-drill.sh /srv/bouncecore-backups/20260608T203000Z
+```
+
+Export a verified backup as an encrypted age package, optionally through rclone:
+
+```bash
+bash scripts/export-backup-offsite.sh /srv/bouncecore-backups/20260608T203000Z --age-recipient age1examplepublickey
+```
+
+Verify an encrypted off-server backup on a trusted recovery machine:
+
+```bash
+bash scripts/verify-offsite-backup.sh 20260608T203000Z.tar.gz.age --identity bouncecore-backup.agekey
+```
+
+Install a daily systemd backup timer:
+
+```bash
+sudo bash scripts/install-backup-schedule.sh --backup-root /srv/bouncecore-backups --retention-days 14
+```
+
+The backup script and timer installer also support `--offsite-age-recipient`, `--offsite-age-recipient-file`, `--offsite-rclone-remote`, and `--offsite-remove-local-after-upload` for automated encrypted off-server copies.
+
+Google Drive backups can be connected from Admin -> Storage. Configure `GOOGLE_DRIVE_OAUTH_CLIENT_ID` and `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET`, add `/admin/storage/google-drive/callback` as the Google OAuth redirect URI, then press `Connect Google Drive` in the admin UI. Bouncecore writes the generated rclone Drive token into the protected uploads `.ops` area for the host backup script.
+
+Guided off-server backup setup:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh --age-recipient age1examplepublickey --rclone-remote r2:bouncecore-backups/prod --install-packages
+```
+
+Verified backup status is copied into the uploads volume so Admin -> System health can warn when backups are missing, failed, or stale.
+Encrypted off-server export status is also copied into the uploads volume when enabled, so Admin -> System health can warn when the latest export is missing, stale, or local-only.
 
 Restore a backup:
 
@@ -236,6 +281,14 @@ $env:STREAM_TEST_KEY = "bc_live_example"
 npm.cmd run stream:smoke
 npm.cmd run stream:smoke -- -UseTranscoder
 ```
+
+For PayPal smoke testing on a sandbox/staging instance, seed the music checkout fixture before opening Admin -> Payments:
+
+```bash
+npm run smoke:payments:seed -- --env-file .env.instance --admin-email owner@example.com
+```
+
+This creates a staging-only producer and approved paid music track when needed so the admin payment smoke panel can test stars, music, and shop checkout routes. The script refuses `PAYPAL_MODE=live` unless `--allow-live` is passed intentionally.
 
 ## Documentation
 

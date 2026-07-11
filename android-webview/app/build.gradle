@@ -22,11 +22,58 @@ def requiredConfigValue(String name) {
     return value
 }
 
+def normalizeHttpsWebUrl(String name, String value) {
+    def normalized = value.trim().replaceAll('/+$', '')
+    if (!normalized) {
+        throw new GradleException("${name} is required.")
+    }
+
+    def uri
+    try {
+        uri = new URI(normalized)
+    } catch (Exception ignored) {
+        throw new GradleException("${name} must be a valid HTTPS URL.")
+    }
+
+    if (!"https".equalsIgnoreCase(uri.scheme) || !uri.host) {
+        throw new GradleException("${name} must be a valid HTTPS URL.")
+    }
+
+    return normalized
+}
+
+def rejectReleaseWebUrl(String name, String value) {
+    def normalized = normalizeHttpsWebUrl(name, value)
+    def host = new URI(normalized).host.toLowerCase(Locale.ROOT)
+    def isLocalHost = host == "localhost" || host == "127.0.0.1" || host == "::1"
+    def isPrivateHost = host.startsWith("10.") || host.startsWith("192.168.") || host ==~ /^172\.(1[6-9]|2[0-9]|3[0-1])\..*/
+    def isPlaceholderHost = host == "your-domain.example" || host.endsWith(".example")
+    def isStagingHost = host.startsWith("develop.") || host.startsWith("staging.")
+
+    if (isLocalHost || isPrivateHost || isPlaceholderHost || isStagingHost) {
+        throw new GradleException("${name} must point to the public production HTTPS site for release builds, not a local, placeholder, or staging host.")
+    }
+
+    return normalized
+}
+
 def releaseStoreFilePath = configValue("BOUNCECORE_RELEASE_STORE_FILE")
 def releaseStorePassword = configValue("BOUNCECORE_RELEASE_STORE_PASSWORD")
 def releaseKeyAlias = configValue("BOUNCECORE_RELEASE_KEY_ALIAS")
 def releaseKeyPassword = configValue("BOUNCECORE_RELEASE_KEY_PASSWORD")
 def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+def debugWebUrl = normalizeHttpsWebUrl(
+    "BOUNCECORE_DEBUG_WEB_URL",
+    configValue("BOUNCECORE_DEBUG_WEB_URL", configValue("BOUNCECORE_WEB_URL", "https://bouncecore.co.uk"))
+)
+def configuredReleaseWebUrl = configValue("BOUNCECORE_WEB_URL").trim()
+def releaseBuildConfigWebUrl = configuredReleaseWebUrl ? configuredReleaseWebUrl.replaceAll('/+$', '') : "https://release-url-required.invalid"
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name.toLowerCase(Locale.ROOT).contains("release") }) {
+        rejectReleaseWebUrl("BOUNCECORE_WEB_URL", configuredReleaseWebUrl)
+    }
+}
 
 android {
     namespace "uk.co.bouncecore.app"
@@ -39,7 +86,6 @@ android {
         versionCode configValue("BOUNCECORE_VERSION_CODE", "1").toInteger()
         versionName configValue("BOUNCECORE_VERSION_NAME", "1.0.0")
 
-        buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(requiredConfigValue("BOUNCECORE_WEB_URL"))
         buildConfigField "String", "UNITY_PROJECT_ID", quoted("61d46651-d0a2-4175-ade1-fc300e58559f")
         buildConfigField "String", "LEVELPLAY_APP_KEY", quoted(configValue("LEVELPLAY_APP_KEY"))
         buildConfigField "String", "LEVELPLAY_BANNER_AD_UNIT_ID", quoted(configValue("LEVELPLAY_BANNER_AD_UNIT_ID"))
@@ -67,7 +113,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(debugWebUrl)
+        }
+
         release {
+            buildConfigField "String", "BOUNCECORE_WEB_URL", quoted(releaseBuildConfigWebUrl)
             if (hasReleaseSigning) {
                 signingConfig signingConfigs.release
             }

@@ -29,8 +29,10 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
   );
   const [logoUrl, setLogoUrl] = useState(data.settings.branding.logoUrl ?? "");
   const [faviconUrl, setFaviconUrl] = useState(data.settings.branding.faviconUrl ?? "");
+  const [openGraphImageUrl, setOpenGraphImageUrl] = useState(data.settings.branding.openGraphImageUrl ?? "");
   const [logoUploading, setLogoUploading] = useState(false);
   const [faviconUploading, setFaviconUploading] = useState(false);
+  const [openGraphUploading, setOpenGraphUploading] = useState(false);
   const [brandUploadError, setBrandUploadError] = useState("");
   const socialLinkRows = Array.from({ length: 8 }, (_value, index) => {
     const link = data.settings.liveSocialLinks[index];
@@ -44,7 +46,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
   });
 
   async function uploadBrandingAsset(
-    kind: "branding-logo" | "branding-favicon",
+    kind: "branding-logo" | "branding-favicon" | "branding-og-image",
     file: File,
     onUrl: (url: string) => void,
     onUploading: (uploading: boolean) => void
@@ -127,11 +129,13 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                   <h4 className="font-black">Branding</h4>
                 </div>
                 <p className="mt-2 text-sm text-bc-muted">
-                  Upload a public logo and favicon. Files are saved under /uploads/branding-images and validated before the
-                  settings can be saved.
+                  Upload a public logo, favicon, and global share image. Files are saved under /uploads/branding-images and
+                  validated before the settings can be saved.
                 </p>
               </div>
-              <Badge tone={logoUrl || faviconUrl ? "acid" : "amber"}>{logoUrl || faviconUrl ? "Configured" : "Default"}</Badge>
+              <Badge tone={logoUrl || faviconUrl || openGraphImageUrl ? "acid" : "amber"}>
+                {logoUrl || faviconUrl || openGraphImageUrl ? "Configured" : "Default"}
+              </Badge>
             </div>
 
             {brandUploadError ? (
@@ -140,7 +144,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
               </div>
             ) : null}
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <div className="rounded-md border border-bc-line bg-bc-panel p-3">
                 <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="logo-url">
                   Public logo URL
@@ -190,6 +194,54 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
               </div>
 
               <div className="rounded-md border border-bc-line bg-bc-panel p-3">
+                <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="open-graph-image-url">
+                  Global share image URL
+                </label>
+                <input
+                  className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                  disabled={pending || openGraphUploading}
+                  id="open-graph-image-url"
+                  name="openGraphImageUrl"
+                  onChange={(event) => setOpenGraphImageUrl(event.currentTarget.value)}
+                  placeholder="/uploads/branding-images/share.png"
+                  value={openGraphImageUrl}
+                />
+                <p className="mt-2 text-xs text-bc-muted">
+                  Used by Open Graph and social sharing previews. Use a JPG, PNG, WebP, GIF, or AVIF image.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <span className="grid h-14 w-20 place-items-center overflow-hidden rounded-md border border-bc-line bg-bc-ink">
+                    {openGraphImageUrl ? (
+                      <img className="h-full w-full object-cover" src={openGraphImageUrl} alt="" />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-bc-muted" aria-hidden="true" />
+                    )}
+                  </span>
+                  <label className="bc-focus-ring inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-semibold text-white hover:border-bc-electric/60">
+                    <UploadCloud className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                    {openGraphUploading ? "Uploading..." : "Upload share image"}
+                    <input
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                      className="sr-only"
+                      disabled={pending || openGraphUploading}
+                      onChange={async (event) => {
+                        const input = event.currentTarget;
+                        const file = input.files?.[0];
+
+                        if (!file) {
+                          return;
+                        }
+
+                        await uploadBrandingAsset("branding-og-image", file, setOpenGraphImageUrl, setOpenGraphUploading);
+                        input.value = "";
+                      }}
+                      type="file"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-md border border-bc-line bg-bc-panel p-3">
                 <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="favicon-url">
                   Favicon URL
                 </label>
@@ -217,7 +269,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                     <UploadCloud className="h-4 w-4 text-bc-electric" aria-hidden="true" />
                     {faviconUploading ? "Uploading..." : "Upload favicon"}
                     <input
-                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/avif,.ico,image/x-icon,image/vnd.microsoft.icon"
                       className="sr-only"
                       disabled={pending || faviconUploading}
                       onChange={async (event) => {
@@ -292,6 +344,9 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                 name="supportEmail"
                 type="email"
               />
+              <p className="mt-2 text-xs text-bc-muted">
+                Leave blank to use PUBLIC_SUPPORT_EMAIL, SUPPORT_EMAIL, or MAIL_REPLY_TO when configured.
+              </p>
             </div>
             <div className="lg:col-span-2">
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="staging-target">

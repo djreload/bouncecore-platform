@@ -7,13 +7,13 @@ import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat, getActiveChatBan } from "@/lib/chat/moderation-service";
 import { getPublicChatAssets, type ChatStickerAssetSummary } from "@/lib/chat/chat-asset-service";
 import { getChatEffectById, validateChatEffectSelection } from "@/lib/chat/chat-effects";
+import { canEditChatMessage, normalizeEditableChatMessageBody } from "@/lib/chat/chat-message-edit-core";
 import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-service";
+import { chatPresenceAwayMs, chatPresenceStatus } from "@/lib/chat/chat-presence-core";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
-import { registerTenorShare } from "@/lib/chat/tenor-service";
+import type { GifProvider } from "@/lib/chat/gif-provider-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
-const chatPresenceOnlineMs = 5 * 60 * 1000;
-const chatPresenceAwayMs = 30 * 60 * 1000;
 
 export type ChatRoomInput = {
   locked?: boolean;
@@ -53,6 +53,7 @@ export type ChatMessageSummary = {
   starNote: string | null;
   createdAt: string;
   deletedAt: string | null;
+  editedAt: string | null;
   authorDisplayName: string;
   authorAvatarUrl: string | null;
   authorUserId: string | null;
@@ -71,6 +72,7 @@ export type ChatMessageReplySummary = {
 
 export type ChatGifMessageInput = {
   id: string;
+  provider?: string;
   url: string;
   previewUrl: string;
   alt: string;
@@ -92,6 +94,7 @@ export type ChatPresenceUserSummary = {
   roles: Role[];
   status: "online" | "away";
   lastActiveAt: string;
+  throwHitCount: number;
 };
 
 export type PublicChatData = {
@@ -299,6 +302,7 @@ function toMessageSummary(
       note: string | null;
     } | null;
     deletedAt: Date | null;
+    editedAt: Date | null;
     createdAt: Date;
     reactions?: ReactionSource[];
   },
@@ -336,6 +340,7 @@ function toMessageSummary(
     starNote: message.deletedAt ? null : message.starSend?.note ?? null,
     createdAt: message.createdAt.toISOString(),
     deletedAt: message.deletedAt?.toISOString() ?? null,
+    editedAt: message.deletedAt ? null : message.editedAt?.toISOString() ?? null,
     authorDisplayName: author?.displayName ?? "Guest",
     authorAvatarUrl: author?.avatarUrl ?? null,
     authorUserId: message.userId,
@@ -390,6 +395,51 @@ async function getChatEffectUserRoles(userId: string) {
   return normalizeRoles(user.roles.map((userRole) => userRole.role.name));
 }
 
+async function getCurrentLiveSheepThrowHitCounts(userIds: string[]) {
+  const uniqueUserIds = [...new Set(userIds)].filter(Boolean);
+
+  if (!uniqueUserIds.length) {
+    return new Map<string, number>();
+  }
+
+  const activeStreamSession = await prisma.streamSession.findFirst({
+    where: {
+      endedAt: null
+    },
+    orderBy: {
+      startedAt: "desc"
+    },
+    select: {
+      startedAt: true
+    }
+  });
+
+  if (!activeStreamSession) {
+    return new Map<string, number>();
+  }
+
+  const rows = await prisma.chatSheepThrow.groupBy({
+    by: ["targetUserId"],
+    where: {
+      createdAt: {
+        gte: activeStreamSession.startedAt
+      },
+      targetUserId: {
+        in: uniqueUserIds
+      }
+    },
+    _count: {
+      _all: true
+    }
+  });
+
+  return new Map(
+    rows
+      .filter((row) => row.targetUserId)
+      .map((row) => [row.targetUserId as string, row._count._all])
+  );
+}
+
 export async function getPublicChatPresence(_roomId: string, currentUserId?: string | null): Promise<ChatPresenceUserSummary[]> {
   if (!_roomId) {
     return [];
@@ -397,7 +447,6 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
 
   const now = new Date();
   const awayCutoff = new Date(now.getTime() - chatPresenceAwayMs);
-  const onlineCutoff = new Date(now.getTime() - chatPresenceOnlineMs);
   const activeSessions = await prisma.authSession.findMany({
     where: {
       revokedAt: null,
@@ -476,8 +525,9 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
       displayName: session.user.displayName,
       avatarUrl: session.user.profile?.avatarUrl ?? null,
       roles: normalizeRoles(session.user.roles.map((userRole) => userRole.role.name)),
-      status: lastActiveAt >= onlineCutoff ? "online" : "away",
-      lastActiveAt: lastActiveAt.toISOString()
+      status: chatPresenceStatus(lastActiveAt, now),
+      lastActiveAt: lastActiveAt.toISOString(),
+      throwHitCount: 0
     };
   });
 
@@ -488,11 +538,18 @@ export async function getPublicChatPresence(_roomId: string, currentUserId?: str
       avatarUrl: currentUser.profile?.avatarUrl ?? null,
       roles: normalizeRoles(currentUser.roles.map((userRole) => userRole.role.name)),
       status: "online",
-      lastActiveAt: now.toISOString()
+      lastActiveAt: now.toISOString(),
+      throwHitCount: 0
     });
   }
 
+  const throwHitCounts = await getCurrentLiveSheepThrowHitCounts(users.map((user) => user.id));
+
   return users
+    .map((user) => ({
+      ...user,
+      throwHitCount: throwHitCounts.get(user.id) ?? 0
+    }))
     .sort((first, second) => {
       if (first.status !== second.status) {
         return first.status === "online" ? -1 : 1;
@@ -724,6 +781,7 @@ export async function getAdminChatroomsData() {
         id: sheepThrow.id,
         roomName: room?.name ?? "Unknown room",
         roomSlug: room?.slug ?? "unknown",
+        spriteId: sheepThrow.spriteId,
         throwerDisplayName: sheepUserById.get(sheepThrow.throwerId) ?? "Unknown user",
         targetDisplayName: sheepThrow.targetDisplayName ?? (sheepThrow.targetUserId ? sheepUserById.get(sheepThrow.targetUserId) : null) ?? "Unknown user",
         targetMessageId: sheepThrow.targetMessageId,
@@ -851,11 +909,7 @@ export async function createChatMessage(
 ) {
   await pruneExpiredChatHistory();
 
-  const normalizedBody = body.replace(/\r\n?/g, "\n").trim();
-
-  if (normalizedBody.length < 1 || normalizedBody.length > 500) {
-    throw new Error("Chat messages must be between 1 and 500 characters.");
-  }
+  const normalizedBody = normalizeEditableChatMessageBody(body);
 
   const room = await prisma.chatRoom.findUniqueOrThrow({
     where: {
@@ -904,13 +958,122 @@ export async function createChatMessage(
   return message;
 }
 
-function assertTenorMediaUrl(value: string) {
-  const url = new URL(value);
-  const allowedHosts = new Set(["media.tenor.com", "c.tenor.com"]);
+export async function editOwnChatMessage(messageId: string, body: string, userId: string) {
+  await pruneExpiredChatHistory();
 
-  if (url.protocol !== "https:" || !allowedHosts.has(url.hostname)) {
-    throw new Error("GIF URL is not from Tenor.");
+  const normalizedMessageId = messageId.trim();
+  const normalizedBody = normalizeEditableChatMessageBody(body);
+
+  if (!normalizedMessageId) {
+    throw new Error("Choose a message to edit.");
   }
+
+  const message = await prisma.chatMessage.findUniqueOrThrow({
+    where: {
+      id: normalizedMessageId
+    },
+    include: {
+      room: {
+        select: {
+          id: true,
+          slug: true
+        }
+      }
+    }
+  });
+
+  if (!canEditChatMessage({ authorUserId: message.userId, currentUserId: userId, deletedAt: message.deletedAt, kind: message.kind })) {
+    throw new Error("You can only edit your own text messages.");
+  }
+
+  await assertUserCanPostInChat(userId, message.roomId);
+
+  if (message.body === normalizedBody) {
+    return message;
+  }
+
+  const updatedMessage = await prisma.chatMessage.update({
+    where: {
+      id: message.id
+    },
+    data: {
+      body: normalizedBody,
+      editedAt: new Date()
+    }
+  });
+
+  await queueChatMentionNotifications({
+    body: normalizedBody,
+    messageId: updatedMessage.id,
+    roomSlug: message.room.slug,
+    senderUserId: userId
+  }).catch((error) =>
+    writeAuditLog({
+      action: "chat.mention_notifications.edit_queue_failed",
+      actorId: userId,
+      metadata: {
+        error: error instanceof Error ? error.message : "Edited mention notification queue failed.",
+        roomId: message.roomId
+      },
+      severity: "warning",
+      target: `chat-message:${updatedMessage.id}`
+    })
+  );
+
+  await writeAuditLog({
+    action: "chat.message.edit",
+    actorId: userId,
+    metadata: {
+      roomSlug: message.room.slug
+    },
+    severity: "info",
+    target: `chat-message:${updatedMessage.id}`
+  });
+  await publishChatRoomChanged(message.roomId, updatedMessage.id);
+
+  return updatedMessage;
+}
+
+type SupportedChatGifProvider = GifProvider | "tenor";
+
+function chatGifProviderFromUrl(value: string): SupportedChatGifProvider | null {
+  let url: URL;
+
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+
+  const host = url.hostname.toLowerCase();
+
+  if (url.protocol !== "https:") {
+    return null;
+  }
+
+  if (host === "media.tenor.com" || host === "c.tenor.com") {
+    return "tenor";
+  }
+
+  if (host === "giphy.com" || host.endsWith(".giphy.com")) {
+    return "giphy";
+  }
+
+  if (host === "klipy.com" || host.endsWith(".klipy.com")) {
+    return "klipy";
+  }
+
+  return null;
+}
+
+function assertSupportedGifMediaUrl(value: string) {
+  const provider = chatGifProviderFromUrl(value);
+
+  if (!provider) {
+    throw new Error("GIF URL is not from an enabled GIF provider.");
+  }
+
+  return provider;
 }
 
 function normalizeGifDimension(value: number | null | undefined) {
@@ -927,14 +1090,14 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
   const gifId = gif.id.trim().slice(0, 120);
   const mediaUrl = gif.url.trim();
   const previewUrl = (gif.previewUrl || gif.url).trim();
-  const mediaAlt = gif.alt.trim().slice(0, 180) || "Tenor GIF";
+  const mediaAlt = gif.alt.trim().slice(0, 180) || "GIF";
 
   if (!gifId || !mediaUrl || !previewUrl) {
     throw new Error("Missing GIF data.");
   }
 
-  assertTenorMediaUrl(mediaUrl);
-  assertTenorMediaUrl(previewUrl);
+  const mediaSource = assertSupportedGifMediaUrl(mediaUrl);
+  assertSupportedGifMediaUrl(previewUrl);
 
   await prisma.chatRoom.findUniqueOrThrow({
     where: {
@@ -955,14 +1118,13 @@ export async function createChatGifMessage(roomId: string, userId: string, gif: 
       mediaUrl,
       mediaPreviewUrl: previewUrl,
       mediaAlt,
-      mediaSource: "tenor",
+      mediaSource,
       mediaSourceId: gifId,
       mediaWidth: normalizeGifDimension(gif.width),
       mediaHeight: normalizeGifDimension(gif.height)
     }
   });
 
-  await registerTenorShare(gifId, gif.searchTerm ?? "");
   await publishChatRoomChanged(roomId, message.id);
 
   return message;

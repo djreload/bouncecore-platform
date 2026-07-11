@@ -1,4 +1,9 @@
-import { getPublicChatData, type ChatMessageSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
+import { getPublicChatData, type ChatMessageSummary, type ChatPresenceUserSummary, type ChatRoomSummary } from "@/lib/chat/chat-service";
+import {
+  getAvailableSheepThrowSprites,
+  type SheepThrowSettings
+} from "@/lib/chat/sheep-throw-settings";
+import { getChatSheepThrowReadiness, getSheepThrowSettings } from "@/lib/chat/sheep-throw-service";
 import { getPublicMusicTracks } from "@/lib/music/music-service";
 import { buildMobileMusicPayload } from "@/lib/mobile/music-payload-core";
 import { buildMobilePayPalCheckoutStatus } from "@/lib/mobile/paypal-checkout-status";
@@ -9,10 +14,12 @@ import {
   getPayPalMusicReadiness,
   getPayPalStarsReadiness
 } from "@/lib/payments/paypal-service";
+import { getSquareIntegrationData, getSquareShopReadiness, getSquareStarsReadiness } from "@/lib/payments/square-service";
 import { starPackages } from "@/lib/rewards/stars-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { getLiveStarSupportData } from "@/lib/stars/star-send-service";
 import { getPublicLiveState } from "@/lib/stream/stream-channel-service";
+import { visibleRoleBadges } from "@/lib/auth/role-display";
 
 export type MobileEndpoint = {
   href: string;
@@ -49,15 +56,44 @@ function publicMessage(message: ChatMessageSummary) {
     starAmount: message.starAmount,
     starNote: message.starNote,
     createdAt: message.createdAt,
+    deletedAt: message.deletedAt,
+    editedAt: message.editedAt,
     author: {
+      id: message.authorUserId,
       avatarUrl: message.authorAvatarUrl,
       displayName: message.authorDisplayName,
-      roles: message.authorRoles
+      roles: visibleRoleBadges(message.authorRoles)
     },
     reactions: message.reactions.map((reaction) => ({
       key: reaction.key,
-      count: reaction.count
+      count: reaction.count,
+      reacted: reaction.reacted
     }))
+  };
+}
+
+function publicPresenceUser(user: ChatPresenceUserSummary) {
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    roles: visibleRoleBadges(user.roles),
+    status: user.status,
+    lastActiveAt: user.lastActiveAt,
+    throwHitCount: user.throwHitCount
+  };
+}
+
+function publicSheepThrow(settings: SheepThrowSettings, readiness: Awaited<ReturnType<typeof getChatSheepThrowReadiness>>) {
+  return {
+    enabled: settings.enabled,
+    cooldownSeconds: settings.cooldownSeconds,
+    costStars: settings.costStars,
+    effectiveCostStars: readiness.effectiveCostStars,
+    freeThrowAvailable: readiness.freeThrowAvailable,
+    latestThrowAt: readiness.latestThrowAt,
+    remainingCooldownSeconds: readiness.remainingCooldownSeconds,
+    sprites: getAvailableSheepThrowSprites(settings)
   };
 }
 
@@ -110,13 +146,19 @@ export async function getMobileLivePayload() {
   };
 }
 
-export async function getMobileChatPayload(roomSlug?: string) {
-  const data = await getPublicChatData(roomSlug);
+export async function getMobileChatPayload(roomSlug?: string, currentUserId?: string | null) {
+  const [data, sheepSettings] = await Promise.all([
+    getPublicChatData(roomSlug, currentUserId),
+    getSheepThrowSettings()
+  ]);
+  const sheepReadiness = await getChatSheepThrowReadiness(currentUserId, sheepSettings);
 
   return {
     rooms: data.rooms.map(publicRoom),
     selectedRoom: data.selectedRoom ? publicRoom(data.selectedRoom) : null,
     messages: data.messages.map(publicMessage),
+    presenceUsers: data.presenceUsers.map(publicPresenceUser),
+    sheepThrow: publicSheepThrow(sheepSettings, sheepReadiness),
     assets: data.assets.map((asset) => ({
       id: asset.id,
       packId: asset.packId,
@@ -131,8 +173,9 @@ export async function getMobileChatPayload(roomSlug?: string) {
 }
 
 export async function getMobileShopPayload() {
-  const [products, paypal] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData()]);
+  const [products, paypal, square] = await Promise.all([getPublicShopProducts(), getPayPalIntegrationData(), getSquareIntegrationData()]);
   const checkoutReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
+  const squareReadiness = getSquareShopReadiness(square.settings, square.accessTokenConfigured);
 
   return {
     ...buildMobileShopPayload(products),
@@ -140,7 +183,21 @@ export async function getMobileShopPayload() {
       mode: paypal.settings.mode,
       ready: checkoutReadiness.ready,
       reason: checkoutReadiness.reason
-    })
+    }),
+    checkoutProviders: [
+      {
+        mode: paypal.settings.mode,
+        provider: "paypal",
+        ready: checkoutReadiness.ready,
+        reason: checkoutReadiness.reason
+      },
+      {
+        mode: square.settings.mode,
+        provider: "square",
+        ready: squareReadiness.ready,
+        reason: squareReadiness.reason
+      }
+    ]
   };
 }
 
@@ -159,8 +216,9 @@ export async function getMobileMusicPayload() {
 }
 
 export async function getMobileRewardsPayload() {
-  const [data, paypal] = await Promise.all([getLiveStarSupportData(), getPayPalIntegrationData()]);
+  const [data, paypal, square] = await Promise.all([getLiveStarSupportData(), getPayPalIntegrationData(), getSquareIntegrationData()]);
   const checkoutReadiness = getPayPalStarsReadiness(paypal.settings, paypal.secretConfigured);
+  const squareReadiness = getSquareStarsReadiness(square.settings, square.accessTokenConfigured);
 
   return {
     live: {
@@ -176,6 +234,20 @@ export async function getMobileRewardsPayload() {
       mode: paypal.settings.mode,
       ready: checkoutReadiness.ready,
       reason: checkoutReadiness.reason
-    })
+    }),
+    checkoutProviders: [
+      {
+        mode: paypal.settings.mode,
+        provider: "paypal",
+        ready: checkoutReadiness.ready,
+        reason: checkoutReadiness.reason
+      },
+      {
+        mode: square.settings.mode,
+        provider: "square",
+        ready: squareReadiness.ready,
+        reason: squareReadiness.reason
+      }
+    ]
   };
 }

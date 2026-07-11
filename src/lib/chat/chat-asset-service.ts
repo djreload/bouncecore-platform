@@ -1,5 +1,6 @@
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
+import { cleanupReplacedManagedUpload } from "@/lib/media/upload-cleanup-service";
 
 export const chatAssetKindOptions = ["sticker", "emoji"] as const;
 export const chatStickerPackStatusOptions = ["active", "draft", "archived"] as const;
@@ -352,6 +353,14 @@ export async function updateChatStickerAsset(input: ChatStickerAssetInput, actor
 
   const kind = normalizeKind(input.kind);
   const imageUrl = input.imageUrl?.trim();
+  const existing = await prisma.chatSticker.findUniqueOrThrow({
+    where: {
+      id: input.assetId
+    },
+    select: {
+      imageUrl: true
+    }
+  });
   const asset = await prisma.chatSticker.update({
     where: {
       id: input.assetId
@@ -369,6 +378,8 @@ export async function updateChatStickerAsset(input: ChatStickerAssetInput, actor
       pack: true
     }
   });
+
+  await cleanupReplacedManagedUpload(existing.imageUrl, asset.imageUrl);
 
   await writeAuditLog({
     actorId,

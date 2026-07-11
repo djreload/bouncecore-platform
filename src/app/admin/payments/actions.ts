@@ -3,13 +3,23 @@
 import { revalidatePath } from "next/cache";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { paidMusicDeliveryRecoveryMessage } from "@/lib/music/music-delivery-recovery-core";
+import { repairPaidMusicPurchaseDelivery } from "@/lib/music/music-delivery-recovery-service";
 import {
   paypalModeOptions,
   updatePayPalSettings,
   type PayPalMode,
   type PayPalSettingsInput
 } from "@/lib/payments/paypal-service";
+import {
+  squareModeOptions,
+  updateSquareSettings,
+  type SquareMode,
+  type SquareSettingsInput
+} from "@/lib/payments/square-service";
+import { cancelStalePendingCheckouts } from "@/lib/payments/payment-reconciliation-service";
 import { createProducerPayoutBatch, syncProducerPayoutBatch } from "@/lib/payments/producer-payout-service";
+import { retryPayPalWebhookEvent } from "@/lib/payments/paypal-webhook-service";
 import type { AdminPaymentsActionState } from "@/app/admin/payments/state";
 
 function formString(formData: FormData, key: string) {
@@ -25,6 +35,10 @@ function isPayPalMode(value: string): value is PayPalMode {
   return paypalModeOptions.includes(value as PayPalMode);
 }
 
+function isSquareMode(value: string): value is SquareMode {
+  return squareModeOptions.includes(value as SquareMode);
+}
+
 function paypalInput(formData: FormData): PayPalSettingsInput {
   const mode = formString(formData, "mode");
 
@@ -34,6 +48,7 @@ function paypalInput(formData: FormData): PayPalSettingsInput {
 
   return {
     clientId: formString(formData, "clientId"),
+    clientSecret: formString(formData, "clientSecret"),
     merchantEmail: formString(formData, "merchantEmail"),
     merchantId: formString(formData, "merchantId"),
     mode,
@@ -41,6 +56,25 @@ function paypalInput(formData: FormData): PayPalSettingsInput {
     shopEnabled: formBoolean(formData, "shopEnabled"),
     starsEnabled: formBoolean(formData, "starsEnabled"),
     webhookId: formString(formData, "webhookId")
+  };
+}
+
+function squareInput(formData: FormData): SquareSettingsInput {
+  const mode = formString(formData, "squareMode");
+
+  if (!isSquareMode(mode)) {
+    throw new Error("Invalid Square mode.");
+  }
+
+  return {
+    accessToken: formString(formData, "squareAccessToken"),
+    applicationId: formString(formData, "squareApplicationId"),
+    locationId: formString(formData, "squareLocationId"),
+    mode,
+    shopEnabled: formBoolean(formData, "squareShopEnabled"),
+    starsEnabled: formBoolean(formData, "squareStarsEnabled"),
+    webhookNotificationUrl: formString(formData, "squareWebhookNotificationUrl"),
+    webhookSignatureKey: formString(formData, "squareWebhookSignatureKey")
   };
 }
 
@@ -82,6 +116,16 @@ export async function adminPaymentsAction(
       };
     }
 
+    if (intent === "square-settings") {
+      await updateSquareSettings(squareInput(formData), actor.id);
+      revalidatePaymentViews();
+
+      return {
+        status: "success",
+        message: "Square integration settings saved."
+      };
+    }
+
     if (intent === "producer-payout-create") {
       if (!formBoolean(formData, "confirmPayout")) {
         throw new Error("Confirm the PayPal payout batch before sending.");
@@ -109,6 +153,56 @@ export async function adminPaymentsAction(
       return {
         status: "success",
         message: `PayPal payout batch synced with status ${batch.status}.`
+      };
+    }
+
+    if (intent === "stale-pending-cancel") {
+      const result = await cancelStalePendingCheckouts(actor.id, {
+        confirmation: formString(formData, "confirmation"),
+        olderThanHours: formString(formData, "olderThanHours")
+      });
+
+      revalidatePaymentViews();
+      revalidatePath("/admin/orders");
+      revalidatePath("/admin/stars");
+      revalidatePath("/admin/tracks");
+
+      return {
+        status: "success",
+        message: `${result.totalCancelled.toLocaleString("en-GB")} stale pending checkout record${
+          result.totalCancelled === 1 ? "" : "s"
+        } cancelled.`
+      };
+    }
+
+    if (intent === "music-delivery-repair") {
+      const result = await repairPaidMusicPurchaseDelivery(actor.id, {
+        confirmation: formString(formData, "confirmation")
+      });
+
+      revalidatePaymentViews();
+      revalidatePath("/admin/tracks");
+      revalidatePath("/account/downloads");
+
+      return {
+        status: "success",
+        message: paidMusicDeliveryRecoveryMessage(result)
+      };
+    }
+
+    if (intent === "paypal-webhook-retry") {
+      const webhookEventId = formString(formData, "webhookEventId");
+
+      if (!webhookEventId) {
+        throw new Error("Missing PayPal webhook event.");
+      }
+
+      const result = await retryPayPalWebhookEvent(actor.id, webhookEventId);
+      revalidatePaymentViews();
+
+      return {
+        status: "success",
+        message: `PayPal webhook ${result.paypalEventId} retried: ${result.previousStatus} -> ${result.processingStatus}.`
       };
     }
 

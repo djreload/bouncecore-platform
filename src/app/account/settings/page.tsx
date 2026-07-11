@@ -6,12 +6,19 @@ import { ConsentPreferencesButton } from "@/components/privacy/consent-preferenc
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getAccountSettingsData } from "@/lib/account/account-service";
 import { getUserNotificationPreferences } from "@/lib/account/notification-preferences-service";
 import { NotificationPreferencesForm } from "@/app/account/settings/notification-preferences-form";
-import { cookiePolicyHref, mobilePrivacyChoicesHref, privacyPolicyHref, termsHref } from "@/lib/privacy/privacy-config";
+import {
+  accountDeletionHref,
+  cookiePolicyHref,
+  mobilePrivacyChoicesHref,
+  privacyPolicyHref,
+  privacyRequestsHref,
+  termsHref
+} from "@/lib/privacy/privacy-config";
 
 export const dynamic = "force-dynamic";
 
@@ -89,7 +96,7 @@ export default async function AccountSettingsPage() {
             <h3 className="text-xl font-black">Roles</h3>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {data.roles.map((role) => (
+            {visibleRoleBadges(data.roles).map((role) => (
               <Badge key={role} tone={roleBadgeTone(role)}>
                 {roleDisplayName(role, roleDisplayLabels)}
               </Badge>
@@ -126,6 +133,12 @@ export default async function AccountSettingsPage() {
             </Link>
             <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={mobilePrivacyChoicesHref}>
               Mobile privacy
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={accountDeletionHref}>
+              Public deletion URL
+            </Link>
+            <Link className="bc-focus-ring rounded-md border border-bc-line bg-bc-ink px-3 py-2 font-semibold hover:border-bc-electric/60" href={privacyRequestsHref}>
+              Privacy requests
             </Link>
           </div>
           <div className="mt-4">

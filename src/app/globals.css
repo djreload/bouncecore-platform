@@ -14,25 +14,133 @@
   --color-bc-amber: #ffb020;
 }
 
+:root {
+  --bc-duration-fast: 150ms;
+  --bc-duration-base: 210ms;
+  --bc-duration-slow: 420ms;
+  --bc-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --bc-ease-snap: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --bc-shadow-soft: 0 18px 54px rgba(0, 0, 0, 0.34);
+  --bc-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --bc-shadow-active:
+    0 0 0 1px color-mix(in srgb, var(--color-bc-electric) 24%, transparent),
+    0 0 30px color-mix(in srgb, var(--color-bc-electric) 18%, transparent);
+  --bc-shadow-hover:
+    0 22px 62px rgba(0, 0, 0, 0.34),
+    0 0 34px color-mix(in srgb, var(--color-bc-electric) 8%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --bc-gradient-brand: linear-gradient(135deg, var(--color-bc-electric), var(--color-bc-pink));
+  --bc-gradient-brand-soft:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-bc-electric) 22%, transparent),
+      color-mix(in srgb, var(--color-bc-pink) 16%, transparent)
+    );
+  --bc-gradient-acid:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-bc-acid) 88%, white 12%),
+      color-mix(in srgb, var(--color-bc-electric) 62%, var(--color-bc-acid) 38%)
+    );
+  --bc-field-surface:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-ink) 86%, white 3%),
+      color-mix(in srgb, var(--color-bc-void) 90%, var(--color-bc-ink) 10%)
+    );
+  --bc-surface-glass:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 36%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-panel) 96%, transparent),
+      color-mix(in srgb, var(--color-bc-ink) 90%, var(--color-bc-void) 10%)
+    );
+  --bc-surface-ink:
+    linear-gradient(145deg, color-mix(in srgb, var(--color-bc-electric) 4%, transparent), transparent 42%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-ink) 98%, transparent),
+      color-mix(in srgb, var(--color-bc-void) 96%, black 4%)
+    );
+  --bc-border-glow: color-mix(in srgb, var(--color-bc-line) 72%, var(--color-bc-electric) 12%);
+}
+
 * {
   box-sizing: border-box;
 }
 
 html {
   color-scheme: dark;
+  scrollbar-color:
+    color-mix(in srgb, var(--color-bc-electric) 55%, transparent)
+    color-mix(in srgb, var(--color-bc-ink) 86%, transparent);
+  scrollbar-gutter: stable;
 }
 
 body {
+  position: relative;
   min-height: 100vh;
   margin: 0;
   background:
-    linear-gradient(135deg, rgba(0, 213, 255, 0.06), transparent 34%),
-    linear-gradient(225deg, rgba(255, 43, 214, 0.08), transparent 35%),
-    #05050a;
-  color: #f7fbff;
+    linear-gradient(115deg, color-mix(in srgb, var(--color-bc-electric) 8%, transparent), transparent 30%),
+    linear-gradient(245deg, color-mix(in srgb, var(--color-bc-pink) 8%, transparent), transparent 32%),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-bc-violet) 6%, transparent), transparent 48%),
+    var(--color-bc-void);
+  color: color-mix(in srgb, white 96%, var(--color-bc-electric) 4%);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  font-synthesis-weight: none;
+  overflow-x: hidden;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background-image:
+    linear-gradient(color-mix(in srgb, white 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, white 2.6%, transparent) 1px, transparent 1px),
+    linear-gradient(
+      120deg,
+      transparent 0 24%,
+      color-mix(in srgb, var(--color-bc-electric) 3%, transparent) 38%,
+      transparent 54% 100%
+    ),
+    linear-gradient(180deg, color-mix(in srgb, white 3.5%, transparent), transparent 28%, rgba(0, 0, 0, 0.22));
+  background-position:
+    center top,
+    center top,
+    center,
+    center;
+  background-size:
+    56px 56px,
+    56px 56px,
+    180% 180%,
+    100% 100%;
+  mask-image: linear-gradient(180deg, black, rgba(0, 0, 0, 0.5) 64%, transparent);
+  animation: bc-background-drift 32s var(--bc-ease-out) infinite alternate;
+}
+
+html[data-bc-android-webview="true"] body::before,
+html[data-bc-page-visibility="hidden"] body::before {
+  animation: none;
+}
+
+@supports (content-visibility: auto) {
+  [data-bc-visual-part="site-footer"] {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 18rem;
+  }
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
 }
 
 a {
@@ -47,10 +155,477 @@ select {
   font: inherit;
 }
 
+::selection {
+  background: color-mix(in srgb, var(--color-bc-electric) 34%, transparent);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--color-bc-ink) 90%, transparent);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid color-mix(in srgb, var(--color-bc-ink) 90%, transparent);
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-electric) 80%, transparent),
+      color-mix(in srgb, var(--color-bc-pink) 64%, transparent)
+    );
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--color-bc-electric), var(--color-bc-pink));
+}
+
+input,
+textarea,
+select {
+  border-color: color-mix(in srgb, var(--color-bc-line) 86%, transparent);
+  background: var(--bc-field-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  transition:
+    border-color var(--bc-duration-fast) ease,
+    box-shadow var(--bc-duration-fast) ease,
+    background-color var(--bc-duration-fast) ease,
+    transform var(--bc-duration-fast) ease;
+}
+
+input:hover,
+textarea:hover,
+select:hover {
+  border-color: color-mix(in srgb, var(--color-bc-electric) 32%, var(--color-bc-line) 68%);
+}
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: color-mix(in srgb, var(--color-bc-electric) 70%, transparent) !important;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-bc-electric) 42%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--color-bc-electric) 12%, transparent);
+  outline: none;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: color-mix(in srgb, var(--color-bc-muted) 68%, transparent);
+}
+
+select {
+  color-scheme: dark;
+  color: color-mix(in srgb, white 94%, var(--color-bc-electric) 6%);
+}
+
+select option,
+select optgroup {
+  background-color: var(--color-bc-ink);
+  color: #f7fbff;
+}
+
+select option:checked {
+  background-color: color-mix(in srgb, var(--color-bc-electric) 28%, var(--color-bc-ink) 72%);
+  color: #ffffff;
+}
+
+select option:disabled {
+  background-color: var(--color-bc-ink);
+  color: color-mix(in srgb, var(--color-bc-muted) 64%, transparent);
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) select,
+:where(.bc-app-shell, .bc-dashboard-shell) select option,
+:where(.bc-app-shell, .bc-dashboard-shell) select optgroup {
+  color-scheme: dark;
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 0.75rem;
+  min-height: 1.9rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: var(--bc-gradient-acid);
+  color: var(--color-bc-void);
+  cursor: pointer;
+  font-weight: 800;
+  padding: 0.35rem 0.7rem;
+}
+
+.bc-app-shell,
+.bc-dashboard-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-ink) 52%, transparent),
+      color-mix(in srgb, var(--color-bc-void) 95%, transparent) 42%
+    ),
+    transparent;
+}
+
+.bc-dashboard-shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-bc-electric) 4%, transparent), transparent),
+    linear-gradient(180deg, transparent 0 38%, color-mix(in srgb, var(--color-bc-pink) 4%, transparent) 58%, transparent 100%);
+  opacity: 0.86;
+}
+
+.bc-site-header {
+  position: sticky;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-ink) 88%, var(--color-bc-void) 12%),
+      color-mix(in srgb, var(--color-bc-void) 86%, transparent)
+    ),
+    var(--color-bc-void);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(18px) saturate(1.18);
+}
+
+.bc-site-header::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 1px;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--color-bc-electric) 62%, transparent),
+      color-mix(in srgb, var(--color-bc-pink) 44%, transparent),
+      transparent
+    );
+  opacity: 0.84;
+}
+
+.bc-site-footer {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-ink) 96%, transparent),
+      color-mix(in srgb, var(--color-bc-void) 98%, transparent)
+    ),
+    var(--color-bc-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.bc-dashboard-sidebar,
+.bc-dashboard-hero {
+  background: var(--bc-surface-glass);
+  border-color: var(--bc-border-glow);
+  box-shadow: var(--bc-shadow-panel);
+}
+
+.bc-dashboard-hero {
+  overflow: hidden;
+  position: relative;
+}
+
+.bc-dashboard-hero::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--color-bc-electric) 14%, transparent), transparent 32%),
+    linear-gradient(270deg, color-mix(in srgb, var(--color-bc-pink) 10%, transparent), transparent 36%);
+  opacity: 0.72;
+}
+
+.bc-dashboard-hero > * {
+  position: relative;
+}
+
+.bc-brand-mark {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--color-bc-electric) 24%, transparent),
+      color-mix(in srgb, var(--color-bc-pink) 8%, transparent)
+    ),
+    color-mix(in srgb, var(--color-bc-electric) 8%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-bc-electric) 18%, transparent),
+    0 0 28px color-mix(in srgb, var(--color-bc-electric) 22%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.bc-brand-mark::after {
+  position: absolute;
+  inset: -24%;
+  z-index: 0;
+  pointer-events: none;
+  content: "";
+  background: conic-gradient(from 180deg, transparent 0 28%, color-mix(in srgb, var(--color-bc-electric) 52%, transparent), transparent 52% 100%);
+  opacity: 0.78;
+  animation: bc-brand-mark-sweep 4.6s linear infinite;
+}
+
+.bc-brand-mark > * {
+  position: relative;
+  z-index: 1;
+}
+
+.bc-button {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition:
+    border-color var(--bc-duration-base) ease,
+    box-shadow var(--bc-duration-base) ease,
+    background-color var(--bc-duration-base) ease,
+    color var(--bc-duration-base) ease,
+    transform var(--bc-duration-fast) ease;
+  transform: translateZ(0);
+}
+
+.bc-button::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(120deg, transparent 0 32%, rgba(255, 255, 255, 0.18) 46%, transparent 62%);
+  opacity: 0;
+  transform: translateX(-120%);
+  transition:
+    opacity 180ms ease,
+    transform 420ms ease;
+}
+
+.bc-button:hover::before {
+  opacity: 1;
+  transform: translateX(120%);
+}
+
+.bc-button:active {
+  transform: translateY(1px);
+}
+
+.bc-button > * {
+  position: relative;
+}
+
+.bc-button-primary {
+  background:
+    linear-gradient(
+      135deg,
+      var(--color-bc-electric),
+      color-mix(in srgb, var(--color-bc-electric) 72%, white 28%)
+    );
+  box-shadow: 0 0 28px color-mix(in srgb, var(--color-bc-electric) 32%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.bc-button-primary:hover {
+  box-shadow: 0 0 34px color-mix(in srgb, var(--color-bc-electric) 42%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.bc-button-pink {
+  background:
+    linear-gradient(
+      135deg,
+      var(--color-bc-pink),
+      color-mix(in srgb, var(--color-bc-pink) 72%, white 28%)
+    );
+  box-shadow: 0 0 28px color-mix(in srgb, var(--color-bc-pink) 28%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.bc-button-pink:hover {
+  box-shadow: 0 0 34px color-mix(in srgb, var(--color-bc-pink) 42%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.bc-button-ghost {
+  background: linear-gradient(180deg, color-mix(in srgb, white 6%, transparent), color-mix(in srgb, white 3%, transparent));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 12px 24px rgba(0, 0, 0, 0.12);
+}
+
+.bc-button-ghost:hover {
+  border-color: color-mix(in srgb, var(--color-bc-electric) 60%, transparent);
+  background: color-mix(in srgb, var(--color-bc-electric) 10%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color-bc-electric) 12%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.bc-button-dark {
+  background: var(--bc-surface-glass);
+}
+
+.bc-button-dark:hover {
+  border-color: color-mix(in srgb, var(--color-bc-pink) 60%, transparent);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--color-bc-pink) 12%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.bc-badge {
+  letter-spacing: 0.01em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 18px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.bc-nav-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.bc-nav-link::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: var(--bc-gradient-brand);
+  opacity: 0;
+  transform: scaleY(0.42);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.bc-nav-link:hover::before,
+.bc-nav-link-active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.bc-nav-link-active {
+  box-shadow: var(--bc-shadow-active);
+}
+
+.bc-nav-link svg {
+  transition:
+    color var(--bc-duration-base) ease,
+    filter var(--bc-duration-base) ease,
+    transform var(--bc-duration-base) ease;
+}
+
+.bc-nav-link:hover svg,
+.bc-nav-link-active svg {
+  filter: drop-shadow(0 0 8px color-mix(in srgb, var(--color-bc-electric) 56%, transparent));
+  transform: translateY(-1px);
+}
+
+.bc-mobile-menu-panel {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-ink) 98%, transparent),
+      color-mix(in srgb, var(--color-bc-void) 98%, transparent)
+    ),
+    var(--color-bc-void);
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.56);
+}
+
+.bc-icon-button {
+  background: var(--bc-surface-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 10px 26px rgba(0, 0, 0, 0.22);
+}
+
+:where(article, section, aside, form).bg-bc-panel.border-bc-line {
+  border-color: var(--bc-border-glow);
+  background: var(--bc-surface-glass);
+  box-shadow: var(--bc-shadow-panel);
+  backdrop-filter: blur(12px) saturate(1.08);
+}
+
+:where(article, section, aside, form).bg-bc-ink.border-bc-line {
+  border-color: color-mix(in srgb, var(--color-bc-line) 58%, transparent);
+  background: var(--bc-surface-ink);
+  box-shadow: var(--bc-shadow-soft);
+  backdrop-filter: blur(10px) saturate(1.04);
+}
+
+:where(article, section, form).bg-bc-panel.border-bc-line,
+:where(article, section, form).bg-bc-ink.border-bc-line {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(article, section, form).bg-bc-panel.border-bc-line:hover,
+  :where(article, section, form).bg-bc-ink.border-bc-line:hover {
+    border-color: color-mix(in srgb, var(--color-bc-electric) 34%, transparent);
+    box-shadow: var(--bc-shadow-hover);
+  }
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) table {
+  overflow: hidden;
+  border-radius: 0.55rem;
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) th {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-bc-line) 74%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bc-panel) 88%, transparent),
+      color-mix(in srgb, var(--color-bc-ink) 94%, transparent)
+    );
+  color: color-mix(in srgb, white 78%, var(--color-bc-muted) 22%);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) td {
+  border-bottom: 1px solid color-mix(in srgb, var(--color-bc-line) 46%, transparent);
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) tbody tr {
+  transition:
+    background-color var(--bc-duration-fast) ease,
+    box-shadow var(--bc-duration-fast) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(.bc-app-shell, .bc-dashboard-shell) tbody tr:hover {
+    background: color-mix(in srgb, var(--color-bc-electric) 6%, transparent);
+    box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-bc-electric) 70%, transparent);
+  }
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) summary {
+  cursor: pointer;
+}
+
+:where(.bc-app-shell, .bc-dashboard-shell) hr {
+  border-color: color-mix(in srgb, var(--color-bc-line) 62%, transparent);
+}
+
+@media (min-width: 1024px) {
+  .bc-dashboard-sidebar {
+    position: sticky;
+    top: 1rem;
+    align-self: start;
+  }
+}
+
 .bc-grid {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--color-bc-electric) 5%, white 1%) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-bc-pink) 4%, white 1%) 1px, transparent 1px);
   background-size: 42px 42px;
 }
 
@@ -79,7 +654,36 @@ select {
 }
 
 .bc-focus-ring:focus-visible {
-  outline-color: #00d5ff;
+  outline-color: var(--color-bc-electric);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-bc-electric) 14%, transparent);
+}
+
+@keyframes bc-background-drift {
+  0% {
+    background-position:
+      center top,
+      center top,
+      0% 50%,
+      center;
+  }
+
+  100% {
+    background-position:
+      center top,
+      center top,
+      100% 50%,
+      center;
+  }
+}
+
+@keyframes bc-brand-mark-sweep {
+  0% {
+    transform: rotate(0deg) scale(1.05);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(1.05);
+  }
 }
 
 .bc-star-alert-card {
@@ -152,7 +756,7 @@ select {
   animation: bc-sheep-motion-blur 1.15s ease-out both;
 }
 
-html.bc-sheep-impact-wobble body {
+html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-overlay]) {
   animation: bc-sheep-impact-wobble 650ms cubic-bezier(0.12, 0.8, 0.18, 1) both;
   transform-origin: 50% 50%;
 }
@@ -1540,17 +2144,24 @@ html.bc-sheep-impact-wobble body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  body::before,
+  .bc-brand-mark::after,
   .bc-chat-effect,
   .bc-chat-effect::before,
   .bc-chat-effect::after,
   .bc-chat-effect-particle,
   .bc-chat-effect .bc-chat-effect-letter,
+  .bc-button,
+  .bc-button::before,
+  .bc-nav-link,
+  .bc-nav-link::before,
+  .bc-nav-link svg,
   .bc-giveaway-bulbs span,
   .bc-giveaway-wheel,
   .bc-giveaway-winner-toast,
   .bc-music-top-five,
   .bc-sheep-motion-blur,
-  html.bc-sheep-impact-wobble body {
+  html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-overlay]) {
     animation: none !important;
     filter: none !important;
     transform: none !important;

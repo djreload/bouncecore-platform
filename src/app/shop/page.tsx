@@ -4,6 +4,7 @@ import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getPayPalCheckoutReadiness, getPayPalIntegrationData } from "@/lib/payments/paypal-service";
+import { getSquareIntegrationData, getSquareShopReadiness } from "@/lib/payments/square-service";
 import { getPublicShopProducts } from "@/lib/shop/shop-service";
 import { ShopCartButton, ShopCartProvider, type ShopCartVariant } from "./shop-cart-panel";
 
@@ -17,11 +18,11 @@ type ShopPageProps = {
 
 const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber" | "pink" }> = {
   cancelled: {
-    message: "PayPal checkout was cancelled.",
+    message: "Checkout was cancelled.",
     tone: "amber"
   },
   "capture-error": {
-    message: "PayPal approved the checkout, but the capture could not be completed.",
+    message: "The payment was approved, but the capture could not be completed.",
     tone: "pink"
   },
   error: {
@@ -34,6 +35,14 @@ const checkoutMessages: Record<string, { message: string; tone: "acid" | "amber"
   },
   "paypal-api-error": {
     message: "PayPal rejected the shop checkout request. Check sandbox/live mode and API credentials, then try again.",
+    tone: "pink"
+  },
+  "square-not-ready": {
+    message: "Square shop checkout needs application, location, and access token configuration before purchases can start.",
+    tone: "pink"
+  },
+  "square-api-error": {
+    message: "Square rejected the shop checkout request. Check sandbox/live mode and API credentials, then try again.",
     tone: "pink"
   }
 };
@@ -60,14 +69,18 @@ function messageClass(tone: "acid" | "amber" | "pink") {
 
 export default async function ShopPage({ searchParams }: ShopPageProps) {
   const params = searchParams ? await searchParams : {};
-  const [products, paypal, currentUser] = await Promise.all([
+  const [products, paypal, square, currentUser] = await Promise.all([
     getPublicShopProducts(),
     getPayPalIntegrationData(),
+    getSquareIntegrationData(),
     getCurrentUser()
   ]);
   const variantCount = products.reduce((total, product) => total + product.variantCount, 0);
   const totalStock = products.reduce((total, product) => total + product.totalStock, 0);
-  const checkoutReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
+  const paypalReadiness = getPayPalCheckoutReadiness(paypal.settings, paypal.secretConfigured);
+  const squareReadiness = getSquareShopReadiness(square.settings, square.accessTokenConfigured);
+  const checkoutReady = paypalReadiness.ready || squareReadiness.ready;
+  const checkoutReason = checkoutReady ? null : [paypalReadiness.reason, squareReadiness.reason].filter(Boolean).join(" ");
   const checkoutMessage = checkoutMessages[firstParam(params.checkout) ?? ""];
   const cartVariants: ShopCartVariant[] = products.flatMap((product) =>
     product.variants.map((variant) => ({
@@ -84,8 +97,10 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
   return (
     <PublicShell>
       <ShopCartProvider
-        checkoutReady={checkoutReadiness.ready}
-        checkoutReason={checkoutReadiness.reason}
+        checkoutReady={checkoutReady}
+        checkoutReason={checkoutReason}
+        paypalReady={paypalReadiness.ready}
+        squareReady={squareReadiness.ready}
         signedIn={Boolean(currentUser)}
         variants={cartVariants}
       >
@@ -185,12 +200,11 @@ export default async function ShopPage({ searchParams }: ShopPageProps) {
           </article>
           <article className="rounded-md border border-bc-line bg-bc-panel p-5 md:col-span-2">
             <CreditCard className="h-7 w-7 text-bc-acid" aria-hidden="true" />
-            <h2 className="mt-4 text-xl font-black">PayPal checkout</h2>
+            <h2 className="mt-4 text-xl font-black">Checkout</h2>
             <p className="mt-2 text-sm text-bc-muted">
-              Shop purchases are routed through PayPal {paypal.settings.mode} checkout.{" "}
-              {checkoutReadiness.ready
-                ? "Checkout is ready for active products."
-                : (checkoutReadiness.reason ?? "Admins can manage PayPal settings in the payments control room.")}
+              Shop purchases can use PayPal {paypal.settings.mode}
+              {square.settings.shopEnabled ? ` or Square ${square.settings.mode}` : ""} checkout.{" "}
+              {checkoutReady ? "Checkout is ready for active products." : checkoutReason}
             </p>
           </article>
         </section>

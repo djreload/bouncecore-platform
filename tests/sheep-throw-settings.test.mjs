@@ -14,6 +14,7 @@ test("sheep throw settings default to enabled with a five minute cooldown", () =
   assert.equal(defaultSheepThrowSettings.enabled, true);
   assert.equal(defaultSheepThrowSettings.cooldownSeconds, 300);
   assert.equal(defaultSheepThrowSettings.costStars, 10);
+  assert.equal(defaultSheepThrowSettings.sprites[0].id, "sheep");
 });
 
 test("sheep throw settings input converts admin minutes to seconds", () => {
@@ -36,6 +37,32 @@ test("sheep throw settings input converts admin minutes to seconds", () => {
       maxRecentEvents: 24
     }
   );
+});
+
+test("sheep throw settings keep sheep as fallback and accept uploaded custom sprites", () => {
+  const settings = normalizeSheepThrowSettingsInput({
+    enabled: true,
+    cooldownMinutes: "5",
+    costStars: "10",
+    sprites: [
+      {
+        columns: "8",
+        enabled: true,
+        frameCount: "16",
+        frameHeight: "256",
+        frameWidth: "256",
+        label: "Unicorn",
+        rows: "2",
+        spriteSheetUrl: "/uploads/throw-sprites/unicorn.png"
+      }
+    ]
+  });
+
+  assert.equal(settings.sprites.length, 2);
+  assert.equal(settings.sprites[0].id, "sheep");
+  assert.equal(settings.sprites[1].id, "unicorn");
+  assert.equal(settings.sprites[1].frameCount, 16);
+  assert.equal(settings.sprites[1].rows, 2);
 });
 
 test("sheep throw settings reject impossible cooldown values", () => {
@@ -79,6 +106,7 @@ test("sheep throw cooldown label is compact for chat buttons", () => {
   assert.equal(formatSheepThrowCooldownLabel(75), "1m 15s");
 });
 
-test("sheep throw toast names both users", () => {
-  assert.equal(formatSheepThrowToast("Reload", "Richie P"), "Reload threw a sheep at Richie P 😂");
+test("sheep throw toast names both users and the selected sprite", () => {
+  assert.equal(formatSheepThrowToast("Reload", "Richie P"), "Reload threw a sheep at Richie P \u{1f602}");
+  assert.equal(formatSheepThrowToast("Reload", "Richie P", "Unicorn"), "Reload threw a unicorn at Richie P \u{1f602}");
 });

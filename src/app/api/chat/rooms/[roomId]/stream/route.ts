@@ -36,7 +36,7 @@ function messageSignature(messages: ChatMessageSummary[]) {
   const latestMessage = messages.at(-1);
   const reactionSignature = messages
     .map((message) =>
-      `${message.id}:${message.authorAvatarUrl ?? ""}:${message.reactions.map((reaction) => `${reaction.key}-${reaction.count}-${reaction.reacted ? "1" : "0"}`).join(",")}`
+      `${message.id}:${message.editedAt ?? ""}:${message.body}:${message.effectId ?? ""}:${message.authorAvatarUrl ?? ""}:${message.reactions.map((reaction) => `${reaction.key}-${reaction.count}-${reaction.reacted ? "1" : "0"}`).join(",")}`
     )
     .join("|");
 
@@ -48,7 +48,7 @@ function roomSignature(room: ChatRoomSummary | null) {
 }
 
 function presenceSignature(presenceUsers: ChatPresenceUserSummary[]) {
-  return presenceUsers.map((user) => `${user.id}:${user.status}:${user.avatarUrl ?? ""}`).join("|");
+  return presenceUsers.map((user) => `${user.id}:${user.status}:${user.avatarUrl ?? ""}:${user.throwHitCount}`).join("|");
 }
 
 function waitForNextPoll(signal: AbortSignal, timeoutMs: number) {

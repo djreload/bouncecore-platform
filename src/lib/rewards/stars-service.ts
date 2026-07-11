@@ -69,9 +69,14 @@ export type StarPurchaseRow = {
   totalPence: number;
   currency: string;
   packageLabel: string;
+  paymentProvider: string;
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
   paypalPayerEmail: string | null;
+  squareOrderId: string | null;
+  squarePaymentId: string | null;
+  squareBuyerEmail: string | null;
+  squareReceiptUrl: string | null;
   completedAt: string | null;
   cancelledAt: string | null;
   createdAt: string;
@@ -107,9 +112,14 @@ function toStarPurchaseRow(purchase: {
   totalPence: number;
   currency: string;
   packageLabel: string;
+  paymentProvider: string;
   paypalOrderId: string | null;
   paypalCaptureId: string | null;
   paypalPayerEmail: string | null;
+  squareOrderId: string | null;
+  squarePaymentId: string | null;
+  squareBuyerEmail: string | null;
+  squareReceiptUrl: string | null;
   completedAt: Date | null;
   cancelledAt: Date | null;
   createdAt: Date;
@@ -121,9 +131,14 @@ function toStarPurchaseRow(purchase: {
     currency: purchase.currency,
     id: purchase.id,
     packageLabel: purchase.packageLabel,
+    paymentProvider: purchase.paymentProvider,
     paypalCaptureId: purchase.paypalCaptureId,
     paypalOrderId: purchase.paypalOrderId,
     paypalPayerEmail: purchase.paypalPayerEmail,
+    squareBuyerEmail: purchase.squareBuyerEmail,
+    squareOrderId: purchase.squareOrderId,
+    squarePaymentId: purchase.squarePaymentId,
+    squareReceiptUrl: purchase.squareReceiptUrl,
     stars: purchase.stars,
     status: purchase.status,
     totalPence: purchase.totalPence

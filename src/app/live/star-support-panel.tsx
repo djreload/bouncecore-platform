@@ -221,7 +221,23 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
   useEffect(() => {
     let active = true;
 
+    function clearAlertState() {
+      alertQueueRef.current = [];
+      activeSendRef.current = null;
+
+      if (alertTimerRef.current) {
+        window.clearTimeout(alertTimerRef.current);
+        alertTimerRef.current = null;
+      }
+
+      setActiveSend(null);
+    }
+
     async function refresh() {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
       try {
         const response = await fetch("/api/live/stars", {
           cache: "no-store"
@@ -239,13 +255,7 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
 
           if (!alertsEnabledForCurrentPath(payload.alertSettings)) {
             payload.recentSends.forEach((send) => seenSendIds.current.add(send.id));
-            alertQueueRef.current = [];
-            activeSendRef.current = null;
-            if (alertTimerRef.current) {
-              window.clearTimeout(alertTimerRef.current);
-              alertTimerRef.current = null;
-            }
-            setActiveSend(null);
+            clearAlertState();
             return;
           }
 
@@ -259,9 +269,21 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
     void refresh();
     const interval = window.setInterval(refresh, alertSettings.pollMs);
 
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        clearAlertState();
+        return;
+      }
+
+      void refresh();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       active = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [alertSettings.pollMs, enqueueNewSends]);
 
@@ -307,6 +329,10 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
     let active = true;
 
     async function refresh() {
+      if (document.visibilityState === "hidden") {
+        return;
+      }
+
       try {
         const response = await fetch("/api/live/stars", {
           cache: "no-store"
@@ -322,10 +348,12 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
     }
 
     const interval = window.setInterval(refresh, 5000);
+    document.addEventListener("visibilitychange", refresh);
 
     return () => {
       active = false;
       window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
 
@@ -335,9 +363,9 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
         <Badge tone="acid">Stars sent</Badge>
         <Trophy className="h-5 w-5 text-bc-acid" aria-hidden="true" />
       </div>
-      <h2 className="mt-4 text-xl font-black">Live leaderboard</h2>
+      <h2 className="mt-4 text-xl font-black">Weekly leaderboard</h2>
       <p className="mt-2 text-sm text-bc-muted">
-        {data.totalStarsSent.toLocaleString("en-GB")} stars sent across {data.sendCount} live chat sends.
+        {data.totalStarsSent.toLocaleString("en-GB")} stars sent across {data.sendCount} live chat sends this week.
       </p>
       <div className="mt-4 space-y-2">
         {data.leaderboard.map((row, index) => (
@@ -351,7 +379,7 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
             <Badge tone="acid">{row.stars.toLocaleString("en-GB")}</Badge>
           </div>
         ))}
-        {!data.leaderboard.length ? <p className="text-sm text-bc-muted">No stars have been sent in this live window yet.</p> : null}
+        {!data.leaderboard.length ? <p className="text-sm text-bc-muted">No stars have been sent this week yet.</p> : null}
       </div>
     </div>
   );

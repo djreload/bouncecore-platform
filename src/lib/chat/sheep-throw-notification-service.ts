@@ -27,6 +27,7 @@ export async function queueChatSheepThrowNotification(input: {
   messageId: string;
   roomSlug: string;
   sheepThrowId: string;
+  spriteLabel: string;
   targetUserId: string;
   throwerDisplayName: string;
   throwerUserId: string;
@@ -112,6 +113,7 @@ export async function queueChatSheepThrowNotification(input: {
   });
   const notification = chatSheepThrowNotificationContent({
     roomSlug: input.roomSlug,
+    spriteLabel: input.spriteLabel,
     throwerDisplayName: input.throwerDisplayName
   });
   const encryptionReady = secretEncryptionConfigured();

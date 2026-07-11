@@ -24,13 +24,145 @@ backups/20260608T203000Z/
 
 The PostgreSQL backup is a custom-format `pg_dump` created through the Compose `postgres` service. Volume archives are created with a short-lived Alpine container and the named volumes from `.env.instance`.
 
+Backups are verified by default after creation. Verification checks the manifest, validates the PostgreSQL dump with `pg_restore --list`, and opens each expected volume archive with `tar`.
+
+Each completed backup also writes:
+
+```text
+/srv/bouncecore-backups/latest-backup.env
+```
+
+By default the same status is copied into the uploads Docker volume at:
+
+```text
+.ops/backup-status.env
+```
+
+The app reads that file from `/app/public/uploads/.ops/backup-status.env` and exposes it in Admin -> System health as `Verified backups`.
+
+When encrypted off-server export is enabled through `backup-instance.sh`, the latest export status is copied into:
+
+```text
+.ops/offsite-backup-status.env
+```
+
+The app reads that file from `/app/public/uploads/.ops/offsite-backup-status.env` and exposes it in Admin -> System health as `Off-server backups`. A fresh local encrypted export without a successful rclone upload is reported as `Local only` because it is not yet disaster recovery.
+
+Admin -> Storage can also save the external backup destination and public age recipient. The app writes that operational config into the uploads volume at:
+
+```text
+.ops/offsite-backup-config.env
+```
+
+When `backup-instance.sh` runs without explicit offsite flags, it reads this admin-managed config automatically. The server still needs `age` and `rclone` installed. For Google Drive, Bouncecore can create the rclone Drive config through the Admin -> Storage OAuth flow.
+
+Google Drive is supported through rclone without manually running `rclone config`. Create a Google Cloud OAuth 2.0 web client, set these environment variables, then restart the app:
+
+```env
+GOOGLE_DRIVE_OAUTH_CLIENT_ID=your-google-client-id
+GOOGLE_DRIVE_OAUTH_CLIENT_SECRET=your-google-client-secret
+```
+
+Add this redirect URI to the Google Cloud OAuth client:
+
+```text
+https://bouncecore.example.com/admin/storage/google-drive/callback
+```
+
+Then open Admin -> Storage and press `Connect Google Drive`. Google will show the Drive authorization page. After approval, Bouncecore writes the generated rclone config into the protected uploads volume path:
+
+```text
+.ops/google-drive-rclone.conf
+```
+
+The recommended generated rclone remote name is:
+
+```text
+bouncecore-gdrive
+```
+
+With the default admin folder, Bouncecore generates this rclone destination:
+
+```text
+bouncecore-gdrive:Bouncecore Backups
+```
+
+The Google Drive OAuth token is not stored in a public upload URL or shown in admin. Bouncecore stores only connection metadata in the database and keeps the rclone token config in the protected `.ops` path above.
+
+If the database setting exists but the generated `.ops/offsite-backup-config.env` file is missing after a restore or volume repair, use Admin -> Storage -> Rewrite generated config. This rewrites the file from the saved database setting without changing the destination.
+
+Admin -> Storage can also queue a manual verified backup. The web app writes a request file to the uploads volume:
+
+```text
+.ops/backup-run-request.env
+```
+
+The host-side request processor reads that file, runs `backup-instance.sh`, writes the latest manual run status to:
+
+```text
+.ops/backup-run-status.env
+```
+
+and removes the request. This keeps Docker host permissions outside the web container while still giving owners a `Run backup now` button in the admin UI.
+
 Useful options:
 
 ```bash
 bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups
 bash scripts/backup-instance.sh --env-file .env.staging --compose-file docker-compose.staging.yml
+bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14
+bash scripts/backup-instance.sh --status-volume-path .ops/backup-status.env
+bash scripts/backup-instance.sh --offsite-status-volume-path .ops/offsite-backup-status.env
+bash scripts/backup-instance.sh --offsite-config-volume-path .ops/offsite-backup-config.env
+bash scripts/backup-instance.sh --skip-status-volume
 bash scripts/backup-instance.sh --skip-volumes
+bash scripts/backup-instance.sh --skip-verify
+bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --offsite-age-recipient age1examplepublickey --offsite-rclone-remote r2:bouncecore-backups/prod
 ```
+
+## Verify a Backup
+
+Run verification without restoring over the live site:
+
+```bash
+bash scripts/verify-backup-instance.sh backups/20260608T203000Z
+```
+
+Verify the newest backup under a custom backup root:
+
+```bash
+bash scripts/verify-backup-instance.sh --backup-root /srv/bouncecore-backups --latest
+```
+
+The verifier writes:
+
+```text
+backups/20260608T203000Z/verification.env
+```
+
+The report includes `status`, `failures`, `warnings`, and `verified_at`. Treat a failed verification as a broken backup until it is investigated.
+
+## Restore Drill
+
+Run a non-destructive restore drill before trusting a backup process in production:
+
+```bash
+bash scripts/restore-drill.sh backups/20260608T203000Z
+```
+
+The drill creates temporary Docker volumes, a temporary Docker network, and a temporary PostgreSQL container. It restores the database dump and extracts each saved volume archive, then writes:
+
+```text
+backups/20260608T203000Z/restore-drill.env
+```
+
+The report includes `status`, `failures`, restored database table count, and restored file counts for each volume. Temporary Docker resources are removed automatically unless `--keep` is passed for inspection:
+
+```bash
+bash scripts/restore-drill.sh /srv/bouncecore-backups/20260608T203000Z --keep
+```
+
+This does not stop or overwrite the live app. Use it as a regular disaster-recovery confidence check after backup-script changes and before major releases.
 
 ## Restore a Backup
 
@@ -63,7 +195,7 @@ docker compose -f docker-compose.instance.yml --env-file .env.instance --profile
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
 ```
 
-## Daily Cron Example
+## Automated Backups
 
 Create a directory outside the git checkout and restrict it:
 
@@ -72,21 +204,168 @@ mkdir -p /srv/bouncecore-backups
 chmod 700 /srv/bouncecore-backups
 ```
 
-Example daily cron entry:
-
-```cron
-15 3 * * * cd /var/www/bouncecore-platform && bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups >> /var/log/bouncecore-backup.log 2>&1
-```
-
-Prune older local backups only after you have an off-server copy:
+Recommended systemd timer installation:
 
 ```bash
-find /srv/bouncecore-backups -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} \;
+sudo bash scripts/install-backup-schedule.sh \
+  --backup-root /srv/bouncecore-backups \
+  --retention-days 14 \
+  --on-calendar "*-*-* 03:15:00"
+```
+
+The installer creates two timers by default:
+
+```text
+bouncecore-backup.timer
+bouncecore-backup-request.timer
+```
+
+`bouncecore-backup.timer` runs the scheduled verified backup. `bouncecore-backup-request.timer` checks every minute for the admin `Run backup now` request file and processes it when present. Use `--no-request-timer` only if admin-triggered backups should be disabled on that server.
+
+With encrypted off-server export enabled:
+
+```bash
+sudo bash scripts/install-backup-schedule.sh \
+  --backup-root /srv/bouncecore-backups \
+  --retention-days 14
+```
+
+Then save the external destination in Admin -> Storage. The installed timer runs `backup-instance.sh`, and the backup script reads the saved `.ops/offsite-backup-config.env` file from the uploads volume.
+
+Recommended guided setup for encrypted off-server exports:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh \
+  --backup-root /srv/bouncecore-backups \
+  --age-recipient age1examplepublickey \
+  --rclone-remote r2:bouncecore-backups/prod \
+  --install-packages \
+  --run-now
+```
+
+The helper checks `age` and `rclone`, optionally installs them on Debian/Ubuntu, writes and deletes a small probe file in the rclone destination, installs the systemd timer with off-server export enabled, and can start one backup immediately. Use `--dry-run` to print the exact timer install command without changing systemd.
+
+For Google Drive, use the Admin -> Storage `Connect Google Drive` button first. Then validate and install the backup timers with Google Drive as the rclone destination:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh \
+  --google-drive \
+  --google-drive-remote-name bouncecore-gdrive \
+  --google-drive-folder "Bouncecore Backups" \
+  --age-recipient age1examplepublickey \
+  --install-packages \
+  --run-now
+```
+
+Inspect the installed timer:
+
+```bash
+systemctl list-timers bouncecore-backup.timer
+systemctl list-timers bouncecore-backup-request.timer
+journalctl -u bouncecore-backup.service -n 100 --no-pager
+journalctl -u bouncecore-backup-request.service -n 100 --no-pager
+```
+
+The timer runs verified backups. It also prunes local dated backup folders older than the configured retention period after a successful backup. Keep an off-server copy before relying on local pruning.
+
+System health treats backups as stale after 30 hours by default. Override this with:
+
+```env
+BACKUP_STATUS_FILE=/app/public/uploads/.ops/backup-status.env
+BACKUP_MAX_AGE_HOURS=30
+OFFSITE_BACKUP_STATUS_FILE=/app/public/uploads/.ops/offsite-backup-status.env
+OFFSITE_BACKUP_MAX_AGE_HOURS=30
+BACKUP_RUN_STATUS_FILE=/app/public/uploads/.ops/backup-run-status.env
+BACKUP_RUN_QUEUED_WARNING_MINUTES=5
+BACKUP_RUN_RUNNING_WARNING_MINUTES=180
+```
+
+Admin-requested backups appear as `Manual backup requests` in System health. A fresh queued/running request is treated as healthy. A request queued longer than `BACKUP_RUN_QUEUED_WARNING_MINUTES`, a request running longer than `BACKUP_RUN_RUNNING_WARNING_MINUTES`, or a failed last manual run is reported as an operations warning.
+
+Alternative daily cron entry:
+
+```cron
+15 3 * * * cd /var/www/bouncecore-platform && bash scripts/backup-instance.sh --backup-root /srv/bouncecore-backups --retention-days 14 >> /var/log/bouncecore-backup.log 2>&1
 ```
 
 ## Off-Server Copies
 
-Local backups are not enough. Copy backup folders to a separate machine or object storage. A production-ready setup should eventually encrypt each dated backup and upload it to an S3/R2-compatible bucket with lifecycle retention.
+Local backups are not enough. Copy backup folders to a separate machine or object storage. Production backups should be encrypted before they leave the server.
+
+The off-server export script uses `age` for public-key encryption and can optionally upload with `rclone`:
+
+```bash
+sudo apt-get install age rclone
+```
+
+Generate the private key on a separate trusted machine when possible, not on the production server:
+
+```bash
+age-keygen -o bouncecore-backup.agekey
+grep 'public key:' bouncecore-backup.agekey
+```
+
+Keep `bouncecore-backup.agekey` offline or in a secure password manager. Put only the public key on the server or pass it as a command argument.
+
+Manual encrypted export:
+
+```bash
+bash scripts/export-backup-offsite.sh \
+  /srv/bouncecore-backups/20260608T203000Z \
+  --age-recipient age1examplepublickey
+```
+
+Manual encrypted export plus upload through an already-configured rclone remote:
+
+```bash
+bash scripts/export-backup-offsite.sh \
+  /srv/bouncecore-backups/20260608T203000Z \
+  --age-recipient age1examplepublickey \
+  --rclone-remote r2:bouncecore-backups/prod
+```
+
+Validate and install the automated off-server backup timer:
+
+```bash
+sudo bash scripts/setup-offsite-backups.sh \
+  --age-recipient age1examplepublickey \
+  --rclone-remote r2:bouncecore-backups/prod \
+  --install-packages
+```
+
+The export writes:
+
+```text
+/srv/bouncecore-backups/offsite/20260608T203000Z.tar.gz.age
+/srv/bouncecore-backups/offsite/20260608T203000Z.tar.gz.age.sha256
+/srv/bouncecore-backups/offsite/20260608T203000Z.offsite.env
+/srv/bouncecore-backups/latest-offsite-backup.env
+```
+
+The export script requires `verification.env` with `status=healthy` by default. This prevents broken backups from being copied off-server and mistaken for good disaster-recovery points.
+
+To decrypt on the trusted recovery machine:
+
+```bash
+age --decrypt -i bouncecore-backup.agekey 20260608T203000Z.tar.gz.age > 20260608T203000Z.tar.gz
+tar -xzf 20260608T203000Z.tar.gz
+```
+
+To verify an off-server export without restoring it:
+
+```bash
+bash scripts/verify-offsite-backup.sh \
+  20260608T203000Z.tar.gz.age \
+  --identity bouncecore-backup.agekey
+```
+
+The verifier checks the `.sha256` file, decrypts the package, lists the tar archive, confirms required Bouncecore backup files exist, and checks that the original `verification.env` inside the archive is healthy. It writes:
+
+```text
+20260608T203000Z.offsite-verify.env
+```
+
+Run this on a trusted recovery machine after downloading a copy from object storage. Do not keep the private age identity key on the production server.
 
 ## Restore Checks
 

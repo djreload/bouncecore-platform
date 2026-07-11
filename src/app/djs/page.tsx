@@ -2,7 +2,7 @@ import { CalendarClock, Headphones, MapPin, Radio, UserRound } from "lucide-reac
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import { getRoleDisplayNameOverrides } from "@/lib/auth/role-display-settings";
 import { getPublicDjProfiles } from "@/lib/profile/dj-profile-service";
 
@@ -64,7 +64,7 @@ export default async function DjsPage() {
               <p className="mt-4 text-sm text-bc-muted">{profile.bio ?? "This DJ has not added a bio yet."}</p>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {profile.roles.map((role) => (
+                {visibleRoleBadges(profile.roles).map((role) => (
                   <Badge key={role} tone={roleBadgeTone(role)}>
                     {roleDisplayName(role, roleDisplayLabels)}
                   </Badge>

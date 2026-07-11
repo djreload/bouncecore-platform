@@ -5,6 +5,7 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { subscribeToLiveStatus } from "@/components/live/live-status-client";
 import { cn } from "@/lib/utils";
 import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 
@@ -24,21 +25,6 @@ type LivePlaybackState = {
   offlineImageUrl: string | null;
 };
 
-type LiveStatusPayload = {
-  activeIngests?: unknown;
-  status?: unknown;
-  playbackUrl?: unknown;
-  offlineImageUrl?: unknown;
-  viewerCount?: unknown;
-  health?: {
-    status?: unknown;
-  };
-  channel?: {
-    title?: unknown;
-    streamProfile?: unknown;
-  } | null;
-};
-
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
     return false;
@@ -51,41 +37,54 @@ function isLikelyHls(playbackUrl: string | null) {
   }
 }
 
-function stringOrNull(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
-}
+function seekToLiveEdge(video: HTMLVideoElement) {
+  const seekable = video.seekable;
 
-function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
-  if (!Array.isArray(value)) {
-    return [];
+  if (!seekable.length) {
+    return;
   }
 
-  const sources: Array<StreamPlaybackSource | null> = value.map((item, index) => {
-    if (!item || typeof item !== "object") {
-      return null;
+  const end = seekable.end(seekable.length - 1);
+  const start = seekable.start(seekable.length - 1);
+
+  if (Number.isFinite(end)) {
+    video.currentTime = Math.max(start, end - 0.35);
+  }
+}
+
+function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
+  video.defaultPlaybackRate = 1;
+
+  if (video.playbackRate !== 1) {
+    video.playbackRate = 1;
+  }
+}
+
+function getPageVisible() {
+  return typeof document === "undefined" || document.visibilityState !== "hidden";
+}
+
+function usePageVisible() {
+  const [pageVisible, setPageVisible] = useState(getPageVisible);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      setPageVisible(getPageVisible());
     }
 
-    const source = item as Record<string, unknown>;
-    const id = stringOrNull(source.id);
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
-    if (!id) {
-      return null;
-    }
-
-    return {
-      id,
-      lastIngestAt: stringOrNull(source.lastIngestAt) ?? new Date().toISOString(),
-      playbackUrl: stringOrNull(source.playbackUrl),
-      presenterName: stringOrNull(source.presenterName),
-      role: source.role === "secondary" ? "secondary" : "primary",
-      startedAt: stringOrNull(source.startedAt) ?? new Date().toISOString(),
-      status: source.status === "starting" || source.status === "degraded" || source.status === "offline" ? source.status : "live",
-      streamKeyFingerprint: stringOrNull(source.streamKeyFingerprint),
-      title: stringOrNull(source.title) ?? (index === 0 ? "Primary DJ" : "Connecting DJ")
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  });
+  }, []);
 
-  return sources.filter((source): source is StreamPlaybackSource => Boolean(source)).slice(0, 2);
+  return pageVisible;
+}
+
+function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
+  return source?.presenterName ?? source?.title ?? fallback;
 }
 
 function HlsVideo({
@@ -93,16 +92,19 @@ function HlsVideo({
   className,
   controls,
   muted,
+  onPlaybackStarted,
   playbackUrl
 }: {
   ariaLabel: string;
   className?: string;
   controls?: boolean;
   muted: boolean;
+  onPlaybackStarted?: () => void;
   playbackUrl: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const pageVisible = usePageVisible();
 
   useEffect(() => {
     const video = videoRef.current;
@@ -114,27 +116,75 @@ function HlsVideo({
       };
     }
 
+    const activeVideo = video;
+
     hlsRef.current?.destroy();
     hlsRef.current = null;
-    video.removeAttribute("src");
-    video.load();
+    activeVideo.removeAttribute("src");
+    activeVideo.load();
+    keepNormalPlaybackSpeed(activeVideo);
+
+    if (!pageVisible) {
+      activeVideo.pause();
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    function recoverLivePlayback() {
+      hlsRef.current?.startLoad(-1);
+      seekToLiveEdge(activeVideo);
+      keepNormalPlaybackSpeed(activeVideo);
+      void activeVideo.play().catch(() => undefined);
+    }
+
+    function resetPlaybackSpeed() {
+      keepNormalPlaybackSpeed(activeVideo);
+    }
+
+    activeVideo.addEventListener("ended", recoverLivePlayback);
+    activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
 
     const hlsPlayback = isLikelyHls(playbackUrl);
 
     if (hlsPlayback && Hls.isSupported()) {
       const hls = new Hls({
         abrEwmaDefaultEstimate: 3_000_000,
+        backBufferLength: 30,
         capLevelToPlayerSize: true,
         enableWorker: true,
+        fragLoadingMaxRetry: 8,
+        levelLoadingMaxRetry: 8,
+        liveDurationInfinity: true,
+        liveMaxLatencyDurationCount: 10,
+        liveSyncDurationCount: 3,
         lowLatencyMode: true,
+        manifestLoadingMaxRetry: 8,
+        maxBufferLength: 30,
+        maxLiveSyncPlaybackRate: 1,
         startLevel: -1
       });
       hlsRef.current = hls;
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
-          void video.play().catch(() => undefined);
+          void activeVideo
+            .play()
+            .then(() => {
+              onPlaybackStarted?.();
+            })
+            .catch(() => undefined);
         }
+      });
+      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
+        if (!data.details.live || cancelled || !activeVideo.paused) {
+          return;
+        }
+
+        seekToLiveEdge(activeVideo);
+        keepNormalPlaybackSpeed(activeVideo);
+        void activeVideo.play().catch(() => undefined);
       });
 
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
@@ -155,22 +205,32 @@ function HlsVideo({
         hls.destroy();
       });
 
-      hls.attachMedia(video);
+      hls.attachMedia(activeVideo);
       hls.loadSource(playbackUrl);
 
       return () => {
         cancelled = true;
+        activeVideo.removeEventListener("ended", recoverLivePlayback);
+        activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
         hls.destroy();
       };
     }
 
-    video.src = playbackUrl;
-    void video.play().catch(() => undefined);
+    activeVideo.src = playbackUrl;
+    keepNormalPlaybackSpeed(activeVideo);
+    void activeVideo
+      .play()
+      .then(() => {
+        onPlaybackStarted?.();
+      })
+      .catch(() => undefined);
 
     return () => {
       cancelled = true;
+      activeVideo.removeEventListener("ended", recoverLivePlayback);
+      activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
     };
-  }, [playbackUrl]);
+  }, [onPlaybackStarted, pageVisible, playbackUrl]);
 
   return (
     <video
@@ -179,6 +239,7 @@ function HlsVideo({
       className={className}
       controls={controls}
       muted={muted}
+      onPlay={onPlaybackStarted}
       playsInline
       preload="metadata"
       ref={videoRef}
@@ -209,63 +270,33 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
   const secondaryPlaybackUrl =
     secondarySource?.playbackUrl && secondarySource.playbackUrl !== primaryPlaybackUrl ? secondarySource.playbackUrl : null;
   const canAttemptPlayback = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
+  const hasSecondaryPlayback = Boolean(canAttemptPlayback && secondaryPlaybackUrl && liveState.activeIngests.length > 1);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function refreshStatus() {
-      try {
-        const response = await fetch("/internal/stream/status", {
-          cache: "no-store"
-        });
-
-        if (!response.ok) {
-          return;
-        }
-
-        const payload = (await response.json()) as LiveStatusPayload;
-
-        if (cancelled) {
-          return;
-        }
-
-        setLiveState((current) => ({
-          activeIngests: normalizeActiveIngests(payload.activeIngests).length
-            ? normalizeActiveIngests(payload.activeIngests)
-            : current.activeIngests,
-          title: typeof payload.channel?.title === "string" ? payload.channel.title : current.title,
-          status: typeof payload.status === "string" ? payload.status : current.status,
-          playbackUrl: typeof payload.playbackUrl === "string" ? payload.playbackUrl : payload.playbackUrl === null ? null : current.playbackUrl,
-          offlineImageUrl:
-            typeof payload.offlineImageUrl === "string"
-              ? payload.offlineImageUrl
-              : payload.offlineImageUrl === null
-                ? null
-                : current.offlineImageUrl
-        }));
-      } catch {
-        // Keep the last known state if the transient status poll fails.
-      }
-    }
-
-    void refreshStatus();
-    const interval = window.setInterval(refreshStatus, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(interval);
-    };
+    return subscribeToLiveStatus((payload) => {
+      setLiveState((current) => ({
+        activeIngests: payload.status === "offline" ? [] : payload.activeIngests,
+        title: payload.channel?.title ?? current.title,
+        status: payload.status,
+        playbackUrl: payload.playbackUrl,
+        offlineImageUrl: payload.offlineImageUrl
+      }));
+    });
   }, []);
 
   return (
-    <section className="bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x">
+    <section
+      className={cn(
+        "bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 lg:rounded-t-md lg:border-x",
+        hasSecondaryPlayback ? "ring-1 ring-bc-pink/45" : null
+      )}
+    >
       {canAttemptPlayback && primaryPlaybackUrl ? (
-        <HlsVideo
-          ariaLabel={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
-          className="absolute inset-0 h-full w-full bg-black object-contain"
-          controls
-          muted={false}
-          playbackUrl={primaryPlaybackUrl}
+        <div
+          aria-label={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
+          className="absolute inset-0 bg-black"
+          data-live-primary-video-slot="true"
+          role="region"
         />
       ) : (
         <div className="absolute inset-0">
@@ -275,25 +306,37 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
         </div>
       )}
 
-      {canAttemptPlayback && secondaryPlaybackUrl ? (
-        <div className="absolute bottom-3 right-3 z-20 w-[34%] min-w-32 overflow-hidden rounded-md border border-bc-electric/60 bg-black shadow-[0_14px_44px_rgba(0,0,0,0.62)]">
+      {hasSecondaryPlayback && primarySource ? (
+        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-pink/70 bg-black/70 px-3 py-2 text-left shadow-lg shadow-black/40 backdrop-blur">
+          <p className="text-[11px] font-black uppercase tracking-wide text-bc-pink">1st DJ stream</p>
+          <p className="max-w-52 truncate text-sm font-black text-white">{sourceLabel(primarySource, "Main DJ")}</p>
+        </div>
+      ) : null}
+
+      {hasSecondaryPlayback && secondaryPlaybackUrl ? (
+        <div className="absolute bottom-4 right-4 z-30 w-[min(34rem,36%)] min-w-[18rem] overflow-hidden rounded-md border-4 border-[#22c55e] bg-black shadow-[0_18px_54px_rgba(0,0,0,0.72)] max-sm:bottom-3 max-sm:right-3 max-sm:w-[45%] max-sm:min-w-[10rem]">
           <div className="relative aspect-video bg-black">
             <HlsVideo
               ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
-              className="absolute inset-0 h-full w-full bg-black object-cover"
+              className="absolute inset-0 h-full w-full bg-black object-contain"
               muted
               playbackUrl={secondaryPlaybackUrl}
             />
-          </div>
-          <div className="flex min-w-0 items-center justify-between gap-2 border-t border-bc-line bg-bc-ink/92 px-2 py-1 text-[11px] font-black uppercase text-white">
-            <span className="truncate">{secondarySource?.presenterName ?? secondarySource?.title ?? "Next DJ"}</span>
-            <span className="shrink-0 rounded bg-bc-electric/15 px-1.5 py-0.5 text-bc-electric">Muted</span>
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 bg-gradient-to-b from-black/85 via-black/35 to-transparent p-3 max-sm:p-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-wide text-[#22c55e] max-sm:text-[9px]">2nd DJ stream</p>
+                <p className="truncate text-base font-black text-white max-sm:text-xs">{sourceLabel(secondarySource, "Next DJ")}</p>
+              </div>
+              <span className="shrink-0 rounded border border-[#22c55e]/60 bg-black/70 px-2 py-1 text-[10px] font-black uppercase text-[#22c55e] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[8px]">
+                Muted
+              </span>
+            </div>
           </div>
         </div>
       ) : null}
 
-      {canAttemptPlayback && liveState.activeIngests.length > 1 ? (
-        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
+      {hasSecondaryPlayback ? (
+        <div className="absolute right-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
           {liveState.activeIngests.length} DJs connected
         </div>
       ) : null}

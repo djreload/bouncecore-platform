@@ -10,7 +10,7 @@ import {
 } from "@/app/admin/users/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { roleBadgeTone, roleDisplayName } from "@/lib/auth/role-display";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges } from "@/lib/auth/role-display";
 import type { Role } from "@/lib/auth/rbac";
 import type { AdminUserInvitesData } from "@/lib/auth/user-invite-service";
 
@@ -200,7 +200,7 @@ export function AdminUserInvitesPanel({ invites, roleDisplayLabels, roles }: Adm
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-2">
-                      {invite.roles.map((role) => (
+                      {visibleRoleBadges(invite.roles).map((role) => (
                         <Badge key={role} tone={roleBadgeTone(role)}>
                           {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>

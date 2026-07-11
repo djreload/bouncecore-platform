@@ -43,6 +43,7 @@ export default async function AdminChatroomsPage() {
     id: sheepThrow.id,
     roomName: sheepThrow.roomName,
     roomSlug: sheepThrow.roomSlug,
+    spriteId: sheepThrow.spriteId,
     throwerDisplayName: sheepThrow.throwerDisplayName,
     targetDisplayName: sheepThrow.targetDisplayName,
     targetMessageId: sheepThrow.targetMessageId,

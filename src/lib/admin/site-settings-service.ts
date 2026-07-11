@@ -9,9 +9,13 @@ import {
 } from "@/lib/admin/legal-pages-core";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { prisma } from "@/lib/db/prisma";
-import { normalizeOptionalBrandingImageUrl } from "@/lib/media/media-service";
+import { normalizeOptionalBrandingImageUrl, normalizeOptionalFaviconUrl } from "@/lib/media/media-service";
+import { cleanupReplacedManagedUploads } from "@/lib/media/upload-cleanup-service";
 
 const siteSettingsKey = "site.general";
+export const defaultSiteFaviconUrl = "/favicon.svg";
+
+type SupportEmailEnv = Record<string, string | undefined>;
 
 export type SiteSettingsInput = {
   announcementBody?: string;
@@ -31,6 +35,7 @@ export type SiteSettingsInput = {
     url?: string;
   }>;
   logoUrl?: string;
+  openGraphImageUrl?: string;
   siteName?: string;
   stagingTarget?: string;
   supportEmail?: string;
@@ -54,6 +59,7 @@ export type SiteSettings = {
   branding: {
     faviconUrl: string | null;
     logoUrl: string | null;
+    openGraphImageUrl: string | null;
   };
   footerSummary: string;
   homepageBadge: string;
@@ -77,6 +83,52 @@ export type AdminSiteSettingsData = {
   updatedAt: string | null;
 };
 
+function parseEnvEmail(value: string | undefined) {
+  const email = value?.trim().toLowerCase() ?? "";
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return null;
+  }
+
+  return email;
+}
+
+function envEmailFrom(env: SupportEmailEnv, keys: string[]) {
+  for (const key of keys) {
+    const email = parseEnvEmail(env[key]);
+
+    if (email) {
+      return email;
+    }
+  }
+
+  return null;
+}
+
+function isNoReplyEmail(email: string) {
+  const localPart = email.split("@")[0]?.replace(/[^a-z0-9]/gi, "").toLowerCase() ?? "";
+
+  return localPart === "noreply" || localPart === "donotreply";
+}
+
+export function resolveDefaultSupportEmail(env: SupportEmailEnv = process.env) {
+  const explicitSupport = envEmailFrom(env, ["PUBLIC_SUPPORT_EMAIL", "SUPPORT_EMAIL"]);
+
+  if (explicitSupport) {
+    return explicitSupport;
+  }
+
+  const replyTo = envEmailFrom(env, ["MAIL_REPLY_TO", "SMTP_REPLY_TO"]);
+
+  if (replyTo) {
+    return replyTo;
+  }
+
+  const mailFrom = envEmailFrom(env, ["MAIL_FROM", "BREVO_SMTP_FROM", "SMTP_FROM"]);
+
+  return mailFrom && !isNoReplyEmail(mailFrom) ? mailFrom : null;
+}
+
 function defaultSiteSettings(): SiteSettings {
   return {
     announcement: {
@@ -88,7 +140,8 @@ function defaultSiteSettings(): SiteSettings {
     },
     branding: {
       faviconUrl: null,
-      logoUrl: null
+      logoUrl: null,
+      openGraphImageUrl: null
     },
     footerSummary: "Bouncecore is the platform shell for livestreams, chatrooms, merch, music, live support, and mobile APIs.",
     homepageBadge: "Bouncecore platform",
@@ -98,7 +151,7 @@ function defaultSiteSettings(): SiteSettings {
     liveSocialLinks: [],
     siteName: "Bouncecore",
     stagingTarget: null,
-    supportEmail: null
+    supportEmail: resolveDefaultSupportEmail()
   };
 }
 
@@ -200,6 +253,18 @@ function safeBrandingImageUrl(value: unknown, label: string) {
   }
 }
 
+function safeFaviconUrl(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return normalizeOptionalFaviconUrl(value);
+  } catch {
+    return null;
+  }
+}
+
 function normalizePlatform(value: string | undefined) {
   const platform = normalizedText(value, 40)?.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
 
@@ -292,7 +357,8 @@ function mergeSiteSettings(value: unknown): SiteSettings {
 
   if (isObject(value.branding)) {
     settings.branding.logoUrl = safeBrandingImageUrl(value.branding.logoUrl, "Logo URL");
-    settings.branding.faviconUrl = safeBrandingImageUrl(value.branding.faviconUrl, "Favicon URL");
+    settings.branding.faviconUrl = safeFaviconUrl(value.branding.faviconUrl);
+    settings.branding.openGraphImageUrl = safeBrandingImageUrl(value.branding.openGraphImageUrl, "Open Graph image URL");
   }
 
   if (Array.isArray(value.liveSocialLinks)) {
@@ -351,8 +417,9 @@ function normalizeSiteSettingsInput(input: SiteSettingsInput): SiteSettings {
       title: announcementTitle
     },
     branding: {
-      faviconUrl: normalizeOptionalBrandingImageUrl(input.faviconUrl, "Favicon URL"),
-      logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL")
+      faviconUrl: normalizeOptionalFaviconUrl(input.faviconUrl),
+      logoUrl: normalizeOptionalBrandingImageUrl(input.logoUrl, "Logo URL"),
+      openGraphImageUrl: normalizeOptionalBrandingImageUrl(input.openGraphImageUrl, "Open Graph image URL")
     },
     footerSummary: normalizedRequiredText(input.footerSummary, 240, "Footer summary"),
     homepageBadge: normalizedRequiredText(input.homepageBadge, 80, "Homepage badge"),
@@ -435,12 +502,12 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
       },
       {
         detail:
-          settings.branding.logoUrl || settings.branding.faviconUrl
-            ? "Custom public logo or browser icon is configured."
-            : "No custom public logo or browser icon is configured.",
+          settings.branding.logoUrl || settings.branding.faviconUrl || settings.branding.openGraphImageUrl
+            ? "Custom public logo, browser icon, or share image is configured."
+            : `Built-in brand mark, favicon, and share image are active. Upload custom assets when rebranding is ready.`,
         label: "Branding",
-        status: settings.branding.logoUrl || settings.branding.faviconUrl ? "ready" : "warning",
-        value: settings.branding.logoUrl || settings.branding.faviconUrl ? "set" : "missing"
+        status: "ready",
+        value: settings.branding.logoUrl || settings.branding.faviconUrl || settings.branding.openGraphImageUrl ? "custom" : "built-in"
       },
       {
         detail: settings.legalPages.some((page) => page.enabled)
@@ -459,6 +526,7 @@ export async function getAdminSiteSettingsData(): Promise<AdminSiteSettingsData>
 
 export async function updateSiteSettings(input: SiteSettingsInput, actorId: string) {
   const settings = normalizeSiteSettingsInput(input);
+  const previous = await readSiteSettings();
 
   await prisma.appSetting.upsert({
     where: {
@@ -477,6 +545,21 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
     }
   });
 
+  await cleanupReplacedManagedUploads([
+    {
+      previous: previous.settings.branding.logoUrl,
+      next: settings.branding.logoUrl
+    },
+    {
+      previous: previous.settings.branding.faviconUrl,
+      next: settings.branding.faviconUrl
+    },
+    {
+      previous: previous.settings.branding.openGraphImageUrl,
+      next: settings.branding.openGraphImageUrl
+    }
+  ]);
+
   await writeAuditLog({
     actorId,
     action: "site.settings.update",
@@ -486,6 +569,7 @@ export async function updateSiteSettings(input: SiteSettingsInput, actorId: stri
       announcementEnabled: settings.announcement.enabled,
       brandingFaviconSet: Boolean(settings.branding.faviconUrl),
       brandingLogoSet: Boolean(settings.branding.logoUrl),
+      brandingOpenGraphImageSet: Boolean(settings.branding.openGraphImageUrl),
       legalPages: settings.legalPages.filter((page) => page.enabled).map((page) => page.key),
       liveSocialLinks: settings.liveSocialLinks.filter((link) => link.enabled).length,
       siteName: settings.siteName,

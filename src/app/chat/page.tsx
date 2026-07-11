@@ -67,6 +67,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     starNote: message.starNote,
     createdAt: message.createdAt,
     deletedAt: message.deletedAt,
+    editedAt: message.editedAt,
     authorDisplayName: message.authorDisplayName,
     authorAvatarUrl: message.authorAvatarUrl,
     authorUserId: message.authorUserId,
@@ -89,7 +90,8 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
     avatarUrl: user.avatarUrl,
     roles: user.roles,
     status: user.status,
-    lastActiveAt: user.lastActiveAt
+    lastActiveAt: user.lastActiveAt,
+    throwHitCount: user.throwHitCount
   }));
 
   return (
@@ -111,6 +113,7 @@ export default async function ChatPage({ searchParams }: ChatPageProps) {
           roleDisplayLabels={roleDisplayLabels}
           rooms={roomRows}
           selectedRoom={selectedRoomRow}
+          sheepFreeThrowAvailable={sheepReadiness.freeThrowAvailable}
           sheepRemainingCooldownSeconds={sheepReadiness.remainingCooldownSeconds}
           sheepSettings={sheepSettings}
         />

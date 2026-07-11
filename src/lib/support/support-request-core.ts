@@ -1,4 +1,4 @@
-export const supportCategories = ["account", "stream", "chat", "orders", "music", "shop", "mobile", "other"] as const;
+export const supportCategories = ["account", "privacy", "stream", "chat", "orders", "music", "shop", "mobile", "other"] as const;
 export const supportPriorities = ["normal", "high", "urgent"] as const;
 export const supportStatuses = ["open", "reviewing", "waiting", "resolved", "dismissed"] as const;
 

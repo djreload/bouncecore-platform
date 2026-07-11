@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LogIn, Menu, UserPlus, X } from "lucide-react";
+import { LogIn, Menu, Share2, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { BrandMark } from "@/components/branding/brand-mark";
@@ -41,12 +41,17 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
     setOpen(false);
   }
 
+  function shareOnFacebook() {
+    const url = typeof window === "undefined" ? "/" : window.location.href;
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className="lg:hidden">
       <button
         aria-expanded={open}
         aria-label="Open site menu"
-        className="bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
+        className="bc-icon-button bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
         onClick={() => setOpen(true)}
         type="button"
       >
@@ -61,7 +66,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
             onClick={closeMenu}
             type="button"
           />
-          <aside className="fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
+          <aside className="bc-mobile-menu-panel fixed bottom-0 right-0 top-0 z-10 flex h-dvh max-h-dvh w-[min(390px,92vw)] flex-col overflow-hidden border-l border-bc-line bg-bc-void shadow-2xl shadow-black/50">
             <div className="shrink-0 border-b border-bc-line bg-bc-ink p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -73,7 +78,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
                 </div>
                 <button
                   aria-label="Close site menu"
-                  className="bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
+                  className="bc-icon-button bc-focus-ring inline-flex h-10 w-10 items-center justify-center rounded-md border border-bc-line bg-bc-panel text-white"
                   onClick={closeMenu}
                   type="button"
                 >
@@ -108,6 +113,14 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, siteName }: Publi
                     </Link>
                   );
                 })}
+                <button
+                  className="bc-focus-ring flex min-h-12 items-center gap-3 rounded-md border border-bc-line/70 bg-bc-ink px-3 py-2 text-left text-sm font-semibold text-white transition hover:border-bc-electric/60 hover:bg-bc-electric/10"
+                  onClick={shareOnFacebook}
+                  type="button"
+                >
+                  <Share2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  <span className="truncate">Share on Facebook</span>
+                </button>
               </div>
             </nav>
 

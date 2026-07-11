@@ -1,13 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState } from "react";
-import { Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles, Timer } from "lucide-react";
+import { useActionState, useState, type ChangeEvent } from "react";
+import { ImageIcon, Lock, MessageSquare, Plus, Radio, Save, ShieldOff, Sparkles, Timer, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { adminChatroomsAction } from "@/app/admin/chatrooms/actions";
-import { roleBadgeTone, roleDisplayName, type RoleDisplayNameMap } from "@/lib/auth/role-display";
-import type { SheepThrowSettings } from "@/lib/chat/sheep-throw-settings";
+import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
+import type { SheepThrowSettings, SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
 import {
   initialAdminChatroomsActionState,
   type AdminChatMessageRow,
@@ -65,12 +65,104 @@ function slowModeLabel(seconds: number) {
   return slowModeOptions.find((option) => option.value === seconds)?.label ?? `${seconds} seconds`;
 }
 
+type SpriteFormRow = {
+  id: string;
+  label: string;
+  spriteSheetUrl: string;
+  frameCount: string;
+  columns: string;
+  rows: string;
+  frameWidth: string;
+  frameHeight: string;
+  enabled: boolean;
+};
+
+function toSpriteFormRow(sprite: SheepThrowSprite): SpriteFormRow {
+  return {
+    columns: String(sprite.columns),
+    enabled: sprite.enabled,
+    frameCount: String(sprite.frameCount),
+    frameHeight: String(sprite.frameHeight),
+    frameWidth: String(sprite.frameWidth),
+    id: sprite.id,
+    label: sprite.label,
+    rows: String(sprite.rows),
+    spriteSheetUrl: sprite.spriteSheetUrl
+  };
+}
+
+function blankSpriteFormRow(): SpriteFormRow {
+  return {
+    columns: "12",
+    enabled: true,
+    frameCount: "12",
+    frameHeight: "400",
+    frameWidth: "400",
+    id: "",
+    label: "",
+    rows: "1",
+    spriteSheetUrl: ""
+  };
+}
+
 export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayLabels, sheepSettings }: AdminChatroomsPanelProps) {
   const [state, formAction, pending] = useActionState<AdminChatroomsActionState, FormData>(
     adminChatroomsAction,
     initialAdminChatroomsActionState
   );
+  const [spriteRows, setSpriteRows] = useState<SpriteFormRow[]>(() => {
+    const customRows = sheepSettings.sprites.filter((sprite) => sprite.id !== "sheep").map(toSpriteFormRow);
+    const blankRows = Array.from({ length: Math.max(2, 4 - customRows.length) }, () => blankSpriteFormRow());
+
+    return [...customRows, ...blankRows];
+  });
+  const [spriteUploadMessage, setSpriteUploadMessage] = useState<string | null>(null);
+  const [uploadingSpriteIndex, setUploadingSpriteIndex] = useState<number | null>(null);
   const visibleMessages = messages.filter((message) => !message.deletedAt).length;
+  const defaultSprite = sheepSettings.sprites.find((sprite) => sprite.id === "sheep") ?? sheepSettings.sprites[0];
+
+  function updateSpriteRow(index: number, patch: Partial<SpriteFormRow>) {
+    setSpriteRows((rows) => rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
+  }
+
+  function removeSpriteRow(index: number) {
+    setSpriteRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+  }
+
+  async function uploadSpriteSheet(index: number, event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const uploadForm = new FormData();
+
+    uploadForm.set("kind", "throw-sprite");
+    uploadForm.set("file", file);
+    setUploadingSpriteIndex(index);
+    setSpriteUploadMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/uploads", {
+        method: "POST",
+        body: uploadForm
+      });
+      const payload = (await response.json()) as { url?: string; error?: string };
+
+      if (!response.ok || !payload.url) {
+        throw new Error(payload.error ?? "Sprite upload failed.");
+      }
+
+      updateSpriteRow(index, { spriteSheetUrl: payload.url });
+      setSpriteUploadMessage("Sprite sheet uploaded. Save the sheep throw settings to publish it.");
+    } catch (error) {
+      setSpriteUploadMessage(error instanceof Error ? error.message : "Sprite upload failed.");
+    } finally {
+      setUploadingSpriteIndex(null);
+      event.target.value = "";
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -169,107 +261,294 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
           </div>
           <Badge tone={sheepSettings.enabled ? "acid" : "muted"}>{sheepSettings.enabled ? "Enabled" : "Disabled"}</Badge>
         </div>
-        <form action={formAction} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_repeat(5,minmax(140px,1fr))_auto]">
+        <form action={formAction} className="mt-4 space-y-5">
           <input name="intent" type="hidden" value="sheep-settings" />
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-enabled">
-              Status
-            </label>
-            <select
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={sheepSettings.enabled ? "true" : "false"}
-              id="sheep-enabled"
-              name="enabled"
-            >
-              <option value="true">Enabled</option>
-              <option value="false">Disabled</option>
-            </select>
-            <p className="mt-1 text-xs text-bc-muted">Turns the sheep throw chat action and site overlay on or off.</p>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_repeat(5,minmax(140px,1fr))_auto]">
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-enabled">
+                Status
+              </label>
+              <select
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={sheepSettings.enabled ? "true" : "false"}
+                id="sheep-enabled"
+                name="enabled"
+              >
+                <option value="true">Enabled</option>
+                <option value="false">Disabled</option>
+              </select>
+              <p className="mt-1 text-xs text-bc-muted">Turns the sheep throw chat action and site overlay on or off.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cooldown">
+                Cooldown minutes
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={String(sheepSettings.cooldownSeconds / 60)}
+                id="sheep-cooldown"
+                min={0}
+                max={1440}
+                name="cooldownMinutes"
+                step={0.5}
+                type="number"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Default is 5 minutes. Use 0 to remove the cooldown.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cost">
+                Star cost
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={String(sheepSettings.costStars)}
+                id="sheep-cost"
+                min={0}
+                max={1000000}
+                name="costStars"
+                step={1}
+                type="number"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Stars deducted from the supporter who throws. Use 0 for free.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-overlay-duration">
+                Overlay seconds
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={String(sheepSettings.overlayDurationMs / 1000)}
+                id="sheep-overlay-duration"
+                min={1.8}
+                max={10}
+                name="overlayDurationSeconds"
+                step={0.1}
+                type="number"
+              />
+              <p className="mt-1 text-xs text-bc-muted">How long each targeted throw stays on screen.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-poll-speed">
+                Poll seconds
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={String(sheepSettings.pollMs / 1000)}
+                id="sheep-poll-speed"
+                min={1}
+                max={10}
+                name="pollSeconds"
+                step={0.5}
+                type="number"
+              />
+              <p className="mt-1 text-xs text-bc-muted">How often viewers check for throws targeted at them.</p>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-max-events">
+                Queue depth
+              </label>
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                defaultValue={String(sheepSettings.maxRecentEvents)}
+                id="sheep-max-events"
+                min={4}
+                max={50}
+                name="maxRecentEvents"
+                step={1}
+                type="number"
+              />
+              <p className="mt-1 text-xs text-bc-muted">Maximum recent targeted throws to queue after a viewer reconnects.</p>
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cooldown">
-              Cooldown minutes
-            </label>
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={String(sheepSettings.cooldownSeconds / 60)}
-              id="sheep-cooldown"
-              min={0}
-              max={1440}
-              name="cooldownMinutes"
-              step={0.5}
-              type="number"
-            />
-            <p className="mt-1 text-xs text-bc-muted">Default is 5 minutes. Use 0 to remove the cooldown.</p>
+
+          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="font-black">Throwable sprites</h4>
+                <p className="mt-1 text-sm text-bc-muted">
+                  Sheep is the default fallback. Add uploaded sprite sheets here to unlock options like unicorns or other throwables.
+                </p>
+              </div>
+              <Button
+                onClick={() => setSpriteRows((rows) => [...rows, blankSpriteFormRow()])}
+                type="button"
+                variant="ghost"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Add row
+              </Button>
+            </div>
+
+            {spriteUploadMessage ? (
+              <p className="mt-3 rounded-md border border-bc-line bg-bc-panel p-3 text-sm text-bc-muted">{spriteUploadMessage}</p>
+            ) : null}
+
+            {defaultSprite ? (
+              <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-3 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone="acid">Default</Badge>
+                  <span className="font-black">{defaultSprite.label}</span>
+                  <span className="text-bc-muted">{defaultSprite.frameCount} frames</span>
+                </div>
+                <p className="mt-2 break-all text-xs text-bc-muted">{defaultSprite.spriteSheetUrl}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 space-y-3">
+              {spriteRows.map((row, index) => (
+                <div className="rounded-md border border-bc-line bg-bc-panel p-3" key={`${row.id || "sprite"}-${index}`}>
+                  <input name="spriteId" type="hidden" value={row.id} />
+                  <div className="grid gap-3 lg:grid-cols-[160px_minmax(220px,1fr)_120px_100px_100px_100px_100px_auto]">
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-label-${index}`}>
+                        Name
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-label-${index}`}
+                        name="spriteLabel"
+                        onChange={(event) => updateSpriteRow(index, { label: event.target.value })}
+                        placeholder="Unicorn"
+                        value={row.label}
+                      />
+                      <p className="mt-1 text-xs text-bc-muted">Shown in chat and the throw selector.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-url-${index}`}>
+                        Sprite sheet URL
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-url-${index}`}
+                        name="spriteSheetUrl"
+                        onChange={(event) => updateSpriteRow(index, { spriteSheetUrl: event.target.value })}
+                        placeholder="/uploads/throw-sprites/..."
+                        value={row.spriteSheetUrl}
+                      />
+                      <p className="mt-1 text-xs text-bc-muted">Use the upload button or paste a direct HTTPS image URL.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-enabled-${index}`}>
+                        Status
+                      </label>
+                      <select
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-enabled-${index}`}
+                        name="spriteEnabled"
+                        onChange={(event) => updateSpriteRow(index, { enabled: event.target.value === "true" })}
+                        value={row.enabled ? "true" : "false"}
+                      >
+                        <option value="true">Enabled</option>
+                        <option value="false">Disabled</option>
+                      </select>
+                      <p className="mt-1 text-xs text-bc-muted">Disabled items do not appear in chat.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-frame-count-${index}`}>
+                        Frames
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-frame-count-${index}`}
+                        max={120}
+                        min={1}
+                        name="spriteFrameCount"
+                        onChange={(event) => updateSpriteRow(index, { frameCount: event.target.value })}
+                        type="number"
+                        value={row.frameCount}
+                      />
+                      <p className="mt-1 text-xs text-bc-muted">Total frames in the sheet.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-columns-${index}`}>
+                        Columns
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-columns-${index}`}
+                        max={60}
+                        min={1}
+                        name="spriteColumns"
+                        onChange={(event) => updateSpriteRow(index, { columns: event.target.value })}
+                        type="number"
+                        value={row.columns}
+                      />
+                      <p className="mt-1 text-xs text-bc-muted">Frames per row.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-rows-${index}`}>
+                        Rows
+                      </label>
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        id={`sprite-rows-${index}`}
+                        max={20}
+                        min={1}
+                        name="spriteRows"
+                        onChange={(event) => updateSpriteRow(index, { rows: event.target.value })}
+                        type="number"
+                        value={row.rows}
+                      />
+                      <p className="mt-1 text-xs text-bc-muted">Sheet rows.</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor={`sprite-size-${index}`}>
+                        Frame size
+                      </label>
+                      <div className="mt-2 grid grid-cols-2 gap-1">
+                        <input
+                          className="min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-2 py-2 text-sm text-white"
+                          id={`sprite-size-${index}`}
+                          max={2000}
+                          min={32}
+                          name="spriteFrameWidth"
+                          onChange={(event) => updateSpriteRow(index, { frameWidth: event.target.value })}
+                          type="number"
+                          value={row.frameWidth}
+                        />
+                        <input
+                          className="min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-2 py-2 text-sm text-white"
+                          max={2000}
+                          min={32}
+                          name="spriteFrameHeight"
+                          onChange={(event) => updateSpriteRow(index, { frameHeight: event.target.value })}
+                          type="number"
+                          value={row.frameHeight}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-bc-muted">Width x height in pixels.</p>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <label className="bc-focus-ring inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-black text-white transition hover:border-bc-electric/60">
+                        <ImageIcon className="h-4 w-4" aria-hidden="true" />
+                        {uploadingSpriteIndex === index ? "Uploading" : "Upload"}
+                        <input
+                          accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                          className="sr-only"
+                          disabled={uploadingSpriteIndex !== null}
+                          onChange={(event) => void uploadSpriteSheet(index, event)}
+                          type="file"
+                        />
+                      </label>
+                      <button
+                        className="bc-focus-ring inline-flex min-h-10 items-center gap-2 rounded-md border border-bc-pink/40 bg-bc-pink/10 px-3 text-sm font-black text-bc-pink transition hover:border-bc-pink"
+                        onClick={() => removeSpriteRow(index)}
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-cost">
-              Star cost
-            </label>
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={String(sheepSettings.costStars)}
-              id="sheep-cost"
-              min={0}
-              max={1000000}
-              name="costStars"
-              step={1}
-              type="number"
-            />
-            <p className="mt-1 text-xs text-bc-muted">Stars deducted from the supporter who throws. Use 0 for free.</p>
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-overlay-duration">
-              Overlay seconds
-            </label>
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={String(sheepSettings.overlayDurationMs / 1000)}
-              id="sheep-overlay-duration"
-              min={1.8}
-              max={10}
-              name="overlayDurationSeconds"
-              step={0.1}
-              type="number"
-            />
-            <p className="mt-1 text-xs text-bc-muted">How long each targeted sheep throw stays on screen.</p>
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-poll-speed">
-              Poll seconds
-            </label>
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={String(sheepSettings.pollMs / 1000)}
-              id="sheep-poll-speed"
-              min={1}
-              max={10}
-              name="pollSeconds"
-              step={0.5}
-              type="number"
-            />
-            <p className="mt-1 text-xs text-bc-muted">How often viewers check for sheep throws targeted at them.</p>
-          </div>
-          <div>
-            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="sheep-max-events">
-              Queue depth
-            </label>
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={String(sheepSettings.maxRecentEvents)}
-              id="sheep-max-events"
-              min={4}
-              max={50}
-              name="maxRecentEvents"
-              step={1}
-              type="number"
-            />
-            <p className="mt-1 text-xs text-bc-muted">Maximum recent targeted throws to queue after a viewer reconnects.</p>
-          </div>
-          <div className="flex items-end">
+
+          <div className="flex justify-end">
             <Button disabled={pending} type="submit" variant="dark">
               <Save className="h-4 w-4" aria-hidden="true" />
-              Save
+              Save throw settings
             </Button>
           </div>
         </form>
@@ -288,6 +567,7 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
             <thead className="text-bc-muted">
               <tr>
                 <th className="px-4 py-3 font-semibold">Throw</th>
+                <th className="px-4 py-3 font-semibold">Type</th>
                 <th className="px-4 py-3 font-semibold">Room</th>
                 <th className="px-4 py-3 font-semibold">Target message</th>
                 <th className="px-4 py-3 font-semibold">Created</th>
@@ -303,6 +583,9 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
                       <span className="text-bc-muted">at</span>
                       <span className="font-semibold">{sheepThrow.targetDisplayName}</span>
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge tone="cyan">{sheepThrow.spriteId}</Badge>
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-semibold">{sheepThrow.roomName}</p>
@@ -322,7 +605,7 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
               ))}
               {!sheepThrows.length ? (
                 <tr className="border-t border-bc-line">
-                  <td className="px-4 py-8 text-center text-bc-muted" colSpan={4}>
+                  <td className="px-4 py-8 text-center text-bc-muted" colSpan={5}>
                     No sheep throws have been recorded yet.
                   </td>
                 </tr>
@@ -463,7 +746,7 @@ export function AdminChatroomsPanel({ rooms, messages, sheepThrows, roleDisplayL
                   <td className="px-4 py-3">
                     <p className="font-semibold">{message.authorDisplayName}</p>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {message.authorRoles.map((role) => (
+                      {visibleRoleBadges(message.authorRoles).map((role) => (
                         <Badge key={role} tone={roleBadgeTone(role)}>
                           {roleDisplayName(role, roleDisplayLabels)}
                         </Badge>

@@ -11,6 +11,7 @@ import type { NavigationItem } from "@/config/navigation";
 import { getPublicMenuNavigation, getSiteThemeStyle } from "@/lib/admin/site-design-service";
 import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-settings-service";
 import { getCurrentUser } from "@/lib/auth/session";
+import { accountDeletionHref, privacyRequestsHref } from "@/lib/privacy/privacy-config";
 
 type PublicShellProps = {
   children: React.ReactNode;
@@ -52,10 +53,12 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
 
   return (
     <div
-      className={`${hideFooterOnMobile ? "h-dvh overflow-hidden lg:h-auto lg:min-h-screen lg:overflow-visible" : "min-h-screen"} bg-bc-void text-white`}
+      className={`${hideFooterOnMobile ? "h-dvh overflow-hidden lg:h-auto lg:min-h-screen lg:overflow-visible" : "min-h-screen"} bc-app-shell bg-bc-void text-white`}
+      data-bc-public-shell
+      data-bc-visual-shell="public"
       style={themeStyle}
     >
-      <header className="sticky top-0 z-40 border-b border-bc-line/80 bg-bc-void/90 backdrop-blur">
+      <header className="bc-site-header sticky top-0 z-40 border-b border-bc-line/80 bg-bc-void/90 backdrop-blur" data-bc-visual-part="site-header">
         <div className="mx-auto flex max-w-7xl items-center gap-4 px-4 py-3">
           <Link className="bc-focus-ring flex items-center gap-3 rounded-md" href="/">
             <BrandMark logoUrl={logoUrl} siteName={siteName} />
@@ -87,7 +90,10 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
       <StarSupportOverlay />
       <SheepThrowOverlay />
       {children}
-      <footer className={`${hideFooterOnMobile ? "hidden lg:block" : ""} border-t border-bc-line bg-bc-ink`}>
+      <footer
+        className={`${hideFooterOnMobile ? "hidden lg:block" : ""} bc-site-footer border-t border-bc-line bg-bc-ink`}
+        data-bc-visual-part="site-footer"
+      >
         <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-bc-muted md:grid-cols-[1.3fr_1fr_1fr]">
           <div>
             <p>{footerSummary}</p>
@@ -105,6 +111,15 @@ export async function PublicShell({ children, hideFooterOnMobile = false, siteSe
             <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
               <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href="/support">
                 Support
+              </Link>
+              <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href="/mobile">
+                Mobile app
+              </Link>
+              <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={accountDeletionHref}>
+                Account deletion
+              </Link>
+              <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={privacyRequestsHref}>
+                Privacy requests
               </Link>
               {legalPages.map((page) => (
                 <Link className="bc-focus-ring rounded-sm hover:text-bc-electric" href={page.href} key={page.key}>

@@ -7,7 +7,7 @@ RUN apt-get update -y \
 
 FROM base AS deps
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --audit=false --fund=false
 
 FROM deps AS build
 COPY . .
@@ -22,10 +22,12 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/package-lock.json ./package-lock.json
 COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/prisma.config.ts ./prisma.config.ts
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/src ./src
+COPY --from=build /app/scripts ./scripts
 RUN mkdir -p ./public/uploads /data ./.next/cache/images \
   && chown -R nextjs:nodejs ./public/uploads /data ./.next/cache
 USER nextjs

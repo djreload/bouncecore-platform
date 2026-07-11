@@ -18,11 +18,13 @@ const allowedUploadRoots = new Set([
   "branding-images",
   "chat-emojis",
   "chat-stickers",
+  "mobile-apks",
   "music-downloads",
   "music-previews",
   "profile-avatars",
   "product-images",
   "stream-offline-images",
+  "throw-sprites",
   "track-artwork"
 ]);
 
@@ -32,6 +34,10 @@ function contentTypeForExtension(extension: string) {
       return "image/avif";
     case ".gif":
       return "image/gif";
+    case ".ico":
+      return "image/x-icon";
+    case ".apk":
+      return "application/vnd.android.package-archive";
     case ".jpg":
     case ".jpeg":
     case ".jfif":

@@ -1,6 +1,6 @@
 import { AdminShell } from "@/components/layout/admin-shell";
 import { AdminStreamControlPanel } from "@/app/admin/stream/stream-control-panel";
-import type { AdminStreamChannelRow, AdminStreamProfileRow } from "@/app/admin/stream/state";
+import type { AdminRestreamSettingsRow, AdminStreamChannelRow, AdminStreamProfileRow } from "@/app/admin/stream/state";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
 
@@ -17,7 +17,7 @@ function repairFilter(value: string | undefined) {
 export default async function AdminStreamPage({ searchParams }: AdminStreamPageProps) {
   await requireUserPermission("stream.dashboard");
   const params = searchParams ? await searchParams : {};
-  const { channels, provider, streamProfiles } = await getAdminStreamControlData();
+  const { channels, provider, restreamSettings, streamProfiles } = await getAdminStreamControlData();
   const channelRows: AdminStreamChannelRow[] = channels.map((channel) => ({
     id: channel.id,
     slug: channel.slug,
@@ -31,6 +31,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
     events: channel.events
   }));
   const profileRows: AdminStreamProfileRow[] = streamProfiles;
+  const restreamSettingsRow: AdminRestreamSettingsRow = restreamSettings;
 
   return (
     <AdminShell
@@ -41,6 +42,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
         channels={channelRows}
         provider={provider}
         repairFilter={repairFilter(params.repair)}
+        restreamSettings={restreamSettingsRow}
         streamProfiles={profileRows}
       />
     </AdminShell>

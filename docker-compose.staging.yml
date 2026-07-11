@@ -153,7 +153,7 @@ services:
           rm -rf /hls/live
           mkdir -p /hls/live/240p /hls/live/480p /hls/live/720p
           ffmpeg -hide_banner -loglevel warning \
-            -i "$$source_url" \
+            -fflags +genpts+discardcorrupt -thread_queue_size 1024 -i "$$source_url" \
             -filter_complex "[0:v]split=3[v240][v480][v720];[v240]scale=w=426:h=240:force_original_aspect_ratio=decrease,pad=426:240:(ow-iw)/2:(oh-ih)/2[v240out];[v480]scale=w=854:h=480:force_original_aspect_ratio=decrease,pad=854:480:(ow-iw)/2:(oh-ih)/2[v480out];[v720]scale=w=1280:h=720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2[v720out]" \
             -map "[v240out]" -map 0:a:0 \
             -map "[v480out]" -map 0:a:0 \
@@ -163,15 +163,62 @@ services:
             -b:v:0 500k -maxrate:v:0 535k -bufsize:v:0 1000k -b:a:0 96k \
             -b:v:1 1200k -maxrate:v:1 1284k -bufsize:v:1 2400k -b:a:1 128k \
             -b:v:2 3000k -maxrate:v:2 3210k -bufsize:v:2 6000k -b:a:2 160k \
-            -f hls -hls_time 2 -hls_list_size 8 -hls_flags delete_segments+independent_segments \
-            -hls_segment_type fmp4 -master_pl_name master.m3u8 \
+            -f hls -hls_time 2 -hls_list_size 8 -hls_delete_threshold 6 -hls_allow_cache 0 \
+            -hls_flags delete_segments+independent_segments+omit_endlist+program_date_time \
+            -hls_start_number_source epoch -hls_segment_type mpegts -master_pl_name master.m3u8 \
             -var_stream_map "v:0,a:0,name:240p v:1,a:1,name:480p v:2,a:2,name:720p" \
-            -hls_segment_filename "/hls/live/%v/segment_%05d.m4s" \
+            -hls_segment_filename "/hls/live/%v/segment_%010d.ts" \
             "/hls/live/%v/index.m3u8" || true
           sleep 3
         done
     volumes:
       - bouncecore_transcoder_hls:/hls
+
+  media-restreamer:
+    profiles:
+      - restream
+    image: jrottenberg/ffmpeg:7.1-alpine
+    container_name: bouncecore-media-restreamer
+    restart: unless-stopped
+    environment:
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:?INTERNAL_TASK_TOKEN is required}
+      STREAM_CORE_INTERNAL_TOKEN: ${STREAM_CORE_INTERNAL_TOKEN:?STREAM_CORE_INTERNAL_TOKEN is required}
+      RESTREAM_SOURCE_URL: http://stream-core:8088/api/restream/source
+      RESTREAM_TARGET_URL: http://app:3000/internal/stream/restream-target
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - |
+        fetch_source() {
+          wget -q -T 5 -O - --header "Authorization: Bearer $$STREAM_CORE_INTERNAL_TOKEN" "$$RESTREAM_SOURCE_URL" 2>/dev/null || true
+        }
+        fetch_target() {
+          wget -q -T 5 -O - --header "Authorization: Bearer $$INTERNAL_TASK_TOKEN" "$$RESTREAM_TARGET_URL" 2>/dev/null || true
+        }
+        while true; do
+          source_url="$$(fetch_source)"
+          target_url="$$(fetch_target)"
+          if [ -z "$$source_url" ] || [ -z "$$target_url" ]; then
+            sleep 5
+            continue
+          fi
+          echo "Starting external restream output."
+          ffmpeg -hide_banner -loglevel warning -re -i "$$source_url" -c copy -f flv "$$target_url" &
+          restream_pid="$$!"
+          while kill -0 "$$restream_pid" 2>/dev/null; do
+            sleep 10
+            next_source_url="$$(fetch_source)"
+            next_target_url="$$(fetch_target)"
+            if [ "$$next_source_url" != "$$source_url" ] || [ "$$next_target_url" != "$$target_url" ]; then
+              echo "Restream source or target changed; restarting output."
+              kill "$$restream_pid" 2>/dev/null || true
+              wait "$$restream_pid" 2>/dev/null || true
+              break
+            fi
+          done
+          wait "$$restream_pid" 2>/dev/null || true
+          sleep 2
+        done
 
   worker:
     profiles:
@@ -195,7 +242,12 @@ services:
 
 volumes:
   bouncecore_postgres_data:
+    name: ${POSTGRES_VOLUME:-bouncecore-platform_bouncecore_postgres_data}
   bouncecore_redis_data:
+    name: ${REDIS_VOLUME:-bouncecore-platform_bouncecore_redis_data}
   bouncecore_uploads:
+    name: ${UPLOADS_VOLUME:-bouncecore-platform_bouncecore_uploads}
   bouncecore_stream_core_data:
+    name: ${STREAM_CORE_VOLUME:-bouncecore-platform_bouncecore_stream_core_data}
   bouncecore_transcoder_hls:
+    name: ${TRANSCODER_HLS_VOLUME:-bouncecore-platform_bouncecore_transcoder_hls}
