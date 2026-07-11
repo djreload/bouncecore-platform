@@ -31,3 +31,13 @@ test("chat presence rail can start rave wars only against online users", () => {
   assert.match(service, /chatPresenceOnlineMs/);
   assert.match(service, /Rave Wars can only target users who are online and active right now\./);
 });
+
+test("chat message action menu exposes compact rave war and throw buttons for online authors", () => {
+  const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+
+  assert.match(panel, /const messageActionButtonClass =/);
+  assert.match(panel, /canStartRaveWarAtMessageAuthor/);
+  assert.match(panel, /onlinePresenceUserIds\.has\(message\.authorUserId\)/);
+  assert.match(panel, /name="targetUserId" type="hidden" value=\{message\.authorUserId \?\? ""\}/);
+  assert.match(panel, /className=\{messageActionButtonClass\}/);
+});

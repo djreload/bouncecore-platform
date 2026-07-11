@@ -158,6 +158,8 @@ const inlineBanDurationOptions = [
   { label: "Permanent", value: "permanent" }
 ] as const;
 const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
+const messageActionButtonClass =
+  "bc-focus-ring inline-flex min-h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:pointer-events-none disabled:opacity-50";
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }).format(
@@ -1210,6 +1212,13 @@ export function ChatRoomPanel({
                 message.authorUserId !== currentUser?.id &&
                 onlinePresenceUserIds.has(message.authorUserId)
             );
+            const canStartRaveWarAtMessageAuthor = Boolean(
+              canUseMessageActions &&
+                currentUserCanStartRaveWars &&
+                message.authorUserId &&
+                message.authorUserId !== currentUser?.id &&
+                onlinePresenceUserIds.has(message.authorUserId)
+            );
             const messageActionsOpen = openMessageActionsId === message.id;
             const editingThisMessage = editingMessage?.id === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
@@ -1416,67 +1425,86 @@ export function ChatRoomPanel({
 
                 {messageActionsOpen && selectedRoom ? (
                   <div className="mt-2 space-y-2 rounded-md border border-bc-line bg-bc-panel/85 p-2">
-                    <button
-                      className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
-                      onClick={() => startReplyToMessage(message)}
-                      type="button"
-                    >
-                      <Reply className="h-3.5 w-3.5" aria-hidden="true" />
-                      Reply
-                    </button>
-                    {canEditOwnMessage ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
-                        className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60"
-                        onClick={() => startEditingChatMessage(message)}
+                        className={messageActionButtonClass}
+                        onClick={() => startReplyToMessage(message)}
                         type="button"
                       >
-                        <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                        Edit
+                        <Reply className="h-3.5 w-3.5" aria-hidden="true" />
+                        Reply
                       </button>
-                    ) : null}
-                    {canThrowAtMessageAuthor ? (
-                      <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
-                        <input name="intent" type="hidden" value="sheep" />
-                        <input name="roomId" type="hidden" value={selectedRoom.id} />
-                        <input name="messageId" type="hidden" value={message.id} />
-                        {availableThrowSprites.length > 1 ? (
-                          <select
-                            className="min-h-7 max-w-[9rem] rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white"
-                            defaultValue={defaultThrowSprite?.id}
+
+                      {canStartRaveWarAtMessageAuthor ? (
+                        <form action={formAction} className="inline-flex">
+                          <input name="intent" type="hidden" value="rave-war" />
+                          <input name="roomId" type="hidden" value={selectedRoom.id} />
+                          <input name="targetUserId" type="hidden" value={message.authorUserId ?? ""} />
+                          <button
+                            className={messageActionButtonClass}
+                            disabled={pending || roomLockedForUser || Boolean(raveWarDisabledReason)}
+                            title={raveWarDisabledReason ?? `Start a private Rave War for ${raveWarStatusLabel}`}
+                            type="submit"
+                          >
+                            <Swords className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
+                            Rave War
+                          </button>
+                        </form>
+                      ) : null}
+
+                      {canThrowAtMessageAuthor ? (
+                        <form action={formAction} className="inline-flex flex-wrap items-center gap-1.5">
+                          <input name="intent" type="hidden" value="sheep" />
+                          <input name="roomId" type="hidden" value={selectedRoom.id} />
+                          <input name="messageId" type="hidden" value={message.id} />
+                          {availableThrowSprites.length > 1 ? (
+                            <select
+                              className="min-h-7 max-w-[9rem] rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white"
+                              defaultValue={defaultThrowSprite?.id}
+                              disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
+                              name="throwSpriteId"
+                              title="Choose what to throw"
+                            >
+                              {availableThrowSprites.map((sprite) => (
+                                <option key={sprite.id} value={sprite.id}>
+                                  {sprite.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
+                          )}
+                          <button
+                            className={messageActionButtonClass}
                             disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
-                            name="throwSpriteId"
-                            title="Choose what to throw"
+                            title={sheepThrowDisabledReason ?? `Throw for ${sheepThrowCostLabel}`}
+                            type="submit"
                           >
-                            {availableThrowSprites.map((sprite) => (
-                              <option key={sprite.id} value={sprite.id}>
-                                {sprite.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input name="throwSpriteId" type="hidden" value={defaultThrowSprite?.id ?? "sheep"} />
-                        )}
-                        <Button
-                          className="min-h-7 px-2 text-xs"
-                          disabled={pending || roomLockedForUser || Boolean(sheepThrowDisabledReason)}
-                          size="sm"
-                          title={sheepThrowDisabledReason ?? `Throw for ${sheepThrowCostLabel}`}
-                          type="submit"
-                          variant="ghost"
+                            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                            {availableThrowSprites.length > 1 ? "Throw" : `Throw ${(defaultThrowSprite?.label ?? "sheep").toLowerCase()}`}
+                            <span
+                              className={cn(
+                                "rounded-full px-1.5 py-0.5 text-[10px] font-black",
+                                sheepThrowDisabledReason ? "bg-bc-muted/15 text-bc-muted" : "bg-bc-acid/15 text-bc-acid"
+                              )}
+                            >
+                              {sheepThrowStatusLabel}
+                            </span>
+                          </button>
+                        </form>
+                      ) : null}
+
+                      {canEditOwnMessage ? (
+                        <button
+                          className={messageActionButtonClass}
+                          onClick={() => startEditingChatMessage(message)}
+                          type="button"
                         >
-                          <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                          {availableThrowSprites.length > 1 ? "Throw" : `Throw ${(defaultThrowSprite?.label ?? "sheep").toLowerCase()}`}
-                          <span
-                            className={cn(
-                              "rounded-full px-1.5 py-0.5 text-[10px] font-black",
-                              sheepThrowDisabledReason ? "bg-bc-muted/15 text-bc-muted" : "bg-bc-acid/15 text-bc-acid"
-                            )}
-                          >
-                            {sheepThrowStatusLabel}
-                          </span>
-                        </Button>
-                      </form>
-                    ) : null}
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          Edit
+                        </button>
+                      ) : null}
+                    </div>
                     <div>
                       <p className="text-[11px] font-black uppercase text-bc-muted">Reactions</p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1">
