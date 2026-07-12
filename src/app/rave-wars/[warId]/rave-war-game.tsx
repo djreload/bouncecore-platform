@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { Crosshair, Flag, HeartPulse, Radio, Swords, Timer, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,14 @@ type RaveWarImpactPulse = {
 };
 
 type RaveWarSfx = "blocked" | "fire" | "hit" | "impact" | "miss";
+type RaveWarMoveDirection = "left" | "right";
+type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | "weapon-next" | "weapon-prev";
+type RaveWarNativeControlState = "down" | "press" | "up";
 
+const chargeDurationMs = 1450;
+const aimHoldIntervalMs = 45;
+const aimHoldStep = 1.35;
+const moveHoldIntervalMs = 185;
 const shotAnimationMinMs = 700;
 const shotAnimationMaxMs = 1350;
 const raveWarAssets = {
@@ -181,6 +188,16 @@ function projectileRotationFromTrail(trail: RaveWarShotPoint[]) {
   }
 
   return (Math.atan2(latest.y - previous.y, latest.x - previous.x) * 180) / Math.PI;
+}
+
+function gameInputShouldIgnoreTarget(target: EventTarget | null) {
+  const element = target instanceof HTMLElement ? target : null;
+
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(element.closest("input, textarea, select, button, [contenteditable='true']"));
 }
 
 function getRaveWarAudioContext() {
@@ -350,10 +367,25 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [isAiming, setIsAiming] = useState(false);
   const [animatedShot, setAnimatedShot] = useState<RaveWarAnimatedShot | null>(null);
   const [impactPulse, setImpactPulse] = useState<RaveWarImpactPulse | null>(null);
+  const [isChargingShot, setIsChargingShot] = useState(false);
   const [walkingPlayerIds, setWalkingPlayerIds] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const aimHoldIntervalRef = useRef<number | null>(null);
+  const aimHoldDirectionRef = useRef<"down" | "up" | null>(null);
+  const angleRef = useRef(angle);
+  const aimFacingRef = useRef(aimFacing);
+  const busyRef = useRef(busy);
+  const canControlRef = useRef(false);
+  const chargeFrameRef = useRef<number | null>(null);
+  const chargeStartedAtRef = useRef(0);
+  const isChargingShotRef = useRef(false);
+  const moveHoldDirectionRef = useRef<RaveWarMoveDirection | null>(null);
+  const moveHoldIntervalRef = useRef<number | null>(null);
+  const moveInFlightRef = useRef(false);
+  const powerRef = useRef(power);
+  const selectedWeaponRef = useRef<RaveWarWeaponId>(selectedWeapon);
   const walkingTimeoutsRef = useRef(new Map<string, number>());
   const lastPlayerPositionsRef = useRef(
     new Map(initialWar.state.players.map((player) => [player.userId, { x: player.x, y: player.y }]))
@@ -365,7 +397,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     [war.level.backgroundColor]
   );
   const terrainMaskId = useMemo(() => `rave-war-terrain-mask-${war.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, [war.id]);
-  const canFire = war.status === "active" && war.turnUserId === currentUserId && !busy;
+  const canControl = war.status === "active" && war.turnUserId === currentUserId;
+  const canFire = canControl && !busy;
   const canAccept = war.status === "pending" && war.currentUserRole === "target";
   const currentShotKey = shotKey(war.state.lastShot);
   const visibleShotPath =
@@ -384,6 +417,15 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const remainingTurnSeconds = Number.isFinite(turnEndsAtMs) ? Math.max(0, Math.ceil((turnEndsAtMs - nowMs) / 1000)) : null;
   const warEndsAtMs = war.state.warEndsAt ? Date.parse(war.state.warEndsAt) : Number.NaN;
   const remainingWarSeconds = Number.isFinite(warEndsAtMs) ? Math.max(0, Math.ceil((warEndsAtMs - nowMs) / 1000)) : null;
+
+  useEffect(() => {
+    angleRef.current = angle;
+    aimFacingRef.current = aimFacing;
+    busyRef.current = busy;
+    canControlRef.current = canControl;
+    powerRef.current = power;
+    selectedWeaponRef.current = selectedWeapon;
+  }, [aimFacing, angle, busy, canControl, power, selectedWeapon]);
 
   const markPlayerWalking = useCallback((userId: string) => {
     setWalkingPlayerIds((current) => {
@@ -528,35 +570,113 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     (event: PointerEvent<HTMLDivElement>) => {
       const element = battlefieldRef.current;
 
-      if (!element || !currentPlayer || !canFire) {
+      if (!element || !currentPlayer || !canControl) {
         return;
       }
 
       const nextAim = aimSettingsFromLevelPoint(currentPlayer, levelPointFromPointer(event, element, war.level), war.level);
 
       setAngle(nextAim.angle);
+      angleRef.current = nextAim.angle;
       setAimFacing(nextAim.facing);
-      setPower(nextAim.power);
+      aimFacingRef.current = nextAim.facing;
     },
-    [canFire, currentPlayer, setAimFacing, setAngle, setPower, war.level]
+    [canControl, currentPlayer, setAimFacing, setAngle, war.level]
   );
 
-  const handleBattlefieldPointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      if (!canFire) {
+  const fireCurrentShotWithPower = useCallback(
+    async (shotPower?: number) => {
+      if (!canControlRef.current || busyRef.current) {
+        playRaveWarSfx("blocked");
         return;
       }
 
+      const nextPower = Math.round(clampNumber(shotPower ?? powerRef.current, 10, 100));
+
+      setPower(nextPower);
+      powerRef.current = nextPower;
+      playRaveWarSfx("fire");
+      await postWarAction("fire", {
+        angle: Math.round(angleRef.current),
+        facing: aimFacingRef.current,
+        power: nextPower,
+        weaponId: selectedWeaponRef.current
+      });
+    },
+    [postWarAction, setPower]
+  );
+
+  const stopChargingShot = useCallback(
+    (shouldFire: boolean) => {
+      if (!isChargingShotRef.current) {
+        return;
+      }
+
+      isChargingShotRef.current = false;
+      setIsChargingShot(false);
+
+      if (chargeFrameRef.current !== null) {
+        window.cancelAnimationFrame(chargeFrameRef.current);
+        chargeFrameRef.current = null;
+      }
+
+      if (shouldFire) {
+        void fireCurrentShotWithPower(powerRef.current);
+      }
+    },
+    [fireCurrentShotWithPower, setIsChargingShot]
+  );
+
+  const startChargingShot = useCallback(() => {
+    if (!canControlRef.current || busyRef.current || isChargingShotRef.current) {
+      return;
+    }
+
+    isChargingShotRef.current = true;
+    setIsChargingShot(true);
+    chargeStartedAtRef.current = window.performance.now();
+    setPower(10);
+    powerRef.current = 10;
+
+    function tick(now: number) {
+      if (!isChargingShotRef.current) {
+        return;
+      }
+
+      const progress = clampNumber((now - chargeStartedAtRef.current) / chargeDurationMs, 0, 1);
+      const nextPower = 10 + progress * 90;
+
+      setPower(nextPower);
+      powerRef.current = nextPower;
+
+      if (progress < 1) {
+        chargeFrameRef.current = window.requestAnimationFrame(tick);
+      } else {
+        chargeFrameRef.current = null;
+      }
+    }
+
+    chargeFrameRef.current = window.requestAnimationFrame(tick);
+  }, [setIsChargingShot, setPower]);
+
+  const handleBattlefieldPointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!canControl || event.button !== 0) {
+        return;
+      }
+
+      event.preventDefault();
       setIsAiming(true);
       event.currentTarget.setPointerCapture(event.pointerId);
       updateAimFromPointer(event);
+      startChargingShot();
     },
-    [canFire, setIsAiming, updateAimFromPointer]
+    [canControl, setIsAiming, startChargingShot, updateAimFromPointer]
   );
 
   const handleBattlefieldPointerMove = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
-      if (!canFire) {
+      if (!canControl) {
         return;
       }
 
@@ -564,104 +684,190 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         updateAimFromPointer(event);
       }
     },
-    [canFire, isAiming, updateAimFromPointer]
+    [canControl, isAiming, updateAimFromPointer]
   );
 
-  const handleBattlefieldPointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
-    setIsAiming(false);
+  const handleBattlefieldPointerUp = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      setIsAiming(false);
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-  }, [setIsAiming]);
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      stopChargingShot(true);
+    },
+    [setIsAiming, stopChargingShot]
+  );
+
+  const handleBattlefieldPointerCancel = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      setIsAiming(false);
+
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+
+      stopChargingShot(false);
+    },
+    [setIsAiming, stopChargingShot]
+  );
 
   const fireCurrentShot = useCallback(async () => {
-    if (!canFire) {
-      playRaveWarSfx("blocked");
-      return;
-    }
-
-    playRaveWarSfx("fire");
-    await postWarAction("fire", { angle, facing: aimFacing, power, weaponId: selectedWeapon });
-  }, [aimFacing, angle, canFire, postWarAction, power, selectedWeapon]);
+    await fireCurrentShotWithPower(powerRef.current);
+  }, [fireCurrentShotWithPower]);
 
   const cycleSelectedWeapon = useCallback((direction: -1 | 1) => {
     setSelectedWeapon((current) => {
       const currentIndex = raveWarWeapons.findIndex((weapon) => weapon.id === current);
       const nextIndex = (currentIndex + direction + raveWarWeapons.length) % raveWarWeapons.length;
+      const nextWeapon = raveWarWeapons[nextIndex]?.id ?? "bazooka";
 
-      return raveWarWeapons[nextIndex]?.id ?? "bazooka";
+      selectedWeaponRef.current = nextWeapon;
+      return nextWeapon;
     });
   }, [setSelectedWeapon]);
 
   const moveCurrentPlayer = useCallback(
-    async (direction: "left" | "right") => {
-      if (!canFire) {
+    async (direction: RaveWarMoveDirection) => {
+      if (!canControlRef.current) {
         playRaveWarSfx("blocked");
         return;
       }
 
+      if (moveInFlightRef.current) {
+        return;
+      }
+
+      moveInFlightRef.current = true;
       setAimFacing(direction);
+      aimFacingRef.current = direction;
       markPlayerWalking(currentUserId);
-      await postWarAction("move", { direction });
+
+      try {
+        await postWarAction("move", { direction });
+      } finally {
+        moveInFlightRef.current = false;
+      }
     },
-    [canFire, currentUserId, markPlayerWalking, postWarAction, setAimFacing]
+    [currentUserId, markPlayerWalking, postWarAction, setAimFacing]
   );
 
-  const handleBattlefieldKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      if (!canFire) {
+  const stopMoveHold = useCallback((direction?: RaveWarMoveDirection) => {
+    if (direction && moveHoldDirectionRef.current !== direction) {
+      return;
+    }
+
+    moveHoldDirectionRef.current = null;
+
+    if (moveHoldIntervalRef.current !== null) {
+      window.clearInterval(moveHoldIntervalRef.current);
+      moveHoldIntervalRef.current = null;
+    }
+  }, []);
+
+  const startMoveHold = useCallback(
+    (direction: RaveWarMoveDirection) => {
+      if (moveHoldDirectionRef.current === direction) {
         return;
       }
 
-      if (event.key === "ArrowLeft" || event.key.toLowerCase() === "a") {
-        event.preventDefault();
-        void moveCurrentPlayer("left");
+      stopMoveHold();
+      moveHoldDirectionRef.current = direction;
+      void moveCurrentPlayer(direction);
+      moveHoldIntervalRef.current = window.setInterval(() => {
+        if (moveHoldDirectionRef.current === direction) {
+          void moveCurrentPlayer(direction);
+        }
+      }, moveHoldIntervalMs);
+    },
+    [moveCurrentPlayer, stopMoveHold]
+  );
+
+  const adjustAim = useCallback((direction: "down" | "up") => {
+    setAngle((current) => {
+      const nextAngle = clampNumber(current + (direction === "up" ? aimHoldStep : -aimHoldStep), 0, 90);
+
+      angleRef.current = nextAngle;
+      return nextAngle;
+    });
+  }, [setAngle]);
+
+  const stopAimHold = useCallback((direction?: "down" | "up") => {
+    if (direction && aimHoldDirectionRef.current !== direction) {
+      return;
+    }
+
+    aimHoldDirectionRef.current = null;
+
+    if (aimHoldIntervalRef.current !== null) {
+      window.clearInterval(aimHoldIntervalRef.current);
+      aimHoldIntervalRef.current = null;
+    }
+  }, []);
+
+  const startAimHold = useCallback(
+    (direction: "down" | "up") => {
+      if (aimHoldDirectionRef.current === direction) {
         return;
       }
 
-      if (event.key === "ArrowRight" || event.key.toLowerCase() === "d") {
-        event.preventDefault();
-        void moveCurrentPlayer("right");
+      stopAimHold();
+      aimHoldDirectionRef.current = direction;
+      adjustAim(direction);
+      aimHoldIntervalRef.current = window.setInterval(() => {
+        if (aimHoldDirectionRef.current === direction) {
+          adjustAim(direction);
+        }
+      }, aimHoldIntervalMs);
+    },
+    [adjustAim, stopAimHold]
+  );
+
+  const handleNativeControl = useCallback(
+    (control: RaveWarNativeControl, state: RaveWarNativeControlState) => {
+      if (control === "left" || control === "right") {
+        if (state === "down") {
+          startMoveHold(control);
+        } else if (state === "up") {
+          stopMoveHold(control);
+        }
+
         return;
       }
 
-      if (event.key === "ArrowUp" || event.key.toLowerCase() === "w") {
-        event.preventDefault();
-        setAngle((current) => clampNumber(current + 2, 0, 90));
+      if (control === "aim-up" || control === "aim-down") {
+        const aimDirection = control === "aim-up" ? "up" : "down";
+
+        if (state === "down") {
+          startAimHold(aimDirection);
+        } else if (state === "up") {
+          stopAimHold(aimDirection);
+        }
+
         return;
       }
 
-      if (event.key === "ArrowDown" || event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        setAngle((current) => clampNumber(current - 2, 0, 90));
+      if (control === "fire") {
+        if (state === "down") {
+          startChargingShot();
+        } else if (state === "up") {
+          stopChargingShot(true);
+        }
+
         return;
       }
 
-      if (event.key === "=" || event.key === "+") {
-        event.preventDefault();
-        setPower((current) => clampNumber(current + 3, 10, 100));
+      if (control === "weapon-next" && state !== "down") {
+        cycleSelectedWeapon(1);
         return;
       }
 
-      if (event.key === "-" || event.key === "_") {
-        event.preventDefault();
-        setPower((current) => clampNumber(current - 3, 10, 100));
-        return;
-      }
-
-      if (event.key.toLowerCase() === "q" || event.key.toLowerCase() === "e") {
-        event.preventDefault();
-        cycleSelectedWeapon(event.key.toLowerCase() === "q" ? -1 : 1);
-        return;
-      }
-
-      if (event.key === " " || event.key === "Enter") {
-        event.preventDefault();
-        void fireCurrentShot();
+      if (control === "weapon-prev" && state !== "down") {
+        cycleSelectedWeapon(-1);
       }
     },
-    [canFire, cycleSelectedWeapon, fireCurrentShot, moveCurrentPlayer, setAngle, setPower]
+    [cycleSelectedWeapon, startAimHold, startChargingShot, startMoveHold, stopAimHold, stopChargingShot, stopMoveHold]
   );
 
   useEffect(() => {
@@ -689,6 +895,137 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       orientation.unlock?.();
     };
   }, []);
+
+  useEffect(() => {
+    const runtime = window as Window & {
+      BouncecoreAndroid?: {
+        setRaveWarActive?: (active: boolean) => void;
+      };
+    };
+
+    runtime.BouncecoreAndroid?.setRaveWarActive?.(true);
+
+    return () => {
+      runtime.BouncecoreAndroid?.setRaveWarActive?.(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleNativeControlEvent(event: Event) {
+      const detail = (event as CustomEvent<{ control?: string; state?: string }>).detail;
+      const control = detail?.control;
+      const state = detail?.state;
+      const validControls: RaveWarNativeControl[] = ["aim-down", "aim-up", "fire", "left", "right", "weapon-next", "weapon-prev"];
+      const validStates: RaveWarNativeControlState[] = ["down", "press", "up"];
+
+      if (!validControls.includes(control as RaveWarNativeControl) || !validStates.includes(state as RaveWarNativeControlState)) {
+        return;
+      }
+
+      handleNativeControl(control as RaveWarNativeControl, state as RaveWarNativeControlState);
+    }
+
+    window.addEventListener("bouncecore:rave-war-native-control", handleNativeControlEvent);
+
+    return () => {
+      window.removeEventListener("bouncecore:rave-war-native-control", handleNativeControlEvent);
+    };
+  }, [handleNativeControl]);
+
+  useEffect(() => {
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (gameInputShouldIgnoreTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (event.key === "ArrowLeft" || key === "a") {
+        event.preventDefault();
+        handleNativeControl("left", "down");
+        return;
+      }
+
+      if (event.key === "ArrowRight" || key === "d") {
+        event.preventDefault();
+        handleNativeControl("right", "down");
+        return;
+      }
+
+      if (event.key === "ArrowUp" || key === "w") {
+        event.preventDefault();
+        handleNativeControl("aim-up", "down");
+        return;
+      }
+
+      if (event.key === "ArrowDown" || key === "s") {
+        event.preventDefault();
+        handleNativeControl("aim-down", "down");
+        return;
+      }
+
+      if (event.key === " " && !event.repeat) {
+        event.preventDefault();
+        handleNativeControl("fire", "down");
+        return;
+      }
+
+      if ((key === "q" || key === "e") && !event.repeat) {
+        event.preventDefault();
+        handleNativeControl(key === "q" ? "weapon-prev" : "weapon-next", "press");
+        return;
+      }
+
+      if (event.key === "Enter" && !event.repeat) {
+        event.preventDefault();
+        void fireCurrentShot();
+      }
+    }
+
+    function handleKeyUp(event: globalThis.KeyboardEvent) {
+      const key = event.key.toLowerCase();
+
+      if (event.key === "ArrowLeft" || key === "a") {
+        event.preventDefault();
+        handleNativeControl("left", "up");
+        return;
+      }
+
+      if (event.key === "ArrowRight" || key === "d") {
+        event.preventDefault();
+        handleNativeControl("right", "up");
+        return;
+      }
+
+      if (event.key === "ArrowUp" || key === "w") {
+        event.preventDefault();
+        handleNativeControl("aim-up", "up");
+        return;
+      }
+
+      if (event.key === "ArrowDown" || key === "s") {
+        event.preventDefault();
+        handleNativeControl("aim-down", "up");
+        return;
+      }
+
+      if (event.key === " ") {
+        event.preventDefault();
+        handleNativeControl("fire", "up");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      stopMoveHold();
+      stopAimHold();
+      stopChargingShot(false);
+    };
+  }, [fireCurrentShot, handleNativeControl, stopAimHold, stopChargingShot, stopMoveHold]);
 
   useEffect(() => {
     let active = true;
@@ -830,6 +1167,18 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         window.clearTimeout(impactPulseTimeoutRef.current);
       }
 
+      if (aimHoldIntervalRef.current !== null) {
+        window.clearInterval(aimHoldIntervalRef.current);
+      }
+
+      if (chargeFrameRef.current !== null) {
+        window.cancelAnimationFrame(chargeFrameRef.current);
+      }
+
+      if (moveHoldIntervalRef.current !== null) {
+        window.clearInterval(moveHoldIntervalRef.current);
+      }
+
       for (const timeout of walkingTimeoutsRef.current.values()) {
         window.clearTimeout(timeout);
       }
@@ -872,13 +1221,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       <div className="bc-rave-war-layout grid min-h-0 flex-1 gap-2 lg:gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
         <div className="bc-rave-war-stage-card min-h-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel p-1.5 lg:p-2">
           <div
-            aria-label="Rave War battlefield. Move the mouse or drag on the map to aim. Use left and right or A and D to walk. Use up and down or W and S to aim. Use plus and minus for power. Press Q and E for weapons. Double click the map, press Enter, or press Space to shoot."
+            aria-label="Rave War battlefield. Move the mouse to aim. Hold the mouse button or Space to build power, then release to fire. Hold left and right or A and D to walk. Hold up and down or W and S to aim. Press Q and E for weapons."
             className={`bc-rave-war-battlefield relative mx-auto aspect-[2/1] w-full max-w-full min-h-[220px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
               canFire ? "cursor-crosshair touch-none" : "cursor-default"
             }`}
-            onDoubleClick={() => void fireCurrentShot()}
-            onKeyDown={handleBattlefieldKeyDown}
-            onPointerCancel={handleBattlefieldPointerUp}
+            data-charging={isChargingShot ? "true" : "false"}
+            onPointerCancel={handleBattlefieldPointerCancel}
             onPointerDown={handleBattlefieldPointerDown}
             onPointerLeave={() => setIsAiming(false)}
             onPointerMove={handleBattlefieldPointerMove}
@@ -1051,76 +1399,6 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               );
             })}
           </div>
-          <div className="bc-rave-war-mobile-controls mt-2 hidden rounded-md border border-bc-line bg-bc-ink p-2">
-            <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-2">
-              <button
-                className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
-                disabled={!canFire || !currentPlayer?.movementLeft}
-                onClick={() => void moveCurrentPlayer("left")}
-                type="button"
-              >
-                Left
-              </button>
-              <button
-                className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
-                disabled={!canFire || !currentPlayer?.movementLeft}
-                onClick={() => void moveCurrentPlayer("right")}
-                type="button"
-              >
-                Right
-              </button>
-              <Button className="min-h-9 px-2 text-xs" disabled={!canFire} onClick={() => void fireCurrentShot()} size="sm" type="button">
-                <Crosshair className="h-4 w-4" aria-hidden="true" />
-                Fire
-              </Button>
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <div className="grid grid-cols-2 gap-1">
-                <button
-                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
-                  disabled={!canFire}
-                  onClick={() => setAngle((current) => clampNumber(current - 2, 0, 90))}
-                  type="button"
-                >
-                  A-
-                </button>
-                <button
-                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
-                  disabled={!canFire}
-                  onClick={() => setAngle((current) => clampNumber(current + 2, 0, 90))}
-                  type="button"
-                >
-                  A+
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-1">
-                <button
-                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
-                  disabled={!canFire}
-                  onClick={() => setPower((current) => clampNumber(current - 3, 10, 100))}
-                  type="button"
-                >
-                  P-
-                </button>
-                <button
-                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
-                  disabled={!canFire}
-                  onClick={() => setPower((current) => clampNumber(current + 3, 10, 100))}
-                  type="button"
-                >
-                  P+
-                </button>
-              </div>
-              <button
-                className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
-                disabled={!canFire}
-                onClick={() => cycleSelectedWeapon(1)}
-                type="button"
-              >
-                {raveWarWeaponsById.get(selectedWeapon)?.label ?? "Weapon"}
-              </button>
-            </div>
-          </div>
         </div>
 
         <aside className="bc-rave-war-sidebar grid content-start gap-3">
@@ -1197,7 +1475,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                   </div>
                   {canFire ? (
                     <p className="mt-2 text-xs text-bc-muted">
-                      Mouse/drag aims. Left/right or A/D walks. Up/down or W/S aims. +/- power. Q/E weapons. Space, Enter, double click, or Fire shoots.
+                      Move the mouse to aim. Hold mouse or Space to build power, release to fire. Hold left/right or A/D to walk. Hold up/down or W/S to aim. Q/E changes weapons.
                     </p>
                   ) : null}
                 </div>
@@ -1257,7 +1535,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       <button
                         className="bc-focus-ring min-h-8 flex-1 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
                         disabled={!canFire}
-                        onClick={() => setAngle((current) => clampNumber(current - 2, 0, 90))}
+                        onClick={() => setAngle((current) => {
+                          const nextAngle = clampNumber(current - 2, 0, 90);
+
+                          angleRef.current = nextAngle;
+                          return nextAngle;
+                        })}
                         type="button"
                       >
                         -2
@@ -1266,7 +1549,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       <button
                         className="bc-focus-ring min-h-8 flex-1 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
                         disabled={!canFire}
-                        onClick={() => setAngle((current) => clampNumber(current + 2, 0, 90))}
+                        onClick={() => setAngle((current) => {
+                          const nextAngle = clampNumber(current + 2, 0, 90);
+
+                          angleRef.current = nextAngle;
+                          return nextAngle;
+                        })}
                         type="button"
                       >
                         +2
@@ -1279,7 +1567,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       <button
                         className="bc-focus-ring min-h-8 flex-1 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
                         disabled={!canFire}
-                        onClick={() => setPower((current) => clampNumber(current - 3, 10, 100))}
+                        onClick={() => setPower((current) => {
+                          const nextPower = clampNumber(current - 3, 10, 100);
+
+                          powerRef.current = nextPower;
+                          return nextPower;
+                        })}
                         type="button"
                       >
                         -3
@@ -1288,7 +1581,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       <button
                         className="bc-focus-ring min-h-8 flex-1 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
                         disabled={!canFire}
-                        onClick={() => setPower((current) => clampNumber(current + 3, 10, 100))}
+                        onClick={() => setPower((current) => {
+                          const nextPower = clampNumber(current + 3, 10, 100);
+
+                          powerRef.current = nextPower;
+                          return nextPower;
+                        })}
                         type="button"
                       >
                         +3
@@ -1303,7 +1601,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                     disabled={!canFire}
                     max={90}
                     min={0}
-                    onChange={(event) => setAngle(Number(event.target.value))}
+                    onChange={(event) => {
+                      const nextAngle = Number(event.target.value);
+
+                      angleRef.current = nextAngle;
+                      setAngle(nextAngle);
+                    }}
                     type="range"
                     value={angle}
                   />
@@ -1315,7 +1618,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                     disabled={!canFire}
                     max={100}
                     min={10}
-                    onChange={(event) => setPower(Number(event.target.value))}
+                    onChange={(event) => {
+                      const nextPower = Number(event.target.value);
+
+                      powerRef.current = nextPower;
+                      setPower(nextPower);
+                    }}
                     type="range"
                     value={power}
                   />

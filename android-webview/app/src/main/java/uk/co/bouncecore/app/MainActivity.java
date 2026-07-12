@@ -6,7 +6,10 @@ import android.app.AlertDialog;
 import android.content.SharedPreferences;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ActivityInfo;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,8 +21,11 @@ import android.os.Vibrator;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.ValueCallback;
@@ -29,8 +35,10 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 
 import org.json.JSONObject;
 
@@ -92,6 +100,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private FrameLayout bannerContainer;
+    private FrameLayout raveWarControlsOverlay;
     private LevelPlayBannerAdView bannerAdView;
     private LevelPlayInterstitialAd interstitialAd;
 
@@ -105,6 +114,7 @@ public class MainActivity extends Activity {
     private boolean fcmTokenRequestInFlight = false;
     private boolean adConsentDialogShowing = false;
     private boolean notificationDisclosureShowing = false;
+    private boolean raveWarModeActive = false;
     private int bannerRetryCount = 0;
     private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
@@ -122,22 +132,34 @@ public class MainActivity extends Activity {
     }
 
     private ViewGroup createLayout() {
-        LinearLayout root = new LinearLayout(this);
+        FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setFitsSystemWindows(false);
-        root.setOnApplyWindowInsetsListener((view, insets) -> {
-            view.setPadding(
-                0,
-                insets.getSystemWindowInsetTop(),
-                0,
-                insets.getSystemWindowInsetBottom()
-            );
+        root.setLayoutParams(new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout content = new LinearLayout(this);
+        content.setBackgroundColor(Color.BLACK);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setFitsSystemWindows(false);
+        content.setOnApplyWindowInsetsListener((view, insets) -> {
+            if (raveWarModeActive) {
+                view.setPadding(0, 0, 0, 0);
+            } else {
+                view.setPadding(
+                    0,
+                    insets.getSystemWindowInsetTop(),
+                    0,
+                    insets.getSystemWindowInsetBottom()
+                );
+            }
+
             return insets;
         });
-        root.setLayoutParams(new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.MATCH_PARENT
+        content.setLayoutParams(new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
         webView = new WebView(this);
@@ -155,9 +177,276 @@ public class MainActivity extends Activity {
             dp(56)
         ));
 
-        root.addView(webView);
-        root.addView(bannerContainer);
+        content.addView(webView);
+        content.addView(bannerContainer);
+        root.addView(content);
+
+        raveWarControlsOverlay = createRaveWarControlsOverlay();
+        root.addView(raveWarControlsOverlay);
+
         return root;
+    }
+
+    private FrameLayout createRaveWarControlsOverlay() {
+        FrameLayout overlay = new FrameLayout(this);
+        overlay.setVisibility(View.GONE);
+        overlay.setClickable(false);
+        overlay.setLayoutParams(new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        LinearLayout movementCluster = new LinearLayout(this);
+        movementCluster.setGravity(Gravity.CENTER);
+        movementCluster.setOrientation(LinearLayout.HORIZONTAL);
+        movementCluster.setPadding(dp(6), dp(6), dp(6), dp(6));
+        movementCluster.setBackground(panelBackground("#66050712", "#8843536d"));
+        movementCluster.addView(raveWarControlButton("◀", "left", true, dp(72), dp(56)));
+        movementCluster.addView(raveWarControlButton("▶", "right", true, dp(72), dp(56)));
+        FrameLayout.LayoutParams movementParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        movementParams.gravity = Gravity.BOTTOM | Gravity.LEFT;
+        movementParams.setMargins(dp(18), 0, 0, dp(18));
+        overlay.addView(movementCluster, movementParams);
+
+        LinearLayout aimCluster = new LinearLayout(this);
+        aimCluster.setGravity(Gravity.CENTER);
+        aimCluster.setOrientation(LinearLayout.VERTICAL);
+        aimCluster.setPadding(dp(6), dp(6), dp(6), dp(6));
+        aimCluster.setBackground(panelBackground("#66050712", "#8843536d"));
+        aimCluster.addView(raveWarControlButton("Aim ▲", "aim-up", true, dp(88), dp(48)));
+        aimCluster.addView(raveWarControlButton("Aim ▼", "aim-down", true, dp(88), dp(48)));
+        FrameLayout.LayoutParams aimParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        aimParams.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
+        aimParams.setMargins(0, 0, dp(18), 0);
+        overlay.addView(aimCluster, aimParams);
+
+        Button fireButton = raveWarControlButton("FIRE", "fire", true, dp(118), dp(72));
+        fireButton.setTextColor(Color.BLACK);
+        fireButton.setBackground(buttonBackground("#ff32ddff", "#ffffffff"));
+        FrameLayout.LayoutParams fireParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        fireParams.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+        fireParams.setMargins(0, 0, dp(22), dp(18));
+        overlay.addView(fireButton, fireParams);
+
+        Button weaponButton = raveWarControlButton("Weapon", "weapon-next", false, dp(108), dp(46));
+        FrameLayout.LayoutParams weaponParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        weaponParams.gravity = Gravity.TOP | Gravity.RIGHT;
+        weaponParams.setMargins(0, dp(16), dp(18), 0);
+        overlay.addView(weaponButton, weaponParams);
+
+        TextView hint = new TextView(this);
+        hint.setGravity(Gravity.CENTER);
+        hint.setText("Hold FIRE to build power • release to shoot");
+        hint.setTextColor(Color.WHITE);
+        hint.setTextSize(12f);
+        hint.setTypeface(Typeface.DEFAULT_BOLD);
+        hint.setPadding(dp(12), dp(7), dp(12), dp(7));
+        hint.setBackground(panelBackground("#66050712", "#662bd6ff"));
+        FrameLayout.LayoutParams hintParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        hintParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        hintParams.setMargins(0, dp(16), 0, 0);
+        overlay.addView(hint, hintParams);
+
+        Button backButton = nativeOverlayButton("Live", dp(78), dp(42));
+        backButton.setOnClickListener((view) -> {
+            setRaveWarMode(false);
+            openInternalPath("/live");
+        });
+        FrameLayout.LayoutParams backParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        backParams.gravity = Gravity.TOP | Gravity.LEFT;
+        backParams.setMargins(dp(18), dp(16), 0, 0);
+        overlay.addView(backButton, backParams);
+
+        return overlay;
+    }
+
+    private Button raveWarControlButton(String label, String control, boolean holdControl, int width, int height) {
+        Button button = nativeOverlayButton(label, width, height);
+        button.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                view.setPressed(true);
+                if (holdControl) {
+                    dispatchRaveWarControl(control, "down");
+                }
+                return true;
+            }
+
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                view.setPressed(false);
+                dispatchRaveWarControl(control, holdControl ? "up" : "press");
+                return true;
+            }
+
+            if (event.getAction() == MotionEvent.ACTION_CANCEL) {
+                view.setPressed(false);
+                if (holdControl) {
+                    dispatchRaveWarControl(control, "up");
+                }
+                return true;
+            }
+
+            return true;
+        });
+        return button;
+    }
+
+    private Button nativeOverlayButton(String label, int width, int height) {
+        Button button = new Button(this);
+        button.setAllCaps(false);
+        button.setMinHeight(0);
+        button.setMinWidth(0);
+        button.setPadding(dp(8), 0, dp(8), 0);
+        button.setText(label);
+        button.setTextColor(Color.WHITE);
+        button.setTextSize(14f);
+        button.setTypeface(Typeface.DEFAULT_BOLD);
+        button.setBackground(buttonBackground("#dd111421", "#aa2b3148"));
+        button.setLayoutParams(new LinearLayout.LayoutParams(width, height));
+        return button;
+    }
+
+    private GradientDrawable buttonBackground(String fill, String stroke) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.parseColor(fill));
+        drawable.setCornerRadius(dp(10));
+        drawable.setStroke(dp(1), Color.parseColor(stroke));
+        return drawable;
+    }
+
+    private GradientDrawable panelBackground(String fill, String stroke) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.parseColor(fill));
+        drawable.setCornerRadius(dp(14));
+        drawable.setStroke(dp(1), Color.parseColor(stroke));
+        return drawable;
+    }
+
+    private void dispatchRaveWarControl(String control, String state) {
+        if (webView == null || !raveWarModeActive) {
+            return;
+        }
+
+        String script = "window.dispatchEvent(new CustomEvent('bouncecore:rave-war-native-control',{detail:{control:"
+            + JSONObject.quote(control)
+            + ",state:"
+            + JSONObject.quote(state)
+            + "}}));";
+        webView.evaluateJavascript(script, null);
+    }
+
+    private boolean isRaveWarUrl(String url) {
+        if (TextUtils.isEmpty(url) || url.startsWith("data:")) {
+            return false;
+        }
+
+        Uri base = Uri.parse(BuildConfig.BOUNCECORE_WEB_URL);
+        Uri target = Uri.parse(url);
+        boolean sameHost = base.getHost() != null && base.getHost().equalsIgnoreCase(target.getHost());
+        String path = target.getPath();
+        return sameHost && path != null && path.startsWith("/rave-wars/");
+    }
+
+    private void syncRaveWarModeFromUrl(String url) {
+        setRaveWarMode(isRaveWarUrl(url));
+    }
+
+    private void setRaveWarMode(boolean active) {
+        if (raveWarModeActive == active) {
+            return;
+        }
+
+        raveWarModeActive = active;
+
+        if (raveWarControlsOverlay != null) {
+            raveWarControlsOverlay.setVisibility(active ? View.VISIBLE : View.GONE);
+        }
+
+        if (bannerContainer != null) {
+            if (active) {
+                bannerContainer.setVisibility(View.GONE);
+            } else if (bannerAdView != null && runtimeConfig.bannerAdsEnabled) {
+                bannerContainer.setVisibility(View.VISIBLE);
+            }
+        }
+
+        applyRaveWarWindowMode(active);
+
+        if (webView != null && webView.getParent() instanceof View) {
+            ((View) webView.getParent()).requestApplyInsets();
+        }
+    }
+
+    private void applyRaveWarWindowMode(boolean active) {
+        Window window = getWindow();
+        View decorView = window.getDecorView();
+
+        if (active) {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            window.setStatusBarColor(Color.BLACK);
+            window.setNavigationBarColor(Color.BLACK);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams attributes = window.getAttributes();
+                attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                window.setAttributes(attributes);
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                }
+            } else {
+                decorView.setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                );
+            }
+        } else {
+            setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            window.setStatusBarColor(Color.parseColor("#050712"));
+            window.setNavigationBarColor(Color.parseColor("#050712"));
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams attributes = window.getAttributes();
+                attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER;
+                window.setAttributes(attributes);
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.show(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
+                }
+            } else {
+                decorView.setSystemUiVisibility(0);
+            }
+        }
     }
 
     private void configureWindow() {
@@ -250,6 +539,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                syncRaveWarModeFromUrl(url);
                 registerFcmTokenWithCurrentSession();
                 maybeShowAppOpenInterstitial("page-finished");
             }
@@ -260,6 +550,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void vibrate(String patternCsv) {
             mainHandler.post(() -> performVibration(patternCsv));
+        }
+
+        @JavascriptInterface
+        public void setRaveWarActive(boolean active) {
+            mainHandler.post(() -> setRaveWarMode(active));
         }
     }
 
@@ -750,6 +1045,13 @@ public class MainActivity extends Activity {
     }
 
     private void syncLevelPlayAds() {
+        if (raveWarModeActive) {
+            if (bannerContainer != null) {
+                bannerContainer.setVisibility(View.GONE);
+            }
+            return;
+        }
+
         if (runtimeConfig.bannerAdsEnabled) {
             if (bannerAdView == null) {
                 createAndLoadBanner();
@@ -770,6 +1072,10 @@ public class MainActivity extends Activity {
     }
 
     private void createAndLoadBanner() {
+        if (raveWarModeActive) {
+            return;
+        }
+
         if (!levelPlayReady || !runtimeConfig.bannerAdsEnabled || TextUtils.isEmpty(runtimeConfig.levelPlayBannerAdUnitId)) {
             Log.w(TAG, "LevelPlay banner ad unit is not configured; banner is disabled.");
             return;
@@ -787,7 +1093,7 @@ public class MainActivity extends Activity {
             @Override
             public void onAdLoaded(LevelPlayAdInfo adInfo) {
                 bannerRetryCount = 0;
-                bannerContainer.setVisibility(View.VISIBLE);
+                bannerContainer.setVisibility(raveWarModeActive ? View.GONE : View.VISIBLE);
                 Log.d(TAG, "LevelPlay banner loaded: " + adInfo);
             }
 
@@ -905,7 +1211,8 @@ public class MainActivity extends Activity {
     }
 
     private void maybeShowAppOpenInterstitial(String reason) {
-        if (!runtimeConfig.appOpenInterstitialEnabled
+        if (raveWarModeActive
+            || !runtimeConfig.appOpenInterstitialEnabled
             || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
             return;
         }
@@ -958,6 +1265,7 @@ public class MainActivity extends Activity {
         if (webView != null) {
             webView.onResume();
             webView.resumeTimers();
+            syncRaveWarModeFromUrl(webView.getUrl());
         }
         if (!pausedForInterstitial) {
             appOpenShownThisForeground = false;
@@ -979,7 +1287,9 @@ public class MainActivity extends Activity {
         setIntent(intent);
 
         if (webView != null) {
-            webView.loadUrl(resolveAppUrlFromIntent(intent));
+            String nextUrl = resolveAppUrlFromIntent(intent);
+            syncRaveWarModeFromUrl(nextUrl);
+            webView.loadUrl(nextUrl);
         }
     }
 
@@ -1031,6 +1341,12 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
+        if (raveWarModeActive) {
+            setRaveWarMode(false);
+            openInternalPath("/live");
+            return;
+        }
+
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
             return;
