@@ -174,6 +174,20 @@ Adaptive HLS transcoder:
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
 ```
 
+External restream targets such as Facebook Live and YouTube Live are transcoded by default so the outgoing RTMP feed has a stable 2 second keyframe interval:
+
+```env
+RESTREAM_TRANSCODE=true
+RESTREAM_VIDEO_FPS=30
+RESTREAM_KEYFRAME_SECONDS=2
+RESTREAM_VIDEO_BITRATE=4500k
+RESTREAM_VIDEO_MAXRATE=5000k
+RESTREAM_VIDEO_BUFSIZE=9000k
+RESTREAM_AUDIO_BITRATE=160k
+```
+
+Set `RESTREAM_TRANSCODE=false` only if you intentionally want to packet-copy the incoming OBS encoder settings to the external platform.
+
 For OBS, use a separate server URL and stream key:
 
 ```text

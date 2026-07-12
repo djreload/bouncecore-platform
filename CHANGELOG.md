@@ -64,6 +64,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Rewrote public repository docs to use dummy domains and generic deployment examples.
 - Replaced environment-specific README deployment notes with a portable install and operations summary.
 - Split MediaMTX RTMP, RTMPS, and HLS bind-host settings so production installs can expose RTMPS publicly while keeping unencrypted RTMP and HLS origins local.
+- Changed external restream output to transcode by default with a forced 2 second keyframe interval for Facebook/YouTube RTMP compatibility.
 
 ### Fixed
 

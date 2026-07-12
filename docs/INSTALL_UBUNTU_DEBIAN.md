@@ -337,6 +337,20 @@ Encoder: x264 or hardware H.264
 Output: RTMPS
 ```
 
+External restreaming to Facebook Live, YouTube Live, or similar RTMP services uses the `media-restreamer` FFmpeg worker. By default it transcodes the outgoing restream and forces a 2 second keyframe interval so those platforms do not warn about low keyframe rates:
+
+```env
+RESTREAM_TRANSCODE=true
+RESTREAM_VIDEO_FPS=30
+RESTREAM_KEYFRAME_SECONDS=2
+RESTREAM_VIDEO_BITRATE=4500k
+RESTREAM_VIDEO_MAXRATE=5000k
+RESTREAM_VIDEO_BUFSIZE=9000k
+RESTREAM_AUDIO_BITRATE=160k
+```
+
+Only set `RESTREAM_TRANSCODE=false` if you want the external restream to copy the incoming OBS encoder exactly. Packet-copy mode can reintroduce Facebook keyframe warnings when the streamer has not set a 2 second keyframe interval.
+
 The public player should read:
 
 ```text

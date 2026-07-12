@@ -185,6 +185,13 @@ services:
       STREAM_CORE_INTERNAL_TOKEN: ${STREAM_CORE_INTERNAL_TOKEN:?STREAM_CORE_INTERNAL_TOKEN is required}
       RESTREAM_SOURCE_URL: http://stream-core:8088/api/restream/source
       RESTREAM_TARGET_URL: http://app:3000/internal/stream/restream-target
+      RESTREAM_TRANSCODE: ${RESTREAM_TRANSCODE:-true}
+      RESTREAM_VIDEO_FPS: ${RESTREAM_VIDEO_FPS:-30}
+      RESTREAM_KEYFRAME_SECONDS: ${RESTREAM_KEYFRAME_SECONDS:-2}
+      RESTREAM_VIDEO_BITRATE: ${RESTREAM_VIDEO_BITRATE:-4500k}
+      RESTREAM_VIDEO_MAXRATE: ${RESTREAM_VIDEO_MAXRATE:-5000k}
+      RESTREAM_VIDEO_BUFSIZE: ${RESTREAM_VIDEO_BUFSIZE:-9000k}
+      RESTREAM_AUDIO_BITRATE: ${RESTREAM_AUDIO_BITRATE:-160k}
     entrypoint:
       - /bin/sh
       - -lc
@@ -203,7 +210,20 @@ services:
             continue
           fi
           echo "Starting external restream output."
-          ffmpeg -hide_banner -loglevel warning -re -i "$$source_url" -c copy -f flv "$$target_url" &
+          if [ "$${RESTREAM_TRANSCODE:-true}" = "false" ]; then
+            ffmpeg -hide_banner -loglevel warning -re -i "$$source_url" -c copy -f flv "$$target_url" &
+          else
+            restream_gop="$$(($$RESTREAM_VIDEO_FPS * $$RESTREAM_KEYFRAME_SECONDS))"
+            ffmpeg -hide_banner -loglevel warning -re \
+              -fflags +genpts+discardcorrupt -thread_queue_size 1024 -i "$$source_url" \
+              -map 0:v:0 -map 0:a:0? \
+              -c:v libx264 -preset veryfast -tune zerolatency -pix_fmt yuv420p \
+              -r "$$RESTREAM_VIDEO_FPS" -g "$$restream_gop" -keyint_min "$$restream_gop" -sc_threshold 0 \
+              -force_key_frames "expr:gte(t,n_forced*$$RESTREAM_KEYFRAME_SECONDS)" \
+              -b:v "$$RESTREAM_VIDEO_BITRATE" -maxrate "$$RESTREAM_VIDEO_MAXRATE" -bufsize "$$RESTREAM_VIDEO_BUFSIZE" \
+              -c:a aac -ar 48000 -b:a "$$RESTREAM_AUDIO_BITRATE" \
+              -f flv "$$target_url" &
+          fi
           restream_pid="$$!"
           while kill -0 "$$restream_pid" 2>/dev/null; do
             sleep 10
