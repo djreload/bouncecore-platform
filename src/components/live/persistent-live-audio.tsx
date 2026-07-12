@@ -4,8 +4,15 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  buildLiveHlsConfig,
+  installLiveStallWatchdog,
+  keepNormalPlaybackSpeed,
+  startBufferedLivePlayback
+} from "@/components/live/live-playback-buffer";
 import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
 import { isBouncecoreAndroidRuntime } from "@/lib/runtime/mobile-app-runtime";
+import { defaultStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
 const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
@@ -26,29 +33,6 @@ function isLikelyHls(playbackUrl: string | null) {
     return new URL(playbackUrl, window.location.href).pathname.toLowerCase().endsWith(".m3u8");
   } catch {
     return playbackUrl.toLowerCase().includes(".m3u8");
-  }
-}
-
-function seekToLiveEdge(video: HTMLVideoElement) {
-  const seekable = video.seekable;
-
-  if (!seekable.length) {
-    return;
-  }
-
-  const end = seekable.end(seekable.length - 1);
-  const start = seekable.start(seekable.length - 1);
-
-  if (Number.isFinite(end)) {
-    video.currentTime = Math.max(start, end - 0.35);
-  }
-}
-
-function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
-  video.defaultPlaybackRate = 1;
-
-  if (video.playbackRate !== 1) {
-    video.playbackRate = 1;
   }
 }
 
@@ -121,6 +105,7 @@ const initialLiveStatus: LiveStatusPayload = {
     status: "unknown"
   },
   offlineImageUrl: null,
+  playbackSettings: defaultStreamPlaybackSettings,
   playbackUrl: null,
   status: "checking",
   viewerCount: 0
@@ -140,18 +125,24 @@ export function PersistentLiveAudio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const canPlayRef = useRef(false);
+  const playbackBufferSecondsRef = useRef(defaultStreamPlaybackSettings.playbackBufferSeconds);
   const suspendPlaybackRef = useRef(false);
   const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
   const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname, false));
   const [userEnabled, setUserEnabled] = useState(false);
   const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
+  const playbackBufferSeconds = liveState.playbackSettings.playbackBufferSeconds;
   const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline" && !suspendPlayback;
   const persistentAudioActive = userEnabled && canPlay;
 
   useEffect(() => {
     canPlayRef.current = canPlay;
   }, [canPlay]);
+
+  useEffect(() => {
+    playbackBufferSecondsRef.current = playbackBufferSeconds;
+  }, [playbackBufferSeconds]);
 
   useEffect(() => {
     suspendPlaybackRef.current = suspendPlayback;
@@ -284,6 +275,12 @@ export function PersistentLiveAudio() {
     activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
     activeVideo.addEventListener("volumechange", rememberAudiblePlayback);
     activeVideo.addEventListener("ended", recoverLivePlayback);
+    const stopStallWatchdog = installLiveStallWatchdog({
+      getCanRecover: () => canPlayRef.current && !suspendPlaybackRef.current,
+      getHls: () => hlsRef.current,
+      getPlaybackBufferSeconds: () => playbackBufferSecondsRef.current,
+      video: activeVideo
+    });
 
     function resetPlaybackSpeed() {
       keepNormalPlaybackSpeed(activeVideo);
@@ -295,10 +292,8 @@ export function PersistentLiveAudio() {
       }
 
       hlsRef.current?.startLoad(-1);
-      seekToLiveEdge(activeVideo);
-      keepNormalPlaybackSpeed(activeVideo);
       activeVideo.muted = !userEnabledRef.current;
-      void activeVideo.play().catch(() => undefined);
+      void startBufferedLivePlayback(activeVideo, playbackBufferSecondsRef.current).catch(() => undefined);
     }
 
     updateVideoPlacement();
@@ -326,6 +321,7 @@ export function PersistentLiveAudio() {
       }
 
       throttledObserver.disconnect();
+      stopStallWatchdog();
       activeVideo.removeEventListener("pointerdown", enableAudioFromUserGesture);
       activeVideo.removeEventListener("keydown", enableAudioFromUserGesture);
       activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
@@ -408,20 +404,7 @@ export function PersistentLiveAudio() {
     }
 
     if (isLikelyHls(playbackUrl) && Hls.isSupported()) {
-      const hls = new Hls({
-        backBufferLength: 30,
-        enableWorker: true,
-        fragLoadingMaxRetry: 8,
-        levelLoadingMaxRetry: 8,
-        liveDurationInfinity: true,
-        liveMaxLatencyDurationCount: 10,
-        liveSyncDurationCount: 3,
-        lowLatencyMode: true,
-        manifestLoadingMaxRetry: 8,
-        maxBufferLength: 30,
-        maxLiveSyncPlaybackRate: 1,
-        startLevel: -1
-      });
+      const hls = new Hls(buildLiveHlsConfig(playbackBufferSeconds));
       hlsRef.current = hls;
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (cancelled) {
@@ -430,17 +413,15 @@ export function PersistentLiveAudio() {
 
         video.muted = !userEnabledRef.current;
         keepNormalPlaybackSpeed(video);
-        void video.play().catch(() => undefined);
+        void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
         if (!data.details.live || cancelled || !video.paused) {
           return;
         }
 
-        seekToLiveEdge(video);
         video.muted = !userEnabledRef.current;
-        keepNormalPlaybackSpeed(video);
-        void video.play().catch(() => undefined);
+        void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
       });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (!data.fatal || cancelled) {
@@ -470,11 +451,12 @@ export function PersistentLiveAudio() {
 
     video.src = playbackUrl;
     keepNormalPlaybackSpeed(video);
+    void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
 
     return () => {
       cancelled = true;
     };
-  }, [canPlay, primaryPlaybackUrl, suspendPlayback]);
+  }, [canPlay, playbackBufferSeconds, primaryPlaybackUrl, suspendPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -490,8 +472,8 @@ export function PersistentLiveAudio() {
 
     video.muted = !userEnabled;
     keepNormalPlaybackSpeed(video);
-    void video.play().catch(() => undefined);
-  }, [canPlay, suspendPlayback, userEnabled]);
+    void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
+  }, [canPlay, playbackBufferSeconds, suspendPlayback, userEnabled]);
 
   useEffect(() => {
     function enableAudio() {
@@ -503,7 +485,9 @@ export function PersistentLiveAudio() {
           keepNormalPlaybackSpeed(videoRef.current);
         }
 
-        void videoRef.current?.play().catch(() => undefined);
+        if (videoRef.current) {
+          void startBufferedLivePlayback(videoRef.current, playbackBufferSecondsRef.current).catch(() => undefined);
+        }
       }
     }
 

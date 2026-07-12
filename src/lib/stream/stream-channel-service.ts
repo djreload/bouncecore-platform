@@ -11,8 +11,10 @@ import {
   type StreamProfileSummary
 } from "@/lib/stream/stream-profile-service";
 import { getAdminRestreamSettings } from "@/lib/stream/restream-settings-service";
+import { getStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 import { getLiveViewerPresenceCount } from "@/lib/presence/live-viewer-presence";
+import type { StreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
 export type StreamChannelInput = {
   channelId?: string;
@@ -59,6 +61,7 @@ export type PublicLiveState = {
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
+  playbackSettings: StreamPlaybackSettings;
   viewerCount: number;
   health: StreamHealth;
 };
@@ -157,7 +160,7 @@ export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
 export async function getAdminStreamControlData() {
   await ensureDefaultStreamProfiles();
 
-  const [channels, provider, restreamSettings, streamProfiles] = await Promise.all([
+  const [channels, playbackSettings, provider, restreamSettings, streamProfiles] = await Promise.all([
     prisma.streamChannel.findMany({
       orderBy: {
         slug: "asc"
@@ -173,6 +176,7 @@ export async function getAdminStreamControlData() {
         }
       }
     }),
+    getStreamPlaybackSettings(),
     getProviderSnapshot(),
     getAdminRestreamSettings(),
     getStreamProfiles({
@@ -182,6 +186,7 @@ export async function getAdminStreamControlData() {
 
   return {
     channels: channels.map(toSummary),
+    playbackSettings,
     provider,
     restreamSettings,
     streamProfiles
@@ -393,10 +398,11 @@ export async function updateStreamChannel(input: StreamChannelInput, actorId: st
 }
 
 export async function getPublicLiveState(): Promise<PublicLiveState> {
-  const [provider, defaultProfile, liveViewerCount] = await Promise.all([
+  const [provider, defaultProfile, liveViewerCount, playbackSettings] = await Promise.all([
     getProviderSnapshot(),
     getDefaultStreamProfile(),
-    getLiveViewerPresenceCount()
+    getLiveViewerPresenceCount(),
+    getStreamPlaybackSettings()
   ]);
 
   try {
@@ -428,6 +434,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       status,
       playbackUrl: channel?.playbackUrl ?? provider.playbackUrl,
       offlineImageUrl,
+      playbackSettings,
       viewerCount,
       health: provider.health
     };
@@ -441,6 +448,7 @@ export async function getPublicLiveState(): Promise<PublicLiveState> {
       status: provider.status,
       playbackUrl: provider.playbackUrl,
       offlineImageUrl: defaultStreamOfflineImageUrl,
+      playbackSettings,
       viewerCount,
       health: provider.health
     };

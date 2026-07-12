@@ -1,6 +1,11 @@
 "use client";
 
 import type { StreamHealth, StreamPlaybackSource } from "@/lib/stream/stream-provider";
+import {
+  defaultStreamPlaybackSettings,
+  normalizeStreamPlaybackSettings,
+  type StreamPlaybackSettings
+} from "@/lib/stream/stream-playback-settings";
 import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
 
 export type LiveStatusChannelPayload = {
@@ -17,6 +22,7 @@ export type LiveStatusPayload = {
   channel: LiveStatusChannelPayload | null;
   health: StreamHealth;
   offlineImageUrl: string | null;
+  playbackSettings: StreamPlaybackSettings;
   playbackUrl: string | null;
   provider?: unknown;
   status: string;
@@ -119,6 +125,14 @@ function normalizeChannel(value: unknown): LiveStatusChannelPayload | null {
   };
 }
 
+function normalizePlaybackSettings(value: unknown, current?: StreamPlaybackSettings) {
+  if (!value) {
+    return current ?? defaultStreamPlaybackSettings;
+  }
+
+  return normalizeStreamPlaybackSettings(value);
+}
+
 export function normalizeLiveStatusPayload(value: unknown, current?: LiveStatusPayload | null): LiveStatusPayload | null {
   if (!value || typeof value !== "object") {
     return current ?? null;
@@ -131,6 +145,7 @@ export function normalizeLiveStatusPayload(value: unknown, current?: LiveStatusP
     channel: normalizeChannel(payload.channel),
     health: normalizeHealth(payload.health),
     offlineImageUrl: stringOrNull(payload.offlineImageUrl),
+    playbackSettings: normalizePlaybackSettings(payload.playbackSettings, current?.playbackSettings),
     playbackUrl: stringOrNull(payload.playbackUrl),
     provider: payload.provider,
     status: stringOrNull(payload.status) ?? current?.status ?? "offline",

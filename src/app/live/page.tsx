@@ -121,7 +121,7 @@ export default async function LivePage() {
     getChatSheepThrowReadiness(currentUser?.id, sheepSettings),
     getRaveWarReadiness(currentUser?.id, raveWarSettings)
   ]);
-  const { activeIngests, channel, status, playbackUrl, offlineImageUrl, viewerCount, health } = liveState;
+  const { activeIngests, channel, status, playbackUrl, offlineImageUrl, playbackSettings, viewerCount, health } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -197,6 +197,7 @@ export default async function LivePage() {
                 offlineImageUrl={offlineImageUrl}
                 activeIngests={activeIngests}
                 playbackUrl={playbackUrl}
+                playbackSettings={playbackSettings}
                 status={status}
                 title={channel?.title ?? "Bouncecore Live"}
               />

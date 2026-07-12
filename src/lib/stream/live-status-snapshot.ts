@@ -1,6 +1,7 @@
 import type { PublicLiveState } from "@/lib/stream/stream-channel-service";
 import type { StreamHealth, StreamPlaybackSource } from "@/lib/stream/stream-provider";
 import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
+import type { StreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
 export type LiveStatusChannelPayload = {
   slug: string;
@@ -16,6 +17,7 @@ export type LiveStatusEventPayload = {
   channel: LiveStatusChannelPayload | null;
   health: StreamHealth;
   offlineImageUrl: string | null;
+  playbackSettings: StreamPlaybackSettings;
   playbackUrl: string | null;
   provider: PublicLiveState["provider"];
   status: string;
@@ -28,6 +30,7 @@ export function publicLiveStateToStatusPayload(liveState: PublicLiveState): Live
     channel: liveState.channel,
     health: liveState.health,
     offlineImageUrl: liveState.offlineImageUrl,
+    playbackSettings: liveState.playbackSettings,
     playbackUrl: liveState.playbackUrl,
     provider: liveState.provider,
     status: liveState.status,
@@ -55,6 +58,7 @@ export function liveStatusSignature(payload: LiveStatusEventPayload) {
     payload.status,
     payload.playbackUrl ?? "",
     payload.offlineImageUrl ?? "",
+    payload.playbackSettings?.playbackBufferSeconds ?? "",
     payload.viewerCount,
     payload.channel?.slug ?? "",
     payload.channel?.title ?? "",

@@ -1,6 +1,11 @@
 import { AdminShell } from "@/components/layout/admin-shell";
 import { AdminStreamControlPanel } from "@/app/admin/stream/stream-control-panel";
-import type { AdminRestreamSettingsRow, AdminStreamChannelRow, AdminStreamProfileRow } from "@/app/admin/stream/state";
+import type {
+  AdminRestreamSettingsRow,
+  AdminStreamChannelRow,
+  AdminStreamPlaybackSettingsRow,
+  AdminStreamProfileRow
+} from "@/app/admin/stream/state";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
 
@@ -17,7 +22,7 @@ function repairFilter(value: string | undefined) {
 export default async function AdminStreamPage({ searchParams }: AdminStreamPageProps) {
   await requireUserPermission("stream.dashboard");
   const params = searchParams ? await searchParams : {};
-  const { channels, provider, restreamSettings, streamProfiles } = await getAdminStreamControlData();
+  const { channels, playbackSettings, provider, restreamSettings, streamProfiles } = await getAdminStreamControlData();
   const channelRows: AdminStreamChannelRow[] = channels.map((channel) => ({
     id: channel.id,
     slug: channel.slug,
@@ -32,6 +37,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
   }));
   const profileRows: AdminStreamProfileRow[] = streamProfiles;
   const restreamSettingsRow: AdminRestreamSettingsRow = restreamSettings;
+  const playbackSettingsRow: AdminStreamPlaybackSettingsRow = playbackSettings;
 
   return (
     <AdminShell
@@ -40,6 +46,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
     >
       <AdminStreamControlPanel
         channels={channelRows}
+        playbackSettings={playbackSettingsRow}
         provider={provider}
         repairFilter={repairFilter(params.repair)}
         restreamSettings={restreamSettingsRow}

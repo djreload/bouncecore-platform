@@ -5,9 +5,16 @@ import Hls from "hls.js";
 import type { ErrorData } from "hls.js";
 import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildLiveHlsConfig,
+  installLiveStallWatchdog,
+  keepNormalPlaybackSpeed,
+  startBufferedLivePlayback
+} from "@/components/live/live-playback-buffer";
 import { subscribeToLiveStatus } from "@/components/live/live-status-client";
 import { cn } from "@/lib/utils";
 import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
+import { defaultStreamPlaybackSettings, type StreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
 type LivePlaybackPlayerProps = {
   activeIngests?: StreamPlaybackSource[];
@@ -15,6 +22,7 @@ type LivePlaybackPlayerProps = {
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
+  playbackSettings?: StreamPlaybackSettings;
 };
 
 type LivePlaybackState = {
@@ -23,6 +31,7 @@ type LivePlaybackState = {
   status: string;
   playbackUrl: string | null;
   offlineImageUrl: string | null;
+  playbackSettings: StreamPlaybackSettings;
 };
 
 function isLikelyHls(playbackUrl: string | null) {
@@ -34,29 +43,6 @@ function isLikelyHls(playbackUrl: string | null) {
     return new URL(playbackUrl, window.location.href).pathname.toLowerCase().endsWith(".m3u8");
   } catch {
     return playbackUrl.toLowerCase().includes(".m3u8");
-  }
-}
-
-function seekToLiveEdge(video: HTMLVideoElement) {
-  const seekable = video.seekable;
-
-  if (!seekable.length) {
-    return;
-  }
-
-  const end = seekable.end(seekable.length - 1);
-  const start = seekable.start(seekable.length - 1);
-
-  if (Number.isFinite(end)) {
-    video.currentTime = Math.max(start, end - 0.35);
-  }
-}
-
-function keepNormalPlaybackSpeed(video: HTMLVideoElement) {
-  video.defaultPlaybackRate = 1;
-
-  if (video.playbackRate !== 1) {
-    video.playbackRate = 1;
   }
 }
 
@@ -93,6 +79,7 @@ function HlsVideo({
   controls,
   muted,
   onPlaybackStarted,
+  playbackBufferSeconds,
   playbackUrl
 }: {
   ariaLabel: string;
@@ -100,6 +87,7 @@ function HlsVideo({
   controls?: boolean;
   muted: boolean;
   onPlaybackStarted?: () => void;
+  playbackBufferSeconds: number;
   playbackUrl: string;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -134,9 +122,7 @@ function HlsVideo({
 
     function recoverLivePlayback() {
       hlsRef.current?.startLoad(-1);
-      seekToLiveEdge(activeVideo);
-      keepNormalPlaybackSpeed(activeVideo);
-      void activeVideo.play().catch(() => undefined);
+      void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
     }
 
     function resetPlaybackSpeed() {
@@ -145,36 +131,23 @@ function HlsVideo({
 
     activeVideo.addEventListener("ended", recoverLivePlayback);
     activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
+    const stopStallWatchdog = installLiveStallWatchdog({
+      getCanRecover: () => !cancelled && pageVisible,
+      getHls: () => hlsRef.current,
+      getPlaybackBufferSeconds: () => playbackBufferSeconds,
+      onPlaybackStarted,
+      video: activeVideo
+    });
 
     const hlsPlayback = isLikelyHls(playbackUrl);
 
     if (hlsPlayback && Hls.isSupported()) {
-      const hls = new Hls({
-        abrEwmaDefaultEstimate: 3_000_000,
-        backBufferLength: 30,
-        capLevelToPlayerSize: true,
-        enableWorker: true,
-        fragLoadingMaxRetry: 8,
-        levelLoadingMaxRetry: 8,
-        liveDurationInfinity: true,
-        liveMaxLatencyDurationCount: 10,
-        liveSyncDurationCount: 3,
-        lowLatencyMode: true,
-        manifestLoadingMaxRetry: 8,
-        maxBufferLength: 30,
-        maxLiveSyncPlaybackRate: 1,
-        startLevel: -1
-      });
+      const hls = new Hls(buildLiveHlsConfig(playbackBufferSeconds));
       hlsRef.current = hls;
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
-          void activeVideo
-            .play()
-            .then(() => {
-              onPlaybackStarted?.();
-            })
-            .catch(() => undefined);
+          void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
         }
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
@@ -182,9 +155,7 @@ function HlsVideo({
           return;
         }
 
-        seekToLiveEdge(activeVideo);
-        keepNormalPlaybackSpeed(activeVideo);
-        void activeVideo.play().catch(() => undefined);
+        void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
       });
 
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
@@ -210,6 +181,7 @@ function HlsVideo({
 
       return () => {
         cancelled = true;
+        stopStallWatchdog();
         activeVideo.removeEventListener("ended", recoverLivePlayback);
         activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
         hls.destroy();
@@ -218,19 +190,15 @@ function HlsVideo({
 
     activeVideo.src = playbackUrl;
     keepNormalPlaybackSpeed(activeVideo);
-    void activeVideo
-      .play()
-      .then(() => {
-        onPlaybackStarted?.();
-      })
-      .catch(() => undefined);
+    void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
 
     return () => {
       cancelled = true;
+      stopStallWatchdog();
       activeVideo.removeEventListener("ended", recoverLivePlayback);
       activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
     };
-  }, [onPlaybackStarted, pageVisible, playbackUrl]);
+  }, [onPlaybackStarted, pageVisible, playbackBufferSeconds, playbackUrl]);
 
   return (
     <video
@@ -241,19 +209,27 @@ function HlsVideo({
       muted={muted}
       onPlay={onPlaybackStarted}
       playsInline
-      preload="metadata"
+      preload="auto"
       ref={videoRef}
     />
   );
 }
 
-export function LivePlaybackPlayer({ activeIngests = [], title, status, playbackUrl, offlineImageUrl }: LivePlaybackPlayerProps) {
+export function LivePlaybackPlayer({
+  activeIngests = [],
+  title,
+  status,
+  playbackUrl,
+  offlineImageUrl,
+  playbackSettings = defaultStreamPlaybackSettings
+}: LivePlaybackPlayerProps) {
   const [liveState, setLiveState] = useState<LivePlaybackState>({
     activeIngests,
     title,
     status,
     playbackUrl,
-    offlineImageUrl
+    offlineImageUrl,
+    playbackSettings
   });
   const primarySource = useMemo(
     () => liveState.activeIngests.find((source) => source.role === "primary" && source.playbackUrl) ?? liveState.activeIngests[0] ?? null,
@@ -279,7 +255,8 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
         title: payload.channel?.title ?? current.title,
         status: payload.status,
         playbackUrl: payload.playbackUrl,
-        offlineImageUrl: payload.offlineImageUrl
+        offlineImageUrl: payload.offlineImageUrl,
+        playbackSettings: payload.playbackSettings
       }));
     });
   }, []);
@@ -320,6 +297,7 @@ export function LivePlaybackPlayer({ activeIngests = [], title, status, playback
               ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
               className="absolute inset-0 h-full w-full bg-black object-contain"
               muted
+              playbackBufferSeconds={liveState.playbackSettings.playbackBufferSeconds}
               playbackUrl={secondaryPlaybackUrl}
             />
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 bg-gradient-to-b from-black/85 via-black/35 to-transparent p-3 max-sm:p-2">

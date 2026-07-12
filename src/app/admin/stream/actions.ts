@@ -10,6 +10,7 @@ import {
   updateStreamChannel
 } from "@/lib/stream/stream-channel-service";
 import { updateRestreamSettings } from "@/lib/stream/restream-settings-service";
+import { updateStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { ensureDefaultStreamProfiles, updateStreamProfile } from "@/lib/stream/stream-profile-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 import type { AdminStreamActionState } from "@/app/admin/stream/state";
@@ -82,6 +83,12 @@ function restreamSettingsInput(formData: FormData) {
     provider: formString(formData, "provider"),
     serverUrl: formString(formData, "serverUrl"),
     streamKey: formString(formData, "streamKey")
+  };
+}
+
+function playbackSettingsInput(formData: FormData) {
+  return {
+    playbackBufferSeconds: formNumber(formData, "playbackBufferSeconds")
   };
 }
 
@@ -169,6 +176,16 @@ export async function adminStreamAction(
       return {
         status: "success",
         message: "Restream output settings updated."
+      };
+    }
+
+    if (intent === "update-playback-settings") {
+      await updateStreamPlaybackSettings(playbackSettingsInput(formData), actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Live playback buffer updated."
       };
     }
 

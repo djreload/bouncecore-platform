@@ -10,15 +10,18 @@ import {
   type AdminStreamActionState,
   type AdminRestreamSettingsRow,
   type AdminStreamChannelRow,
+  type AdminStreamPlaybackSettingsRow,
   type AdminStreamProfileRow,
   type AdminStreamProviderState
 } from "@/app/admin/stream/state";
 import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 import { streamStatusOptions } from "@/lib/stream/stream-status";
 import { restreamProviders } from "@/lib/stream/restream-settings";
+import { streamPlaybackBufferLimits } from "@/lib/stream/stream-playback-settings";
 
 type AdminStreamControlPanelProps = {
   channels: AdminStreamChannelRow[];
+  playbackSettings: AdminStreamPlaybackSettingsRow;
   provider: AdminStreamProviderState;
   repairFilter?: AdminStreamRepairFilter | null;
   restreamSettings: AdminRestreamSettingsRow;
@@ -56,6 +59,7 @@ function matchesRepairFilter(channel: AdminStreamChannelRow, filter: AdminStream
 
 export function AdminStreamControlPanel({
   channels,
+  playbackSettings,
   provider,
   repairFilter = null,
   restreamSettings,
@@ -243,6 +247,49 @@ export function AdminStreamControlPanel({
             </label>
             <Button disabled={pending} type="submit" variant="primary">
               <Share2 className="h-4 w-4" aria-hidden="true" />
+              Save
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Badge tone="cyan">Player buffer</Badge>
+            <h3 className="mt-4 text-2xl font-black">Live startup buffer</h3>
+            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+              Controls how many seconds behind the live edge the public players wait before starting. Higher values smooth
+              unstable connections; lower values reduce delay.
+            </p>
+          </div>
+          <Badge tone="acid">{playbackSettings.playbackBufferSeconds}s behind live</Badge>
+        </div>
+
+        <form action={formAction} className="mt-5 grid gap-4 md:grid-cols-[minmax(180px,260px)_1fr_auto]">
+          <input name="intent" type="hidden" value="update-playback-settings" />
+          <label className="text-xs font-semibold uppercase text-bc-muted">
+            Buffer seconds
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={playbackSettings.playbackBufferSeconds}
+              max={streamPlaybackBufferLimits.max}
+              min={streamPlaybackBufferLimits.min}
+              name="playbackBufferSeconds"
+              step={1}
+              type="number"
+            />
+            <span className="mt-1 block normal-case text-bc-muted">
+              Allowed range: {streamPlaybackBufferLimits.min}-{streamPlaybackBufferLimits.max} seconds.
+            </span>
+          </label>
+          <div className="rounded-md border border-bc-line bg-bc-ink p-3 text-sm text-bc-muted">
+            Start around 4 seconds for normal live shows. Use 6-10 seconds if viewers report stalls, or 1-2 seconds when
+            low latency matters more than buffering.
+          </div>
+          <div className="flex items-end">
+            <Button disabled={pending} type="submit" variant="primary">
+              <Save className="h-4 w-4" aria-hidden="true" />
               Save
             </Button>
           </div>

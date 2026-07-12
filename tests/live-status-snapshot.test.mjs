@@ -19,6 +19,9 @@ function livePayload(overrides = {}) {
       status: "unknown"
     },
     offlineImageUrl: null,
+    playbackSettings: {
+      playbackBufferSeconds: 4
+    },
     playbackUrl: "https://example.test/live/master.m3u8",
     provider: {
       activeIngests: [],
@@ -83,4 +86,15 @@ test("live status signature ignores checkedAt-only heartbeat noise", () => {
   });
 
   assert.equal(liveStatusSignature(first), liveStatusSignature(second));
+});
+
+test("live status signature changes when playback buffer settings change", () => {
+  const first = livePayload();
+  const second = livePayload({
+    playbackSettings: {
+      playbackBufferSeconds: 8
+    }
+  });
+
+  assert.notEqual(liveStatusSignature(first), liveStatusSignature(second));
 });
