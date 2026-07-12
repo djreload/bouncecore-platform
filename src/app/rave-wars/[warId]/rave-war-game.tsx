@@ -294,7 +294,19 @@ function playRaveWarSfx(kind: RaveWarSfx) {
   scheduleTone({ context, duration: 0.12, endFrequency: 130, frequency: 170, gain: 0.045, startAt: now, type: "square" });
 }
 
-function HedgehogFrame({ facing, isWalking }: { facing: RaveWarPlayerState["facing"]; isWalking: boolean }) {
+function HedgehogFrame({
+  angle,
+  facing,
+  isWalking,
+  showWeapon,
+  weapon
+}: {
+  angle: number;
+  facing: RaveWarPlayerState["facing"];
+  isWalking: boolean;
+  showWeapon: boolean;
+  weapon: (typeof raveWarWeapons)[number];
+}) {
   return (
     <span className="bc-rave-war-hog-shell" data-facing={facing}>
       <span
@@ -304,6 +316,20 @@ function HedgehogFrame({ facing, isWalking }: { facing: RaveWarPlayerState["faci
           backgroundImage: `url(${raveWarAssets.hedgehogIdle})`
         }}
       />
+      {showWeapon ? (
+        <Image
+          alt=""
+          className="bc-rave-war-hog-weapon"
+          draggable={false}
+          height={32}
+          src={weapon.icon}
+          style={{
+            transform: `rotate(${facing === "left" ? -angle : angle}deg)`
+          }}
+          unoptimized
+          width={32}
+        />
+      ) : null}
     </span>
   );
 }
@@ -324,9 +350,14 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [isAiming, setIsAiming] = useState(false);
   const [animatedShot, setAnimatedShot] = useState<RaveWarAnimatedShot | null>(null);
   const [impactPulse, setImpactPulse] = useState<RaveWarImpactPulse | null>(null);
+  const [walkingPlayerIds, setWalkingPlayerIds] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const walkingTimeoutsRef = useRef(new Map<string, number>());
+  const lastPlayerPositionsRef = useRef(
+    new Map(initialWar.state.players.map((player) => [player.userId, { x: player.x, y: player.y }]))
+  );
   const mapStyle = useMemo(
     () => ({
       backgroundColor: war.level.backgroundColor
@@ -354,11 +385,59 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const warEndsAtMs = war.state.warEndsAt ? Date.parse(war.state.warEndsAt) : Number.NaN;
   const remainingWarSeconds = Number.isFinite(warEndsAtMs) ? Math.max(0, Math.ceil((warEndsAtMs - nowMs) / 1000)) : null;
 
+  const markPlayerWalking = useCallback((userId: string) => {
+    setWalkingPlayerIds((current) => {
+      const next = new Set(current);
+      next.add(userId);
+      return next;
+    });
+
+    const existingTimeout = walkingTimeoutsRef.current.get(userId);
+
+    if (existingTimeout !== undefined) {
+      window.clearTimeout(existingTimeout);
+    }
+
+    const timeout = window.setTimeout(() => {
+      setWalkingPlayerIds((current) => {
+        if (!current.has(userId)) {
+          return current;
+        }
+
+        const next = new Set(current);
+        next.delete(userId);
+        return next;
+      });
+      walkingTimeoutsRef.current.delete(userId);
+    }, 720);
+
+    walkingTimeoutsRef.current.set(userId, timeout);
+  }, [setWalkingPlayerIds]);
+
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
     setWar(nextWar);
     setError(null);
 
     const nextCurrentPlayer = nextWar.state.players.find((player) => player.userId === currentUserId);
+    const seenUserIds = new Set<string>();
+
+    for (const player of nextWar.state.players) {
+      seenUserIds.add(player.userId);
+
+      const previousPosition = lastPlayerPositionsRef.current.get(player.userId);
+
+      if (previousPosition && Math.abs(previousPosition.x - player.x) > 1) {
+        markPlayerWalking(player.userId);
+      }
+
+      lastPlayerPositionsRef.current.set(player.userId, { x: player.x, y: player.y });
+    }
+
+    for (const userId of lastPlayerPositionsRef.current.keys()) {
+      if (!seenUserIds.has(userId)) {
+        lastPlayerPositionsRef.current.delete(userId);
+      }
+    }
 
     if (nextCurrentPlayer) {
       setAngle(nextCurrentPlayer.angle);
@@ -366,7 +445,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       setPower(nextCurrentPlayer.power);
       setSelectedWeapon(nextCurrentPlayer.selectedWeapon);
     }
-  }, [currentUserId, setAimFacing, setAngle, setError, setPower, setSelectedWeapon, setWar]);
+  }, [currentUserId, markPlayerWalking, setAimFacing, setAngle, setError, setPower, setSelectedWeapon, setWar]);
 
   const refreshWarFromPayload = useCallback((payload: WarPayload) => {
     if (payload.war) {
@@ -523,9 +602,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       }
 
       setAimFacing(direction);
+      markPlayerWalking(currentUserId);
       await postWarAction("move", { direction });
     },
-    [canFire, postWarAction, setAimFacing]
+    [canFire, currentUserId, markPlayerWalking, postWarAction, setAimFacing]
   );
 
   const handleBattlefieldKeyDown = useCallback(
@@ -749,6 +829,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       if (impactPulseTimeoutRef.current !== null) {
         window.clearTimeout(impactPulseTimeoutRef.current);
       }
+
+      for (const timeout of walkingTimeoutsRef.current.values()) {
+        window.clearTimeout(timeout);
+      }
+
+      walkingTimeoutsRef.current.clear();
     },
     []
   );
@@ -940,23 +1026,14 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       }`}
                     />
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                      <HedgehogFrame facing={displayFacing} isWalking={isActivePlayer && war.status === "active"} />
-                    </div>
-                    {isActivePlayer ? (
-                      <Image
-                        alt=""
-                        className="absolute bottom-8 left-1/2 h-10 w-10 -translate-x-1/2 object-contain drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
-                        draggable={false}
-                        height={40}
-                        src={playerWeapon.icon}
-                        style={{
-                          transform: `translateX(-50%) scaleX(${displayFacing === "left" ? -1 : 1}) rotate(${displayFacing === "left" ? -angle : angle}deg)`,
-                          transformOrigin: displayFacing === "left" ? "42% 54%" : "58% 54%"
-                        }}
-                        unoptimized
-                        width={40}
+                      <HedgehogFrame
+                        angle={player.userId === currentUserId ? angle : player.angle}
+                        facing={displayFacing}
+                        isWalking={walkingPlayerIds.has(player.userId)}
+                        showWeapon={isActivePlayer}
+                        weapon={playerWeapon}
                       />
-                    ) : null}
+                    </div>
                     <div
                       className="absolute bottom-0 left-1/2 h-1.5 w-16 -translate-x-1/2 overflow-hidden rounded-full border border-black/60 bg-black/70"
                       style={{ boxShadow: `0 0 0 1px ${player.color}` }}

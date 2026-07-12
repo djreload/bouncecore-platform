@@ -1754,20 +1754,21 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
 }
 
 .bc-rave-war-hog-shell {
+  position: relative;
   display: block;
-  width: 64px;
+  width: 32px;
   height: 32px;
-  transform: scale(1.72);
+  transform: scale(2.15);
   transform-origin: center bottom;
 }
 
 .bc-rave-war-hog-shell[data-facing="left"] {
-  transform: scale(1.72) scaleX(-1);
+  transform: scale(2.15) scaleX(-1);
 }
 
 .bc-rave-war-hog-frame {
   display: block;
-  width: 64px;
+  width: 32px;
   height: 32px;
   background-position: 0 0;
   background-repeat: no-repeat;
@@ -1776,8 +1777,21 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   image-rendering: auto;
 }
 
+.bc-rave-war-hog-weapon {
+  position: absolute;
+  right: -9px;
+  bottom: 12px;
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 3px 0 rgba(0, 0, 0, 0.55))
+    drop-shadow(0 6px 8px rgba(0, 0, 0, 0.52));
+  transform-origin: 8% 62%;
+}
+
 .bc-rave-war-hog-frame[data-walking="true"] {
-  animation: bc-rave-war-hog-walk 0.82s steps(16) infinite;
+  animation: bc-rave-war-hog-walk 0.58s steps(16) infinite;
 }
 
 @keyframes bc-rave-war-hog-walk {
@@ -1907,11 +1921,11 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   }
 
   .bc-rave-war-hog-shell {
-    transform: scale(1.12);
+    transform: scale(1.55);
   }
 
   .bc-rave-war-hog-shell[data-facing="left"] {
-    transform: scale(1.12) scaleX(-1);
+    transform: scale(1.55) scaleX(-1);
   }
 }
 
