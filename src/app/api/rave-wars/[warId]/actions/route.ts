@@ -35,6 +35,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({
         war: await fireRaveWarShot(warId, user.id, {
           angle: payload.angle,
+          facing: payload.facing,
           power: payload.power,
           weaponId: payload.weaponId
         })

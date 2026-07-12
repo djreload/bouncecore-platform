@@ -5,6 +5,13 @@ import { chatPresenceOnlineMs } from "@/lib/chat/chat-presence-core";
 import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { prisma } from "@/lib/db/prisma";
+import {
+  appendTerrainCrater,
+  raveWarMaxTerrainCraters,
+  settlePlayerOnTerrain,
+  settlePlayersOnTerrain,
+  simulateRaveWarShot
+} from "@/lib/rave-wars/rave-war-engine";
 import { getRaveWarLevel, type RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
 import { publishRaveWarChanged } from "@/lib/rave-wars/rave-war-realtime";
 import {
@@ -22,7 +29,6 @@ import {
   type RaveWarLastShot,
   type RaveWarParticipantSummary,
   type RaveWarPlayerState,
-  type RaveWarShotPoint,
   type RaveWarState,
   type RaveWarStatus,
   type RaveWarSummary,
@@ -34,66 +40,9 @@ const raveWarSettingsKey = "chat.rave_wars";
 const raveWarHealth = 100;
 const raveWarMaxLogEntries = 8;
 const explosionRadius = 150;
-const maxTerrainCraters = 36;
 const raveWarTurnSeconds = 45;
 const raveWarTurnMovement = 220;
 const raveWarMoveStep = 34;
-
-type RaveWarWeaponConfig = {
-  blastRadius: number;
-  craterMax: number;
-  craterMin: number;
-  craterPowerScale: number;
-  gravity: number;
-  hitRadius: number;
-  maxDamage: number;
-  pathStep: number;
-  projectileStepLimit: number;
-  speedBase: number;
-  speedPowerScale: number;
-};
-
-const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> = {
-  bazooka: {
-    blastRadius: 150,
-    craterMax: 174,
-    craterMin: 118,
-    craterPowerScale: 0.42,
-    gravity: 0.36,
-    hitRadius: 54,
-    maxDamage: 76,
-    pathStep: 2,
-    projectileStepLimit: 360,
-    speedBase: 10,
-    speedPowerScale: 0.35
-  },
-  grenade: {
-    blastRadius: 138,
-    craterMax: 152,
-    craterMin: 104,
-    craterPowerScale: 0.36,
-    gravity: 0.48,
-    hitRadius: 48,
-    maxDamage: 64,
-    pathStep: 2,
-    projectileStepLimit: 340,
-    speedBase: 7.5,
-    speedPowerScale: 0.31
-  },
-  shotgun: {
-    blastRadius: 72,
-    craterMax: 88,
-    craterMin: 48,
-    craterPowerScale: 0.2,
-    gravity: 0.015,
-    hitRadius: 42,
-    maxDamage: 34,
-    pathStep: 1,
-    projectileStepLimit: 92,
-    speedBase: 38,
-    speedPowerScale: 0.12
-  }
-};
 
 type RaveWarParticipantSource = {
   acceptedAt: Date | null;
@@ -194,14 +143,14 @@ function createInitialState(input: {
       const spawn = input.level.spawns[player.playerIndex] ?? input.level.spawns[0];
 
       return {
-        angle: 45,
+        angle: 80,
         color: colors[player.playerIndex] ?? "#a3ff12",
         displayName: player.displayName,
         facing: spawn.facing,
         health: raveWarHealth,
         movementLeft: raveWarTurnMovement,
         playerIndex: player.playerIndex,
-        power: 68,
+        power: 65,
         selectedWeapon: "bazooka",
         userId: player.userId,
         x: spawn.x,
@@ -241,14 +190,14 @@ function normalizePlayerState(value: unknown): RaveWarPlayerState | null {
   }
 
   return {
-    angle: normalizeShotNumber(value.angle, 45, 0, 90),
+    angle: normalizeShotNumber(value.angle, 80, 0, 90),
     color: typeof value.color === "string" ? value.color : "#00d5ff",
     displayName,
     facing: value.facing === "left" ? "left" : "right",
     health: normalizeShotNumber(value.health, raveWarHealth, 0, raveWarHealth),
     movementLeft: normalizeShotNumber(value.movementLeft, raveWarTurnMovement, 0, raveWarTurnMovement),
     playerIndex: normalizeShotNumber(value.playerIndex, 0, 0, 7),
-    power: normalizeShotNumber(value.power, 68, 10, 100),
+    power: normalizeShotNumber(value.power, 65, 10, 100),
     selectedWeapon: normalizeWeaponId(value.selectedWeapon),
     userId,
     x: normalizeShotNumber(value.x, 0, 0, 4096),
@@ -269,7 +218,7 @@ function normalizeShotPath(value: unknown): RaveWarLastShot | null {
   }
 
   return {
-    angle: normalizeShotNumber(value.angle, 45, 0, 90),
+    angle: normalizeShotNumber(value.angle, 80, 0, 90),
     blastRadius: normalizeShotNumber(value.blastRadius, explosionRadius, 24, 240),
     crater: normalizeTerrainCrater(value.crater),
     damage: normalizeShotNumber(value.damage, 0, 0, raveWarHealth),
@@ -295,7 +244,7 @@ function normalizeShotPath(value: unknown): RaveWarLastShot | null {
         y: normalizeShotNumber(point.y, 0, -4096, 8192)
       }))
       .slice(0, 140),
-    power: normalizeShotNumber(value.power, 68, 10, 100),
+    power: normalizeShotNumber(value.power, 65, 10, 100),
     shooterUserId,
     targetUserId,
     weaponId: normalizeWeaponId(value.weaponId)
@@ -322,7 +271,7 @@ function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarPar
   return {
     activeUserId: typeof value.activeUserId === "string" ? value.activeUserId : null,
     craters: Array.isArray(value.craters)
-      ? value.craters.map(normalizeTerrainCrater).filter((crater): crater is RaveWarTerrainCrater => Boolean(crater)).slice(-maxTerrainCraters)
+      ? value.craters.map(normalizeTerrainCrater).filter((crater): crater is RaveWarTerrainCrater => Boolean(crater)).slice(-raveWarMaxTerrainCraters)
       : [],
     lastShot: normalizeShotPath(value.lastShot),
     levelKey: typeof value.levelKey === "string" ? value.levelKey : level.key,
@@ -596,78 +545,6 @@ async function writeWarEvent(
       warId: input.warId
     }
   });
-}
-
-function baseTerrainSurfaceY(level: RaveWarLevel, x: number) {
-  const sampleStep = level.terrain.sampleStep;
-  const sampleX = clamp(x, 0, level.width);
-  const index = Math.floor(sampleX / sampleStep);
-  const nextIndex = Math.min(level.terrain.surfaceY.length - 1, index + 1);
-  const currentY = level.terrain.surfaceY[index] ?? level.height + 160;
-  const nextY = level.terrain.surfaceY[nextIndex] ?? currentY;
-  const blend = (sampleX - index * sampleStep) / sampleStep;
-
-  return currentY + (nextY - currentY) * blend;
-}
-
-function terrainSurfaceY(level: RaveWarLevel, craters: RaveWarTerrainCrater[], x: number) {
-  let surface = baseTerrainSurfaceY(level, x);
-
-  for (const crater of craters) {
-    const dx = x - crater.x;
-    const absDx = Math.abs(dx);
-
-    if (absDx >= crater.radius) {
-      continue;
-    }
-
-    const craterBottomY = crater.y + Math.sqrt(crater.radius ** 2 - dx ** 2);
-
-    if (craterBottomY > surface) {
-      surface = craterBottomY;
-    }
-  }
-
-  return clamp(surface, 0, level.height + 220);
-}
-
-function settlePlayerOnTerrain(level: RaveWarLevel, craters: RaveWarTerrainCrater[], player: RaveWarPlayerState): RaveWarPlayerState {
-  return {
-    ...player,
-    y: Math.round(terrainSurfaceY(level, craters, player.x))
-  };
-}
-
-function settlePlayersOnTerrain(level: RaveWarLevel, craters: RaveWarTerrainCrater[], players: RaveWarPlayerState[]) {
-  return players.map((player) => settlePlayerOnTerrain(level, craters, player));
-}
-
-function craterForImpact(input: {
-  impactKind: RaveWarLastShot["impactKind"];
-  impactPoint: RaveWarShotPoint;
-  level: RaveWarLevel;
-  power: number;
-  weaponId: RaveWarWeaponId;
-}) {
-  if (input.impactKind === "out-of-bounds") {
-    return null;
-  }
-
-  const weapon = raveWarWeaponConfigs[input.weaponId];
-
-  return {
-    radius: Math.round(clamp(weapon.blastRadius * 0.78 + input.power * weapon.craterPowerScale, weapon.craterMin, weapon.craterMax)),
-    x: Math.round(clamp(input.impactPoint.x, 0, input.level.width)),
-    y: Math.round(clamp(input.impactPoint.y, 0, input.level.height + 120))
-  } satisfies RaveWarTerrainCrater;
-}
-
-function appendTerrainCrater(craters: RaveWarTerrainCrater[], crater: RaveWarTerrainCrater | null) {
-  return crater ? [...craters, crater].slice(-maxTerrainCraters) : craters;
-}
-
-function shotDamageForDistance(distance: number, weapon: RaveWarWeaponConfig) {
-  return distance <= weapon.blastRadius ? Math.max(10, Math.round((1 - distance / weapon.blastRadius) * weapon.maxDamage)) : 0;
 }
 
 export async function createRaveWarChallenge(roomId: string, challengerId: string, targetUserId: string) {
@@ -1289,101 +1166,7 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
   return toWarSummary(result.war, userId);
 }
 
-function simulateShot(input: {
-  angle: number;
-  craters: RaveWarTerrainCrater[];
-  level: RaveWarLevel;
-  power: number;
-  shooter: RaveWarPlayerState;
-  target: RaveWarPlayerState;
-  weaponId: RaveWarWeaponId;
-}) {
-  const weapon = raveWarWeaponConfigs[input.weaponId];
-  const radians = (input.angle * Math.PI) / 180;
-  const direction = input.shooter.facing === "left" ? -1 : 1;
-  const speed = weapon.speedBase + input.power * weapon.speedPowerScale;
-  let x = input.shooter.x + direction * 30;
-  let y = input.shooter.y - 46;
-  const vx = Math.cos(radians) * speed * direction;
-  let vy = -Math.sin(radians) * speed;
-  let closestDistance = Number.POSITIVE_INFINITY;
-  let impactKind: RaveWarLastShot["impactKind"] = "out-of-bounds";
-  let impactPoint = {
-    x,
-    y
-  };
-  const path: Array<{ x: number; y: number }> = [];
-
-  for (let step = 0; step < weapon.projectileStepLimit; step += 1) {
-    x += vx;
-    y += vy;
-    vy += weapon.gravity;
-
-    if (step % weapon.pathStep === 0) {
-      path.push({
-        x: Math.round(x),
-        y: Math.round(y)
-      });
-    }
-
-    const distance = Math.hypot(x - input.target.x, y - (input.target.y - 34));
-
-    closestDistance = Math.min(closestDistance, distance);
-
-    if (distance <= weapon.hitRadius) {
-      impactKind = "hog";
-      impactPoint = {
-        x,
-        y
-      };
-      break;
-    }
-
-    if (x < 0 || x > input.level.width || y > input.level.height + 160) {
-      impactKind = "out-of-bounds";
-      impactPoint = {
-        x,
-        y
-      };
-      break;
-    }
-
-    if (y >= terrainSurfaceY(input.level, input.craters, x)) {
-      impactKind = "terrain";
-      impactPoint = {
-        x,
-        y
-      };
-      break;
-    }
-  }
-
-  const impactDistance = Math.hypot(impactPoint.x - input.target.x, impactPoint.y - (input.target.y - 34));
-  const damage = shotDamageForDistance(impactKind === "out-of-bounds" ? closestDistance : impactDistance, weapon);
-  const normalizedImpactPoint = {
-    x: Math.round(impactPoint.x),
-    y: Math.round(impactPoint.y)
-  };
-  const crater = craterForImpact({
-    impactKind,
-    impactPoint: normalizedImpactPoint,
-    level: input.level,
-    power: input.power,
-    weaponId: input.weaponId
-  });
-
-  return {
-    blastRadius: weapon.blastRadius,
-    crater,
-    damage,
-    distance: Math.round(impactKind === "out-of-bounds" ? closestDistance : impactDistance),
-    impactKind,
-    impactPoint: normalizedImpactPoint,
-    path: path.slice(0, 140)
-  };
-}
-
-export async function fireRaveWarShot(warId: string, userId: string, input: { angle: unknown; power: unknown; weaponId?: unknown }) {
+export async function fireRaveWarShot(warId: string, userId: string, input: { angle: unknown; facing?: unknown; power: unknown; weaponId?: unknown }) {
   const war = await getWarForUserRecord(warId, userId);
 
   if (!war) {
@@ -1415,12 +1198,20 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
   const angle = normalizeShotNumber(input.angle, shooter.angle, 0, 90);
   const power = normalizeShotNumber(input.power, shooter.power, 10, 100);
   const weaponId = normalizeWeaponId(input.weaponId ?? shooter.selectedWeapon);
-  const shot = simulateShot({
+  const facing = input.facing === "left" || input.facing === "right" ? input.facing : shooter.facing;
+  const shooterForShot: RaveWarPlayerState = {
+    ...shooter,
+    angle,
+    facing,
+    power,
+    selectedWeapon: weaponId
+  };
+  const shot = simulateRaveWarShot({
     angle,
     craters: state.craters,
     level,
     power,
-    shooter,
+    shooter: shooterForShot,
     target,
     weaponId
   });
@@ -1430,6 +1221,7 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
       return {
         ...player,
         angle,
+        facing,
         power,
         selectedWeapon: weaponId
       };

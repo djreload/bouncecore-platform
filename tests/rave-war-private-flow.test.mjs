@@ -63,6 +63,7 @@ test("rave war battlefield supports mouse aiming animated shots and sfx only", (
 test("rave war shots carve authoritative terrain craters and render imported game assets", () => {
   const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
   const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+  const engine = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-engine.ts"), "utf8");
   const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");
 
   assert.match(types, /export type RaveWarTerrainCrater/);
@@ -71,9 +72,9 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(types, /blastRadius: number/);
   assert.match(types, /turnEndsAt: string \| null/);
   assert.match(service, /appendTerrainCrater/);
-  assert.match(service, /terrainSurfaceY\(level, craters/);
+  assert.match(engine, /terrainSurfaceY\(level, craters/);
   assert.match(service, /moveRaveWarPlayer/);
-  assert.match(service, /raveWarWeaponConfigs/);
+  assert.match(engine, /raveWarWeaponConfigs/);
   assert.match(service, /settlePlayersOnTerrain/);
   assert.match(service, /craters: nextCraters/);
   assert.match(game, /mask id=\{terrainMaskId\}/);

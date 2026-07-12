@@ -30,13 +30,13 @@ export const bazookaBattlefieldLevel: RaveWarLevel = {
   spawns: [
     {
       facing: "right",
-      x: 276,
-      y: 825
+      x: 800,
+      y: 643
     },
     {
       facing: "left",
-      x: 1794,
-      y: 716
+      x: 1840,
+      y: 770
     }
   ],
   terrain: {

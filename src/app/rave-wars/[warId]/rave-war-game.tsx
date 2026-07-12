@@ -129,8 +129,9 @@ function levelPointFromPointer(
 }
 
 function aimSettingsFromLevelPoint(player: RaveWarPlayerState, point: RaveWarShotPoint, level: RaveWarSummary["level"]) {
+  const facing: RaveWarPlayerState["facing"] = point.x < player.x ? "left" : "right";
   const muzzleY = player.y - 34;
-  const facingX = player.facing === "left" ? player.x - point.x : point.x - player.x;
+  const facingX = Math.abs(point.x - player.x);
   const vertical = muzzleY - point.y;
   const angle = clampNumber((Math.atan2(Math.max(0, vertical), Math.max(12, facingX)) * 180) / Math.PI, 0, 90);
   const distance = Math.hypot(facingX, vertical);
@@ -139,6 +140,7 @@ function aimSettingsFromLevelPoint(player: RaveWarPlayerState, point: RaveWarSho
 
   return {
     angle: Math.round(angle),
+    facing,
     power: Math.round(power)
   };
 }
@@ -303,9 +305,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const activePlayer = war.state.players.find((player) => player.userId === war.turnUserId) ?? null;
   const opponent = war.state.players.find((player) => player.userId !== currentUserId) ?? null;
   const winner = war.winnerUserId ? war.state.players.find((player) => player.userId === war.winnerUserId) : null;
-  const [angle, setAngle] = useState(currentPlayer?.angle ?? 45);
-  const [power, setPower] = useState(currentPlayer?.power ?? 68);
+  const [angle, setAngle] = useState(currentPlayer?.angle ?? 80);
+  const [power, setPower] = useState(currentPlayer?.power ?? 65);
   const [selectedWeapon, setSelectedWeapon] = useState<RaveWarWeaponId>(currentPlayer?.selectedWeapon ?? "bazooka");
+  const [aimFacing, setAimFacing] = useState<RaveWarPlayerState["facing"]>(currentPlayer?.facing ?? "right");
   const [isAiming, setIsAiming] = useState(false);
   const [animatedShot, setAnimatedShot] = useState<RaveWarAnimatedShot | null>(null);
   const [impactPulse, setImpactPulse] = useState<RaveWarImpactPulse | null>(null);
@@ -324,7 +327,13 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const currentShotKey = shotKey(war.state.lastShot);
   const visibleShotPath =
     animatedShot && animatedShot.key === currentShotKey ? animatedShot.trail : war.state.lastShot?.path ?? [];
-  const aimPreview = currentPlayer ? aimPreviewFromPlayer(currentPlayer, angle, power) : null;
+  const currentAimPlayer = currentPlayer
+    ? {
+        ...currentPlayer,
+        facing: aimFacing
+      }
+    : null;
+  const aimPreview = currentAimPlayer ? aimPreviewFromPlayer(currentAimPlayer, angle, power) : null;
   const shellRotation = projectileRotationFromTrail(animatedShot?.trail ?? []);
   const lastBlastRadius = war.state.lastShot?.blastRadius ?? 150;
   const lastWeapon = raveWarWeaponsById.get(war.state.lastShot?.weaponId ?? "bazooka") ?? raveWarWeapons[0];
@@ -339,9 +348,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
     if (nextCurrentPlayer) {
       setAngle(nextCurrentPlayer.angle);
+      setAimFacing(nextCurrentPlayer.facing);
       setPower(nextCurrentPlayer.power);
+      setSelectedWeapon(nextCurrentPlayer.selectedWeapon);
     }
-  }, [currentUserId, setAngle, setError, setPower, setWar]);
+  }, [currentUserId, setAimFacing, setAngle, setError, setPower, setSelectedWeapon, setWar]);
 
   const refreshWarFromPayload = useCallback((payload: WarPayload) => {
     if (payload.war) {
@@ -431,9 +442,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       const nextAim = aimSettingsFromLevelPoint(currentPlayer, levelPointFromPointer(event, element, war.level), war.level);
 
       setAngle(nextAim.angle);
+      setAimFacing(nextAim.facing);
       setPower(nextAim.power);
     },
-    [canFire, currentPlayer, setAngle, setPower, war.level]
+    [canFire, currentPlayer, setAimFacing, setAngle, setPower, war.level]
   );
 
   const handleBattlefieldPointerDown = useCallback(
@@ -477,8 +489,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     }
 
     playRaveWarSfx("fire");
-    await postWarAction("fire", { angle, power, weaponId: selectedWeapon });
-  }, [angle, canFire, postWarAction, power, selectedWeapon]);
+    await postWarAction("fire", { angle, facing: aimFacing, power, weaponId: selectedWeapon });
+  }, [aimFacing, angle, canFire, postWarAction, power, selectedWeapon]);
 
   const moveCurrentPlayer = useCallback(
     async (direction: "left" | "right") => {
@@ -487,9 +499,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return;
       }
 
+      setAimFacing(direction);
       await postWarAction("move", { direction });
     },
-    [canFire, postWarAction]
+    [canFire, postWarAction, setAimFacing]
   );
 
   const handleBattlefieldKeyDown = useCallback(
@@ -867,6 +880,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
             {war.state.players.map((player) => {
               const isActivePlayer = war.turnUserId === player.userId;
+              const displayFacing = player.userId === currentUserId ? aimFacing : player.facing;
               const playerWeapon = raveWarWeaponsById.get(player.userId === currentUserId ? selectedWeapon : player.selectedWeapon) ?? raveWarWeapons[0];
 
               return (
@@ -885,7 +899,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       }`}
                     />
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                      <HedgehogFrame facing={player.facing} isWalking={isActivePlayer && war.status === "active"} />
+                      <HedgehogFrame facing={displayFacing} isWalking={isActivePlayer && war.status === "active"} />
                     </div>
                     {isActivePlayer ? (
                       <Image
@@ -895,8 +909,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                         height={40}
                         src={playerWeapon.icon}
                         style={{
-                          transform: `translateX(-50%) scaleX(${player.facing === "left" ? -1 : 1}) rotate(${player.facing === "left" ? -angle : angle}deg)`,
-                          transformOrigin: player.facing === "left" ? "42% 54%" : "58% 54%"
+                          transform: `translateX(-50%) scaleX(${displayFacing === "left" ? -1 : 1}) rotate(${displayFacing === "left" ? -angle : angle}deg)`,
+                          transformOrigin: displayFacing === "left" ? "42% 54%" : "58% 54%"
                         }}
                         unoptimized
                         width={40}
