@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-test("Android WebView identifies itself and pauses timers/media on lifecycle changes", () => {
+test("Android WebView keeps live audio alive only while persistent playback is active", () => {
   const activity = readFileSync(
     join(process.cwd(), "android-webview/app/src/main/java/uk/co/bouncecore/app/MainActivity.java"),
     "utf8"
@@ -11,6 +11,9 @@ test("Android WebView identifies itself and pauses timers/media on lifecycle cha
 
   assert.match(activity, /BouncecoreAndroid\//);
   assert.match(activity, /settings\.setUserAgentString/);
+  assert.match(activity, /persistentAudioActive/);
+  assert.match(activity, /setPersistentAudioActive\(boolean active\)/);
+  assert.match(activity, /webView != null && !persistentAudioActive/);
   assert.match(activity, /webView\.onPause\(\)/);
   assert.match(activity, /webView\.pauseTimers\(\)/);
   assert.match(activity, /webView\.onResume\(\)/);
@@ -18,12 +21,15 @@ test("Android WebView identifies itself and pauses timers/media on lifecycle cha
   assert.doesNotMatch(activity, /FLAG_KEEP_SCREEN_ON/);
 });
 
-test("persistent livestream playback suspends hidden and off-live Android WebView decode", () => {
+test("persistent livestream playback stays alive after user-enabled background audio", () => {
   const player = readFileSync(join(process.cwd(), "src/components/live/persistent-live-audio.tsx"), "utf8");
   const runtime = readFileSync(join(process.cwd(), "src/lib/runtime/mobile-app-runtime.ts"), "utf8");
 
   assert.match(runtime, /bouncecoreAndroidUserAgentToken/);
   assert.match(player, /shouldSuspendPersistentPlayback/);
+  assert.match(player, /if \(userEnabled\)/);
+  assert.match(player, /setAndroidPersistentAudioActive/);
+  assert.match(player, /persistentAudioActive = userEnabled && canPlay/);
   assert.match(player, /isBouncecoreAndroidRuntime\(\) && !isLivePath\(pathname\)/);
   assert.match(player, /document\.visibilityState === "hidden"/);
   assert.match(player, /suspendPlayback/);

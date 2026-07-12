@@ -115,6 +115,7 @@ public class MainActivity extends Activity {
     private boolean adConsentDialogShowing = false;
     private boolean notificationDisclosureShowing = false;
     private boolean raveWarModeActive = false;
+    private boolean persistentAudioActive = false;
     private int bannerRetryCount = 0;
     private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
@@ -555,6 +556,18 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setRaveWarActive(boolean active) {
             mainHandler.post(() -> setRaveWarMode(active));
+        }
+
+        @JavascriptInterface
+        public void setPersistentAudioActive(boolean active) {
+            mainHandler.post(() -> {
+                persistentAudioActive = active;
+
+                if (!persistentAudioActive && !activityResumed && webView != null) {
+                    webView.onPause();
+                    webView.pauseTimers();
+                }
+            });
         }
     }
 
@@ -1332,7 +1345,7 @@ public class MainActivity extends Activity {
 
         mainHandler.removeCallbacks(configRefreshRunnable);
         activityResumed = false;
-        if (webView != null) {
+        if (webView != null && !persistentAudioActive) {
             webView.onPause();
             webView.pauseTimers();
         }

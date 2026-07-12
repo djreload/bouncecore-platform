@@ -11,6 +11,12 @@ const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
 const liveVideoSlotSelector = "[data-live-primary-video-slot]";
 
+type AndroidAudioBridgeWindow = Window & {
+  BouncecoreAndroid?: {
+    setPersistentAudioActive?: (active: boolean) => void;
+  };
+};
+
 function isLikelyHls(playbackUrl: string | null) {
   if (!playbackUrl) {
     return false;
@@ -74,12 +80,28 @@ function isLivePath(pathname: string | null) {
   return pathname === "/live" || Boolean(pathname?.startsWith("/live/"));
 }
 
-function shouldSuspendPersistentPlayback(pathname: string | null) {
+function shouldSuspendPersistentPlayback(pathname: string | null, userEnabled: boolean) {
+  if (userEnabled) {
+    return false;
+  }
+
   if (typeof document !== "undefined" && document.visibilityState === "hidden") {
     return true;
   }
 
   return isBouncecoreAndroidRuntime() && !isLivePath(pathname);
+}
+
+function setAndroidPersistentAudioActive(active: boolean) {
+  if (typeof window === "undefined" || !isBouncecoreAndroidRuntime()) {
+    return;
+  }
+
+  try {
+    (window as AndroidAudioBridgeWindow).BouncecoreAndroid?.setPersistentAudioActive?.(active);
+  } catch {
+    // Older app shells do not expose this bridge method; web playback still works in foreground.
+  }
 }
 
 export function requestPersistentLiveAudio() {
@@ -121,10 +143,11 @@ export function PersistentLiveAudio() {
   const suspendPlaybackRef = useRef(false);
   const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
-  const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname));
+  const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname, false));
   const [userEnabled, setUserEnabled] = useState(false);
   const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
   const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline" && !suspendPlayback;
+  const persistentAudioActive = userEnabled && canPlay;
 
   useEffect(() => {
     canPlayRef.current = canPlay;
@@ -140,11 +163,11 @@ export function PersistentLiveAudio() {
 
   useEffect(() => {
     function updateSuspendState() {
-      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname));
+      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname, userEnabled));
     }
 
     function suspendForPageHide() {
-      setSuspendPlayback(true);
+      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname, userEnabled));
     }
 
     updateSuspendState();
@@ -157,7 +180,17 @@ export function PersistentLiveAudio() {
       window.removeEventListener("pagehide", suspendForPageHide);
       window.removeEventListener("pageshow", updateSuspendState);
     };
-  }, [pathname]);
+  }, [pathname, userEnabled]);
+
+  useEffect(() => {
+    setAndroidPersistentAudioActive(persistentAudioActive);
+  }, [persistentAudioActive]);
+
+  useEffect(() => {
+    return () => {
+      setAndroidPersistentAudioActive(false);
+    };
+  }, []);
 
   const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
     const video = videoRef.current;
