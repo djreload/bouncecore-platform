@@ -58,12 +58,15 @@ test("rave war battlefield supports mouse aiming animated shots and sfx only", (
   assert.match(game, /startChargingShot/);
   assert.match(game, /stopChargingShot\(true\)/);
   assert.doesNotMatch(game, /bc-rave-war-mobile-controls/);
-  assert.match(game, /bc-rave-war-battlefield relative mx-auto aspect-\[2\/1\] w-full max-w-full/);
+  assert.match(game, /bc-rave-war-shell fixed inset-0 z-\[80\] flex h-dvh w-dvw max-w-none/);
+  assert.match(game, /bc-rave-war-battlefield relative aspect-\[2\/1\] w-full max-w-full/);
+  assert.doesNotMatch(game, /lg:static/);
   assert.doesNotMatch(game, /bc-rave-war-battlefield[^\n]+h-full/);
   assert.match(game, /formatCountdown\(remainingWarSeconds\)/);
   assert.match(css, /bc-rave-war-active/);
   assert.match(css, /orientation: landscape/);
   assert.match(css, /bc-rave-war-rotate-prompt/);
+  assert.match(css, /html\.bc-rave-war-active,\s*html\.bc-rave-war-active body\s*{\s*height: 100%;\s*overflow: hidden;/s);
   assert.match(css, /width: min\(100%, calc\(\(100dvh - 4rem\) \* 2\)\)/);
   assert.match(css, /html\[data-bc-android-webview="true"\]\.bc-rave-war-active \.bc-rave-war-battlefield/);
   assert.match(css, /bc-rave-war-sidebar\s*{\s*display: none;/);
@@ -103,6 +106,7 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /walkingPlayerIds/);
   assert.match(game, /markPlayerWalking/);
   assert.match(game, /moveCurrentPlayer/);
+  assert.doesNotMatch(game, /closest\("input, textarea, select, button/);
   assert.match(game, /selectedWeapon/);
   assert.match(css, /\.bc-rave-war-hog-shell\s*{\s*position: relative;\s*display: block;\s*width: 32px;/s);
   assert.match(css, /\.bc-rave-war-hog-frame\s*{[^}]*width: 32px;[^}]*background-size: 64px 512px;/s);

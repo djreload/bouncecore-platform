@@ -203,7 +203,7 @@ function gameInputShouldIgnoreTarget(target: EventTarget | null) {
     return false;
   }
 
-  return Boolean(element.closest("input, textarea, select, button, [contenteditable='true']"));
+  return Boolean(element.closest("input, textarea, select, [contenteditable='true']"));
 }
 
 function getRaveWarAudioContext() {
@@ -1266,7 +1266,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
 
   return (
-    <section className="bc-rave-war-shell fixed inset-0 z-[80] mx-auto flex h-dvh w-full max-w-none flex-col gap-2 bg-bc-void p-2 lg:static lg:z-auto lg:h-full lg:min-h-[calc(100dvh-97px)] lg:max-w-[1680px] lg:gap-3 lg:bg-transparent lg:p-0">
+    <section className="bc-rave-war-shell fixed inset-0 z-[80] flex h-dvh w-dvw max-w-none flex-col gap-2 overflow-hidden bg-bc-void p-2 lg:gap-3 lg:p-3">
       <div className="bc-rave-war-rotate-prompt pointer-events-none absolute inset-0 z-30 hidden place-items-center bg-bc-void/96 p-6 text-center">
         <div className="max-w-xs rounded-md border border-bc-electric/40 bg-bc-panel p-5 shadow-2xl shadow-black/50">
           <Swords className="mx-auto h-10 w-10 text-bc-electric" aria-hidden="true" />
@@ -1295,11 +1295,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         </Link>
       </header>
 
-      <div className="bc-rave-war-layout grid min-h-0 flex-1 gap-2 lg:gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <div className="bc-rave-war-layout grid min-h-0 flex-1 gap-2 overflow-hidden lg:gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,20rem)]">
         <div className="bc-rave-war-stage-card min-h-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel p-1.5 lg:p-2">
           <div
             aria-label="Rave War battlefield. Move the mouse to aim. Hold the mouse button or Space to build power, then release to fire. Hold left and right or A and D to walk. Hold up and down or W and S to aim. Press Q and E for weapons."
-            className={`bc-rave-war-battlefield relative mx-auto aspect-[2/1] w-full max-w-full min-h-[220px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
+            className={`bc-rave-war-battlefield relative aspect-[2/1] w-full max-w-full min-h-[220px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
               canFire ? "cursor-crosshair touch-none" : "cursor-default"
             }`}
             data-charging={isChargingShot ? "true" : "false"}
@@ -1590,7 +1590,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
           </div>
         </div>
 
-        <aside className="bc-rave-war-sidebar grid content-start gap-3">
+        <aside className="bc-rave-war-sidebar grid min-h-0 content-start gap-3 overflow-y-auto pr-1">
           <section className="rounded-md border border-bc-line bg-bc-panel p-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-black uppercase">Players</h2>

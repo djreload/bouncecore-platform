@@ -1806,13 +1806,18 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
 
 .bc-rave-war-stage-card {
   display: grid;
+  min-width: 0;
+  min-height: 0;
   place-items: center;
 }
 
 .bc-rave-war-battlefield {
   contain: layout paint;
-  width: min(100%, calc((100dvh - 11rem) * 2));
-  max-height: calc(100dvh - 11rem);
+  width: min(100%, calc((100dvh - 8.5rem) * 2));
+  max-height: calc(100dvh - 8.5rem);
+  transform: translateZ(0);
+  touch-action: none;
+  will-change: transform;
 }
 
 .bc-rave-war-battlefield[data-charging="true"] {
@@ -2038,6 +2043,19 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+html.bc-rave-war-active,
+html.bc-rave-war-active body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: #000000;
+}
+
+html.bc-rave-war-active .bc-site-header,
+html.bc-rave-war-active .bc-site-footer {
+  display: none;
 }
 
 @media (max-width: 1023px) {
