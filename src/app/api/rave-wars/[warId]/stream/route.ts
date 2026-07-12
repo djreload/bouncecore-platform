@@ -41,6 +41,7 @@ function warSignature(war: RaveWarSummary) {
     turnNumber: war.state.turnNumber,
     turnStartedAt: war.state.turnStartedAt,
     turnUserId: war.turnUserId,
+    warEndsAt: war.state.warEndsAt,
     winnerUserId: war.winnerUserId
   });
 }

@@ -95,6 +95,18 @@ function formatStatus(status: string) {
   return status.replace(/-/g, " ").toUpperCase();
 }
 
+function formatCountdown(seconds: number | null) {
+  if (seconds === null) {
+    return "--";
+  }
+
+  const safeSeconds = Math.max(0, Math.ceil(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const trailingSeconds = safeSeconds % 60;
+
+  return `${minutes}:${String(trailingSeconds).padStart(2, "0")}`;
+}
+
 function healthTone(health: number) {
   if (health > 65) {
     return "bg-bc-acid";
@@ -339,6 +351,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const lastWeapon = raveWarWeaponsById.get(war.state.lastShot?.weaponId ?? "bazooka") ?? raveWarWeapons[0];
   const turnEndsAtMs = war.state.turnEndsAt ? Date.parse(war.state.turnEndsAt) : Number.NaN;
   const remainingTurnSeconds = Number.isFinite(turnEndsAtMs) ? Math.max(0, Math.ceil((turnEndsAtMs - nowMs) / 1000)) : null;
+  const warEndsAtMs = war.state.warEndsAt ? Date.parse(war.state.warEndsAt) : Number.NaN;
+  const remainingWarSeconds = Number.isFinite(warEndsAtMs) ? Math.max(0, Math.ceil((warEndsAtMs - nowMs) / 1000)) : null;
 
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
     setWar(nextWar);
@@ -492,6 +506,15 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     await postWarAction("fire", { angle, facing: aimFacing, power, weaponId: selectedWeapon });
   }, [aimFacing, angle, canFire, postWarAction, power, selectedWeapon]);
 
+  const cycleSelectedWeapon = useCallback((direction: -1 | 1) => {
+    setSelectedWeapon((current) => {
+      const currentIndex = raveWarWeapons.findIndex((weapon) => weapon.id === current);
+      const nextIndex = (currentIndex + direction + raveWarWeapons.length) % raveWarWeapons.length;
+
+      return raveWarWeapons[nextIndex]?.id ?? "bazooka";
+    });
+  }, [setSelectedWeapon]);
+
   const moveCurrentPlayer = useCallback(
     async (direction: "left" | "right") => {
       if (!canFire) {
@@ -549,15 +572,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
       if (event.key.toLowerCase() === "q" || event.key.toLowerCase() === "e") {
         event.preventDefault();
-        setSelectedWeapon((current) => {
-          const currentIndex = raveWarWeapons.findIndex((weapon) => weapon.id === current);
-          const nextIndex =
-            event.key.toLowerCase() === "q"
-              ? (currentIndex - 1 + raveWarWeapons.length) % raveWarWeapons.length
-              : (currentIndex + 1) % raveWarWeapons.length;
-
-          return raveWarWeapons[nextIndex]?.id ?? "bazooka";
-        });
+        cycleSelectedWeapon(event.key.toLowerCase() === "q" ? -1 : 1);
         return;
       }
 
@@ -566,7 +581,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         void fireCurrentShot();
       }
     },
-    [canFire, fireCurrentShot, moveCurrentPlayer, setAngle, setPower, setSelectedWeapon]
+    [canFire, cycleSelectedWeapon, fireCurrentShot, moveCurrentPlayer, setAngle, setPower]
   );
 
   useEffect(() => {
@@ -578,6 +593,22 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
     return () => window.clearInterval(interval);
   }, [war.status]);
+
+  useEffect(() => {
+    document.documentElement.classList.add("bc-rave-war-active");
+
+    const orientation = screen.orientation as ScreenOrientation & {
+      lock?: (orientation: OrientationLockType) => Promise<void>;
+      unlock?: () => void;
+    };
+
+    void orientation.lock?.("landscape").catch(() => undefined);
+
+    return () => {
+      document.documentElement.classList.remove("bc-rave-war-active");
+      orientation.unlock?.();
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -723,8 +754,16 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
 
   return (
-    <section className="mx-auto flex h-full min-h-[calc(100dvh-97px)] w-full max-w-[1680px] flex-col gap-3">
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-panel p-3">
+    <section className="bc-rave-war-shell fixed inset-0 z-[80] mx-auto flex h-dvh w-full max-w-none flex-col gap-2 bg-bc-void p-2 lg:static lg:z-auto lg:h-full lg:min-h-[calc(100dvh-97px)] lg:max-w-[1680px] lg:gap-3 lg:bg-transparent lg:p-0">
+      <div className="bc-rave-war-rotate-prompt pointer-events-none absolute inset-0 z-30 hidden place-items-center bg-bc-void/96 p-6 text-center">
+        <div className="max-w-xs rounded-md border border-bc-electric/40 bg-bc-panel p-5 shadow-2xl shadow-black/50">
+          <Swords className="mx-auto h-10 w-10 text-bc-electric" aria-hidden="true" />
+          <p className="mt-3 text-lg font-black">Rotate to landscape</p>
+          <p className="mt-2 text-sm text-bc-muted">Rave War uses a wide battlefield and mobile controls while the battle is active.</p>
+        </div>
+      </div>
+
+      <header className="bc-rave-war-header flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-md border border-bc-line bg-bc-panel p-2 lg:gap-3 lg:p-3">
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-bc-electric/45 bg-bc-electric/10 text-bc-electric">
             <Swords className="h-5 w-5" aria-hidden="true" />
@@ -733,8 +772,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone={war.status === "active" ? "acid" : war.status === "finished" ? "pink" : "cyan"}>{formatStatus(war.status)}</Badge>
               <Badge tone="muted">#{war.roomSlug}</Badge>
+              <Badge tone={remainingWarSeconds !== null && remainingWarSeconds <= 30 ? "pink" : "cyan"}>War {formatCountdown(remainingWarSeconds)}</Badge>
+              <Badge tone={remainingTurnSeconds !== null && remainingTurnSeconds <= 10 ? "pink" : "amber"}>Turn {formatCountdown(remainingTurnSeconds)}</Badge>
             </div>
-            <h1 className="mt-1 truncate text-xl font-black">{war.level.name}</h1>
+            <h1 className="mt-1 truncate text-base font-black lg:text-xl">{war.level.name}</h1>
           </div>
         </div>
         <Link className="bc-focus-ring rounded-md border border-bc-line px-3 py-2 text-sm font-semibold text-white transition hover:border-bc-electric/60" href="/live">
@@ -742,11 +783,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         </Link>
       </header>
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-h-0 rounded-md border border-bc-line bg-bc-panel p-2">
+      <div className="bc-rave-war-layout grid min-h-0 flex-1 gap-2 lg:gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="bc-rave-war-stage-card min-h-0 rounded-md border border-bc-line bg-bc-panel p-1.5 lg:p-2">
           <div
             aria-label="Rave War battlefield. Move the mouse or drag on the map to aim. Use left and right or A and D to walk. Use up and down or W and S to aim. Use plus and minus for power. Press Q and E for weapons. Double click the map, press Enter, or press Space to shoot."
-            className={`relative mx-auto aspect-[2/1] max-h-[calc(100dvh-190px)] min-h-[260px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
+            className={`bc-rave-war-battlefield relative mx-auto aspect-[2/1] h-full max-h-[calc(100dvh-190px)] min-h-[220px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
               canFire ? "cursor-crosshair touch-none" : "cursor-default"
             }`}
             onDoubleClick={() => void fireCurrentShot()}
@@ -933,9 +974,79 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               );
             })}
           </div>
+          <div className="bc-rave-war-mobile-controls mt-2 hidden rounded-md border border-bc-line bg-bc-ink p-2">
+            <div className="grid grid-cols-[1fr_1fr_1.2fr] gap-2">
+              <button
+                className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
+                disabled={!canFire || !currentPlayer?.movementLeft}
+                onClick={() => void moveCurrentPlayer("left")}
+                type="button"
+              >
+                Left
+              </button>
+              <button
+                className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 text-xs font-black text-white disabled:opacity-50"
+                disabled={!canFire || !currentPlayer?.movementLeft}
+                onClick={() => void moveCurrentPlayer("right")}
+                type="button"
+              >
+                Right
+              </button>
+              <Button className="min-h-9 px-2 text-xs" disabled={!canFire} onClick={() => void fireCurrentShot()} size="sm" type="button">
+                <Crosshair className="h-4 w-4" aria-hidden="true" />
+                Fire
+              </Button>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
+                  disabled={!canFire}
+                  onClick={() => setAngle((current) => clampNumber(current - 2, 0, 90))}
+                  type="button"
+                >
+                  A-
+                </button>
+                <button
+                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
+                  disabled={!canFire}
+                  onClick={() => setAngle((current) => clampNumber(current + 2, 0, 90))}
+                  type="button"
+                >
+                  A+
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <button
+                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
+                  disabled={!canFire}
+                  onClick={() => setPower((current) => clampNumber(current - 3, 10, 100))}
+                  type="button"
+                >
+                  P-
+                </button>
+                <button
+                  className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
+                  disabled={!canFire}
+                  onClick={() => setPower((current) => clampNumber(current + 3, 10, 100))}
+                  type="button"
+                >
+                  P+
+                </button>
+              </div>
+              <button
+                className="bc-focus-ring rounded-md border border-bc-line bg-bc-panel px-2 py-1 text-xs font-black text-white disabled:opacity-50"
+                disabled={!canFire}
+                onClick={() => cycleSelectedWeapon(1)}
+                type="button"
+              >
+                {raveWarWeaponsById.get(selectedWeapon)?.label ?? "Weapon"}
+              </button>
+            </div>
+          </div>
         </div>
 
-        <aside className="grid content-start gap-3">
+        <aside className="bc-rave-war-sidebar grid content-start gap-3">
           <section className="rounded-md border border-bc-line bg-bc-panel p-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-black uppercase">Players</h2>
@@ -1004,7 +1115,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       <span className="truncate font-semibold">{activePlayer ? `${activePlayer.displayName}'s turn` : "Turn changing"}</span>
                     </div>
                     <Badge tone={remainingTurnSeconds !== null && remainingTurnSeconds <= 10 ? "pink" : "amber"}>
-                      {remainingTurnSeconds !== null ? `${remainingTurnSeconds}s` : "--"}
+                      {formatCountdown(remainingTurnSeconds)}
                     </Badge>
                   </div>
                   {canFire ? (

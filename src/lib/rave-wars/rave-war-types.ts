@@ -61,6 +61,7 @@ export type RaveWarState = {
   turnNumber: number;
   turnStartedAt: string | null;
   version: 1;
+  warEndsAt: string | null;
   winnerUserId: string | null;
 };
 

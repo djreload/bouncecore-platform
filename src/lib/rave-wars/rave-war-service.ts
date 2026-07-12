@@ -40,7 +40,8 @@ const raveWarSettingsKey = "chat.rave_wars";
 const raveWarHealth = 100;
 const raveWarMaxLogEntries = 8;
 const explosionRadius = 150;
-const raveWarTurnSeconds = 45;
+const raveWarMatchSeconds = 5 * 60;
+const raveWarTurnSeconds = 60;
 const raveWarTurnMovement = 220;
 const raveWarMoveStep = 34;
 
@@ -114,8 +115,28 @@ function turnWindow(now = new Date()) {
   };
 }
 
+function matchWindow(now = new Date()) {
+  return {
+    warEndsAt: new Date(now.getTime() + raveWarMatchSeconds * 1000).toISOString()
+  };
+}
+
 function isTurnExpired(state: Pick<RaveWarState, "turnEndsAt">, now = new Date()) {
   return Boolean(state.turnEndsAt && new Date(state.turnEndsAt).getTime() <= now.getTime());
+}
+
+function isWarExpired(state: Pick<RaveWarState, "warEndsAt">, now = new Date()) {
+  return Boolean(state.warEndsAt && new Date(state.warEndsAt).getTime() <= now.getTime());
+}
+
+function warEndsAtFallback(startedAt: Date | string | null | undefined) {
+  if (!startedAt) {
+    return null;
+  }
+
+  const startedAtMs = startedAt instanceof Date ? startedAt.getTime() : new Date(startedAt).getTime();
+
+  return Number.isFinite(startedAtMs) ? new Date(startedAtMs + raveWarMatchSeconds * 1000).toISOString() : null;
 }
 
 function participantDisplayName(participant: RaveWarParticipantSource | null | undefined) {
@@ -161,6 +182,7 @@ function createInitialState(input: {
     turnNumber: 1,
     turnStartedAt: null,
     version: 1,
+    warEndsAt: null,
     winnerUserId: null
   };
 }
@@ -281,6 +303,7 @@ function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarPar
     turnNumber: normalizeShotNumber(value.turnNumber, 1, 1, 999),
     turnStartedAt: typeof value.turnStartedAt === "string" ? value.turnStartedAt : null,
     version: 1,
+    warEndsAt: typeof value.warEndsAt === "string" ? value.warEndsAt : null,
     winnerUserId: typeof value.winnerUserId === "string" ? value.winnerUserId : null
   };
 }
@@ -308,6 +331,11 @@ function currentUserRole(war: Pick<RaveWarSummarySource, "challengerId" | "targe
 
 function toWarSummary(war: RaveWarSummarySource, currentUserId: string): RaveWarSummary {
   const level = getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
+
+  if (normalizeRaveWarStatus(war.status) === "active" && !state.warEndsAt) {
+    state.warEndsAt = warEndsAtFallback(war.startedAt);
+  }
 
   return {
     acceptedAt: war.acceptedAt?.toISOString() ?? null,
@@ -326,7 +354,7 @@ function toWarSummary(war: RaveWarSummarySource, currentUserId: string): RaveWar
     roomName: war.room.name,
     roomSlug: war.room.slug,
     startedAt: war.startedAt?.toISOString() ?? null,
-    state: normalizeRaveWarState(war.state, war.participants, level),
+    state,
     status: normalizeRaveWarStatus(war.status),
     targetId: war.targetId,
     turnUserId: war.turnUserId,
@@ -498,7 +526,7 @@ async function resolveActiveChallengeTarget(challengerId: string, targetUserId: 
   return target;
 }
 
-async function getWarForUserRecord(warId: string, userId: string) {
+async function getWarForUserRecord(warId: string, userId: string): Promise<RaveWarSummarySource | null> {
   return prisma.raveWar.findFirst({
     where: {
       id: warId,
@@ -523,6 +551,252 @@ async function getWarForUserRecord(warId: string, userId: string) {
       }
     }
   });
+}
+
+function winningPlayerByHealth(players: RaveWarPlayerState[]) {
+  const sortedPlayers = players.slice().sort((first, second) => second.health - first.health);
+  const winner = sortedPlayers[0] ?? null;
+  const runnerUp = sortedPlayers[1] ?? null;
+
+  return winner && (!runnerUp || winner.health > runnerUp.health) ? winner : null;
+}
+
+function raveWarResultBody(input: {
+  loserDisplayName?: string;
+  players: RaveWarPlayerState[];
+  reason: "knockout" | "surrender" | "timeout";
+  winnerUserId: string | null;
+}) {
+  const winner = input.winnerUserId ? input.players.find((player) => player.userId === input.winnerUserId) : null;
+
+  if (input.reason === "surrender" && winner) {
+    return `${winner.displayName} won the Rave War after ${input.loserDisplayName ?? "their opponent"} surrendered.`;
+  }
+
+  if (input.reason === "timeout") {
+    return winner
+      ? `Time up! ${winner.displayName} won the Rave War on health.`
+      : "Time up! The Rave War ended in a draw.";
+  }
+
+  return winner ? `${winner.displayName} won the Rave War.` : "The Rave War ended in a draw.";
+}
+
+async function finishExpiredActiveRaveWarIfNeeded(war: RaveWarSummarySource, currentUserId: string) {
+  if (war.status !== "active") {
+    return war;
+  }
+
+  const level = getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
+  const effectiveWarEndsAt = state.warEndsAt ?? warEndsAtFallback(war.startedAt);
+
+  if (!effectiveWarEndsAt || new Date(effectiveWarEndsAt).getTime() > Date.now()) {
+    return war;
+  }
+
+  const winner = winningPlayerByHealth(state.players);
+  const winnerUserId = winner?.userId ?? null;
+  const nextState: RaveWarState = {
+    ...state,
+    activeUserId: null,
+    log: compactLog([
+      ...state.log,
+      winner ? `Time up. ${winner.displayName} won on health.` : "Time up. Rave War ended in a draw."
+    ]),
+    turnEndsAt: null,
+    turnStartedAt: null,
+    warEndsAt: effectiveWarEndsAt,
+    winnerUserId
+  };
+  const body = raveWarResultBody({
+    players: nextState.players,
+    reason: "timeout",
+    winnerUserId
+  });
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.raveWar.updateMany({
+      where: {
+        id: war.id,
+        status: "active"
+      },
+      data: {
+        endedAt: new Date(),
+        state: nextState as Prisma.InputJsonValue,
+        status: "finished",
+        turnUserId: null,
+        winnerUserId
+      }
+    });
+
+    if (updated.count !== 1) {
+      return {
+        event: null,
+        message: null,
+        war: null
+      };
+    }
+
+    const updatedWar = await tx.raveWar.findUniqueOrThrow({
+      where: {
+        id: war.id
+      },
+      include: {
+        participants: {
+          orderBy: {
+            playerIndex: "asc"
+          }
+        },
+        room: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }
+      }
+    });
+    const event = await writeWarEvent(tx, {
+      payload: {
+        reason: "timeout",
+        winnerUserId
+      },
+      type: "war.finished",
+      userId: winnerUserId,
+      warId: war.id
+    });
+    const message = await tx.chatMessage.create({
+      data: {
+        body,
+        kind: "rave-war",
+        mediaSource: "rave-war",
+        mediaSourceId: war.id,
+        roomId: war.roomId,
+        userId: winnerUserId
+      }
+    });
+
+    return {
+      event,
+      message,
+      war: updatedWar
+    };
+  });
+
+  if (result.message) {
+    await publishChatRoomChanged(war.roomId, result.message.id);
+  }
+
+  if (result.event) {
+    await publishRaveWarChanged(war.id, result.event.id);
+  }
+
+  return result.war ?? (await getWarForUserRecord(war.id, currentUserId)) ?? war;
+}
+
+async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUserId: string) {
+  if (war.status !== "active") {
+    return war;
+  }
+
+  const level = getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
+  state.warEndsAt ??= warEndsAtFallback(war.startedAt);
+
+  if (isWarExpired(state)) {
+    return finishExpiredActiveRaveWarIfNeeded(war, currentUserId);
+  }
+
+  if (!isTurnExpired(state)) {
+    return war;
+  }
+
+  const currentTurnIndex = state.players.findIndex((player) => player.userId === war.turnUserId);
+  const nextPlayer =
+    state.players
+      .slice(currentTurnIndex + 1)
+      .concat(state.players.slice(0, Math.max(0, currentTurnIndex + 1)))
+      .find((player) => player.health > 0) ?? state.players.find((player) => player.health > 0);
+
+  if (!nextPlayer) {
+    return war;
+  }
+
+  const now = new Date();
+  const nextState: RaveWarState = {
+    ...state,
+    activeUserId: nextPlayer.userId,
+    log: compactLog([...state.log, "Turn timer expired. Turn passed."]),
+    players: state.players.map((player) =>
+      player.userId === nextPlayer.userId
+        ? {
+            ...player,
+            movementLeft: raveWarTurnMovement
+          }
+        : player
+    ),
+    ...turnWindow(now),
+    turnNumber: state.turnNumber + 1
+  };
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.raveWar.updateMany({
+      where: {
+        id: war.id,
+        status: "active",
+        turnUserId: war.turnUserId
+      },
+      data: {
+        state: nextState as Prisma.InputJsonValue,
+        turnUserId: nextPlayer.userId
+      }
+    });
+
+    if (updated.count !== 1) {
+      return {
+        event: null,
+        war: null
+      };
+    }
+
+    const updatedWar = await tx.raveWar.findUniqueOrThrow({
+      where: {
+        id: war.id
+      },
+      include: {
+        participants: {
+          orderBy: {
+            playerIndex: "asc"
+          }
+        },
+        room: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        }
+      }
+    });
+    const event = await writeWarEvent(tx, {
+      payload: {
+        nextUserId: nextPlayer.userId
+      },
+      type: "turn.expired",
+      userId: nextPlayer.userId,
+      warId: war.id
+    });
+
+    return {
+      event,
+      war: updatedWar
+    };
+  });
+
+  if (result.event) {
+    await publishRaveWarChanged(war.id, result.event.id);
+  }
+
+  return result.war ?? (await getWarForUserRecord(war.id, currentUserId)) ?? war;
 }
 
 async function writeWarEvent(
@@ -781,11 +1055,14 @@ export { defaultRaveWarSettings };
 export async function getRaveWarForUser(warId: string, userId: string) {
   await expireStaleRaveWarChallenges();
 
-  const war = await getWarForUserRecord(warId, userId);
+  let war = await getWarForUserRecord(warId, userId);
 
   if (!war) {
     throw new Error("Rave War not found.");
   }
+
+  war = await finishExpiredActiveRaveWarIfNeeded(war, userId);
+  war = await advanceExpiredTurnIfNeeded(war, userId);
 
   await prisma.raveWarParticipant.updateMany({
     where: {
@@ -837,7 +1114,11 @@ export async function getPendingRaveWarChallenges(userId: string) {
     take: 8
   });
 
-  return wars.map((war) => toChallengeSummary(war, userId));
+  const refreshedWars = await Promise.all(wars.map((war) => finishExpiredActiveRaveWarIfNeeded(war, userId)));
+
+  return refreshedWars
+    .filter((war) => war.status === "pending" || war.status === "active")
+    .map((war) => toChallengeSummary(war, userId));
 }
 
 export async function acceptRaveWarChallenge(warId: string, userId: string) {
@@ -857,6 +1138,7 @@ export async function acceptRaveWarChallenge(warId: string, userId: string) {
   const state = normalizeRaveWarState(war.state, war.participants, level);
   const now = new Date();
   const nextTurnWindow = turnWindow(now);
+  const nextMatchWindow = matchWindow(now);
   const activeState = {
     ...state,
     activeUserId: war.challengerId,
@@ -869,6 +1151,7 @@ export async function acceptRaveWarChallenge(warId: string, userId: string) {
           }
         : player
     ),
+    ...nextMatchWindow,
     ...nextTurnWindow
   } satisfies RaveWarState;
   const result = await prisma.$transaction(async (tx) => {
@@ -1086,8 +1369,15 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
 
   const level = getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
+  state.warEndsAt ??= warEndsAtFallback(war.startedAt);
+
+  if (isWarExpired(state)) {
+    await finishExpiredActiveRaveWarIfNeeded(war, userId);
+    throw new Error("Rave War time is up.");
+  }
 
   if (isTurnExpired(state)) {
+    await advanceExpiredTurnIfNeeded(war, userId);
     throw new Error("Your Rave War turn timer expired.");
   }
 
@@ -1183,8 +1473,15 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
 
   const level = getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
+  state.warEndsAt ??= warEndsAtFallback(war.startedAt);
+
+  if (isWarExpired(state)) {
+    await finishExpiredActiveRaveWarIfNeeded(war, userId);
+    throw new Error("Rave War time is up.");
+  }
 
   if (isTurnExpired(state)) {
+    await advanceExpiredTurnIfNeeded(war, userId);
     throw new Error("Your Rave War turn timer expired.");
   }
 
@@ -1310,6 +1607,22 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
         }
       }
     });
+    const message = winnerUserId
+      ? await tx.chatMessage.create({
+          data: {
+            body: raveWarResultBody({
+              players: nextPlayers,
+              reason: "knockout",
+              winnerUserId
+            }),
+            kind: "rave-war",
+            mediaSource: "rave-war",
+            mediaSourceId: warId,
+            roomId: war.roomId,
+            userId: winnerUserId
+          }
+        })
+      : null;
     const event = await writeWarEvent(tx, {
       payload: lastShot as unknown as Prisma.InputJsonValue,
       type: "shot.fired",
@@ -1319,6 +1632,7 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
 
     return {
       event,
+      message,
       war: updatedWar
     };
   });
@@ -1334,6 +1648,9 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     severity: "info",
     target: `rave-war:${warId}`
   });
+  if (result.message) {
+    await publishChatRoomChanged(war.roomId, result.message.id);
+  }
   await publishRaveWarChanged(warId, result.event.id);
 
   return toWarSummary(result.war, userId);
@@ -1353,6 +1670,7 @@ export async function surrenderRaveWar(warId: string, userId: string) {
   const level = getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   const winner = state.players.find((player) => player.userId !== userId);
+  const loser = state.players.find((player) => player.userId === userId);
 
   if (!winner) {
     throw new Error("Rave War winner could not be determined.");
@@ -1393,6 +1711,21 @@ export async function surrenderRaveWar(warId: string, userId: string) {
         }
       }
     });
+    const message = await tx.chatMessage.create({
+      data: {
+        body: raveWarResultBody({
+          loserDisplayName: loser?.displayName,
+          players: nextState.players,
+          reason: "surrender",
+          winnerUserId: winner.userId
+        }),
+        kind: "rave-war",
+        mediaSource: "rave-war",
+        mediaSourceId: warId,
+        roomId: war.roomId,
+        userId: winner.userId
+      }
+    });
     const event = await writeWarEvent(tx, {
       type: "player.surrendered",
       userId,
@@ -1401,6 +1734,7 @@ export async function surrenderRaveWar(warId: string, userId: string) {
 
     return {
       event,
+      message,
       war: updatedWar
     };
   });
@@ -1414,6 +1748,7 @@ export async function surrenderRaveWar(warId: string, userId: string) {
     severity: "info",
     target: `rave-war:${warId}`
   });
+  await publishChatRoomChanged(war.roomId, result.message.id);
   await publishRaveWarChanged(warId, result.event.id);
 
   return toWarSummary(result.war, userId);

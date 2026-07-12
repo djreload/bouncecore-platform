@@ -9,6 +9,7 @@ import { BrandMark } from "@/components/branding/brand-mark";
 import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { MobileOnlineUserList } from "@/components/chat/mobile-online-user-list";
 import { icons } from "@/components/navigation/icons";
+import { RaveWarChallengeLauncher } from "@/components/rave-wars/rave-war-challenge-overlay";
 import { publicNavigation, type NavigationItem } from "@/config/navigation";
 import type { PublicChatPresenceUserRow } from "@/app/chat/state";
 import type { RoleDisplayNameMap } from "@/lib/auth/role-display";
@@ -144,6 +145,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, mobilePresenceUse
                   <span className="truncate">Share on Facebook</span>
                 </button>
               </div>
+              <RaveWarChallengeLauncher onNavigate={closeMenu} placement="mobile-menu" />
               <MobileOnlineUserList roleDisplayLabels={roleDisplayLabels} users={presenceUsers} />
             </nav>
 

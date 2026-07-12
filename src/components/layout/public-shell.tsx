@@ -73,6 +73,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, mobile
             <NavList items={visibleNavigationItems} orientation="horizontal" />
           </div>
           <div className="ml-auto hidden items-center gap-2 lg:flex">
+            <RaveWarChallengeOverlay />
             <HeaderAjaxCart />
             {signedIn ? (
               <LogoutButton />
@@ -101,7 +102,6 @@ export async function PublicShell({ children, hideFooterOnMobile = false, mobile
       </header>
       <StarSupportOverlay />
       <SheepThrowOverlay />
-      <RaveWarChallengeOverlay />
       {children}
       <footer
         className={`${hideFooterOnMobile ? "hidden lg:block" : ""} bc-site-footer border-t border-bc-line bg-bc-ink`}

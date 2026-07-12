@@ -31,7 +31,7 @@ export default async function RaveWarPage({ params }: RaveWarPageProps) {
 
   return (
     <PublicShell hideFooterOnMobile>
-      <main className="min-h-[calc(100dvh-65px)] bg-bc-void px-3 py-4 lg:px-5">
+      <main className="h-dvh overflow-hidden bg-bc-void p-0 lg:min-h-[calc(100dvh-65px)] lg:overflow-visible lg:px-5 lg:py-4">
         <RaveWarGame currentUserId={user.id} initialWar={war} />
       </main>
     </PublicShell>

@@ -48,10 +48,17 @@ test("chat message action menu exposes compact rave war and throw buttons for on
 
 test("rave war battlefield supports mouse aiming animated shots and sfx only", () => {
   const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
   assert.match(game, /aimSettingsFromLevelPoint/);
   assert.match(game, /onPointerDown=\{handleBattlefieldPointerDown\}/);
   assert.match(game, /onPointerMove=\{handleBattlefieldPointerMove\}/);
+  assert.match(game, /screen\.orientation/);
+  assert.match(game, /bc-rave-war-mobile-controls/);
+  assert.match(game, /formatCountdown\(remainingWarSeconds\)/);
+  assert.match(css, /bc-rave-war-active/);
+  assert.match(css, /orientation: landscape/);
+  assert.match(css, /bc-rave-war-rotate-prompt/);
   assert.match(game, /requestAnimationFrame\(tick\)/);
   assert.match(game, /setAnimatedShot/);
   assert.match(game, /playRaveWarSfx/);
@@ -91,14 +98,32 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/big-explosion.png")), true);
 });
 
-test("rave war prompts auto open accepted wars and leave an active reopen button", () => {
+test("rave war prompts live in header and mobile menu instead of covering chat", () => {
   const overlay = readFileSync(join(process.cwd(), "src/components/rave-wars/rave-war-challenge-overlay.tsx"), "utf8");
+  const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");
+  const mobileMenu = readFileSync(join(process.cwd(), "src/components/navigation/public-mobile-menu.tsx"), "utf8");
   const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
 
   assert.match(service, /in: \["pending", "active"\]/);
-  assert.match(overlay, /rave-war-opened:/);
-  assert.match(overlay, /window\.location\.assign\(`\/rave-wars\/\$\{activeChallenge\.id\}`\)/);
+  assert.match(overlay, /RaveWarChallengeLauncher/);
+  assert.doesNotMatch(overlay, /fixed bottom-4 right-4/);
+  assert.match(shell, /<RaveWarChallengeOverlay \/>/);
+  assert.match(mobileMenu, /placement="mobile-menu"/);
   assert.match(overlay, /Open Battle/);
+});
+
+test("rave war timers and chat toasts use enforced match state", () => {
+  const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+  const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");
+  const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+
+  assert.match(service, /const raveWarMatchSeconds = 5 \* 60/);
+  assert.match(service, /const raveWarTurnSeconds = 60/);
+  assert.match(service, /finishExpiredActiveRaveWarIfNeeded/);
+  assert.match(service, /advanceExpiredTurnIfNeeded/);
+  assert.match(service, /kind: "rave-war"/);
+  assert.match(types, /warEndsAt: string \| null/);
+  assert.match(panel, /message\.kind === "sheep" \|\| message\.kind === "rave-war"/);
 });
 
 test("ci workflow uses node24-compatible official actions", () => {
