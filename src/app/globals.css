@@ -1821,6 +1821,225 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
     0 0 32px color-mix(in srgb, var(--color-bc-amber) 28%, transparent);
 }
 
+.bc-rave-war-titleplate {
+  width: min(22rem, 34vw);
+  padding: 0.35rem 0.8rem 0.45rem;
+  border: 1px solid rgba(255, 63, 164, 0.42);
+  border-radius: 0.55rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(163, 255, 18, 0.2), transparent 58%),
+    linear-gradient(180deg, rgba(5, 7, 13, 0.86), rgba(5, 7, 13, 0.58));
+  box-shadow:
+    inset 0 0 22px rgba(0, 213, 255, 0.08),
+    0 18px 42px rgba(0, 0, 0, 0.48),
+    0 0 28px rgba(255, 63, 164, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.bc-rave-war-logo-text {
+  color: #a3ff12;
+  font-size: clamp(1.15rem, 3vw, 2.4rem);
+  font-weight: 1000;
+  line-height: 0.9;
+  text-transform: uppercase;
+  text-shadow:
+    0 3px 0 #31113a,
+    0 0 16px rgba(163, 255, 18, 0.72),
+    0 0 24px rgba(255, 63, 164, 0.48);
+}
+
+.bc-rave-war-round-label {
+  margin-top: 0.16rem;
+  color: #ffffff;
+  font-size: clamp(0.66rem, 1vw, 0.92rem);
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.bc-rave-war-player-card {
+  --rave-war-player-color: #00d5ff;
+  display: grid;
+  grid-template-columns: 3.8rem minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  width: min(19rem, 33vw);
+  min-height: 4.4rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--rave-war-player-color) 70%, white 12%);
+  border-radius: 0.9rem;
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.09), transparent 34%),
+    linear-gradient(180deg, rgba(5, 7, 13, 0.9), rgba(5, 7, 13, 0.66));
+  box-shadow:
+    inset 0 0 28px color-mix(in srgb, var(--rave-war-player-color) 18%, transparent),
+    0 18px 42px rgba(0, 0, 0, 0.52),
+    0 0 22px color-mix(in srgb, var(--rave-war-player-color) 26%, transparent);
+  color: #ffffff;
+  backdrop-filter: blur(9px);
+}
+
+.bc-rave-war-player-card[data-side="right"] {
+  justify-self: end;
+  grid-template-columns: minmax(0, 1fr) 3.8rem;
+  text-align: right;
+}
+
+.bc-rave-war-player-card[data-side="right"] .bc-rave-war-player-portrait {
+  order: 2;
+}
+
+.bc-rave-war-player-portrait {
+  display: grid;
+  width: 3.4rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 2px solid var(--rave-war-player-color);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 22%, rgba(255, 255, 255, 0.3), transparent 28%),
+    linear-gradient(145deg, rgba(0, 213, 255, 0.26), rgba(255, 63, 164, 0.22)),
+    #080b14;
+  color: #ffffff;
+  font-size: 1.35rem;
+  font-weight: 1000;
+  box-shadow:
+    inset 0 0 16px rgba(255, 255, 255, 0.08),
+    0 0 18px color-mix(in srgb, var(--rave-war-player-color) 65%, transparent);
+}
+
+.bc-rave-war-announcement {
+  min-width: min(19rem, 70vw);
+  padding: 0.65rem 0.85rem;
+  border: 1px solid rgba(255, 63, 164, 0.55);
+  border-radius: 0.65rem;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 63, 164, 0.2), transparent 55%),
+    rgba(5, 7, 13, 0.86);
+  box-shadow:
+    inset 0 0 24px rgba(0, 213, 255, 0.12),
+    0 16px 42px rgba(0, 0, 0, 0.55),
+    0 0 30px rgba(255, 63, 164, 0.25);
+  color: #ffffff;
+  text-align: center;
+  text-transform: uppercase;
+  animation: bc-rave-war-announcement-pop 0.22s ease-out;
+  backdrop-filter: blur(10px);
+}
+
+.bc-rave-war-announcement p {
+  font-size: clamp(0.88rem, 1.6vw, 1.2rem);
+  font-weight: 1000;
+}
+
+.bc-rave-war-announcement span {
+  display: block;
+  margin-top: 0.25rem;
+  color: #a3ff12;
+  font-size: clamp(1.35rem, 3.3vw, 2.4rem);
+  font-weight: 1000;
+  line-height: 1;
+  text-shadow: 0 0 14px rgba(163, 255, 18, 0.64);
+}
+
+.bc-rave-war-weapon-dock {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  z-index: 26;
+  width: 11.5rem;
+  transform: translateY(-50%);
+  gap: 0.45rem;
+  padding: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.7rem;
+  background: rgba(5, 7, 13, 0.76);
+  box-shadow:
+    inset 0 0 24px rgba(255, 63, 164, 0.08),
+    0 18px 42px rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(10px);
+}
+
+.bc-rave-war-weapon-tile {
+  display: grid;
+  grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  min-height: 3.2rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.45rem;
+  background: rgba(0, 0, 0, 0.58);
+  color: #ffffff;
+  text-align: left;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.bc-rave-war-weapon-tile span {
+  overflow: hidden;
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.bc-rave-war-weapon-tile strong {
+  color: #ffffff;
+  font-size: 1rem;
+}
+
+.bc-rave-war-weapon-tile.is-selected {
+  border-color: #ff3fa4;
+  box-shadow:
+    inset 0 0 18px rgba(255, 63, 164, 0.14),
+    0 0 16px rgba(255, 63, 164, 0.34);
+}
+
+.bc-rave-war-weapon-tile:not(:disabled):hover {
+  transform: translateX(-2px);
+  border-color: #00d5ff;
+}
+
+.bc-rave-war-fire-button {
+  display: grid;
+  width: 8rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 1px solid rgba(255, 63, 164, 0.65);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(255, 255, 255, 0.2), transparent 25%),
+    radial-gradient(circle at 50% 50%, rgba(255, 63, 164, 0.34), rgba(5, 7, 13, 0.92) 68%);
+  color: #ff3fa4;
+  font-size: 1.8rem;
+  font-weight: 1000;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(255, 63, 164, 0.8);
+  box-shadow:
+    inset 0 0 24px rgba(255, 255, 255, 0.1),
+    0 0 0 0.45rem rgba(0, 0, 0, 0.38),
+    0 0 30px rgba(255, 63, 164, 0.36);
+}
+
+.bc-rave-war-fire-button:disabled {
+  opacity: 0.5;
+}
+
+@keyframes bc-rave-war-announcement-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (max-width: 1023px) {
   html.bc-rave-war-active,
   html.bc-rave-war-active body {
@@ -1888,6 +2107,48 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
     width: min(100%, calc((100dvh - 5.25rem) * 2));
     min-height: 0;
     max-height: calc(100dvh - 5.25rem);
+  }
+
+  .bc-rave-war-titleplate {
+    top: 0.3rem;
+    width: min(15rem, 36vw);
+    padding: 0.25rem 0.55rem 0.32rem;
+  }
+
+  .bc-rave-war-hud {
+    inset-inline: 0.35rem;
+    top: 0.35rem;
+  }
+
+  .bc-rave-war-player-card {
+    grid-template-columns: 2.45rem minmax(0, 1fr);
+    gap: 0.42rem;
+    width: min(12.5rem, 31vw);
+    min-height: 3rem;
+    padding: 0.32rem 0.42rem;
+    border-radius: 0.58rem;
+  }
+
+  .bc-rave-war-player-card[data-side="right"] {
+    grid-template-columns: minmax(0, 1fr) 2.45rem;
+  }
+
+  .bc-rave-war-player-portrait {
+    width: 2.25rem;
+    font-size: 0.9rem;
+  }
+
+  .bc-rave-war-player-card p {
+    font-size: 0.68rem;
+  }
+
+  .bc-rave-war-player-card .mt-1 {
+    margin-top: 0.1rem;
+  }
+
+  .bc-rave-war-announcement {
+    min-width: min(17rem, 58vw);
+    padding: 0.45rem 0.65rem;
   }
 
   .bc-rave-war-sidebar {
@@ -1964,6 +2225,11 @@ html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-battlefield
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-weapon-dock,
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-bottom-hud {
+  display: none !important;
 }
 
 @media (max-width: 1023px) and (orientation: portrait) {

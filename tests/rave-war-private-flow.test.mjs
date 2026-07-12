@@ -128,6 +128,25 @@ test("rave war prompts live in header and mobile menu instead of covering chat",
   assert.match(overlay, /Open Battle/);
 });
 
+test("rave war active challenges auto-open once and finished wars return to live", () => {
+  const overlay = readFileSync(join(process.cwd(), "src/components/rave-wars/rave-war-challenge-overlay.tsx"), "utf8");
+  const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+
+  assert.match(overlay, /const pollMs = 2500/);
+  assert.match(overlay, /activeChallenge = challenges\.find\(\(challenge\) => challenge\.status === "active"\)/);
+  assert.match(overlay, /window\.sessionStorage\.getItem\(`rave-war-opened:\$\{activeChallenge\.id\}`\)/);
+  assert.match(overlay, /navigateToWar\(activeChallenge\.id\)/);
+  assert.match(game, /const liveReturnDelayMs = 4500/);
+  assert.match(game, /terminalRaveWarStatuses/);
+  assert.match(game, /window\.location\.assign\("\/live"\)/);
+  assert.match(game, /turnAnnouncement/);
+  assert.match(game, /bc-rave-war-announcement/);
+  assert.match(game, /bc-rave-war-titleplate/);
+  assert.match(css, /bc-rave-war-player-card/);
+  assert.match(css, /bc-rave-war-weapon-dock/);
+});
+
 test("rave war timers and chat toasts use enforced match state", () => {
   const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
   const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");

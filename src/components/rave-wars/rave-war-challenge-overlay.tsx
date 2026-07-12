@@ -16,7 +16,7 @@ type RaveWarChallengeLauncherProps = {
   placement?: "desktop" | "mobile-menu";
 };
 
-const pollMs = 5000;
+const pollMs = 2500;
 
 function challengeLabel(challenge: RaveWarChallengeSummary) {
   return `${challenge.challengerDisplayName} vs ${challenge.targetDisplayName}`;
@@ -57,6 +57,22 @@ export function RaveWarChallengeLauncher({ onNavigate, placement = "desktop" }: 
     },
     [onNavigate]
   );
+
+  useEffect(() => {
+    const activeChallenge = challenges.find((challenge) => challenge.status === "active");
+
+    if (!activeChallenge) {
+      return;
+    }
+
+    const activePath = `/rave-wars/${activeChallenge.id}`;
+
+    if (window.location.pathname === activePath || window.sessionStorage.getItem(`rave-war-opened:${activeChallenge.id}`) === "1") {
+      return;
+    }
+
+    navigateToWar(activeChallenge.id);
+  }, [challenges, navigateToWar]);
 
   const submitChallengeAction = useCallback(
     async (challenge: RaveWarChallengeSummary, action: "accept" | "cancel" | "decline") => {

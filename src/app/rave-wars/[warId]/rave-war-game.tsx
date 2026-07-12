@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { Crosshair, Flag, HeartPulse, Radio, Swords, Timer, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,11 +37,13 @@ type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | 
 type RaveWarNativeControlState = "down" | "press" | "up";
 
 const chargeDurationMs = 1450;
+const liveReturnDelayMs = 4500;
 const aimHoldIntervalMs = 45;
 const aimHoldStep = 1.35;
 const moveHoldIntervalMs = 185;
 const shotAnimationMinMs = 700;
 const shotAnimationMaxMs = 1350;
+const terminalRaveWarStatuses = new Set(["cancelled", "declined", "expired", "finished"]);
 const raveWarAssets = {
   explosion: "/rave-wars/assets/big-explosion.png",
   hedgehog: "/rave-wars/assets/hedgehog.png",
@@ -124,6 +126,10 @@ function healthTone(health: number) {
   }
 
   return "bg-bc-pink";
+}
+
+function playerHudSide(playerIndex: number) {
+  return playerIndex === 0 ? "left" : "right";
 }
 
 function shotKey(shot: RaveWarLastShot | null | undefined) {
@@ -372,6 +378,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [turnNotice, setTurnNotice] = useState("");
   const aimHoldIntervalRef = useRef<number | null>(null);
   const aimHoldDirectionRef = useRef<"down" | "up" | null>(null);
   const angleRef = useRef(angle);
@@ -386,6 +393,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const moveInFlightRef = useRef(false);
   const powerRef = useRef(power);
   const selectedWeaponRef = useRef<RaveWarWeaponId>(selectedWeapon);
+  const previousTurnUserIdRef = useRef<string | null>(null);
+  const returnToLiveTimeoutRef = useRef<number | null>(null);
   const walkingTimeoutsRef = useRef(new Map<string, number>());
   const lastPlayerPositionsRef = useRef(
     new Map(initialWar.state.players.map((player) => [player.userId, { x: player.x, y: player.y }]))
@@ -417,6 +426,20 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const remainingTurnSeconds = Number.isFinite(turnEndsAtMs) ? Math.max(0, Math.ceil((turnEndsAtMs - nowMs) / 1000)) : null;
   const warEndsAtMs = war.state.warEndsAt ? Date.parse(war.state.warEndsAt) : Number.NaN;
   const remainingWarSeconds = Number.isFinite(warEndsAtMs) ? Math.max(0, Math.ceil((warEndsAtMs - nowMs) / 1000)) : null;
+  const terminalWar = terminalRaveWarStatuses.has(war.status);
+  const turnAnnouncement =
+    war.status === "active"
+      ? canControl
+        ? "Your turn. Line up the shot."
+        : activePlayer
+          ? `${activePlayer.displayName}'s turn. Hold tight.`
+          : "Turn changing."
+      : terminalWar
+        ? winner
+          ? `${winner.displayName} wins. Returning to live.`
+          : "Rave War finished. Returning to live."
+        : "Waiting for the challenge.";
+  const hudPlayers = war.state.players.slice().sort((first, second) => first.playerIndex - second.playerIndex);
 
   useEffect(() => {
     angleRef.current = angle;
@@ -881,6 +904,56 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   }, [war.status]);
 
   useEffect(() => {
+    window.sessionStorage.setItem(`rave-war-opened:${war.id}`, "1");
+  }, [war.id]);
+
+  useEffect(() => {
+    if (war.status !== "active") {
+      previousTurnUserIdRef.current = war.turnUserId;
+      return;
+    }
+
+    if (previousTurnUserIdRef.current === war.turnUserId) {
+      return;
+    }
+
+    previousTurnUserIdRef.current = war.turnUserId;
+    setTurnNotice(turnAnnouncement);
+
+    const timeout = window.setTimeout(() => {
+      setTurnNotice((current) => (current === turnAnnouncement ? "" : current));
+    }, canControl ? 2400 : 3200);
+
+    return () => window.clearTimeout(timeout);
+  }, [canControl, turnAnnouncement, war.status, war.turnUserId]);
+
+  useEffect(() => {
+    if (!terminalWar) {
+      if (returnToLiveTimeoutRef.current !== null) {
+        window.clearTimeout(returnToLiveTimeoutRef.current);
+        returnToLiveTimeoutRef.current = null;
+      }
+
+      return undefined;
+    }
+
+    if (returnToLiveTimeoutRef.current !== null) {
+      return undefined;
+    }
+
+    returnToLiveTimeoutRef.current = window.setTimeout(() => {
+      window.location.assign("/live");
+    }, liveReturnDelayMs);
+
+    return () => {
+      if (returnToLiveTimeoutRef.current !== null) {
+        window.clearTimeout(returnToLiveTimeoutRef.current);
+        returnToLiveTimeoutRef.current = null;
+      }
+    };
+  }, [terminalWar]);
+
+  useEffect(() => {
     document.documentElement.classList.add("bc-rave-war-active");
 
     const orientation = screen.orientation as ScreenOrientation & {
@@ -1179,6 +1252,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         window.clearInterval(moveHoldIntervalRef.current);
       }
 
+      if (returnToLiveTimeoutRef.current !== null) {
+        window.clearTimeout(returnToLiveTimeoutRef.current);
+      }
+
       for (const timeout of walkingTimeoutsRef.current.values()) {
         window.clearTimeout(timeout);
       }
@@ -1236,6 +1313,118 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             style={mapStyle}
             tabIndex={canFire ? 0 : -1}
           >
+            <div className="bc-rave-war-titleplate pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 text-center">
+              <p className="bc-rave-war-logo-text">Rave War</p>
+              <p className="bc-rave-war-round-label">Turn {war.state.turnNumber}</p>
+            </div>
+
+            <div className="bc-rave-war-hud pointer-events-none absolute inset-x-2 top-2 z-20 grid grid-cols-2 gap-2">
+              {hudPlayers.map((player) => {
+                const side = playerHudSide(player.playerIndex);
+
+                return (
+                  <article className="bc-rave-war-player-card" data-side={side} key={player.userId} style={{ "--rave-war-player-color": player.color } as CSSProperties}>
+                    <div className="bc-rave-war-player-portrait" aria-hidden="true">
+                      {player.displayName.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black uppercase lg:text-lg">{player.displayName}</p>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-sm font-black lg:text-xl">{player.health}</span>
+                        <HeartPulse className="h-4 w-4 text-bc-pink lg:h-5 lg:w-5" aria-hidden="true" />
+                      </div>
+                      <div className="mt-1 grid grid-cols-5 gap-1">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                          <span
+                            className="h-2 rounded-sm bg-black/55 shadow-inner"
+                            key={`${player.userId}-health-${index}`}
+                          >
+                            <span
+                              className="block h-full rounded-sm"
+                              style={{
+                                background: index * 20 < player.health ? player.color : "transparent",
+                                boxShadow: index * 20 < player.health ? `0 0 10px ${player.color}` : "none"
+                              }}
+                            />
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="bc-rave-war-wind-panel pointer-events-none absolute left-3 top-[20%] z-20 hidden rounded-md border border-white/20 bg-black/70 p-2 text-white shadow-2xl shadow-black/45 backdrop-blur md:block">
+              <p className="text-xs font-black uppercase text-bc-muted">Wind</p>
+              <p className="mt-1 text-xl font-black text-bc-acid">18 →</p>
+            </div>
+
+            <div className="bc-rave-war-turn-announcer pointer-events-none absolute left-1/2 top-[18%] z-30 -translate-x-1/2" aria-live="polite">
+              {(turnNotice || terminalWar) ? (
+                <div className="bc-rave-war-announcement">
+                  <p>{terminalWar ? turnAnnouncement : turnNotice}</p>
+                  <span>{formatCountdown(remainingTurnSeconds)}</span>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="bc-rave-war-weapon-dock hidden lg:grid">
+              <p className="text-center text-sm font-black uppercase text-bc-pink">Weapons</p>
+              {raveWarWeapons.map((weapon) => (
+                <button
+                  className={`bc-focus-ring bc-rave-war-weapon-tile ${selectedWeapon === weapon.id ? "is-selected" : ""}`}
+                  disabled={!canFire}
+                  key={weapon.id}
+                  onClick={() => {
+                    selectedWeaponRef.current = weapon.id;
+                    setSelectedWeapon(weapon.id);
+                  }}
+                  title={weapon.description}
+                  type="button"
+                >
+                  <Image alt="" className="h-9 w-9 object-contain" height={36} src={weapon.icon} unoptimized width={36} />
+                  <span>{weapon.label}</span>
+                  <strong>x{weapon.id === "bazooka" ? 3 : weapon.id === "grenade" ? 5 : 4}</strong>
+                </button>
+              ))}
+            </div>
+
+            <div className="bc-rave-war-bottom-hud pointer-events-none absolute inset-x-3 bottom-3 z-20 hidden items-end justify-between gap-3 lg:flex">
+              <div className="grid w-64 gap-2 rounded-md border border-white/20 bg-black/70 p-2 shadow-2xl shadow-black/45 backdrop-blur">
+                <div>
+                  <div className="flex items-center justify-between text-xs font-black uppercase">
+                    <span className="text-bc-pink">Power</span>
+                    <span className="text-white">{Math.round(power)}</span>
+                  </div>
+                  <div className="mt-1 grid grid-cols-10 gap-1">
+                    {Array.from({ length: 10 }).map((_, index) => (
+                      <span className={`h-3 rounded-sm ${index * 10 < power ? "bg-bc-pink shadow-[0_0_10px_rgba(255,63,164,0.8)]" : "bg-white/15"}`} key={`power-${index}`} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between text-xs font-black uppercase">
+                    <span className="text-bc-pink">Angle</span>
+                    <span className="text-white">{Math.round(angle)} deg</span>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-white/15">
+                    <div className="h-full bg-bc-pink shadow-[0_0_12px_rgba(255,63,164,0.9)]" style={{ width: percent(angle, 90) }} />
+                  </div>
+                </div>
+              </div>
+              <div className="grid place-items-center">
+                <button
+                  className="bc-focus-ring bc-rave-war-fire-button pointer-events-auto"
+                  disabled={!canFire}
+                  onClick={() => void fireCurrentShot()}
+                  type="button"
+                >
+                  Fire
+                </button>
+              </div>
+            </div>
+
             <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
               <defs>
                 <mask id={terrainMaskId}>
