@@ -1790,6 +1790,17 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   }
 }
 
+.bc-rave-war-stage-card {
+  display: grid;
+  place-items: center;
+}
+
+.bc-rave-war-battlefield {
+  contain: layout paint;
+  width: min(100%, calc((100dvh - 11rem) * 2));
+  max-height: calc(100dvh - 11rem);
+}
+
 @media (max-width: 1023px) {
   html.bc-rave-war-active,
   html.bc-rave-war-active body {
@@ -1802,42 +1813,87 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   }
 
   .bc-rave-war-shell {
+    gap: 0.35rem;
     padding:
-      max(0.5rem, env(safe-area-inset-top))
-      max(0.5rem, env(safe-area-inset-right))
-      max(0.5rem, env(safe-area-inset-bottom))
-      max(0.5rem, env(safe-area-inset-left));
+      max(0.35rem, env(safe-area-inset-top))
+      max(0.35rem, env(safe-area-inset-right))
+      max(0.35rem, env(safe-area-inset-bottom))
+      max(0.35rem, env(safe-area-inset-left));
+  }
+
+  .bc-rave-war-header {
+    min-height: auto;
+    padding: 0.4rem;
+  }
+
+  .bc-rave-war-header h1 {
+    display: none;
+  }
+
+  .bc-rave-war-header .bc-badge {
+    padding: 0.2rem 0.42rem;
+    font-size: 0.68rem;
+    line-height: 1;
+  }
+
+  .bc-rave-war-header > div > span:first-child {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .bc-rave-war-header > div > span:first-child svg {
+    width: 1rem;
+    height: 1rem;
+  }
+
+  .bc-rave-war-header a {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.75rem;
+    line-height: 1;
   }
 
   .bc-rave-war-layout {
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
   }
 
   .bc-rave-war-stage-card {
-    display: flex;
+    display: grid;
     min-height: 0;
-    flex-direction: column;
+    grid-template-rows: minmax(0, 1fr) auto;
+    place-items: center stretch;
+    padding: 0.35rem;
   }
 
   .bc-rave-war-battlefield {
-    width: 100%;
+    width: min(100%, calc((100dvh - 8.5rem) * 2));
     min-height: 0;
+    max-height: calc(100dvh - 8.5rem);
   }
 
   .bc-rave-war-mobile-controls {
+    z-index: 4;
     display: block;
+    width: min(100%, 42rem);
+    justify-self: center;
+    margin-top: 0.35rem;
+    padding: 0.35rem;
+  }
+
+  .bc-rave-war-mobile-controls button {
+    min-height: 2rem;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.72rem;
+    line-height: 1;
   }
 
   .bc-rave-war-sidebar {
-    max-height: 36dvh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    display: none;
   }
 }
 
 @media (max-width: 1023px) and (orientation: landscape) {
   .bc-rave-war-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
   }
 
@@ -1846,12 +1902,16 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   }
 
   .bc-rave-war-battlefield {
-    width: min(100%, calc((100dvh - 8.75rem) * 2));
-    max-height: calc(100dvh - 8.75rem);
+    width: min(100%, calc((100dvh - 7.5rem) * 2));
+    max-height: calc(100dvh - 7.5rem);
   }
 
-  .bc-rave-war-sidebar {
-    max-height: calc(100dvh - 4.5rem);
+  .bc-rave-war-hog-shell {
+    transform: scale(1.12);
+  }
+
+  .bc-rave-war-hog-shell[data-facing="left"] {
+    transform: scale(1.12) scaleX(-1);
   }
 }
 

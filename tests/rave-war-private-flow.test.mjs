@@ -55,10 +55,14 @@ test("rave war battlefield supports mouse aiming animated shots and sfx only", (
   assert.match(game, /onPointerMove=\{handleBattlefieldPointerMove\}/);
   assert.match(game, /screen\.orientation/);
   assert.match(game, /bc-rave-war-mobile-controls/);
+  assert.match(game, /bc-rave-war-battlefield relative mx-auto aspect-\[2\/1\] w-full max-w-full/);
+  assert.doesNotMatch(game, /bc-rave-war-battlefield[^\n]+h-full/);
   assert.match(game, /formatCountdown\(remainingWarSeconds\)/);
   assert.match(css, /bc-rave-war-active/);
   assert.match(css, /orientation: landscape/);
   assert.match(css, /bc-rave-war-rotate-prompt/);
+  assert.match(css, /width: min\(100%, calc\(\(100dvh - 7\.5rem\) \* 2\)\)/);
+  assert.match(css, /bc-rave-war-sidebar\s*{\s*display: none;/);
   assert.match(game, /requestAnimationFrame\(tick\)/);
   assert.match(game, /setAnimatedShot/);
   assert.match(game, /playRaveWarSfx/);

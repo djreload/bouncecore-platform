@@ -783,11 +783,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         </Link>
       </header>
 
-      <div className="bc-rave-war-layout grid min-h-0 flex-1 gap-2 lg:gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="bc-rave-war-stage-card min-h-0 rounded-md border border-bc-line bg-bc-panel p-1.5 lg:p-2">
+      <div className="bc-rave-war-layout grid min-h-0 flex-1 gap-2 lg:gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="bc-rave-war-stage-card min-h-0 overflow-hidden rounded-md border border-bc-line bg-bc-panel p-1.5 lg:p-2">
           <div
             aria-label="Rave War battlefield. Move the mouse or drag on the map to aim. Use left and right or A and D to walk. Use up and down or W and S to aim. Use plus and minus for power. Press Q and E for weapons. Double click the map, press Enter, or press Space to shoot."
-            className={`bc-rave-war-battlefield relative mx-auto aspect-[2/1] h-full max-h-[calc(100dvh-190px)] min-h-[220px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
+            className={`bc-rave-war-battlefield relative mx-auto aspect-[2/1] w-full max-w-full min-h-[220px] overflow-hidden rounded-md border border-bc-line bg-cover bg-center ${
               canFire ? "cursor-crosshair touch-none" : "cursor-default"
             }`}
             onDoubleClick={() => void fireCurrentShot()}
