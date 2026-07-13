@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { writeAuditLog } from "@/lib/auth/audit";
+import { getNotificationDeliveryPreferencesForUser } from "@/lib/account/notification-preferences-service";
 import { chatPresenceOnlineMs } from "@/lib/chat/chat-presence-core";
 import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { assertUserCanPostInChat } from "@/lib/chat/moderation-service";
 import { prisma } from "@/lib/db/prisma";
+import { queueMobilePushForNotification } from "@/lib/mobile/account-notification-push-service";
 import {
   appendTerrainCrater,
   raveWarMaxTerrainCraters,
@@ -1014,7 +1016,10 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
       }
     });
 
-    await tx.notification.create({
+    const notification = await tx.notification.create({
+      select: {
+        id: true
+      },
       data: {
         actionUrl: `/rave-wars/${war.id}`,
         body: `Open the private arena from #${room.slug}.`,
@@ -1027,10 +1032,51 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
 
     return {
       event,
+      notification,
       toastMessage,
       war
     };
   });
+
+  try {
+    const deliveryPreferences = await getNotificationDeliveryPreferencesForUser(target.id, "chat.rave_war.challenge");
+    const pushResult = deliveryPreferences.push
+      ? await queueMobilePushForNotification({
+          notificationId: result.notification.id,
+          userId: target.id
+        })
+      : {
+          reason: "Push disabled by notification preferences.",
+          skipped: true
+        };
+    const blockedPushDeliveryCount =
+      "blockedPushDeliveryCount" in pushResult ? pushResult.blockedPushDeliveryCount : 0;
+
+    await writeAuditLog({
+      action: "chat.rave_war.challenge.notification.queue",
+      actorId: challenger.id,
+      metadata: {
+        deliveryPreferences,
+        push: pushResult as Prisma.InputJsonValue,
+        roomSlug: room.slug,
+        targetUserId: target.id
+      },
+      severity: blockedPushDeliveryCount ? "warning" : "info",
+      target: `rave-war:${result.war.id}`
+    });
+  } catch (error) {
+    await writeAuditLog({
+      action: "chat.rave_war.challenge.notification.queue",
+      actorId: challenger.id,
+      metadata: {
+        error: error instanceof Error ? error.message : "Rave War challenge push queueing failed.",
+        roomSlug: room.slug,
+        targetUserId: target.id
+      },
+      severity: "warning",
+      target: `rave-war:${result.war.id}`
+    });
+  }
 
   await writeAuditLog({
     action: "chat.rave_war.challenge.create",

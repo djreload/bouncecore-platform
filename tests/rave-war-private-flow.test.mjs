@@ -132,6 +132,17 @@ test("rave war prompts live in header and mobile menu instead of covering chat",
   assert.match(overlay, /Open Battle/);
 });
 
+test("rave war challenges queue preference-aware mobile push notifications", () => {
+  const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+
+  assert.match(service, /getNotificationDeliveryPreferencesForUser\(target\.id, "chat\.rave_war\.challenge"\)/);
+  assert.match(service, /queueMobilePushForNotification\(\{/);
+  assert.match(service, /notificationId: result\.notification\.id/);
+  assert.match(service, /reason: "Push disabled by notification preferences\."/);
+  assert.match(service, /action: "chat\.rave_war\.challenge\.notification\.queue"/);
+  assert.match(service, /type: "chat\.rave_war\.challenge"/);
+});
+
 test("rave war active challenges auto-open once and finished wars return to live", () => {
   const overlay = readFileSync(join(process.cwd(), "src/components/rave-wars/rave-war-challenge-overlay.tsx"), "utf8");
   const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
