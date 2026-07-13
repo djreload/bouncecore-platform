@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Crosshair, Flag, HeartPulse, Radio, Swords, Timer, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { simulateRaveWarShot } from "@/lib/rave-wars/rave-war-engine";
 import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary, RaveWarWeaponId } from "@/lib/rave-wars/rave-war-types";
+import { defaultRaveWarWeaponAmmo, raveWarWeaponDefinitions, weaponAmmoOrDefault, type RaveWarWeaponDefinition } from "@/lib/rave-wars/rave-war-weapons";
 
 type RaveWarGameProps = {
   currentUserId: string;
@@ -22,6 +24,7 @@ type RaveWarAnimatedShot = {
   key: string;
   point: RaveWarShotPoint;
   trail: RaveWarShotPoint[];
+  weaponId: RaveWarWeaponId;
 };
 
 type RaveWarImpactPulse = {
@@ -47,43 +50,10 @@ const terminalRaveWarStatuses = new Set(["cancelled", "declined", "expired", "fi
 const raveWarAssets = {
   explosion: "/rave-wars/assets/big-explosion.png",
   hedgehog: "/rave-wars/assets/hedgehog.png",
-  hedgehogIdle: "/rave-wars/assets/hedgehog-idle.png",
-  hedgehogBazooka: "/rave-wars/assets/hedgehog-bazooka.png",
-  shell: "/rave-wars/assets/bazooka-shell.png",
-  weaponGrenade: "/rave-wars/assets/weapon-grenade.png",
-  weaponShotgun: "/rave-wars/assets/weapon-shotgun.png"
+  hedgehogIdle: "/rave-wars/assets/hedgehog-idle.png"
 } as const;
 
-const raveWarWeapons: Array<{
-  description: string;
-  icon: string;
-  id: RaveWarWeaponId;
-  label: string;
-  projectile: string;
-}> = [
-  {
-    description: "Classic long arc, big terrain crater.",
-    icon: raveWarAssets.hedgehogBazooka,
-    id: "bazooka",
-    label: "Bazooka",
-    projectile: raveWarAssets.shell
-  },
-  {
-    description: "Heavier drop with a chunky blast.",
-    icon: raveWarAssets.weaponGrenade,
-    id: "grenade",
-    label: "Grenade",
-    projectile: raveWarAssets.weaponGrenade
-  },
-  {
-    description: "Fast direct shot, smaller crater.",
-    icon: raveWarAssets.weaponShotgun,
-    id: "shotgun",
-    label: "Shotgun",
-    projectile: raveWarAssets.weaponShotgun
-  }
-];
-
+const raveWarWeapons = raveWarWeaponDefinitions;
 const raveWarWeaponsById = new Map(raveWarWeapons.map((weapon) => [weapon.id, weapon]));
 
 let raveWarAudioContext: AudioContext | null = null;
@@ -194,6 +164,14 @@ function projectileRotationFromTrail(trail: RaveWarShotPoint[]) {
   }
 
   return (Math.atan2(latest.y - previous.y, latest.x - previous.x) * 180) / Math.PI;
+}
+
+function stopBattlefieldControlEvent(event: PointerEvent<HTMLElement>) {
+  event.stopPropagation();
+}
+
+function ammoForWeapon(player: RaveWarPlayerState | null | undefined, weaponId: RaveWarWeaponId) {
+  return player ? weaponAmmoOrDefault(player.weaponAmmo, weaponId) : defaultRaveWarWeaponAmmo[weaponId];
 }
 
 function gameInputShouldIgnoreTarget(target: EventTarget | null) {
@@ -328,7 +306,7 @@ function HedgehogFrame({
   facing: RaveWarPlayerState["facing"];
   isWalking: boolean;
   showWeapon: boolean;
-  weapon: (typeof raveWarWeapons)[number];
+  weapon: RaveWarWeaponDefinition;
 }) {
   return (
     <span className="bc-rave-war-hog-shell" data-facing={facing}>
@@ -345,7 +323,7 @@ function HedgehogFrame({
           className="bc-rave-war-hog-weapon"
           draggable={false}
           height={32}
-          src={weapon.icon}
+          src={weapon.iconUrl}
           style={{
             transform: `rotate(${facing === "left" ? -angle : angle}deg)`
           }}
@@ -362,6 +340,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const battlefieldRef = useRef<HTMLDivElement | null>(null);
   const latestAnimatedShotKeyRef = useRef<string | null>(shotKey(initialWar.state.lastShot));
   const impactPulseTimeoutRef = useRef<number | null>(null);
+  const shotAnimationFrameRef = useRef<number | null>(null);
+  const warRef = useRef(initialWar);
   const currentPlayer = war.state.players.find((player) => player.userId === currentUserId) ?? null;
   const activePlayer = war.state.players.find((player) => player.userId === war.turnUserId) ?? null;
   const opponent = war.state.players.find((player) => player.userId !== currentUserId) ?? null;
@@ -393,6 +373,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const moveInFlightRef = useRef(false);
   const powerRef = useRef(power);
   const selectedWeaponRef = useRef<RaveWarWeaponId>(selectedWeapon);
+  const canFireRef = useRef(false);
   const previousTurnUserIdRef = useRef<string | null>(null);
   const returnToLiveTimeoutRef = useRef<number | null>(null);
   const walkingTimeoutsRef = useRef(new Map<string, number>());
@@ -407,11 +388,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
   const terrainMaskId = useMemo(() => `rave-war-terrain-mask-${war.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, [war.id]);
   const canControl = war.status === "active" && war.turnUserId === currentUserId;
-  const canFire = canControl && !busy;
+  const selectedWeaponAmmo = ammoForWeapon(currentPlayer, selectedWeapon);
+  const canFire = canControl && !busy && selectedWeaponAmmo > 0;
   const canAccept = war.status === "pending" && war.currentUserRole === "target";
-  const currentShotKey = shotKey(war.state.lastShot);
-  const visibleShotPath =
-    animatedShot && animatedShot.key === currentShotKey ? animatedShot.trail : war.state.lastShot?.path ?? [];
+  const visibleShotPath = animatedShot ? animatedShot.trail : war.state.lastShot?.path ?? [];
   const currentAimPlayer = currentPlayer
     ? {
         ...currentPlayer,
@@ -422,6 +402,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const shellRotation = projectileRotationFromTrail(animatedShot?.trail ?? []);
   const lastBlastRadius = war.state.lastShot?.blastRadius ?? 150;
   const lastWeapon = raveWarWeaponsById.get(war.state.lastShot?.weaponId ?? "bazooka") ?? raveWarWeapons[0];
+  const visibleShotWeapon = animatedShot ? raveWarWeaponsById.get(animatedShot.weaponId) ?? lastWeapon : lastWeapon;
+  const visibleProjectileSize = visibleShotWeapon.projectileSize;
   const turnEndsAtMs = war.state.turnEndsAt ? Date.parse(war.state.turnEndsAt) : Number.NaN;
   const remainingTurnSeconds = Number.isFinite(turnEndsAtMs) ? Math.max(0, Math.ceil((turnEndsAtMs - nowMs) / 1000)) : null;
   const warEndsAtMs = war.state.warEndsAt ? Date.parse(war.state.warEndsAt) : Number.NaN;
@@ -446,9 +428,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     aimFacingRef.current = aimFacing;
     busyRef.current = busy;
     canControlRef.current = canControl;
+    canFireRef.current = canFire;
     powerRef.current = power;
     selectedWeaponRef.current = selectedWeapon;
-  }, [aimFacing, angle, busy, canControl, power, selectedWeapon]);
+    warRef.current = war;
+  }, [aimFacing, angle, busy, canControl, canFire, power, selectedWeapon, war]);
 
   const markPlayerWalking = useCallback((userId: string) => {
     setWalkingPlayerIds((current) => {
@@ -589,6 +573,83 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     [refreshWarFromPayload, setBusy, setError, war.id]
   );
 
+  const startShotAnimation = useCallback(
+    (input: {
+      damage: number;
+      impactKind: RaveWarLastShot["impactKind"];
+      impactPoint: RaveWarShotPoint;
+      key: string;
+      path: RaveWarShotPoint[];
+      playFire?: boolean;
+      showImpact?: boolean;
+      weaponId: RaveWarWeaponId;
+    }) => {
+      if (shotAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(shotAnimationFrameRef.current);
+        shotAnimationFrameRef.current = null;
+      }
+
+      if (impactPulseTimeoutRef.current !== null) {
+        window.clearTimeout(impactPulseTimeoutRef.current);
+        impactPulseTimeoutRef.current = null;
+      }
+
+      const path = [...input.path, input.impactPoint].filter((point, index, points) => {
+        const previous = points[index - 1];
+        return !previous || previous.x !== point.x || previous.y !== point.y;
+      });
+      const animationPath = path.length ? path : [input.impactPoint];
+      const duration = clampNumber(animationPath.length * 18, shotAnimationMinMs, shotAnimationMaxMs);
+      const startedAt = window.performance.now();
+
+      if (input.playFire) {
+        playRaveWarSfx("fire");
+      }
+
+      setImpactPulse(null);
+
+      function tick(now: number) {
+        const progress = clampNumber((now - startedAt) / duration, 0, 1);
+        const index = Math.min(animationPath.length - 1, Math.floor(progress * (animationPath.length - 1)));
+
+        setAnimatedShot({
+          key: input.key,
+          point: animationPath[index] ?? input.impactPoint,
+          trail: animationPath.slice(0, index + 1),
+          weaponId: input.weaponId
+        });
+
+        if (progress < 1) {
+          shotAnimationFrameRef.current = window.requestAnimationFrame(tick);
+          return;
+        }
+
+        shotAnimationFrameRef.current = null;
+        setAnimatedShot(null);
+
+        if (!input.showImpact) {
+          return;
+        }
+
+        setImpactPulse({
+          damage: input.damage,
+          impactKind: input.impactKind,
+          key: input.key,
+          point: input.impactPoint
+        });
+        playRaveWarSfx(input.damage > 0 ? "hit" : input.impactKind === "out-of-bounds" ? "miss" : "impact");
+
+        impactPulseTimeoutRef.current = window.setTimeout(() => {
+          setImpactPulse((current) => (current?.key === input.key ? null : current));
+          impactPulseTimeoutRef.current = null;
+        }, 900);
+      }
+
+      shotAnimationFrameRef.current = window.requestAnimationFrame(tick);
+    },
+    [setAnimatedShot, setImpactPulse]
+  );
+
   const updateAimFromPointer = useCallback(
     (event: PointerEvent<HTMLDivElement>) => {
       const element = battlefieldRef.current;
@@ -609,24 +670,64 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
   const fireCurrentShotWithPower = useCallback(
     async (shotPower?: number) => {
-      if (!canControlRef.current || busyRef.current) {
+      if (!canFireRef.current || busyRef.current) {
         playRaveWarSfx("blocked");
         return;
       }
 
       const nextPower = Math.round(clampNumber(shotPower ?? powerRef.current, 10, 100));
+      const nextAngle = Math.round(angleRef.current);
+      const weaponId = selectedWeaponRef.current;
+      const currentWar = warRef.current;
+      const shooter = currentWar.state.players.find((player) => player.userId === currentUserId);
+      const target = currentWar.state.players.find((player) => player.userId !== currentUserId && player.health > 0);
+
+      if (shooter && weaponAmmoOrDefault(shooter.weaponAmmo, weaponId) <= 0) {
+        setError(`${raveWarWeaponsById.get(weaponId)?.label ?? "Weapon"} is out of ammo.`);
+        playRaveWarSfx("blocked");
+        return;
+      }
 
       setPower(nextPower);
       powerRef.current = nextPower;
       playRaveWarSfx("fire");
+
+      if (shooter && target) {
+        const optimisticShot = simulateRaveWarShot({
+          angle: nextAngle,
+          craters: currentWar.state.craters,
+          level: currentWar.level,
+          power: nextPower,
+          shooter: {
+            ...shooter,
+            angle: nextAngle,
+            facing: aimFacingRef.current,
+            power: nextPower,
+            selectedWeapon: weaponId
+          },
+          target,
+          weaponId
+        });
+
+        startShotAnimation({
+          damage: 0,
+          impactKind: optimisticShot.impactKind,
+          impactPoint: optimisticShot.impactPoint,
+          key: `local:${Date.now()}:${weaponId}`,
+          path: optimisticShot.path,
+          showImpact: false,
+          weaponId
+        });
+      }
+
       await postWarAction("fire", {
-        angle: Math.round(angleRef.current),
+        angle: nextAngle,
         facing: aimFacingRef.current,
         power: nextPower,
-        weaponId: selectedWeaponRef.current
+        weaponId
       });
     },
-    [postWarAction, setPower]
+    [currentUserId, postWarAction, setError, setPower, startShotAnimation]
   );
 
   const stopChargingShot = useCallback(
@@ -740,16 +841,37 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     await fireCurrentShotWithPower(powerRef.current);
   }, [fireCurrentShotWithPower]);
 
+  const selectWeapon = useCallback(
+    (weaponId: RaveWarWeaponId) => {
+      selectedWeaponRef.current = weaponId;
+      setSelectedWeapon(weaponId);
+    },
+    [setSelectedWeapon]
+  );
+
   const cycleSelectedWeapon = useCallback((direction: -1 | 1) => {
+    const player = warRef.current.state.players.find((entry) => entry.userId === currentUserId);
+
     setSelectedWeapon((current) => {
       const currentIndex = raveWarWeapons.findIndex((weapon) => weapon.id === current);
-      const nextIndex = (currentIndex + direction + raveWarWeapons.length) % raveWarWeapons.length;
-      const nextWeapon = raveWarWeapons[nextIndex]?.id ?? "bazooka";
+      const safeCurrentIndex = currentIndex >= 0 ? currentIndex : 0;
 
-      selectedWeaponRef.current = nextWeapon;
-      return nextWeapon;
+      for (let offset = 1; offset <= raveWarWeapons.length; offset += 1) {
+        const nextIndex = (safeCurrentIndex + direction * offset + raveWarWeapons.length) % raveWarWeapons.length;
+        const nextWeapon = raveWarWeapons[nextIndex]?.id ?? "bazooka";
+
+        if (ammoForWeapon(player, nextWeapon) <= 0) {
+          continue;
+        }
+
+        selectedWeaponRef.current = nextWeapon;
+        return nextWeapon;
+      }
+
+      selectedWeaponRef.current = current;
+      return current;
     });
-  }, [setSelectedWeapon]);
+  }, [currentUserId, setSelectedWeapon]);
 
   const moveCurrentPlayer = useCallback(
     async (direction: RaveWarMoveDirection) => {
@@ -1176,63 +1298,20 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       return undefined;
     }
 
-    const animationKey = nextShotKey;
-    const shot = lastShot;
+    latestAnimatedShotKeyRef.current = nextShotKey;
+    startShotAnimation({
+      damage: lastShot.damage,
+      impactKind: lastShot.impactKind,
+      impactPoint: lastShot.impactPoint,
+      key: nextShotKey,
+      path: lastShot.path,
+      playFire: lastShot.shooterUserId !== currentUserId,
+      showImpact: true,
+      weaponId: lastShot.weaponId
+    });
 
-    latestAnimatedShotKeyRef.current = animationKey;
-
-    if (impactPulseTimeoutRef.current !== null) {
-      window.clearTimeout(impactPulseTimeoutRef.current);
-      impactPulseTimeoutRef.current = null;
-    }
-
-    const path = [...shot.path, shot.impactPoint];
-    const duration = clampNumber(path.length * 18, shotAnimationMinMs, shotAnimationMaxMs);
-    const startedAt = window.performance.now();
-    let animationFrame = 0;
-
-    if (shot.shooterUserId !== currentUserId) {
-      playRaveWarSfx("fire");
-    }
-
-    setImpactPulse(null);
-
-    function tick(now: number) {
-      const progress = clampNumber((now - startedAt) / duration, 0, 1);
-      const index = Math.min(path.length - 1, Math.floor(progress * (path.length - 1)));
-
-      setAnimatedShot({
-        key: animationKey,
-        point: path[index] ?? shot.impactPoint,
-        trail: path.slice(0, index + 1)
-      });
-
-      if (progress < 1) {
-        animationFrame = window.requestAnimationFrame(tick);
-        return;
-      }
-
-      setAnimatedShot(null);
-      setImpactPulse({
-        damage: shot.damage,
-        impactKind: shot.impactKind,
-        key: animationKey,
-        point: shot.impactPoint
-      });
-      playRaveWarSfx(shot.damage > 0 ? "hit" : shot.impactKind === "out-of-bounds" ? "miss" : "impact");
-
-      impactPulseTimeoutRef.current = window.setTimeout(() => {
-        setImpactPulse((current) => (current?.key === animationKey ? null : current));
-        impactPulseTimeoutRef.current = null;
-      }, 900);
-    }
-
-    animationFrame = window.requestAnimationFrame(tick);
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-    };
-  }, [currentUserId, war.state.lastShot]);
+    return undefined;
+  }, [currentUserId, startShotAnimation, war.state.lastShot]);
 
   useEffect(
     () => () => {
@@ -1250,6 +1329,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
       if (moveHoldIntervalRef.current !== null) {
         window.clearInterval(moveHoldIntervalRef.current);
+      }
+
+      if (shotAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(shotAnimationFrameRef.current);
       }
 
       if (returnToLiveTimeoutRef.current !== null) {
@@ -1369,28 +1452,40 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               ) : null}
             </div>
 
-            <div className="bc-rave-war-weapon-dock hidden lg:grid">
+            <div
+              className="bc-rave-war-weapon-dock hidden lg:grid"
+              onPointerCancel={stopBattlefieldControlEvent}
+              onPointerDown={stopBattlefieldControlEvent}
+              onPointerUp={stopBattlefieldControlEvent}
+            >
               <p className="text-center text-sm font-black uppercase text-bc-pink">Weapons</p>
-              {raveWarWeapons.map((weapon) => (
-                <button
-                  className={`bc-focus-ring bc-rave-war-weapon-tile ${selectedWeapon === weapon.id ? "is-selected" : ""}`}
-                  disabled={!canFire}
-                  key={weapon.id}
-                  onClick={() => {
-                    selectedWeaponRef.current = weapon.id;
-                    setSelectedWeapon(weapon.id);
-                  }}
-                  title={weapon.description}
-                  type="button"
-                >
-                  <Image alt="" className="h-9 w-9 object-contain" height={36} src={weapon.icon} unoptimized width={36} />
-                  <span>{weapon.label}</span>
-                  <strong>x{weapon.id === "bazooka" ? 3 : weapon.id === "grenade" ? 5 : 4}</strong>
-                </button>
-              ))}
+              {raveWarWeapons.map((weapon) => {
+                const ammo = ammoForWeapon(currentPlayer, weapon.id);
+
+                return (
+                  <button
+                    aria-pressed={selectedWeapon === weapon.id}
+                    className={`bc-focus-ring bc-rave-war-weapon-tile ${selectedWeapon === weapon.id ? "is-selected" : ""}`}
+                    disabled={!canControl || busy || ammo <= 0}
+                    key={weapon.id}
+                    onClick={() => selectWeapon(weapon.id)}
+                    title={weapon.description}
+                    type="button"
+                  >
+                    <Image alt="" className="h-9 w-9 object-contain" height={36} src={weapon.iconUrl} unoptimized width={36} />
+                    <span>{weapon.label}</span>
+                    <strong>x{ammo}</strong>
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="bc-rave-war-bottom-hud pointer-events-none absolute inset-x-3 bottom-3 z-20 hidden items-end justify-between gap-3 lg:flex">
+            <div
+              className="bc-rave-war-bottom-hud pointer-events-none absolute inset-x-3 bottom-3 z-20 hidden items-end justify-between gap-3 lg:flex"
+              onPointerCancel={stopBattlefieldControlEvent}
+              onPointerDown={stopBattlefieldControlEvent}
+              onPointerUp={stopBattlefieldControlEvent}
+            >
               <div className="grid w-64 gap-2 rounded-md border border-white/20 bg-black/70 p-2 shadow-2xl shadow-black/45 backdrop-blur">
                 <div>
                   <div className="flex items-center justify-between text-xs font-black uppercase">
@@ -1418,6 +1513,9 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                   className="bc-focus-ring bc-rave-war-fire-button pointer-events-auto"
                   disabled={!canFire}
                   onClick={() => void fireCurrentShot()}
+                  onPointerCancel={stopBattlefieldControlEvent}
+                  onPointerDown={stopBattlefieldControlEvent}
+                  onPointerUp={stopBattlefieldControlEvent}
                   type="button"
                 >
                   Fire
@@ -1489,12 +1587,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                 <>
                   <circle cx={animatedShot.point.x} cy={animatedShot.point.y} fill="rgba(163,255,18,0.35)" r="34" />
                   <image
-                    height="54"
-                    href={lastWeapon.projectile}
+                    height={visibleProjectileSize}
+                    href={visibleShotWeapon.projectileUrl}
                     transform={`rotate(${shellRotation} ${animatedShot.point.x} ${animatedShot.point.y})`}
-                    width="54"
-                    x={animatedShot.point.x - 27}
-                    y={animatedShot.point.y - 27}
+                    width={visibleProjectileSize}
+                    x={animatedShot.point.x - visibleProjectileSize / 2}
+                    y={animatedShot.point.y - visibleProjectileSize / 2}
                   />
                 </>
               ) : null}
@@ -1697,24 +1795,30 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                 </div>
                 <div className="grid gap-2">
                   <p className="text-[10px] font-black uppercase text-bc-muted">Weapon</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {raveWarWeapons.map((weapon) => (
-                      <button
-                        className={`bc-focus-ring grid min-h-16 place-items-center rounded-md border px-2 py-2 text-center text-[11px] font-black transition ${
-                          selectedWeapon === weapon.id
-                            ? "border-bc-electric bg-bc-electric/15 text-white"
-                            : "border-bc-line bg-bc-ink text-bc-muted hover:border-bc-electric/50 hover:text-white"
-                        }`}
-                        disabled={!canFire}
-                        key={weapon.id}
-                        onClick={() => setSelectedWeapon(weapon.id)}
-                        title={weapon.description}
-                        type="button"
-                      >
-                        <Image alt="" className="h-7 w-7 object-contain" height={28} src={weapon.icon} unoptimized width={28} />
-                        <span>{weapon.label}</span>
-                      </button>
-                    ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    {raveWarWeapons.map((weapon) => {
+                      const ammo = ammoForWeapon(currentPlayer, weapon.id);
+
+                      return (
+                        <button
+                          aria-pressed={selectedWeapon === weapon.id}
+                          className={`bc-focus-ring grid min-h-16 place-items-center rounded-md border px-2 py-2 text-center text-[11px] font-black transition ${
+                            selectedWeapon === weapon.id
+                              ? "border-bc-electric bg-bc-electric/15 text-white"
+                              : "border-bc-line bg-bc-ink text-bc-muted hover:border-bc-electric/50 hover:text-white"
+                          }`}
+                          disabled={!canControl || busy || ammo <= 0}
+                          key={weapon.id}
+                          onClick={() => selectWeapon(weapon.id)}
+                          title={weapon.description}
+                          type="button"
+                        >
+                          <Image alt="" className="h-7 w-7 object-contain" height={28} src={weapon.iconUrl} unoptimized width={28} />
+                          <span>{weapon.label}</span>
+                          <span className="text-[10px] text-bc-acid">x{ammo}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">

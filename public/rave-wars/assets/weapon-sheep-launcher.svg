@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Sheep launcher">
+  <path d="M17 61c2-18 16-30 33-30 18 0 31 12 32 30" fill="#2bd6ff" stroke="#050712" stroke-width="6" stroke-linecap="round"/>
+  <path d="M27 63h47l6 14H21z" fill="#171b28" stroke="#050712" stroke-width="5" stroke-linejoin="round"/>
+  <circle cx="34" cy="41" r="13" fill="#fff" stroke="#050712" stroke-width="4"/>
+  <circle cx="48" cy="35" r="16" fill="#fff" stroke="#050712" stroke-width="4"/>
+  <circle cx="62" cy="42" r="13" fill="#fff" stroke="#050712" stroke-width="4"/>
+  <ellipse cx="49" cy="52" rx="14" ry="11" fill="#f1b6d2" stroke="#050712" stroke-width="4"/>
+  <circle cx="44" cy="50" r="2.5" fill="#050712"/>
+  <circle cx="55" cy="50" r="2.5" fill="#050712"/>
+  <path d="M47 57h6" stroke="#050712" stroke-linecap="round" stroke-width="3"/>
+  <path d="M24 78h12M61 78h12" stroke="#a3ff12" stroke-linecap="round" stroke-width="6"/>
+</svg>

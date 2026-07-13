@@ -56,6 +56,71 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     projectileStepLimit: 115,
     speedBase: 38,
     speedPowerScale: 0.12
+  },
+  "bass-bomb": {
+    blastRadius: 190,
+    craterMax: 228,
+    craterMin: 148,
+    craterPowerScale: 0.62,
+    gravity: 0.42,
+    hitRadius: 72,
+    maxDamage: 88,
+    pathStep: 2,
+    projectileStepLimit: 430,
+    speedBase: 8.2,
+    speedPowerScale: 0.29
+  },
+  "glow-grenade": {
+    blastRadius: 128,
+    craterMax: 150,
+    craterMin: 96,
+    craterPowerScale: 0.38,
+    gravity: 0.56,
+    hitRadius: 58,
+    maxDamage: 58,
+    pathStep: 2,
+    projectileStepLimit: 360,
+    speedBase: 7,
+    speedPowerScale: 0.3
+  },
+  "sheep-launcher": {
+    blastRadius: 146,
+    craterMax: 178,
+    craterMin: 112,
+    craterPowerScale: 0.42,
+    gravity: 0.34,
+    hitRadius: 78,
+    maxDamage: 72,
+    pathStep: 2,
+    projectileStepLimit: 440,
+    speedBase: 9.4,
+    speedPowerScale: 0.33
+  },
+  "tnt-barrel": {
+    blastRadius: 215,
+    craterMax: 260,
+    craterMin: 170,
+    craterPowerScale: 0.7,
+    gravity: 0.64,
+    hitRadius: 76,
+    maxDamage: 94,
+    pathStep: 2,
+    projectileStepLimit: 360,
+    speedBase: 5.6,
+    speedPowerScale: 0.24
+  },
+  "stink-sock": {
+    blastRadius: 98,
+    craterMax: 122,
+    craterMin: 72,
+    craterPowerScale: 0.3,
+    gravity: 0.24,
+    hitRadius: 64,
+    maxDamage: 44,
+    pathStep: 2,
+    projectileStepLimit: 390,
+    speedBase: 12.5,
+    speedPowerScale: 0.24
   }
 };
 

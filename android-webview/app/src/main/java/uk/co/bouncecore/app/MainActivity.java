@@ -238,14 +238,20 @@ public class MainActivity extends Activity {
         fireParams.setMargins(0, 0, dp(22), dp(18));
         overlay.addView(fireButton, fireParams);
 
-        Button weaponButton = raveWarControlButton("Weapon", "weapon-next", false, dp(108), dp(46));
+        LinearLayout weaponCluster = new LinearLayout(this);
+        weaponCluster.setGravity(Gravity.CENTER);
+        weaponCluster.setOrientation(LinearLayout.HORIZONTAL);
+        weaponCluster.setPadding(dp(6), dp(6), dp(6), dp(6));
+        weaponCluster.setBackground(panelBackground("#66050712", "#66ff3fa4"));
+        weaponCluster.addView(raveWarControlButton("Weapon -", "weapon-prev", false, dp(104), dp(46)));
+        weaponCluster.addView(raveWarControlButton("Weapon +", "weapon-next", false, dp(104), dp(46)));
         FrameLayout.LayoutParams weaponParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
         weaponParams.gravity = Gravity.TOP | Gravity.RIGHT;
         weaponParams.setMargins(0, dp(16), dp(18), 0);
-        overlay.addView(weaponButton, weaponParams);
+        overlay.addView(weaponCluster, weaponParams);
 
         TextView hint = new TextView(this);
         hint.setGravity(Gravity.CENTER);

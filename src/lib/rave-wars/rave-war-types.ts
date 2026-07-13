@@ -4,9 +4,20 @@ export const raveWarStatuses = ["pending", "active", "declined", "cancelled", "e
 
 export type RaveWarStatus = (typeof raveWarStatuses)[number];
 
-export const raveWarWeaponIds = ["bazooka", "grenade", "shotgun"] as const;
+export const raveWarWeaponIds = [
+  "bazooka",
+  "grenade",
+  "shotgun",
+  "bass-bomb",
+  "glow-grenade",
+  "sheep-launcher",
+  "tnt-barrel",
+  "stink-sock"
+] as const;
 
 export type RaveWarWeaponId = (typeof raveWarWeaponIds)[number];
+
+export type RaveWarWeaponAmmo = Record<RaveWarWeaponId, number>;
 
 export type RaveWarPlayerState = {
   angle: number;
@@ -19,6 +30,7 @@ export type RaveWarPlayerState = {
   power: number;
   selectedWeapon: RaveWarWeaponId;
   userId: string;
+  weaponAmmo: RaveWarWeaponAmmo;
   x: number;
   y: number;
 };

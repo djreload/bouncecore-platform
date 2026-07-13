@@ -3,9 +3,12 @@ import test from "node:test";
 import { bazookaBattlefieldLevel } from "../src/lib/rave-wars/levels/bazooka-battlefield.ts";
 import {
   appendTerrainCrater,
+  raveWarWeaponConfigs,
   simulateRaveWarShot,
   terrainSurfaceY
 } from "../src/lib/rave-wars/rave-war-engine.ts";
+import { raveWarWeaponIds } from "../src/lib/rave-wars/rave-war-types.ts";
+import { defaultRaveWarWeaponAmmo } from "../src/lib/rave-wars/rave-war-weapons.ts";
 
 function player(id, spawnIndex) {
   const spawn = bazookaBattlefieldLevel.spawns[spawnIndex];
@@ -21,6 +24,7 @@ function player(id, spawnIndex) {
     power: 65,
     selectedWeapon: "bazooka",
     userId: id,
+    weaponAmmo: { ...defaultRaveWarWeaponAmmo },
     x: spawn.x,
     y: spawn.y
   };
@@ -52,6 +56,31 @@ test("rave war default spawns can hit in both directions", () => {
   assert.ok(firstShot.damage > 0);
   assert.equal(secondShot.impactKind, "hog");
   assert.ok(secondShot.damage > 0);
+});
+
+test("every registered rave war weapon has physics and produces a visible projectile path", () => {
+  const first = player("first", 0);
+  const second = player("second", 1);
+
+  for (const weaponId of raveWarWeaponIds) {
+    assert.ok(raveWarWeaponConfigs[weaponId], `${weaponId} needs an engine config`);
+
+    const shot = simulateRaveWarShot({
+      angle: first.angle,
+      craters: [],
+      level: bazookaBattlefieldLevel,
+      power: first.power,
+      shooter: {
+        ...first,
+        selectedWeapon: weaponId
+      },
+      target: second,
+      weaponId
+    });
+
+    assert.ok(shot.path.length > 2, `${weaponId} should render a projectile trail`);
+    assert.ok(shot.blastRadius > 0, `${weaponId} should have a blast radius`);
+  }
 });
 
 test("rave war terrain shots create visible craters that affect the surface", () => {

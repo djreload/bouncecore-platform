@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Glow grenade">
+  <defs>
+    <radialGradient id="glow-core" cx="36%" cy="26%" r="72%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.34" stop-color="#a3ff12"/>
+      <stop offset="1" stop-color="#087c21"/>
+    </radialGradient>
+  </defs>
+  <path d="M41 17h19l4 14H37z" fill="#222636" stroke="#050712" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M58 16c5-9 16-7 20 0" fill="none" stroke="#ff3fa4" stroke-linecap="round" stroke-width="6"/>
+  <circle cx="48" cy="54" r="30" fill="url(#glow-core)" stroke="#050712" stroke-width="5"/>
+  <path d="M28 48h40M31 64h34M38 29c8 34 8 46 0 52M58 29c-8 34-8 46 0 52" fill="none" stroke="#050712" stroke-linecap="round" stroke-width="4" opacity=".55"/>
+  <circle cx="36" cy="43" r="7" fill="#fff" opacity=".75"/>
+</svg>

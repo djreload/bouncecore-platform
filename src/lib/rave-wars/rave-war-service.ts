@@ -35,15 +35,21 @@ import {
   type RaveWarStatus,
   type RaveWarSummary,
   type RaveWarTerrainCrater,
+  type RaveWarWeaponAmmo,
   type RaveWarWeaponId
 } from "@/lib/rave-wars/rave-war-types";
+import {
+  defaultRaveWarWeaponAmmo,
+  raveWarWeaponLabel,
+  weaponAmmoOrDefault
+} from "@/lib/rave-wars/rave-war-weapons";
 
 const raveWarSettingsKey = "chat.rave_wars";
 const raveWarHealth = 100;
 const raveWarMaxLogEntries = 8;
 const explosionRadius = 150;
-const raveWarMatchSeconds = 5 * 60;
-const raveWarTurnSeconds = 60;
+const raveWarMatchSeconds = 10 * 60;
+const raveWarTurnSeconds = 90;
 const raveWarTurnMovement = 220;
 const raveWarMoveStep = 34;
 
@@ -108,6 +114,20 @@ function normalizeShotNumber(value: unknown, fallback: number, min: number, max:
 
 function normalizeWeaponId(value: unknown): RaveWarWeaponId {
   return raveWarWeaponIds.includes(value as RaveWarWeaponId) ? (value as RaveWarWeaponId) : "bazooka";
+}
+
+function normalizeWeaponAmmo(value: unknown): RaveWarWeaponAmmo {
+  const ammo = { ...defaultRaveWarWeaponAmmo };
+
+  if (!isObject(value)) {
+    return ammo;
+  }
+
+  for (const weaponId of raveWarWeaponIds) {
+    ammo[weaponId] = Math.floor(normalizeShotNumber(value[weaponId], ammo[weaponId], 0, 99));
+  }
+
+  return ammo;
 }
 
 function turnWindow(now = new Date()) {
@@ -176,6 +196,7 @@ function createInitialState(input: {
         power: 65,
         selectedWeapon: "bazooka",
         userId: player.userId,
+        weaponAmmo: { ...defaultRaveWarWeaponAmmo },
         x: spawn.x,
         y: spawn.y
       };
@@ -224,6 +245,7 @@ function normalizePlayerState(value: unknown): RaveWarPlayerState | null {
     power: normalizeShotNumber(value.power, 65, 10, 100),
     selectedWeapon: normalizeWeaponId(value.selectedWeapon),
     userId,
+    weaponAmmo: normalizeWeaponAmmo(value.weaponAmmo),
     x: normalizeShotNumber(value.x, 0, 0, 4096),
     y: normalizeShotNumber(value.y, 0, 0, 4096)
   };
@@ -1542,12 +1564,24 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
   const power = normalizeShotNumber(input.power, shooter.power, 10, 100);
   const weaponId = normalizeWeaponId(input.weaponId ?? shooter.selectedWeapon);
   const facing = input.facing === "left" || input.facing === "right" ? input.facing : shooter.facing;
+  const shooterWeaponAmmo = normalizeWeaponAmmo(shooter.weaponAmmo);
+  const remainingAmmo = weaponAmmoOrDefault(shooterWeaponAmmo, weaponId);
+
+  if (remainingAmmo <= 0) {
+    throw new Error(`${raveWarWeaponLabel(weaponId)} is out of ammo.`);
+  }
+
+  const nextShooterWeaponAmmo = {
+    ...shooterWeaponAmmo,
+    [weaponId]: remainingAmmo - 1
+  };
   const shooterForShot: RaveWarPlayerState = {
     ...shooter,
     angle,
     facing,
     power,
-    selectedWeapon: weaponId
+    selectedWeapon: weaponId,
+    weaponAmmo: nextShooterWeaponAmmo
   };
   const shot = simulateRaveWarShot({
     angle,
@@ -1566,7 +1600,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
         angle,
         facing,
         power,
-        selectedWeapon: weaponId
+        selectedWeapon: weaponId,
+        weaponAmmo: nextShooterWeaponAmmo
       };
     }
 
@@ -1618,8 +1653,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
       shot.damage > 0
         ? `${shooter.displayName} hit ${target.displayName} for ${shot.damage} damage.`
         : shot.impactKind === "terrain"
-          ? `${shooter.displayName}'s bazooka hit the terrain.`
-          : `${shooter.displayName} fired and missed.`
+          ? `${shooter.displayName}'s ${raveWarWeaponLabel(weaponId)} hit the terrain.`
+          : `${shooter.displayName}'s ${raveWarWeaponLabel(weaponId)} missed.`
     ]),
     players: nextPlayers,
     ...nextTurnWindow,

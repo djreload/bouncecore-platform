@@ -35,6 +35,8 @@ test("Android WebView uses native fullscreen controls for Rave War", () => {
   assert.match(activity, /WindowInsets\.Type\.statusBars\(\) \| WindowInsets\.Type\.navigationBars\(\)/);
   assert.match(activity, /dispatchRaveWarControl\(control, "down"\)/);
   assert.match(activity, /dispatchRaveWarControl\(control, holdControl \? "up" : "press"\)/);
+  assert.match(activity, /"Weapon -", "weapon-prev", false/);
+  assert.match(activity, /"Weapon \+", "weapon-next", false/);
   assert.match(activity, /bouncecore:rave-war-native-control/);
   assert.match(activity, /path != null && path\.startsWith\("\/rave-wars\/"\)/);
   assert.match(activity, /raveWarModeActive[\s\S]*bannerContainer\.setVisibility\(View\.GONE\)/);

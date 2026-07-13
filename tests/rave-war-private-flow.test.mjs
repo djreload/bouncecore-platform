@@ -57,6 +57,8 @@ test("rave war battlefield supports mouse aiming animated shots and sfx only", (
   assert.match(game, /bouncecore:rave-war-native-control/);
   assert.match(game, /startChargingShot/);
   assert.match(game, /stopChargingShot\(true\)/);
+  assert.match(game, /stopBattlefieldControlEvent/);
+  assert.match(game, /onPointerDown=\{stopBattlefieldControlEvent\}/);
   assert.doesNotMatch(game, /bc-rave-war-mobile-controls/);
   assert.match(game, /bc-rave-war-shell fixed inset-0 z-\[80\] flex h-dvh w-dvw max-w-none/);
   assert.match(game, /bc-rave-war-battlefield relative aspect-\[2\/1\] w-full max-w-full/);
@@ -87,6 +89,12 @@ test("rave war shots carve authoritative terrain craters and render imported gam
 
   assert.match(types, /export type RaveWarTerrainCrater/);
   assert.match(types, /export const raveWarWeaponIds/);
+  assert.match(types, /"bass-bomb"/);
+  assert.match(types, /"glow-grenade"/);
+  assert.match(types, /"sheep-launcher"/);
+  assert.match(types, /"tnt-barrel"/);
+  assert.match(types, /"stink-sock"/);
+  assert.match(types, /weaponAmmo: RaveWarWeaponAmmo/);
   assert.match(types, /craters: RaveWarTerrainCrater\[\]/);
   assert.match(types, /blastRadius: number/);
   assert.match(types, /turnEndsAt: string \| null/);
@@ -94,8 +102,11 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(engine, /terrainSurfaceY\(level, craters/);
   assert.match(service, /moveRaveWarPlayer/);
   assert.match(engine, /raveWarWeaponConfigs/);
+  assert.match(engine, /"bass-bomb":/);
+  assert.match(engine, /"tnt-barrel":/);
   assert.match(service, /settlePlayersOnTerrain/);
   assert.match(service, /craters: nextCraters/);
+  assert.match(service, /weaponAmmo: nextShooterWeaponAmmo/);
   assert.match(game, /mask id=\{terrainMaskId\}/);
   assert.match(game, /war\.state\.craters\.map/);
   assert.match(game, /window\.addEventListener\("keydown", handleKeyDown\)/);
@@ -108,14 +119,22 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /moveCurrentPlayer/);
   assert.doesNotMatch(game, /closest\("input, textarea, select, button/);
   assert.match(game, /selectedWeapon/);
+  assert.match(game, /simulateRaveWarShot/);
+  assert.match(game, /startShotAnimation/);
+  assert.match(game, /visibleShotWeapon\.projectileUrl/);
+  assert.match(game, /visibleProjectileSize/);
   assert.match(css, /\.bc-rave-war-hog-shell\s*{\s*position: relative;\s*display: block;\s*width: 32px;/s);
   assert.match(css, /\.bc-rave-war-hog-frame\s*{[^}]*width: 32px;[^}]*background-size: 64px 512px;/s);
-  assert.match(game, /raveWarAssets\.shell/);
   assert.match(game, /raveWarAssets\.explosion/);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/hedgehog.png")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/hedgehog-idle.png")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/bazooka-shell.png")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/big-explosion.png")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-bass-bomb.svg")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-glow-grenade.svg")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-sheep-launcher.svg")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-tnt-barrel.svg")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-stink-sock.svg")), true);
 });
 
 test("rave war prompts live in header and mobile menu instead of covering chat", () => {
@@ -167,8 +186,8 @@ test("rave war timers and chat toasts use enforced match state", () => {
   const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");
   const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
 
-  assert.match(service, /const raveWarMatchSeconds = 5 \* 60/);
-  assert.match(service, /const raveWarTurnSeconds = 60/);
+  assert.match(service, /const raveWarMatchSeconds = 10 \* 60/);
+  assert.match(service, /const raveWarTurnSeconds = 90/);
   assert.match(service, /finishExpiredActiveRaveWarIfNeeded/);
   assert.match(service, /advanceExpiredTurnIfNeeded/);
   assert.match(service, /kind: "rave-war"/);
