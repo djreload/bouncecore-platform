@@ -5,7 +5,8 @@ import {
   appendTerrainCrater,
   raveWarWeaponConfigs,
   simulateRaveWarShot,
-  terrainSurfaceY
+  terrainSurfaceY,
+  walkPlayerOnTerrain
 } from "../src/lib/rave-wars/rave-war-engine.ts";
 import { raveWarWeaponIds } from "../src/lib/rave-wars/rave-war-types.ts";
 import { defaultRaveWarWeaponAmmo } from "../src/lib/rave-wars/rave-war-weapons.ts";
@@ -105,6 +106,23 @@ test("rave war terrain shots create visible craters that affect the surface", ()
   const after = terrainSurfaceY(bazookaBattlefieldLevel, craters, terrainShot.crater.x);
 
   assert.ok(after > before + 40);
+});
+
+test("players receive crater traversal assistance and remain inside the visible battlefield", () => {
+  const crater = {
+    radius: 220,
+    x: 900,
+    y: 900
+  };
+  const trappedPlayer = {
+    ...player("first", 0),
+    x: crater.x,
+    y: bazookaBattlefieldLevel.height + 80
+  };
+  const movedPlayer = walkPlayerOnTerrain(bazookaBattlefieldLevel, [crater], trappedPlayer, 1, 34);
+
+  assert.ok(movedPlayer.x > trappedPlayer.x + 34);
+  assert.ok(movedPlayer.y <= bazookaBattlefieldLevel.height - 28);
 });
 
 test("homing bee bends toward its target and remains wind resistant", () => {

@@ -203,6 +203,8 @@ test("rave war active challenges auto-open once and finished wars return to live
   assert.match(game, /turnAnnouncement/);
   assert.match(game, /bc-rave-war-announcement/);
   assert.match(game, /bc-rave-war-titleplate/);
+  assert.doesNotMatch(game, /rave-war-crater-rim-gradient/);
+  assert.doesNotMatch(game, /war\.state\.lastShot && !animatedShot/);
   assert.match(css, /bc-rave-war-player-card/);
   assert.match(css, /bc-rave-war-weapon-dock/);
 });

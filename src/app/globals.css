@@ -2134,45 +2134,87 @@ html.bc-rave-war-active .bc-site-footer {
   }
 
   .bc-rave-war-titleplate {
-    top: 0.3rem;
-    width: min(15rem, 36vw);
-    padding: 0.25rem 0.55rem 0.32rem;
+    display: none;
   }
 
   .bc-rave-war-hud {
-    inset-inline: 0.35rem;
-    top: 0.35rem;
+    inset-inline: 0.25rem;
+    top: 0.25rem;
   }
 
   .bc-rave-war-player-card {
-    grid-template-columns: 2.45rem minmax(0, 1fr);
-    gap: 0.42rem;
-    width: min(12.5rem, 31vw);
-    min-height: 3rem;
-    padding: 0.32rem 0.42rem;
-    border-radius: 0.58rem;
+    display: block;
+    width: min(8.5rem, 29vw);
+    min-height: 0;
+    padding: 0.26rem 0.42rem;
+    border-radius: 0.45rem;
+    backdrop-filter: blur(5px);
   }
 
   .bc-rave-war-player-card[data-side="right"] {
-    grid-template-columns: minmax(0, 1fr) 2.45rem;
+    display: block;
   }
 
   .bc-rave-war-player-portrait {
-    width: 2.25rem;
-    font-size: 0.9rem;
+    display: none;
   }
 
   .bc-rave-war-player-card p {
-    font-size: 0.68rem;
+    font-size: 0.64rem;
   }
 
   .bc-rave-war-player-card .mt-1 {
     margin-top: 0.1rem;
   }
 
+  .bc-rave-war-player-health {
+    gap: 0.25rem;
+  }
+
+  .bc-rave-war-player-health span {
+    font-size: 0.72rem;
+  }
+
+  .bc-rave-war-player-health svg {
+    width: 0.8rem;
+    height: 0.8rem;
+  }
+
+  .bc-rave-war-health-segments,
+  .bc-rave-war-wind-panel {
+    display: none;
+  }
+
+  .bc-rave-war-camera-controls {
+    top: auto;
+    bottom: 0.3rem;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    transform: translateX(-50%);
+  }
+
+  .bc-rave-war-camera-controls button {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .bc-rave-war-camera-controls span {
+    display: none;
+  }
+
   .bc-rave-war-announcement {
-    min-width: min(17rem, 58vw);
-    padding: 0.45rem 0.65rem;
+    min-width: min(12rem, 48vw);
+    padding: 0.32rem 0.5rem;
+  }
+
+  .bc-rave-war-announcement p {
+    font-size: 0.7rem;
+  }
+
+  .bc-rave-war-announcement span {
+    margin-top: 0.08rem;
+    font-size: 1rem;
   }
 
   .bc-rave-war-sidebar {

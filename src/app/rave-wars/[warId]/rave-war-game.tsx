@@ -1487,11 +1487,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black uppercase lg:text-lg">{player.displayName}</p>
-                      <div className="mt-1 flex items-center gap-2">
+                      <div className="bc-rave-war-player-health mt-1 flex items-center gap-2">
                         <span className="text-sm font-black lg:text-xl">{player.health}</span>
                         <HeartPulse className="h-4 w-4 text-bc-pink lg:h-5 lg:w-5" aria-hidden="true" />
                       </div>
-                      <div className="mt-1 grid grid-cols-5 gap-1">
+                      <div className="bc-rave-war-health-segments mt-1 grid grid-cols-5 gap-1">
                         {Array.from({ length: 5 }).map((_, index) => (
                           <span
                             className="h-2 rounded-sm bg-black/55 shadow-inner"
@@ -1628,20 +1628,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                     <circle cx={crater.x} cy={crater.y} fill="#000000" key={`${crater.x}-${crater.y}-${crater.radius}-mask-${index}`} r={crater.radius} />
                   ))}
                 </mask>
-                <radialGradient id="rave-war-crater-rim-gradient">
-                  <stop offset="0%" stopColor="rgba(0,0,0,0)" />
-                  <stop offset="68%" stopColor="rgba(0,0,0,0)" />
-                  <stop offset="82%" stopColor="rgba(0,0,0,0.58)" />
-                  <stop offset="100%" stopColor="rgba(255,255,255,0.18)" />
-                </radialGradient>
               </defs>
               <image height={war.level.height} href={war.level.mapImageUrl} mask={`url(#${terrainMaskId})`} preserveAspectRatio="none" width={war.level.width} x="0" y="0" />
-              {war.state.craters.map((crater, index) => (
-                <g key={`${crater.x}-${crater.y}-${crater.radius}-${index}`}>
-                  <circle cx={crater.x} cy={crater.y} fill="url(#rave-war-crater-rim-gradient)" r={crater.radius + 9} />
-                  <circle cx={crater.x} cy={crater.y} fill="none" r={Math.max(16, crater.radius - 6)} stroke="rgba(0,0,0,0.62)" strokeWidth="7" />
-                </g>
-              ))}
               {visibleShotPath.length ? (
                 <polyline
                   fill="none"
@@ -1665,19 +1653,6 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                     y2={aimPreview.endY}
                   />
                   <circle cx={aimPreview.endX} cy={aimPreview.endY} fill="rgba(0,213,255,0.18)" r={Math.max(34, power)} stroke="#00d5ff" strokeWidth="5" />
-                </>
-              ) : null}
-              {war.state.lastShot && !animatedShot ? (
-                <>
-                  <circle
-                    cx={war.state.lastShot.impactPoint.x}
-                    cy={war.state.lastShot.impactPoint.y}
-                    fill="rgba(255,63,164,0.32)"
-                    r="54"
-                    stroke="#ff3fa4"
-                    strokeWidth="8"
-                  />
-                  <circle cx={war.state.lastShot.impactPoint.x} cy={war.state.lastShot.impactPoint.y} fill="#ffffff" r="10" />
                 </>
               ) : null}
               {animatedShot ? (

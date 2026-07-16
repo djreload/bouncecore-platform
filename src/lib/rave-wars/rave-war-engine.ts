@@ -191,8 +191,25 @@ export function terrainSurfaceY(level: RaveWarLevel, craters: RaveWarTerrainCrat
 export function settlePlayerOnTerrain(level: RaveWarLevel, craters: RaveWarTerrainCrater[], player: RaveWarPlayerState): RaveWarPlayerState {
   return {
     ...player,
-    y: Math.round(terrainSurfaceY(level, craters, player.x))
+    y: Math.round(Math.min(level.height - 28, terrainSurfaceY(level, craters, player.x)))
   };
+}
+
+export function walkPlayerOnTerrain(
+  level: RaveWarLevel,
+  craters: RaveWarTerrainCrater[],
+  player: RaveWarPlayerState,
+  direction: -1 | 1,
+  distance: number
+) {
+  const isInsideCrater = craters.some((crater) => Math.abs(player.x - crater.x) < crater.radius);
+  const traversalDistance = distance * (isInsideCrater ? 1.75 : 1);
+  const x = Math.round(clamp(player.x + direction * traversalDistance, 42, level.width - 42));
+
+  return settlePlayerOnTerrain(level, craters, {
+    ...player,
+    x
+  });
 }
 
 export function settlePlayersOnTerrain(level: RaveWarLevel, craters: RaveWarTerrainCrater[], players: RaveWarPlayerState[]) {

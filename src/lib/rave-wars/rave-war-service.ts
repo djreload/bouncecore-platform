@@ -10,9 +10,9 @@ import { queueMobilePushForNotification } from "@/lib/mobile/account-notificatio
 import {
   appendTerrainCrater,
   raveWarMaxTerrainCraters,
-  settlePlayerOnTerrain,
   settlePlayersOnTerrain,
-  simulateRaveWarShot
+  simulateRaveWarShot,
+  walkPlayerOnTerrain
 } from "@/lib/rave-wars/rave-war-engine";
 import { getRaveWarLevel, type RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
 import { publishRaveWarChanged } from "@/lib/rave-wars/rave-war-realtime";
@@ -1470,20 +1470,20 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
   }
 
   const directionAmount = direction === "left" ? -1 : 1;
+  const facing: RaveWarPlayerState["facing"] = direction;
   const step = Math.min(raveWarMoveStep, mover.movementLeft);
-  const nextX = Math.round(clamp(mover.x + directionAmount * step, 42, level.width - 42));
-  const distanceMoved = Math.abs(nextX - mover.x);
-  const nextPlayers = state.players.map((player) => {
+  const movedPlayer = walkPlayerOnTerrain(level, state.craters, mover, directionAmount, step);
+  const movementSpent = Math.min(step, Math.abs(movedPlayer.x - mover.x));
+  const nextPlayers: RaveWarPlayerState[] = state.players.map((player) => {
     if (player.userId !== userId) {
       return player;
     }
 
-    return settlePlayerOnTerrain(level, state.craters, {
-      ...player,
-      facing: direction,
-      movementLeft: Math.max(0, player.movementLeft - distanceMoved),
-      x: nextX
-    });
+    return {
+      ...movedPlayer,
+      facing,
+      movementLeft: Math.max(0, player.movementLeft - movementSpent)
+    };
   });
   const nextState: RaveWarState = {
     ...state,
@@ -1516,7 +1516,7 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
     const event = await writeWarEvent(tx, {
       payload: {
         direction,
-        x: nextX
+        x: movedPlayer.x
       },
       type: "player.moved",
       userId,
