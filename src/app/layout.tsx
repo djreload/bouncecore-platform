@@ -4,6 +4,7 @@ import { MobileApkInstallPrompt } from "@/components/mobile/mobile-apk-install-p
 import { BrowserResourceSaver } from "@/components/performance/browser-resource-saver";
 import { SitePresenceHeartbeat } from "@/components/presence/site-presence-heartbeat";
 import { CookieConsentManager } from "@/components/privacy/cookie-consent-manager";
+import { SiteConnectionRecovery } from "@/components/runtime/site-connection-recovery";
 import { defaultSiteFaviconUrl, getPublicSiteSettings } from "@/lib/admin/site-settings-service";
 import { configuredAppOrigin } from "@/lib/http/app-url";
 import "./globals.css";
@@ -99,6 +100,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {children}
         <BrowserResourceSaver />
         <PersistentLiveAudio />
+        <SiteConnectionRecovery />
         <SitePresenceHeartbeat />
         <CookieConsentManager />
         <MobileApkInstallPrompt />

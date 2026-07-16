@@ -66,6 +66,7 @@ import "./rave-war-settings.test.mjs";
 import "./sheep-throw-settings.test.mjs";
 import "./sheep-throw-overlay.test.mjs";
 import "./sheep-throw-online-target.test.mjs";
+import "./site-connectivity-recovery.test.mjs";
 import "./site-theme.test.mjs";
 import "./square-payments.test.mjs";
 import "./star-packages.test.mjs";

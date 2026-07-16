@@ -3,14 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  useActionState,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type ChangeEvent,
-  type ComponentProps,
   type FormEvent,
   type KeyboardEvent,
   type UIEvent
@@ -42,7 +40,6 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { publicChatAction } from "@/app/chat/actions";
 import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
 import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
@@ -72,6 +69,7 @@ import {
   type PublicChatRoomRow,
   type PublicChatUser
 } from "@/app/chat/state";
+import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 
 type ChatRoomPanelProps = {
   assets: PublicChatAssetRow[];
@@ -148,7 +146,7 @@ type SyncedPresence = {
   users: PublicChatPresenceUserRow[];
 };
 
-type ChatFormAction = NonNullable<ComponentProps<"form">["action"]>;
+type ChatFormAction = (formData: FormData) => void | Promise<void>;
 
 const reportReasonOptions = ["spam", "harassment", "hate", "explicit", "copyright", "other"] as const;
 const inlineBanDurationOptions = [
@@ -455,10 +453,8 @@ export function ChatRoomPanel({
   showPresenceRail = false,
   showRoomLinks = true
 }: ChatRoomPanelProps) {
-  const [state, formAction, pending] = useActionState<PublicChatActionState, FormData>(
-    publicChatAction,
-    initialPublicChatActionState
-  );
+  const [state, setState] = useState<PublicChatActionState>(initialPublicChatActionState);
+  const [pending, setPending] = useState(false);
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
   const [assetPanelOpen, setAssetPanelOpen] = useState(false);
   const [starsPanelOpen, setStarsPanelOpen] = useState(false);
@@ -486,7 +482,54 @@ export function ChatRoomPanel({
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const gifResultsViewportRef = useRef<HTMLDivElement>(null);
   const gifLoadingRef = useRef(false);
+  const chatActionPendingRef = useRef(false);
   const selectedRoomId = selectedRoom?.id;
+
+  const formAction = useCallback<ChatFormAction>(async (formData) => {
+    if (chatActionPendingRef.current) {
+      return;
+    }
+
+    const roomId = formData.get("roomId");
+    const intent = formData.get("intent");
+
+    if (typeof roomId !== "string" || !roomId) {
+      setState({
+        intent: typeof intent === "string" ? intent : undefined,
+        message: "Choose a chat room before sending a message.",
+        status: "error"
+      });
+      return;
+    }
+
+    chatActionPendingRef.current = true;
+    setPending(true);
+
+    try {
+      const response = await fetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
+        body: formData,
+        cache: "no-store",
+        credentials: "same-origin",
+        method: "POST"
+      });
+      const payload = (await response.json()) as PublicChatActionState;
+
+      if (!payload || (payload.status !== "success" && payload.status !== "error")) {
+        throw new Error("Chat returned an invalid response.");
+      }
+
+      setState(payload);
+    } catch {
+      setState({
+        intent: typeof intent === "string" ? intent : undefined,
+        message: "Connection dropped. Your text is still here; reconnect and send again.",
+        status: "error"
+      });
+    } finally {
+      chatActionPendingRef.current = false;
+      setPending(false);
+    }
+  }, []);
   const visibleRoom = syncedRoom && syncedRoom.id === selectedRoomId ? syncedRoom : selectedRoom;
   const visibleMessages = syncedMessages && syncedMessages.roomId === selectedRoomId ? syncedMessages.messages : messages;
   const visiblePresence = syncedPresence && syncedPresence.roomId === selectedRoomId ? syncedPresence.users : presenceUsers;
@@ -652,6 +695,8 @@ export function ChatRoomPanel({
     const roomId = selectedRoomId;
     let fallbackInterval: number | null = null;
     let eventSource: EventSource | null = null;
+    let reconnectAttempt = 0;
+    let reconnectTimer: number | null = null;
 
     async function refreshMessages() {
       if (!active) {
@@ -674,10 +719,57 @@ export function ChatRoomPanel({
       fallbackInterval = window.setInterval(refreshMessages, 5000);
     }
 
-    if ("EventSource" in window) {
-      eventSource = new EventSource(`/api/chat/rooms/${encodeURIComponent(roomId)}/stream`);
+    function stopPollingFallback() {
+      if (fallbackInterval !== null) {
+        window.clearInterval(fallbackInterval);
+        fallbackInterval = null;
+      }
+    }
 
-      eventSource.addEventListener("messages", (event) => {
+    function clearReconnectTimer() {
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+    }
+
+    function scheduleReconnect(immediate = false) {
+      if (!active || !("EventSource" in window) || document.visibilityState === "hidden") {
+        return;
+      }
+
+      if (immediate) {
+        clearReconnectTimer();
+      } else if (reconnectTimer !== null) {
+        return;
+      }
+
+      const delay = immediate ? 0 : reconnectDelayMs(reconnectAttempt);
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connectEventSource();
+      }, delay);
+    }
+
+    function connectEventSource() {
+      if (!active || eventSource || !("EventSource" in window) || document.visibilityState === "hidden") {
+        return;
+      }
+
+      const source = new EventSource(`/api/chat/rooms/${encodeURIComponent(roomId)}/stream`);
+      eventSource = source;
+
+      source.onopen = () => {
+        if (!active || eventSource !== source) {
+          return;
+        }
+
+        reconnectAttempt = 0;
+        stopPollingFallback();
+      };
+
+      source.addEventListener("messages", (event) => {
         if (!active) {
           return;
         }
@@ -696,7 +788,7 @@ export function ChatRoomPanel({
         }
       });
 
-      eventSource.addEventListener("room", (event) => {
+      source.addEventListener("room", (event) => {
         if (!active) {
           return;
         }
@@ -712,7 +804,7 @@ export function ChatRoomPanel({
         }
       });
 
-      eventSource.addEventListener("presence", (event) => {
+      source.addEventListener("presence", (event) => {
         if (!active) {
           return;
         }
@@ -731,26 +823,43 @@ export function ChatRoomPanel({
         }
       });
 
-      eventSource.onerror = () => {
-        if (!active) {
+      source.onerror = () => {
+        if (!active || eventSource !== source) {
           return;
         }
 
-        eventSource?.close();
+        source.close();
         eventSource = null;
         startPollingFallback();
+        scheduleReconnect();
       };
+    }
+
+    function resumeRealtimeConnection() {
+      if (!active || document.visibilityState === "hidden") {
+        return;
+      }
+
+      void refreshMessages();
+      scheduleReconnect(true);
+    }
+
+    if ("EventSource" in window) {
+      connectEventSource();
     } else {
       startPollingFallback();
     }
 
+    window.addEventListener("online", resumeRealtimeConnection);
+    document.addEventListener("visibilitychange", resumeRealtimeConnection);
+
     return () => {
       active = false;
       eventSource?.close();
-
-      if (fallbackInterval !== null) {
-        window.clearInterval(fallbackInterval);
-      }
+      clearReconnectTimer();
+      stopPollingFallback();
+      window.removeEventListener("online", resumeRealtimeConnection);
+      document.removeEventListener("visibilitychange", resumeRealtimeConnection);
     };
   }, [loadLatestMessages, selectedRoomId]);
 

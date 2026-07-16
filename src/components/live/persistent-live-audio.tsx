@@ -11,6 +11,7 @@ import {
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
 import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
+import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 import { isBouncecoreAndroidRuntime } from "@/lib/runtime/mobile-app-runtime";
 import { defaultStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
@@ -124,11 +125,13 @@ export function PersistentLiveAudio() {
   const parkingRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const reconnectAttemptRef = useRef(0);
   const canPlayRef = useRef(false);
   const playbackBufferSecondsRef = useRef(defaultStreamPlaybackSettings.playbackBufferSeconds);
   const suspendPlaybackRef = useRef(false);
   const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
+  const [playbackReconnectGeneration, setPlaybackReconnectGeneration] = useState(0);
   const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname, false));
   const [userEnabled, setUserEnabled] = useState(false);
   const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
@@ -275,6 +278,7 @@ export function PersistentLiveAudio() {
     activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
     activeVideo.addEventListener("volumechange", rememberAudiblePlayback);
     activeVideo.addEventListener("ended", recoverLivePlayback);
+    window.addEventListener("online", recoverLivePlayback);
     const stopStallWatchdog = installLiveStallWatchdog({
       getCanRecover: () => canPlayRef.current && !suspendPlaybackRef.current,
       getHls: () => hlsRef.current,
@@ -327,6 +331,7 @@ export function PersistentLiveAudio() {
       activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
       activeVideo.removeEventListener("volumechange", rememberAudiblePlayback);
       activeVideo.removeEventListener("ended", recoverLivePlayback);
+      window.removeEventListener("online", recoverLivePlayback);
     };
   }, [updateVideoPlacement]);
 
@@ -382,6 +387,32 @@ export function PersistentLiveAudio() {
     const video = videoRef.current;
     const playbackUrl = primaryPlaybackUrl;
     let cancelled = false;
+    let reconnectTimer: number | null = null;
+    let mediaRecoveryAttempts = 0;
+
+    function requestFullReconnect(immediate = false) {
+      if (cancelled || suspendPlaybackRef.current) {
+        return;
+      }
+
+      if (immediate && reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      } else if (reconnectTimer !== null) {
+        return;
+      }
+
+      const delay = immediate ? 0 : reconnectDelayMs(reconnectAttemptRef.current);
+      reconnectAttemptRef.current += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        setPlaybackReconnectGeneration((current) => current + 1);
+      }, delay);
+    }
+
+    function handleOnline() {
+      requestFullReconnect(true);
+    }
 
     hlsRef.current?.destroy();
     hlsRef.current = null;
@@ -403,6 +434,8 @@ export function PersistentLiveAudio() {
       };
     }
 
+    window.addEventListener("online", handleOnline);
+
     if (isLikelyHls(playbackUrl) && Hls.isSupported()) {
       const hls = new Hls(buildLiveHlsConfig(playbackBufferSeconds));
       hlsRef.current = hls;
@@ -411,6 +444,8 @@ export function PersistentLiveAudio() {
           return;
         }
 
+        reconnectAttemptRef.current = 0;
+        mediaRecoveryAttempts = 0;
         video.muted = !userEnabledRef.current;
         keepNormalPlaybackSpeed(video);
         void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
@@ -429,22 +464,28 @@ export function PersistentLiveAudio() {
         }
 
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          hls.startLoad();
+          hls.stopLoad();
+          requestFullReconnect();
           return;
         }
 
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveryAttempts < 2) {
+          mediaRecoveryAttempts += 1;
           hls.recoverMediaError();
           return;
         }
 
-        hls.destroy();
+        requestFullReconnect();
       });
       hls.attachMedia(video);
       hls.loadSource(playbackUrl);
 
       return () => {
         cancelled = true;
+        window.removeEventListener("online", handleOnline);
+        if (reconnectTimer !== null) {
+          window.clearTimeout(reconnectTimer);
+        }
         hls.destroy();
       };
     }
@@ -455,8 +496,12 @@ export function PersistentLiveAudio() {
 
     return () => {
       cancelled = true;
+      window.removeEventListener("online", handleOnline);
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+      }
     };
-  }, [canPlay, playbackBufferSeconds, primaryPlaybackUrl, suspendPlayback]);
+  }, [canPlay, playbackBufferSeconds, playbackReconnectGeneration, primaryPlaybackUrl, suspendPlayback]);
 
   useEffect(() => {
     const video = videoRef.current;

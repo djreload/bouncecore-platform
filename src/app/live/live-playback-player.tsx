@@ -12,6 +12,7 @@ import {
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
 import { subscribeToLiveStatus } from "@/components/live/live-status-client";
+import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 import { cn } from "@/lib/utils";
 import type { StreamPlaybackSource } from "@/lib/stream/stream-provider";
 import { defaultStreamPlaybackSettings, type StreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
@@ -92,6 +93,8 @@ function HlsVideo({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const [reconnectGeneration, setReconnectGeneration] = useState(0);
   const pageVisible = usePageVisible();
 
   useEffect(() => {
@@ -105,6 +108,8 @@ function HlsVideo({
     }
 
     const activeVideo = video;
+    let reconnectTimer: number | null = null;
+    let mediaRecoveryAttempts = 0;
 
     hlsRef.current?.destroy();
     hlsRef.current = null;
@@ -125,12 +130,37 @@ function HlsVideo({
       void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
     }
 
+    function requestFullReconnect(immediate = false) {
+      if (cancelled || !pageVisible) {
+        return;
+      }
+
+      if (immediate && reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      } else if (reconnectTimer !== null) {
+        return;
+      }
+
+      const delay = immediate ? 0 : reconnectDelayMs(reconnectAttemptRef.current);
+      reconnectAttemptRef.current += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        setReconnectGeneration((current) => current + 1);
+      }, delay);
+    }
+
+    function handleOnline() {
+      requestFullReconnect(true);
+    }
+
     function resetPlaybackSpeed() {
       keepNormalPlaybackSpeed(activeVideo);
     }
 
     activeVideo.addEventListener("ended", recoverLivePlayback);
     activeVideo.addEventListener("ratechange", resetPlaybackSpeed);
+    window.addEventListener("online", handleOnline);
     const stopStallWatchdog = installLiveStallWatchdog({
       getCanRecover: () => !cancelled && pageVisible,
       getHls: () => hlsRef.current,
@@ -147,6 +177,8 @@ function HlsVideo({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
+          reconnectAttemptRef.current = 0;
+          mediaRecoveryAttempts = 0;
           void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
         }
       });
@@ -164,16 +196,18 @@ function HlsVideo({
         }
 
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-          hls.startLoad();
+          hls.stopLoad();
+          requestFullReconnect();
           return;
         }
 
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && mediaRecoveryAttempts < 2) {
+          mediaRecoveryAttempts += 1;
           hls.recoverMediaError();
           return;
         }
 
-        hls.destroy();
+        requestFullReconnect();
       });
 
       hls.attachMedia(activeVideo);
@@ -184,6 +218,10 @@ function HlsVideo({
         stopStallWatchdog();
         activeVideo.removeEventListener("ended", recoverLivePlayback);
         activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
+        window.removeEventListener("online", handleOnline);
+        if (reconnectTimer !== null) {
+          window.clearTimeout(reconnectTimer);
+        }
         hls.destroy();
       };
     }
@@ -197,8 +235,12 @@ function HlsVideo({
       stopStallWatchdog();
       activeVideo.removeEventListener("ended", recoverLivePlayback);
       activeVideo.removeEventListener("ratechange", resetPlaybackSpeed);
+      window.removeEventListener("online", handleOnline);
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+      }
     };
-  }, [onPlaybackStarted, pageVisible, playbackBufferSeconds, playbackUrl]);
+  }, [onPlaybackStarted, pageVisible, playbackBufferSeconds, playbackUrl, reconnectGeneration]);
 
   return (
     <video
