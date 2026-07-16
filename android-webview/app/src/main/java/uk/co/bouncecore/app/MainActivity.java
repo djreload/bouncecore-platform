@@ -47,6 +47,8 @@ import java.io.ByteArrayOutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -101,6 +103,9 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback;
     private FrameLayout bannerContainer;
     private FrameLayout raveWarControlsOverlay;
+    private final List<Button> raveWarTurnControls = new ArrayList<>();
+    private Button raveWarFireButton;
+    private TextView raveWarStatusText;
     private LevelPlayBannerAdView bannerAdView;
     private LevelPlayInterstitialAd interstitialAd;
 
@@ -202,8 +207,8 @@ public class MainActivity extends Activity {
         movementCluster.setOrientation(LinearLayout.HORIZONTAL);
         movementCluster.setPadding(dp(6), dp(6), dp(6), dp(6));
         movementCluster.setBackground(panelBackground("#66050712", "#8843536d"));
-        movementCluster.addView(raveWarControlButton("◀", "left", true, dp(72), dp(56)));
-        movementCluster.addView(raveWarControlButton("▶", "right", true, dp(72), dp(56)));
+        movementCluster.addView(raveWarControlButton("LEFT", "left", true, dp(64), dp(50)));
+        movementCluster.addView(raveWarControlButton("RIGHT", "right", true, dp(64), dp(50)));
         FrameLayout.LayoutParams movementParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
@@ -217,8 +222,8 @@ public class MainActivity extends Activity {
         aimCluster.setOrientation(LinearLayout.VERTICAL);
         aimCluster.setPadding(dp(6), dp(6), dp(6), dp(6));
         aimCluster.setBackground(panelBackground("#66050712", "#8843536d"));
-        aimCluster.addView(raveWarControlButton("Aim ▲", "aim-up", true, dp(88), dp(48)));
-        aimCluster.addView(raveWarControlButton("Aim ▼", "aim-down", true, dp(88), dp(48)));
+        aimCluster.addView(raveWarControlButton("AIM +", "aim-up", true, dp(72), dp(42)));
+        aimCluster.addView(raveWarControlButton("AIM -", "aim-down", true, dp(72), dp(42)));
         FrameLayout.LayoutParams aimParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
@@ -227,26 +232,26 @@ public class MainActivity extends Activity {
         aimParams.setMargins(0, 0, dp(18), 0);
         overlay.addView(aimCluster, aimParams);
 
-        Button fireButton = raveWarControlButton("FIRE", "fire", true, dp(118), dp(72));
-        fireButton.setTextColor(Color.BLACK);
-        fireButton.setBackground(buttonBackground("#ff32ddff", "#ffffffff"));
+        raveWarFireButton = raveWarControlButton("FIRE", "fire", true, dp(104), dp(64));
+        raveWarFireButton.setTextColor(Color.BLACK);
+        raveWarFireButton.setBackground(buttonBackground("#ff32ddff", "#ffffffff"));
         FrameLayout.LayoutParams fireParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
         fireParams.gravity = Gravity.BOTTOM | Gravity.RIGHT;
         fireParams.setMargins(0, 0, dp(22), dp(18));
-        overlay.addView(fireButton, fireParams);
+        overlay.addView(raveWarFireButton, fireParams);
 
         LinearLayout weaponCluster = new LinearLayout(this);
         weaponCluster.setGravity(Gravity.CENTER);
         weaponCluster.setOrientation(LinearLayout.HORIZONTAL);
         weaponCluster.setPadding(dp(6), dp(6), dp(6), dp(6));
         weaponCluster.setBackground(panelBackground("#66050712", "#66ff3fa4"));
-        weaponCluster.addView(raveWarControlButton("Weapon -", "weapon-prev", false, dp(104), dp(46)));
-        weaponCluster.addView(raveWarControlButton("Weapon +", "weapon-next", false, dp(104), dp(46)));
-        weaponCluster.addView(raveWarControlButton("Zoom -", "zoom-out", false, dp(78), dp(46)));
-        weaponCluster.addView(raveWarControlButton("Zoom +", "zoom-in", false, dp(78), dp(46)));
+        weaponCluster.addView(raveWarControlButton("WPN -", "weapon-prev", false, dp(62), dp(42)));
+        weaponCluster.addView(raveWarControlButton("WPN +", "weapon-next", false, dp(62), dp(42)));
+        weaponCluster.addView(raveWarControlButton("ZOOM -", "zoom-out", false, dp(70), dp(42)));
+        weaponCluster.addView(raveWarControlButton("ZOOM +", "zoom-in", false, dp(70), dp(42)));
         FrameLayout.LayoutParams weaponParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
@@ -255,21 +260,21 @@ public class MainActivity extends Activity {
         weaponParams.setMargins(0, dp(16), dp(18), 0);
         overlay.addView(weaponCluster, weaponParams);
 
-        TextView hint = new TextView(this);
-        hint.setGravity(Gravity.CENTER);
-        hint.setText("Hold FIRE to build power • release to shoot");
-        hint.setTextColor(Color.WHITE);
-        hint.setTextSize(12f);
-        hint.setTypeface(Typeface.DEFAULT_BOLD);
-        hint.setPadding(dp(12), dp(7), dp(12), dp(7));
-        hint.setBackground(panelBackground("#66050712", "#662bd6ff"));
+        raveWarStatusText = new TextView(this);
+        raveWarStatusText.setGravity(Gravity.CENTER);
+        raveWarStatusText.setText("Loading match controls...");
+        raveWarStatusText.setTextColor(Color.WHITE);
+        raveWarStatusText.setTextSize(12f);
+        raveWarStatusText.setTypeface(Typeface.DEFAULT_BOLD);
+        raveWarStatusText.setPadding(dp(12), dp(7), dp(12), dp(7));
+        raveWarStatusText.setBackground(panelBackground("#66050712", "#662bd6ff"));
         FrameLayout.LayoutParams hintParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
         hintParams.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
         hintParams.setMargins(0, dp(16), 0, 0);
-        overlay.addView(hint, hintParams);
+        overlay.addView(raveWarStatusText, hintParams);
 
         Button backButton = nativeOverlayButton("Live", dp(78), dp(42));
         backButton.setOnClickListener((view) -> {
@@ -284,11 +289,17 @@ public class MainActivity extends Activity {
         backParams.setMargins(dp(18), dp(16), 0, 0);
         overlay.addView(backButton, backParams);
 
+        updateRaveWarControlState(false, false, "Loading match controls...", "", 0);
         return overlay;
     }
 
     private Button raveWarControlButton(String label, String control, boolean holdControl, int width, int height) {
         Button button = nativeOverlayButton(label, width, height);
+
+        if (!control.startsWith("zoom-")) {
+            raveWarTurnControls.add(button);
+        }
+
         button.setOnTouchListener((view, event) -> {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 view.setPressed(true);
@@ -315,6 +326,22 @@ public class MainActivity extends Activity {
             return true;
         });
         return button;
+    }
+
+    private void updateRaveWarControlState(boolean canControl, boolean canFire, String status, String weaponLabel, int ammo) {
+        for (Button button : raveWarTurnControls) {
+            boolean enabled = canControl && (button != raveWarFireButton || canFire);
+            button.setEnabled(enabled);
+            button.setAlpha(enabled ? 1f : 0.34f);
+        }
+
+        if (raveWarStatusText != null) {
+            String safeStatus = TextUtils.isEmpty(status) ? "Waiting for match state..." : status;
+            String weaponStatus = canControl && !TextUtils.isEmpty(weaponLabel)
+                ? " | " + weaponLabel + " x" + Math.max(0, ammo)
+                : "";
+            raveWarStatusText.setText(safeStatus + weaponStatus);
+        }
     }
 
     private Button nativeOverlayButton(String label, int width, int height) {
@@ -386,6 +413,10 @@ public class MainActivity extends Activity {
 
         if (raveWarControlsOverlay != null) {
             raveWarControlsOverlay.setVisibility(active ? View.VISIBLE : View.GONE);
+        }
+
+        if (active) {
+            updateRaveWarControlState(false, false, "Loading match controls...", "", 0);
         }
 
         if (bannerContainer != null) {
@@ -564,6 +595,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void setRaveWarActive(boolean active) {
             mainHandler.post(() -> setRaveWarMode(active));
+        }
+
+        @JavascriptInterface
+        public void setRaveWarControlState(boolean canControl, boolean canFire, String status, String weaponLabel, int ammo) {
+            mainHandler.post(() -> updateRaveWarControlState(canControl, canFire, status, weaponLabel, ammo));
         }
 
         @JavascriptInterface

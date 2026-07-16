@@ -17,6 +17,7 @@ test("Android WebView exposes file uploads through the system file chooser", () 
   assert.match(activity, /addJavascriptInterface\(new BouncecoreJavascriptBridge\(\), "BouncecoreAndroid"\)/);
   assert.match(activity, /@JavascriptInterface\s+public void vibrate\(String patternCsv\)/);
   assert.match(activity, /@JavascriptInterface\s+public void setRaveWarActive\(boolean active\)/);
+  assert.match(activity, /@JavascriptInterface\s+public void setRaveWarControlState\(boolean canControl, boolean canFire, String status, String weaponLabel, int ammo\)/);
   assert.match(activity, /Math\.min\(parts\.length, 12\)/);
   assert.match(activity, /Math\.min\(900L, value\)/);
   assert.match(manifest, /android\.permission\.VIBRATE/);
@@ -35,8 +36,10 @@ test("Android WebView uses native fullscreen controls for Rave War", () => {
   assert.match(activity, /WindowInsets\.Type\.statusBars\(\) \| WindowInsets\.Type\.navigationBars\(\)/);
   assert.match(activity, /dispatchRaveWarControl\(control, "down"\)/);
   assert.match(activity, /dispatchRaveWarControl\(control, holdControl \? "up" : "press"\)/);
-  assert.match(activity, /"Weapon -", "weapon-prev", false/);
-  assert.match(activity, /"Weapon \+", "weapon-next", false/);
+  assert.match(activity, /"WPN -", "weapon-prev", false/);
+  assert.match(activity, /"WPN \+", "weapon-next", false/);
+  assert.match(activity, /updateRaveWarControlState/);
+  assert.match(activity, /button\.setAlpha\(enabled \? 1f : 0\.34f\)/);
   assert.match(activity, /bouncecore:rave-war-native-control/);
   assert.match(activity, /path != null && path\.startsWith\("\/rave-wars\/"\)/);
   assert.match(activity, /raveWarModeActive[\s\S]*bannerContainer\.setVisibility\(View\.GONE\)/);

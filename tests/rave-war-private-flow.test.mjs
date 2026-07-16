@@ -158,8 +158,8 @@ test("homing bee costs ten stars and battlefield camera supports full-map zoom",
   assert.match(game, /bc-rave-war-world/);
   assert.match(game, /wind: currentWar\.state\.wind/);
   assert.match(level, /rave-arena-background\.png/);
-  assert.match(android, /"Zoom -", "zoom-out"/);
-  assert.match(android, /"Zoom \+", "zoom-in"/);
+  assert.match(android, /"ZOOM -", "zoom-out"/);
+  assert.match(android, /"ZOOM \+", "zoom-in"/);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/maps/bazooka-battlefield/rave-arena-background.png")), true);
 });
 
@@ -207,6 +207,8 @@ test("rave war active challenges auto-open once and finished wars return to live
   assert.doesNotMatch(game, /war\.state\.lastShot && !animatedShot/);
   assert.match(css, /bc-rave-war-player-card/);
   assert.match(css, /bc-rave-war-weapon-dock/);
+  assert.match(game, /setRaveWarControlState/);
+  assert.match(game, /canControl && !busy/);
 });
 
 test("rave war timers and chat toasts use enforced match state", () => {

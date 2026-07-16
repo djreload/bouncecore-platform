@@ -413,6 +413,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
   const terrainMaskId = useMemo(() => `rave-war-terrain-mask-${war.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, [war.id]);
   const canControl = war.status === "active" && war.turnUserId === currentUserId;
+  const selectedWeaponDefinition = raveWarWeaponsById.get(selectedWeapon) ?? raveWarWeapons[0];
   const selectedWeaponAmmo = ammoForWeapon(currentPlayer, selectedWeapon);
   const canFire = canControl && !busy && selectedWeaponAmmo > 0;
   const canAccept = war.status === "pending" && war.currentUserRole === "target";
@@ -458,6 +459,31 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     selectedWeaponRef.current = selectedWeapon;
     warRef.current = war;
   }, [aimFacing, angle, busy, canControl, canFire, power, selectedWeapon, war]);
+
+  useEffect(() => {
+    const runtime = window as Window & {
+      BouncecoreAndroid?: {
+        setRaveWarControlState?: (canControl: boolean, canFire: boolean, status: string, weaponLabel: string, ammo: number) => void;
+      };
+    };
+    const status = terminalWar
+      ? winner
+        ? `${winner.displayName} wins`
+        : "Match finished"
+      : war.status !== "active"
+        ? "Waiting for match"
+        : canControl
+          ? `Your turn ${formatCountdown(remainingTurnSeconds)}`
+          : `${activePlayer?.displayName ?? "Opponent"}'s turn ${formatCountdown(remainingTurnSeconds)}`;
+
+    runtime.BouncecoreAndroid?.setRaveWarControlState?.(
+      canControl && !busy,
+      canFire,
+      status,
+      selectedWeaponDefinition.label,
+      selectedWeaponAmmo
+    );
+  }, [activePlayer?.displayName, busy, canControl, canFire, remainingTurnSeconds, selectedWeaponAmmo, selectedWeaponDefinition.label, terminalWar, war.status, winner]);
 
   const markPlayerWalking = useCallback((userId: string) => {
     setWalkingPlayerIds((current) => {
@@ -939,7 +965,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
   const moveCurrentPlayer = useCallback(
     async (direction: RaveWarMoveDirection) => {
-      if (!canControlRef.current) {
+      if (!canControlRef.current || busyRef.current) {
         playRaveWarSfx("blocked");
         return;
       }
@@ -1035,6 +1061,13 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
   const handleNativeControl = useCallback(
     (control: RaveWarNativeControl, state: RaveWarNativeControlState) => {
+      const isCameraControl = control === "zoom-in" || control === "zoom-out";
+
+      if (!isCameraControl && state !== "up" && (!canControlRef.current || busyRef.current)) {
+        playRaveWarSfx("blocked");
+        return;
+      }
+
       if (control === "left" || control === "right") {
         if (state === "down") {
           startMoveHold(control);
@@ -1088,6 +1121,16 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     },
     [adjustCameraZoom, cycleSelectedWeapon, startAimHold, startChargingShot, startMoveHold, stopAimHold, stopChargingShot, stopMoveHold]
   );
+
+  useEffect(() => {
+    if (canControl && !busy) {
+      return;
+    }
+
+    stopMoveHold();
+    stopAimHold();
+    stopChargingShot(false);
+  }, [busy, canControl, stopAimHold, stopChargingShot, stopMoveHold]);
 
   useEffect(() => {
     if (war.status !== "active") {
