@@ -41,6 +41,7 @@ import {
 import {
   defaultRaveWarWeaponAmmo,
   raveWarWeaponLabel,
+  raveWarWeaponStarCost,
   weaponAmmoOrDefault
 } from "@/lib/rave-wars/rave-war-weapons";
 
@@ -80,6 +81,7 @@ type RaveWarSummarySource = {
   status: string;
   targetId: string;
   turnUserId: string | null;
+  updatedAt: Date;
   winnerUserId: string | null;
 };
 
@@ -135,6 +137,11 @@ function turnWindow(now = new Date()) {
     turnEndsAt: new Date(now.getTime() + raveWarTurnSeconds * 1000).toISOString(),
     turnStartedAt: now.toISOString()
   };
+}
+
+function windForTurn(turnNumber: number) {
+  const windPattern = [18, -14, 32, -26, 9, 41, -36, 4] as const;
+  return windPattern[(Math.max(1, Math.floor(turnNumber)) - 1) % windPattern.length];
 }
 
 function matchWindow(now = new Date()) {
@@ -206,6 +213,7 @@ function createInitialState(input: {
     turnStartedAt: null,
     version: 1,
     warEndsAt: null,
+    wind: windForTurn(1),
     winnerUserId: null
   };
 }
@@ -328,6 +336,7 @@ function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarPar
     turnStartedAt: typeof value.turnStartedAt === "string" ? value.turnStartedAt : null,
     version: 1,
     warEndsAt: typeof value.warEndsAt === "string" ? value.warEndsAt : null,
+    wind: normalizeShotNumber(value.wind, windForTurn(normalizeShotNumber(value.turnNumber, 1, 1, 999)), -100, 100),
     winnerUserId: typeof value.winnerUserId === "string" ? value.winnerUserId : null
   };
 }
@@ -760,7 +769,8 @@ async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUser
         : player
     ),
     ...turnWindow(now),
-    turnNumber: state.turnNumber + 1
+    turnNumber: state.turnNumber + 1,
+    wind: windForTurn(state.turnNumber + 1)
   };
   const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.raveWar.updateMany({
@@ -1566,6 +1576,7 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
   const facing = input.facing === "left" || input.facing === "right" ? input.facing : shooter.facing;
   const shooterWeaponAmmo = normalizeWeaponAmmo(shooter.weaponAmmo);
   const remainingAmmo = weaponAmmoOrDefault(shooterWeaponAmmo, weaponId);
+  const weaponStarCost = raveWarWeaponStarCost(weaponId);
 
   if (remainingAmmo <= 0) {
     throw new Error(`${raveWarWeaponLabel(weaponId)} is out of ammo.`);
@@ -1590,7 +1601,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     power,
     shooter: shooterForShot,
     target,
-    weaponId
+    weaponId,
+    wind: state.wind
   });
   const nextCraters = appendTerrainCrater(state.craters, shot.crater);
   const damagedPlayers = state.players.map((player) => {
@@ -1659,12 +1671,16 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     players: nextPlayers,
     ...nextTurnWindow,
     turnNumber: state.turnNumber + 1,
+    wind: windForTurn(state.turnNumber + 1),
     winnerUserId
   };
   const result = await prisma.$transaction(async (tx) => {
-    const updatedWar = await tx.raveWar.update({
+    const updated = await tx.raveWar.updateMany({
       where: {
-        id: warId
+        id: warId,
+        status: "active",
+        turnUserId: userId,
+        updatedAt: war.updatedAt
       },
       data: {
         endedAt: winnerUserId ? new Date() : null,
@@ -1672,6 +1688,46 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
         status: winnerUserId ? "finished" : "active",
         turnUserId: activeUserId,
         winnerUserId
+      }
+    });
+
+    if (updated.count !== 1) {
+      throw new Error("That Rave War turn already changed. Refreshing the battlefield.");
+    }
+
+    if (weaponStarCost > 0) {
+      const wallet = await tx.starWallet.upsert({
+        where: {
+          userId
+        },
+        update: {},
+        create: {
+          balance: 0,
+          userId
+        }
+      });
+      const charged = await tx.starWallet.updateMany({
+        where: {
+          id: wallet.id,
+          balance: {
+            gte: weaponStarCost
+          }
+        },
+        data: {
+          balance: {
+            decrement: weaponStarCost
+          }
+        }
+      });
+
+      if (charged.count !== 1) {
+        throw new Error(`You need ${weaponStarCost.toLocaleString("en-GB")} stars to fire the ${raveWarWeaponLabel(weaponId)}.`);
+      }
+    }
+
+    const updatedWar = await tx.raveWar.findUniqueOrThrow({
+      where: {
+        id: warId
       },
       include: {
         participants: {
@@ -1724,6 +1780,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     metadata: {
       damage: shot.damage,
       distance: shot.distance,
+      starsCharged: weaponStarCost,
+      weaponId,
       winnerUserId
     },
     severity: "info",

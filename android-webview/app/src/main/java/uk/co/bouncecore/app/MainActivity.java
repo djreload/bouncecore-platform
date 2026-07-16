@@ -245,6 +245,8 @@ public class MainActivity extends Activity {
         weaponCluster.setBackground(panelBackground("#66050712", "#66ff3fa4"));
         weaponCluster.addView(raveWarControlButton("Weapon -", "weapon-prev", false, dp(104), dp(46)));
         weaponCluster.addView(raveWarControlButton("Weapon +", "weapon-next", false, dp(104), dp(46)));
+        weaponCluster.addView(raveWarControlButton("Zoom -", "zoom-out", false, dp(78), dp(46)));
+        weaponCluster.addView(raveWarControlButton("Zoom +", "zoom-in", false, dp(78), dp(46)));
         FrameLayout.LayoutParams weaponParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT

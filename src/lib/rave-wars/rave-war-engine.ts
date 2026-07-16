@@ -9,12 +9,15 @@ export type RaveWarWeaponConfig = {
   craterMin: number;
   craterPowerScale: number;
   gravity: number;
+  homingDelaySteps?: number;
+  homingTurnRate?: number;
   hitRadius: number;
   maxDamage: number;
   pathStep: number;
   projectileStepLimit: number;
   speedBase: number;
   speedPowerScale: number;
+  windInfluence: number;
 };
 
 export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> = {
@@ -29,7 +32,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 420,
     speedBase: 10,
-    speedPowerScale: 0.35
+    speedPowerScale: 0.35,
+    windInfluence: 0.0014
   },
   grenade: {
     blastRadius: 138,
@@ -42,7 +46,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 390,
     speedBase: 7.5,
-    speedPowerScale: 0.31
+    speedPowerScale: 0.31,
+    windInfluence: 0.0018
   },
   shotgun: {
     blastRadius: 76,
@@ -55,7 +60,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 1,
     projectileStepLimit: 115,
     speedBase: 38,
-    speedPowerScale: 0.12
+    speedPowerScale: 0.12,
+    windInfluence: 0.0002
   },
   "bass-bomb": {
     blastRadius: 190,
@@ -68,7 +74,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 430,
     speedBase: 8.2,
-    speedPowerScale: 0.29
+    speedPowerScale: 0.29,
+    windInfluence: 0.0012
   },
   "glow-grenade": {
     blastRadius: 128,
@@ -81,7 +88,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 360,
     speedBase: 7,
-    speedPowerScale: 0.3
+    speedPowerScale: 0.3,
+    windInfluence: 0.0017
   },
   "sheep-launcher": {
     blastRadius: 146,
@@ -94,7 +102,24 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 440,
     speedBase: 9.4,
-    speedPowerScale: 0.33
+    speedPowerScale: 0.33,
+    windInfluence: 0.001
+  },
+  "homing-bee": {
+    blastRadius: 142,
+    craterMax: 168,
+    craterMin: 108,
+    craterPowerScale: 0.38,
+    gravity: 0,
+    hitRadius: 72,
+    homingDelaySteps: 14,
+    homingTurnRate: 0.055,
+    maxDamage: 74,
+    pathStep: 1,
+    projectileStepLimit: 360,
+    speedBase: 12.5,
+    speedPowerScale: 0.08,
+    windInfluence: 0.00015
   },
   "tnt-barrel": {
     blastRadius: 215,
@@ -107,7 +132,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 360,
     speedBase: 5.6,
-    speedPowerScale: 0.24
+    speedPowerScale: 0.24,
+    windInfluence: 0.0019
   },
   "stink-sock": {
     blastRadius: 98,
@@ -120,7 +146,8 @@ export const raveWarWeaponConfigs: Record<RaveWarWeaponId, RaveWarWeaponConfig> 
     pathStep: 2,
     projectileStepLimit: 390,
     speedBase: 12.5,
-    speedPowerScale: 0.24
+    speedPowerScale: 0.24,
+    windInfluence: 0.0013
   }
 };
 
@@ -200,6 +227,11 @@ export function shotDamageForDistance(distance: number, weapon: RaveWarWeaponCon
   return distance <= weapon.blastRadius ? Math.max(10, Math.round((1 - distance / weapon.blastRadius) * weapon.maxDamage)) : 0;
 }
 
+function turnAngleTowards(current: number, target: number, maxStep: number) {
+  const delta = Math.atan2(Math.sin(target - current), Math.cos(target - current));
+  return current + clamp(delta, -maxStep, maxStep);
+}
+
 export function simulateRaveWarShot(input: {
   angle: number;
   craters: RaveWarTerrainCrater[];
@@ -208,6 +240,7 @@ export function simulateRaveWarShot(input: {
   shooter: RaveWarPlayerState;
   target: RaveWarPlayerState;
   weaponId: RaveWarWeaponId;
+  wind?: number;
 }) {
   const weapon = raveWarWeaponConfigs[input.weaponId];
   const radians = (input.angle * Math.PI) / 180;
@@ -215,7 +248,7 @@ export function simulateRaveWarShot(input: {
   const speed = weapon.speedBase + input.power * weapon.speedPowerScale;
   let x = input.shooter.x + direction * 30;
   let y = input.shooter.y - 46;
-  const vx = Math.cos(radians) * speed * direction;
+  let vx = Math.cos(radians) * speed * direction;
   let vy = -Math.sin(radians) * speed;
   let closestDistance = Number.POSITIVE_INFINITY;
   let impactKind: RaveWarLastShot["impactKind"] = "out-of-bounds";
@@ -230,9 +263,24 @@ export function simulateRaveWarShot(input: {
     const previousX = x;
     const previousY = y;
 
+    if (weapon.homingTurnRate && step >= (weapon.homingDelaySteps ?? 0)) {
+      const targetDeltaX = input.target.x - x;
+      const lookAheadX = clamp(x + Math.sign(targetDeltaX || vx) * 190, 0, input.level.width);
+      const terrainAheadY = terrainSurfaceY(input.level, input.craters, lookAheadX);
+      const needsClearance = Math.abs(targetDeltaX) > 220 && y > terrainAheadY - 150;
+      const targetHeading = needsClearance ? -Math.PI / 2 : Math.atan2(input.target.y - 34 - y, targetDeltaX);
+      const heading = turnAngleTowards(Math.atan2(vy, vx), targetHeading, weapon.homingTurnRate);
+      vx = Math.cos(heading) * speed;
+      vy = Math.sin(heading) * speed;
+    }
+
+    vx += clamp(input.wind ?? 0, -100, 100) * weapon.windInfluence;
     x += vx;
     y += vy;
-    vy += weapon.gravity;
+
+    if (!weapon.homingTurnRate || step < (weapon.homingDelaySteps ?? 0)) {
+      vy += weapon.gravity;
+    }
 
     const substeps = Math.max(2, Math.ceil(Math.hypot(x - previousX, y - previousY) / 18));
 

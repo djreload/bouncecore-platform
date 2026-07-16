@@ -1826,6 +1826,11 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
     0 0 32px color-mix(in srgb, var(--color-bc-amber) 28%, transparent);
 }
 
+.bc-rave-war-world {
+  will-change: transform;
+  transition: transform 220ms ease-out;
+}
+
 .bc-rave-war-titleplate {
   width: min(22rem, 34vw);
   padding: 0.35rem 0.8rem 0.45rem;
@@ -1993,7 +1998,8 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
 
 .bc-rave-war-weapon-tile strong {
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .bc-rave-war-weapon-tile.is-selected {
@@ -2246,7 +2252,8 @@ html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-battlefield
 }
 
 html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-weapon-dock,
-html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-bottom-hud {
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-bottom-hud,
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-camera-controls {
   display: none !important;
 }
 

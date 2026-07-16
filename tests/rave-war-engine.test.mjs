@@ -106,3 +106,23 @@ test("rave war terrain shots create visible craters that affect the surface", ()
 
   assert.ok(after > before + 40);
 });
+
+test("homing bee bends toward its target and remains wind resistant", () => {
+  const first = player("first", 0);
+  const second = player("second", 1);
+  const beeShot = simulateRaveWarShot({
+    angle: 45,
+    craters: [],
+    level: bazookaBattlefieldLevel,
+    power: 55,
+    shooter: { ...first, selectedWeapon: "homing-bee" },
+    target: second,
+    weaponId: "homing-bee",
+    wind: -40
+  });
+
+  assert.equal(beeShot.impactKind, "hog");
+  assert.ok(beeShot.damage > 0);
+  assert.ok(beeShot.path.length > 20);
+  assert.ok(beeShot.path.some((point, index) => index > 2 && point.y > beeShot.path[index - 1].y));
+});

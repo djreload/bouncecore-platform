@@ -92,6 +92,7 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(types, /"bass-bomb"/);
   assert.match(types, /"glow-grenade"/);
   assert.match(types, /"sheep-launcher"/);
+  assert.match(types, /"homing-bee"/);
   assert.match(types, /"tnt-barrel"/);
   assert.match(types, /"stink-sock"/);
   assert.match(types, /weaponAmmo: RaveWarWeaponAmmo/);
@@ -104,6 +105,8 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(engine, /raveWarWeaponConfigs/);
   assert.match(engine, /"bass-bomb":/);
   assert.match(engine, /"tnt-barrel":/);
+  assert.match(engine, /"homing-bee":/);
+  assert.match(engine, /homingTurnRate/);
   assert.match(service, /settlePlayersOnTerrain/);
   assert.match(service, /craters: nextCraters/);
   assert.match(service, /weaponAmmo: nextShooterWeaponAmmo/);
@@ -133,8 +136,31 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-bass-bomb.svg")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-glow-grenade.svg")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-sheep-launcher.svg")), true);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-homing-bee.svg")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-tnt-barrel.svg")), true);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/weapon-stink-sock.svg")), true);
+});
+
+test("homing bee costs ten stars and battlefield camera supports full-map zoom", () => {
+  const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+  const weapons = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-weapons.ts"), "utf8");
+  const level = readFileSync(join(process.cwd(), "src/lib/rave-wars/levels/bazooka-battlefield.ts"), "utf8");
+  const android = readFileSync(join(process.cwd(), "android-webview/app/src/main/java/uk/co/bouncecore/app/MainActivity.java"), "utf8");
+
+  assert.match(weapons, /id: "homing-bee"[\s\S]*starCost: 10/);
+  assert.match(service, /const weaponStarCost = raveWarWeaponStarCost\(weaponId\)/);
+  assert.match(service, /balance:\s*{\s*gte: weaponStarCost/s);
+  assert.match(service, /decrement: weaponStarCost/);
+  assert.match(service, /updatedAt: war\.updatedAt/);
+  assert.match(game, /const cameraFitZoom = 0\.84/);
+  assert.match(game, /handleBattlefieldWheel/);
+  assert.match(game, /bc-rave-war-world/);
+  assert.match(game, /wind: currentWar\.state\.wind/);
+  assert.match(level, /rave-arena-background\.png/);
+  assert.match(android, /"Zoom -", "zoom-out"/);
+  assert.match(android, /"Zoom \+", "zoom-in"/);
+  assert.equal(existsSync(join(process.cwd(), "public/rave-wars/maps/bazooka-battlefield/rave-arena-background.png")), true);
 });
 
 test("rave war prompts live in header and mobile menu instead of covering chat", () => {

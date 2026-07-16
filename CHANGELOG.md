@@ -25,6 +25,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Added mobile v1 APIs for config, public feeds, auth, profile, notifications, orders, downloads, rewards, chat actions, stars, shop checkout, music checkout, and push-device management.
 - Added mobile push queue records, dispatch logic, receipt polling, encrypted token storage, and admin notification sends.
 - Added data-backed schedule management, streamer/public schedule views, streamer overview, stream health, OBS setup help, profile editing, and public DJ directory.
+- Added Rave War Homing Bee guidance, one-use ammo, atomic 10-star launch charging, wind-aware projectiles, full-map camera zoom, native Android zoom controls, and an original layered rave-arena battlefield background.
 - Added stream-key management for streamers and admins, including separate OBS server URL and Stream Key display.
 - Added optional embedded stream-core HTTP service with status, playback, health, ingest heartbeat, manual status, stream-key auth, and MediaMTX auth hooks.
 - Added optional MediaMTX RTMP/RTMPS/HLS gateway profile with Bouncecore stream-key validation.

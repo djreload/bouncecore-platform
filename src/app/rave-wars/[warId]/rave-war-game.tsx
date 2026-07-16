@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
-import { Crosshair, Flag, HeartPulse, Radio, Swords, Timer, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
+import { Crosshair, Flag, HeartPulse, Maximize2, Radio, Swords, Timer, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { simulateRaveWarShot } from "@/lib/rave-wars/rave-war-engine";
@@ -36,7 +36,7 @@ type RaveWarImpactPulse = {
 
 type RaveWarSfx = "blocked" | "fire" | "hit" | "impact" | "miss";
 type RaveWarMoveDirection = "left" | "right";
-type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | "weapon-next" | "weapon-prev";
+type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | "weapon-next" | "weapon-prev" | "zoom-in" | "zoom-out";
 type RaveWarNativeControlState = "down" | "press" | "up";
 
 const chargeDurationMs = 1450;
@@ -46,6 +46,10 @@ const aimHoldStep = 1.35;
 const moveHoldIntervalMs = 185;
 const shotAnimationMinMs = 700;
 const shotAnimationMaxMs = 1350;
+const cameraFitZoom = 0.84;
+const cameraMinZoom = 0.72;
+const cameraMaxZoom = 1.8;
+const cameraZoomStep = 0.18;
 const terminalRaveWarStatuses = new Set(["cancelled", "declined", "expired", "finished"]);
 const raveWarAssets = {
   explosion: "/rave-wars/assets/big-explosion.png",
@@ -109,17 +113,23 @@ function shotKey(shot: RaveWarLastShot | null | undefined) {
 }
 
 function levelPointFromPointer(
-  event: PointerEvent<HTMLDivElement>,
+  event: Pick<PointerEvent<HTMLDivElement> | WheelEvent<HTMLDivElement>, "clientX" | "clientY">,
   element: HTMLDivElement,
-  level: RaveWarSummary["level"]
+  level: RaveWarSummary["level"],
+  cameraZoom = 1,
+  cameraOrigin: RaveWarShotPoint = { x: level.width / 2, y: level.height / 2 }
 ): RaveWarShotPoint {
   const rect = element.getBoundingClientRect();
   const relativeX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
   const relativeY = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0;
+  const originX = cameraOrigin.x / level.width;
+  const originY = cameraOrigin.y / level.height;
+  const worldX = originX + (relativeX - originX) / cameraZoom;
+  const worldY = originY + (relativeY - originY) / cameraZoom;
 
   return {
-    x: Math.round(clampNumber(relativeX, 0, 1) * level.width),
-    y: Math.round(clampNumber(relativeY, 0, 1) * level.height)
+    x: Math.round(clampNumber(worldX, 0, 1) * level.width),
+    y: Math.round(clampNumber(worldY, 0, 1) * level.height)
   };
 }
 
@@ -359,6 +369,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [turnNotice, setTurnNotice] = useState("");
+  const [cameraZoom, setCameraZoom] = useState(cameraFitZoom);
+  const [cameraOrigin, setCameraOrigin] = useState<RaveWarShotPoint>(() => ({
+    x: initialWar.level.width / 2,
+    y: initialWar.level.height / 2
+  }));
   const aimHoldIntervalRef = useRef<number | null>(null);
   const aimHoldDirectionRef = useRef<"down" | "up" | null>(null);
   const angleRef = useRef(angle);
@@ -382,9 +397,19 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
   const mapStyle = useMemo(
     () => ({
-      backgroundColor: war.level.backgroundColor
+      backgroundColor: war.level.backgroundColor,
+      backgroundImage: `linear-gradient(rgba(2, 5, 13, 0.08), rgba(2, 5, 13, 0.34)), url(${war.level.backgroundImageUrl})`,
+      backgroundPosition: "center",
+      backgroundSize: "cover"
     }),
-    [war.level.backgroundColor]
+    [war.level.backgroundColor, war.level.backgroundImageUrl]
+  );
+  const worldStyle = useMemo(
+    () => ({
+      transform: `scale(${cameraZoom})`,
+      transformOrigin: `${percent(cameraOrigin.x, war.level.width)} ${percent(cameraOrigin.y, war.level.height)}`
+    }),
+    [cameraOrigin.x, cameraOrigin.y, cameraZoom, war.level.height, war.level.width]
   );
   const terrainMaskId = useMemo(() => `rave-war-terrain-mask-${war.id.replace(/[^a-zA-Z0-9_-]/g, "")}`, [war.id]);
   const canControl = war.status === "active" && war.turnUserId === currentUserId;
@@ -658,14 +683,18 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return;
       }
 
-      const nextAim = aimSettingsFromLevelPoint(currentPlayer, levelPointFromPointer(event, element, war.level), war.level);
+      const nextAim = aimSettingsFromLevelPoint(
+        currentPlayer,
+        levelPointFromPointer(event, element, war.level, cameraZoom, cameraOrigin),
+        war.level
+      );
 
       setAngle(nextAim.angle);
       angleRef.current = nextAim.angle;
       setAimFacing(nextAim.facing);
       aimFacingRef.current = nextAim.facing;
     },
-    [canControl, currentPlayer, setAimFacing, setAngle, war.level]
+    [cameraOrigin, cameraZoom, canControl, currentPlayer, setAimFacing, setAngle, war.level]
   );
 
   const fireCurrentShotWithPower = useCallback(
@@ -706,7 +735,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             selectedWeapon: weaponId
           },
           target,
-          weaponId
+          weaponId,
+          wind: currentWar.state.wind
         });
 
         startShotAnimation({
@@ -873,6 +903,40 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     });
   }, [currentUserId, setSelectedWeapon]);
 
+  const adjustCameraZoom = useCallback((direction: -1 | 1, focusOnTurn = true) => {
+    if (focusOnTurn) {
+      const currentWar = warRef.current;
+      const focusPlayer = currentWar.state.players.find((player) => player.userId === currentWar.turnUserId);
+
+      if (focusPlayer) {
+        setCameraOrigin({ x: focusPlayer.x, y: focusPlayer.y - 90 });
+      }
+    }
+
+    setCameraZoom((current) => clampNumber(current + direction * cameraZoomStep, cameraMinZoom, cameraMaxZoom));
+  }, [setCameraOrigin, setCameraZoom]);
+
+  const resetCamera = useCallback(() => {
+    const level = warRef.current.level;
+    setCameraOrigin({ x: level.width / 2, y: level.height / 2 });
+    setCameraZoom(cameraFitZoom);
+  }, [setCameraOrigin, setCameraZoom]);
+
+  const handleBattlefieldWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      const element = battlefieldRef.current;
+
+      if (!element) {
+        return;
+      }
+
+      event.preventDefault();
+      setCameraOrigin(levelPointFromPointer(event, element, war.level, cameraZoom, cameraOrigin));
+      adjustCameraZoom(event.deltaY < 0 ? 1 : -1, false);
+    },
+    [adjustCameraZoom, cameraOrigin, cameraZoom, setCameraOrigin, war.level]
+  );
+
   const moveCurrentPlayer = useCallback(
     async (direction: RaveWarMoveDirection) => {
       if (!canControlRef.current) {
@@ -1010,9 +1074,19 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
       if (control === "weapon-prev" && state !== "down") {
         cycleSelectedWeapon(-1);
+        return;
+      }
+
+      if (control === "zoom-in" && state !== "down") {
+        adjustCameraZoom(1);
+        return;
+      }
+
+      if (control === "zoom-out" && state !== "down") {
+        adjustCameraZoom(-1);
       }
     },
-    [cycleSelectedWeapon, startAimHold, startChargingShot, startMoveHold, stopAimHold, stopChargingShot, stopMoveHold]
+    [adjustCameraZoom, cycleSelectedWeapon, startAimHold, startChargingShot, startMoveHold, stopAimHold, stopChargingShot, stopMoveHold]
   );
 
   useEffect(() => {
@@ -1110,7 +1184,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       const detail = (event as CustomEvent<{ control?: string; state?: string }>).detail;
       const control = detail?.control;
       const state = detail?.state;
-      const validControls: RaveWarNativeControl[] = ["aim-down", "aim-up", "fire", "left", "right", "weapon-next", "weapon-prev"];
+      const validControls: RaveWarNativeControl[] = ["aim-down", "aim-up", "fire", "left", "right", "weapon-next", "weapon-prev", "zoom-in", "zoom-out"];
       const validStates: RaveWarNativeControlState[] = ["down", "press", "up"];
 
       if (!validControls.includes(control as RaveWarNativeControl) || !validStates.includes(state as RaveWarNativeControlState)) {
@@ -1391,6 +1465,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             onPointerLeave={() => setIsAiming(false)}
             onPointerMove={handleBattlefieldPointerMove}
             onPointerUp={handleBattlefieldPointerUp}
+            onWheel={handleBattlefieldWheel}
             ref={battlefieldRef}
             role="application"
             style={mapStyle}
@@ -1440,7 +1515,28 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
             <div className="bc-rave-war-wind-panel pointer-events-none absolute left-3 top-[20%] z-20 hidden rounded-md border border-white/20 bg-black/70 p-2 text-white shadow-2xl shadow-black/45 backdrop-blur md:block">
               <p className="text-xs font-black uppercase text-bc-muted">Wind</p>
-              <p className="mt-1 text-xl font-black text-bc-acid">18 →</p>
+              <p className="bc-rave-war-wind-value mt-1 text-xl font-black text-bc-acid">
+                {Math.abs(Math.round(war.state.wind))} {war.state.wind < 0 ? "←" : "→"}
+              </p>
+            </div>
+
+            <div
+              aria-label="Battlefield zoom"
+              className="bc-rave-war-camera-controls absolute left-3 top-[35%] z-30 grid gap-1 rounded-md border border-white/20 bg-black/70 p-1 shadow-2xl shadow-black/45 backdrop-blur"
+              onPointerCancel={stopBattlefieldControlEvent}
+              onPointerDown={stopBattlefieldControlEvent}
+              onPointerUp={stopBattlefieldControlEvent}
+            >
+              <button aria-label="Zoom battlefield in" className="bc-focus-ring grid h-8 w-8 place-items-center rounded-sm text-white hover:bg-white/10" onClick={() => adjustCameraZoom(1)} title="Zoom in" type="button">
+                <ZoomIn className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button aria-label="Show full battlefield" className="bc-focus-ring grid h-8 w-8 place-items-center rounded-sm text-bc-acid hover:bg-white/10" onClick={resetCamera} title="Fit full map" type="button">
+                <Maximize2 className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <button aria-label="Zoom battlefield out" className="bc-focus-ring grid h-8 w-8 place-items-center rounded-sm text-white hover:bg-white/10" onClick={() => adjustCameraZoom(-1)} title="Zoom out" type="button">
+                <ZoomOut className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <span className="text-center text-[9px] font-black text-bc-muted">{Math.round(cameraZoom * 100)}%</span>
             </div>
 
             <div className="bc-rave-war-turn-announcer pointer-events-none absolute left-1/2 top-[18%] z-30 -translate-x-1/2" aria-live="polite">
@@ -1474,7 +1570,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                   >
                     <Image alt="" className="h-9 w-9 object-contain" height={36} src={weapon.iconUrl} unoptimized width={36} />
                     <span>{weapon.label}</span>
-                    <strong>x{ammo}</strong>
+                    <strong>{weapon.starCost > 0 ? `x${ammo} · ${weapon.starCost}★` : `x${ammo}`}</strong>
                   </button>
                 );
               })}
@@ -1523,7 +1619,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               </div>
             </div>
 
-            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
+            <div className="bc-rave-war-world pointer-events-none absolute inset-0" style={worldStyle}>
+            <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
               <defs>
                 <mask id={terrainMaskId}>
                   <rect fill="#ffffff" height={war.level.height} width={war.level.width} x="0" y="0" />
@@ -1685,6 +1782,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                 </div>
               );
             })}
+            </div>
           </div>
         </div>
 

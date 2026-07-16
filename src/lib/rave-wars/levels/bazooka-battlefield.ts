@@ -5,6 +5,7 @@ export type RaveWarLevelSpawn = {
 };
 
 export type RaveWarLevel = {
+  backgroundImageUrl: string;
   backgroundColor: string;
   height: number;
   key: string;
@@ -22,6 +23,7 @@ export type RaveWarLevel = {
 
 export const bazookaBattlefieldLevel: RaveWarLevel = {
   backgroundColor: "#10151d",
+  backgroundImageUrl: "/rave-wars/maps/bazooka-battlefield/rave-arena-background.png",
   height: 1024,
   key: "bazooka-battlefield",
   mapImageUrl: "/rave-wars/maps/bazooka-battlefield/map.png",

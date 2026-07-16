@@ -11,6 +11,7 @@ export const raveWarWeaponIds = [
   "bass-bomb",
   "glow-grenade",
   "sheep-launcher",
+  "homing-bee",
   "tnt-barrel",
   "stink-sock"
 ] as const;
@@ -74,6 +75,7 @@ export type RaveWarState = {
   turnStartedAt: string | null;
   version: 1;
   warEndsAt: string | null;
+  wind: number;
   winnerUserId: string | null;
 };
 

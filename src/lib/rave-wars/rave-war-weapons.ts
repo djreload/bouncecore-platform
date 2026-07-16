@@ -8,6 +8,7 @@ export type RaveWarWeaponDefinition = {
   label: string;
   projectileSize: number;
   projectileUrl: string;
+  starCost: number;
 };
 
 export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
@@ -18,7 +19,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "bazooka",
     label: "Bazooka",
     projectileSize: 54,
-    projectileUrl: "/rave-wars/assets/bazooka-shell.png"
+    projectileUrl: "/rave-wars/assets/bazooka-shell.png",
+    starCost: 0
   },
   {
     ammo: 5,
@@ -27,7 +29,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "grenade",
     label: "Grenade",
     projectileSize: 54,
-    projectileUrl: "/rave-wars/assets/weapon-grenade.png"
+    projectileUrl: "/rave-wars/assets/weapon-grenade.png",
+    starCost: 0
   },
   {
     ammo: 4,
@@ -36,7 +39,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "shotgun",
     label: "Shotgun",
     projectileSize: 54,
-    projectileUrl: "/rave-wars/assets/weapon-shotgun.png"
+    projectileUrl: "/rave-wars/assets/weapon-shotgun.png",
+    starCost: 0
   },
   {
     ammo: 3,
@@ -45,7 +49,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "bass-bomb",
     label: "Bass Bomb",
     projectileSize: 66,
-    projectileUrl: "/rave-wars/assets/weapon-bass-bomb.svg"
+    projectileUrl: "/rave-wars/assets/weapon-bass-bomb.svg",
+    starCost: 0
   },
   {
     ammo: 5,
@@ -54,7 +59,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "glow-grenade",
     label: "Glow Grenade",
     projectileSize: 58,
-    projectileUrl: "/rave-wars/assets/weapon-glow-grenade.svg"
+    projectileUrl: "/rave-wars/assets/weapon-glow-grenade.svg",
+    starCost: 0
   },
   {
     ammo: 4,
@@ -63,7 +69,18 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "sheep-launcher",
     label: "Sheep Launcher",
     projectileSize: 64,
-    projectileUrl: "/rave-wars/assets/weapon-sheep-launcher.svg"
+    projectileUrl: "/rave-wars/assets/weapon-sheep-launcher.svg",
+    starCost: 0
+  },
+  {
+    ammo: 1,
+    description: "A target-seeking rave bee. Each accepted launch costs 10 stars.",
+    iconUrl: "/rave-wars/assets/weapon-homing-bee.svg",
+    id: "homing-bee",
+    label: "Homing Bee",
+    projectileSize: 62,
+    projectileUrl: "/rave-wars/assets/weapon-homing-bee.svg",
+    starCost: 10
   },
   {
     ammo: 2,
@@ -72,7 +89,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "tnt-barrel",
     label: "TNT Barrel",
     projectileSize: 66,
-    projectileUrl: "/rave-wars/assets/weapon-tnt-barrel.svg"
+    projectileUrl: "/rave-wars/assets/weapon-tnt-barrel.svg",
+    starCost: 0
   },
   {
     ammo: 4,
@@ -81,7 +99,8 @@ export const raveWarWeaponDefinitions: RaveWarWeaponDefinition[] = [
     id: "stink-sock",
     label: "Stink Sock",
     projectileSize: 60,
-    projectileUrl: "/rave-wars/assets/weapon-stink-sock.svg"
+    projectileUrl: "/rave-wars/assets/weapon-stink-sock.svg",
+    starCost: 0
   }
 ];
 
@@ -96,6 +115,10 @@ export const defaultRaveWarWeaponAmmo = raveWarWeaponIds.reduce((ammo, weaponId)
 
 export function raveWarWeaponLabel(weaponId: RaveWarWeaponId) {
   return raveWarWeaponDefinitionsById.get(weaponId)?.label ?? "Weapon";
+}
+
+export function raveWarWeaponStarCost(weaponId: RaveWarWeaponId) {
+  return raveWarWeaponDefinitionsById.get(weaponId)?.starCost ?? 0;
 }
 
 export function weaponAmmoOrDefault(ammo: Partial<RaveWarWeaponAmmo> | null | undefined, weaponId: RaveWarWeaponId) {
