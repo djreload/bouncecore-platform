@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Changed new-user performance preferences to maximum performance by default, with every reduction disabled until the user explicitly changes and saves a setting.
+- Kept automatic mobile protection as a clearly labelled optional preset instead of applying it implicitly on mobile devices.
+
 All notable project changes are tracked here. Dates use UTC.
 
 ## 0.1.0 - Development Build

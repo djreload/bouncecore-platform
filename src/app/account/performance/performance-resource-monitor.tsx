@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import {
   defaultPerformancePreferences,
   liveQualityOptions,
+  recommendedMobileProtectionPreferences,
   type PerformancePreferences
 } from "@/lib/account/performance-preferences-core";
 import {
@@ -393,12 +394,12 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
               <h3 className="text-xl font-black">Battery and heat controls</h3>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-bc-muted">
-              Settings apply immediately across the site and Android app. Automatic protection is active on Android WebView, data-saver connections, and lower-memory devices.
+              New accounts start at maximum performance with every reduction off. Changes apply immediately across the site and Android app, then save to your account.
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Badge tone={snapshot.effective.batterySaverActive ? "acid" : "cyan"}>
-              {snapshot.effective.batterySaverActive ? "Saver active" : "Full experience"}
+              {snapshot.effective.batterySaverActive ? "Saver active" : "Maximum performance"}
             </Badge>
             <Badge tone={saveState === "error" ? "pink" : saveState === "saving" ? "amber" : "muted"}>
               {saveState === "saving" ? "Saving" : saveState === "error" ? "Save failed" : saveState === "saved" ? "Saved" : "Ready"}
@@ -417,7 +418,7 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
           />
           <ToggleRow
             checked={preferences.automaticMobileSaverEnabled}
-            description="Recommended for phones. Automatically applies visual, media, ad, and refresh reductions on Android or lower-resource devices while keeping background audio available."
+            description="Optional for phones. Automatically applies visual, media, ad, and refresh reductions on Android or lower-resource devices while keeping background audio available. It is off by default."
             label="Automatic mobile protection - recommended"
             onChange={(checked) => updateBoolean("automaticMobileSaverEnabled", checked)}
           />
@@ -518,14 +519,14 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
 
         <div className="mt-6 flex flex-wrap gap-2 border-t border-bc-line pt-5">
           <Button
-            onClick={() => updatePreferences({ ...defaultPerformancePreferences, automaticMobileSaverEnabled: false })}
+            onClick={() => updatePreferences(defaultPerformancePreferences)}
             type="button"
             variant="ghost"
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Turn off all reductions
           </Button>
-          <Button onClick={() => updatePreferences(defaultPerformancePreferences)} type="button" variant="ghost">
+          <Button onClick={() => updatePreferences(recommendedMobileProtectionPreferences)} type="button" variant="ghost">
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Restore recommended mobile protection
           </Button>

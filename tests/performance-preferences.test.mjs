@@ -5,7 +5,8 @@ import test from "node:test";
 import {
   defaultPerformancePreferences,
   effectivePerformancePreferences,
-  mergePerformancePreferences
+  mergePerformancePreferences,
+  recommendedMobileProtectionPreferences
 } from "../src/lib/account/performance-preferences-core.ts";
 import { applyLiveQualityCap } from "../src/components/live/live-playback-buffer.ts";
 
@@ -24,8 +25,21 @@ test("performance preferences merge untrusted values onto stable defaults", () =
   );
 });
 
-test("automatic mobile protection reduces expensive work but preserves chosen background audio", () => {
+test("maximum performance is the default until a user enables a reduction", () => {
   const effective = effectivePerformancePreferences(defaultPerformancePreferences, { constrainedDevice: true });
+
+  assert.equal(effective.automaticSaverActive, false);
+  assert.equal(effective.batterySaverActive, false);
+  assert.equal(effective.animationsEnabled, true);
+  assert.equal(effective.animatedMediaEnabled, true);
+  assert.equal(effective.maxLiveHeight, null);
+  assert.equal(effective.particlesEnabled, true);
+  assert.equal(effective.realtimeUpdatesEnabled, true);
+  assert.equal(effective.secondaryVideoEnabled, true);
+});
+
+test("optional automatic mobile protection reduces expensive work but preserves chosen background audio", () => {
+  const effective = effectivePerformancePreferences(recommendedMobileProtectionPreferences, { constrainedDevice: true });
 
   assert.equal(effective.automaticSaverActive, true);
   assert.equal(effective.batterySaverActive, true);
@@ -85,6 +99,8 @@ test("resource monitor is account-accessible and preferences persist per user", 
   assert.match(monitor, /Network and Android app/);
   assert.match(monitor, /Off means the feature remains available/);
   assert.match(monitor, /Turn off all reductions/);
+  assert.match(monitor, /New accounts start at maximum performance/);
+  assert.match(monitor, /recommendedMobileProtectionPreferences/);
   assert.match(navigation, /href: "\/account\/performance"/);
 });
 

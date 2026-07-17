@@ -23,7 +23,7 @@ export function BrowserResourceSaver() {
     ).connection;
 
     root.dataset.bcAndroidWebview = isAndroidWebView ? "true" : "false";
-    applyPerformancePreferences(readStoredPerformancePreferences());
+    applyPerformancePreferences(readStoredPerformancePreferences(), { persist: false });
 
     function applyVisibilityState() {
       root.dataset.bcPageVisibility = document.visibilityState;

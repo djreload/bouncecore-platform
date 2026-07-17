@@ -25,7 +25,7 @@ export type EffectivePerformancePreferences = PerformancePreferences & {
 export const defaultPerformancePreferences: PerformancePreferences = {
   animationsEnabled: true,
   animatedMediaEnabled: true,
-  automaticMobileSaverEnabled: true,
+  automaticMobileSaverEnabled: false,
   backgroundPlaybackEnabled: true,
   batterySaverEnabled: false,
   hapticsEnabled: true,
@@ -34,6 +34,11 @@ export const defaultPerformancePreferences: PerformancePreferences = {
   particlesEnabled: true,
   realtimeUpdatesEnabled: true,
   secondaryVideoEnabled: true
+};
+
+export const recommendedMobileProtectionPreferences: PerformancePreferences = {
+  ...defaultPerformancePreferences,
+  automaticMobileSaverEnabled: true
 };
 
 function objectValue(value: unknown): Record<string, unknown> {
