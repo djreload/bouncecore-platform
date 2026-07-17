@@ -7,6 +7,7 @@ import {
   type StreamPlaybackSettings
 } from "@/lib/stream/stream-playback-settings";
 import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
+import { currentPerformancePreferences } from "@/lib/performance/performance-preferences-client";
 
 export type LiveStatusChannelPayload = {
   slug: string;
@@ -200,7 +201,9 @@ function startFallbackPolling() {
   }
 
   void fetchAndPublishStatus();
-  fallbackPollTimer = window.setInterval(fetchAndPublishStatus, fallbackPollMs);
+  const pollMs = currentPerformancePreferences().effective.realtimeUpdatesEnabled ? fallbackPollMs : 5000;
+
+  fallbackPollTimer = window.setInterval(fetchAndPublishStatus, pollMs);
 }
 
 function startStatusStream() {

@@ -63,6 +63,7 @@ export const accountNavigation: NavigationItem[] = [
   { label: "Stars", href: "/account/rewards", icon: "star", group: "Supporter" },
   { label: "Notifications", href: "/account/notifications", icon: "bell", group: "Account" },
   { label: "Security", href: "/account/security", icon: "lock", group: "Account" },
+  { label: "Resource monitor", href: "/account/performance", icon: "gauge", group: "Account" },
   { label: "Settings", href: "/account/settings", icon: "settings", group: "Account" }
 ];
 

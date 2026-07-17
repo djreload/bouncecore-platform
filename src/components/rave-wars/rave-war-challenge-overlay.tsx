@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, Swords, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import type { RaveWarChallengeSummary } from "@/lib/rave-wars/rave-war-types";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,7 @@ function challengeLabel(challenge: RaveWarChallengeSummary) {
 }
 
 export function RaveWarChallengeLauncher({ onNavigate, placement = "desktop" }: RaveWarChallengeLauncherProps) {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const [challenges, setChallenges] = useState<RaveWarChallengeSummary[]>([]);
   const [busyWarId, setBusyWarId] = useState<string | null>(null);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => new Set());
@@ -106,7 +108,10 @@ export function RaveWarChallengeLauncher({ onNavigate, placement = "desktop" }: 
 
   useEffect(() => {
     const initialRefresh = window.setTimeout(refreshChallenges, 0);
-    const interval = window.setInterval(refreshChallenges, pollMs);
+    const interval = window.setInterval(
+      refreshChallenges,
+      performancePreferences.realtimeUpdatesEnabled ? pollMs : 10_000
+    );
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
@@ -121,7 +126,7 @@ export function RaveWarChallengeLauncher({ onNavigate, placement = "desktop" }: 
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [refreshChallenges]);
+  }, [performancePreferences.realtimeUpdatesEnabled, refreshChallenges]);
 
   if (!visibleChallenges.length) {
     return null;

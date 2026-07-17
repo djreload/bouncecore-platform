@@ -6,9 +6,11 @@ import { splitTextMentions, type ChatMentionSegment } from "@/lib/chat/mentions"
 import { cn } from "@/lib/utils";
 
 type ChatEffectTextProps = {
+  animationsEnabled?: boolean;
   body: string;
   effectId?: string | null;
   className?: string;
+  particlesEnabled?: boolean;
 };
 
 function letterStyle(index: number) {
@@ -100,8 +102,14 @@ function renderMentionSegment(segment: ChatMentionSegment, key: string, renderLe
   );
 }
 
-export function ChatEffectText({ body, className, effectId }: ChatEffectTextProps) {
-  const effect = getChatEffectById(effectId);
+export function ChatEffectText({
+  animationsEnabled = true,
+  body,
+  className,
+  effectId,
+  particlesEnabled = true
+}: ChatEffectTextProps) {
+  const effect = animationsEnabled ? getChatEffectById(effectId) : undefined;
   const segments = splitTextMentions(body);
   const letterOffset = { value: 0 };
   const renderLetters = effect?.renderMode === "letters";
@@ -117,7 +125,7 @@ export function ChatEffectText({ body, className, effectId }: ChatEffectTextProp
       data-chat-particles={effect?.particlePreset}
     >
       {segments.map((segment, index) => renderMentionSegment(segment, `${index}-${segment.text}`, renderLetters, letterOffset))}
-      {effect?.particlePreset ? <ChatEffectParticles preset={effect.particlePreset} /> : null}
+      {particlesEnabled && effect?.particlePreset ? <ChatEffectParticles preset={effect.particlePreset} /> : null}
     </p>
   );
 }

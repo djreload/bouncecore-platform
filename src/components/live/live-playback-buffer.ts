@@ -9,6 +9,13 @@ type LiveHlsController = {
   startLoad: (startPosition?: number) => void;
 };
 
+type LiveHlsQualityController = {
+  autoLevelCapping: number;
+  levels: Array<{
+    height?: number;
+  }>;
+};
+
 type LiveStallWatchdogOptions = {
   getCanRecover?: () => boolean;
   getHls?: () => LiveHlsController | null;
@@ -36,6 +43,23 @@ export function buildLiveHlsConfig(playbackBufferSeconds: number) {
     maxLiveSyncPlaybackRate: 1,
     startLevel: -1
   };
+}
+
+export function applyLiveQualityCap(hls: LiveHlsQualityController, maxLiveHeight: number | null) {
+  if (!maxLiveHeight) {
+    hls.autoLevelCapping = -1;
+    return -1;
+  }
+
+  const eligibleLevels = hls.levels
+    .map((level, index) => ({ height: level.height ?? Number.POSITIVE_INFINITY, index }))
+    .filter((level) => level.height <= maxLiveHeight);
+  const cappedLevel = eligibleLevels.length
+    ? eligibleLevels.reduce((highest, level) => (level.height >= highest.height ? level : highest)).index
+    : 0;
+
+  hls.autoLevelCapping = cappedLevel;
+  return cappedLevel;
 }
 
 export function keepNormalPlaybackSpeed(video: HTMLVideoElement) {

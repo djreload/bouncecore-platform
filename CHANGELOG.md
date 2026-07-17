@@ -53,6 +53,9 @@ All notable project changes are tracked here. Dates use UTC.
 - Added System health monitoring for queued, running, failed, and completed admin-requested backup runs.
 - Added interactive Linux instance installer for Docker Compose deployments.
 - Added a Debian/Ubuntu main-branch auto installer that pulls from GitHub `main`, generates internal secrets, configures nginx and Let's Encrypt, enables RTMPS by default, and only prompts for public URL plus operating credentials.
+- Added a per-account Resource Monitor with browser-reported battery, frame-rate, long-task, memory, network, media, animation, and page-size readings.
+- Added persisted battery and heat controls for livestream quality, second-DJ video, background playback, animations, particles, animated chat media, haptics, realtime polling, and native Android ads.
+- Added automatic mobile protection for Android, data-saver connections, and lower-resource devices, plus a stronger manually enabled Battery Saver.
 
 ### Changed
 
@@ -66,6 +69,8 @@ All notable project changes are tracked here. Dates use UTC.
 - Replaced environment-specific README deployment notes with a portable install and operations summary.
 - Split MediaMTX RTMP, RTMPS, and HLS bind-host settings so production installs can expose RTMPS publicly while keeping unencrypted RTMP and HLS origins local.
 - Changed external restream output to transcode by default with a forced 2 second keyframe interval for Facebook/YouTube RTMP compatibility.
+- Reduced fallback polling frequency, animated chat DOM, overlay particles, dual-video decoding, HLS quality, haptics, and Android ad activity when the effective performance profile disables them.
+- Disabled Android WebView off-screen prerastering and made native ad and vibration activity respond immediately to the signed-in user's performance settings.
 
 ### Fixed
 

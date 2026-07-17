@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 
 const minimumHeartbeatGapMs = 15_000;
 const liveViewerHeartbeatIntervalMs = 15_000;
@@ -47,12 +48,15 @@ function isLiveViewerActive() {
 }
 
 export function SitePresenceHeartbeat() {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const lastSentAtRef = useRef(0);
   const lastActivityAtRef = useRef(0);
   const queuedHeartbeatRef = useRef<number | null>(null);
 
   useEffect(() => {
     let active = true;
+    const heartbeatGapMs = performancePreferences.realtimeUpdatesEnabled ? minimumHeartbeatGapMs : 60_000;
+    const viewerHeartbeatMs = performancePreferences.realtimeUpdatesEnabled ? liveViewerHeartbeatIntervalMs : 60_000;
 
     function clearQueuedHeartbeat() {
       if (queuedHeartbeatRef.current !== null) {
@@ -69,7 +73,7 @@ export function SitePresenceHeartbeat() {
       const now = Date.now();
       const hasRecentActivity = now - lastActivityAtRef.current <= activityFreshnessMs;
 
-      if (!force && (!hasRecentActivity || now - lastSentAtRef.current < minimumHeartbeatGapMs)) {
+      if (!force && (!hasRecentActivity || now - lastSentAtRef.current < heartbeatGapMs)) {
         return;
       }
 
@@ -102,7 +106,7 @@ export function SitePresenceHeartbeat() {
         return;
       }
 
-      const waitMs = Math.max(0, minimumHeartbeatGapMs - (Date.now() - lastSentAtRef.current));
+      const waitMs = Math.max(0, heartbeatGapMs - (Date.now() - lastSentAtRef.current));
 
       queuedHeartbeatRef.current = window.setTimeout(() => {
         queuedHeartbeatRef.current = null;
@@ -117,7 +121,7 @@ export function SitePresenceHeartbeat() {
         return;
       }
 
-      if (Date.now() - lastSentAtRef.current >= minimumHeartbeatGapMs) {
+      if (Date.now() - lastSentAtRef.current >= heartbeatGapMs) {
         void sendHeartbeat();
       } else {
         queueHeartbeatAfterThrottle();
@@ -130,7 +134,7 @@ export function SitePresenceHeartbeat() {
       if (isLiveViewerActive()) {
         void sendHeartbeat(true);
       }
-    }, liveViewerHeartbeatIntervalMs);
+    }, viewerHeartbeatMs);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "visible") {
@@ -158,7 +162,7 @@ export function SitePresenceHeartbeat() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
     };
-  }, []);
+  }, [performancePreferences.realtimeUpdatesEnabled]);
 
   return null;
 }

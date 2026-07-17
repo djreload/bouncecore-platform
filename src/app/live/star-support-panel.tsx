@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Star, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import type { LiveStarSupportData } from "@/lib/stars/star-send-service";
 import { defaultStarAlertSettings, type StarAlertSettings } from "@/lib/stars/star-alert-settings";
 
@@ -155,6 +156,7 @@ function alertsEnabledForCurrentPath(settings: StarAlertSettings) {
 }
 
 export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const [activeSend, setActiveSend] = useState<LiveStarSendAlert | null>(null);
   const [alertSettings, setAlertSettings] = useState(initialData?.alertSettings ?? defaultStarAlertSettings);
   const activeSendRef = useRef<LiveStarSendAlert | null>(null);
@@ -165,6 +167,9 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
   const initializedRef = useRef(Boolean(initialData));
   const settingsRef = useRef(alertSettings);
   const activeAnimation = useMemo(() => (activeSend ? animationForSend(activeSend, alertSettings) : null), [activeSend, alertSettings]);
+  const alertPollMs = performancePreferences.realtimeUpdatesEnabled
+    ? alertSettings.pollMs
+    : Math.max(15_000, alertSettings.pollMs * 3);
 
   const playNextAlert = useCallback(() => {
     if (activeSendRef.current) {
@@ -267,7 +272,7 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
     }
 
     void refresh();
-    const interval = window.setInterval(refresh, alertSettings.pollMs);
+    const interval = window.setInterval(refresh, alertPollMs);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
@@ -285,7 +290,7 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [alertSettings.pollMs, enqueueNewSends]);
+  }, [alertPollMs, enqueueNewSends]);
 
   useEffect(() => {
     return () => {
@@ -301,9 +306,9 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[70] overflow-hidden" aria-live="polite">
-      <FloatingStarsEffect />
-      {activeAnimation === "confetti" || activeAnimation === "fireworks" ? <ConfettiEffect /> : null}
-      {activeAnimation === "fireworks" ? <FireworksEffect /> : null}
+      {performancePreferences.particlesEnabled ? <FloatingStarsEffect /> : null}
+      {performancePreferences.particlesEnabled && (activeAnimation === "confetti" || activeAnimation === "fireworks") ? <ConfettiEffect /> : null}
+      {performancePreferences.particlesEnabled && activeAnimation === "fireworks" ? <FireworksEffect /> : null}
       <div className="absolute inset-0 grid place-items-center px-4">
         <div className="bc-star-alert-card w-full max-w-xl rounded-md border border-bc-acid/50 bg-bc-ink/92 p-5 text-center shadow-2xl shadow-bc-acid/20 backdrop-blur sm:p-7">
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -323,6 +328,7 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
 }
 
 export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const [data, setData] = useState(initialData);
 
   useEffect(() => {
@@ -347,7 +353,7 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
       }
     }
 
-    const interval = window.setInterval(refresh, 5000);
+    const interval = window.setInterval(refresh, performancePreferences.realtimeUpdatesEnabled ? 5000 : 15_000);
     document.addEventListener("visibilitychange", refresh);
 
     return () => {
@@ -355,7 +361,7 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [performancePreferences.realtimeUpdatesEnabled]);
 
   return (
     <div className="rounded-md border border-bc-line bg-bc-panel p-5">

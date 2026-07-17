@@ -6,10 +6,12 @@ import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildLiveHlsConfig,
+  applyLiveQualityCap,
   installLiveStallWatchdog,
   keepNormalPlaybackSpeed,
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 import { isBouncecoreAndroidRuntime } from "@/lib/runtime/mobile-app-runtime";
@@ -65,7 +67,11 @@ function isLivePath(pathname: string | null) {
   return pathname === "/live" || Boolean(pathname?.startsWith("/live/"));
 }
 
-function shouldSuspendPersistentPlayback(pathname: string | null, userEnabled: boolean) {
+function shouldSuspendPersistentPlayback(pathname: string | null, userEnabled: boolean, backgroundPlaybackEnabled = true) {
+  if (!backgroundPlaybackEnabled) {
+    return (typeof document !== "undefined" && document.visibilityState === "hidden") || !isLivePath(pathname);
+  }
+
   if (userEnabled) {
     return false;
   }
@@ -122,6 +128,7 @@ function getPrimaryPlaybackUrl(liveState: LiveStatusPayload) {
 
 export function PersistentLiveAudio() {
   const pathname = usePathname();
+  const { effective: performancePreferences } = usePerformancePreferences();
   const parkingRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -132,12 +139,14 @@ export function PersistentLiveAudio() {
   const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
   const [playbackReconnectGeneration, setPlaybackReconnectGeneration] = useState(0);
-  const [suspendPlayback, setSuspendPlayback] = useState(() => shouldSuspendPersistentPlayback(pathname, false));
+  const [suspendPlayback, setSuspendPlayback] = useState(() =>
+    shouldSuspendPersistentPlayback(pathname, false, performancePreferences.backgroundPlaybackEnabled)
+  );
   const [userEnabled, setUserEnabled] = useState(false);
   const primaryPlaybackUrl = getPrimaryPlaybackUrl(liveState);
   const playbackBufferSeconds = liveState.playbackSettings.playbackBufferSeconds;
   const canPlay = Boolean(primaryPlaybackUrl) && liveState.status !== "offline" && !suspendPlayback;
-  const persistentAudioActive = userEnabled && canPlay;
+  const persistentAudioActive = userEnabled && canPlay && performancePreferences.backgroundPlaybackEnabled;
 
   useEffect(() => {
     canPlayRef.current = canPlay;
@@ -157,11 +166,15 @@ export function PersistentLiveAudio() {
 
   useEffect(() => {
     function updateSuspendState() {
-      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname, userEnabled));
+      setSuspendPlayback(
+        shouldSuspendPersistentPlayback(pathname, userEnabled, performancePreferences.backgroundPlaybackEnabled)
+      );
     }
 
     function suspendForPageHide() {
-      setSuspendPlayback(shouldSuspendPersistentPlayback(pathname, userEnabled));
+      setSuspendPlayback(
+        shouldSuspendPersistentPlayback(pathname, userEnabled, performancePreferences.backgroundPlaybackEnabled)
+      );
     }
 
     updateSuspendState();
@@ -174,7 +187,7 @@ export function PersistentLiveAudio() {
       window.removeEventListener("pagehide", suspendForPageHide);
       window.removeEventListener("pageshow", updateSuspendState);
     };
-  }, [pathname, userEnabled]);
+  }, [pathname, performancePreferences.backgroundPlaybackEnabled, userEnabled]);
 
   useEffect(() => {
     setAndroidPersistentAudioActive(persistentAudioActive);
@@ -444,6 +457,7 @@ export function PersistentLiveAudio() {
           return;
         }
 
+        applyLiveQualityCap(hls, performancePreferences.maxLiveHeight);
         reconnectAttemptRef.current = 0;
         mediaRecoveryAttempts = 0;
         video.muted = !userEnabledRef.current;
@@ -501,7 +515,14 @@ export function PersistentLiveAudio() {
         window.clearTimeout(reconnectTimer);
       }
     };
-  }, [canPlay, playbackBufferSeconds, playbackReconnectGeneration, primaryPlaybackUrl, suspendPlayback]);
+  }, [
+    canPlay,
+    performancePreferences.maxLiveHeight,
+    playbackBufferSeconds,
+    playbackReconnectGeneration,
+    primaryPlaybackUrl,
+    suspendPlayback
+  ]);
 
   useEffect(() => {
     const video = videoRef.current;

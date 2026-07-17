@@ -127,8 +127,35 @@ body::before {
 }
 
 html[data-bc-android-webview="true"] body::before,
-html[data-bc-page-visibility="hidden"] body::before {
+html[data-bc-page-visibility="hidden"] body::before,
+html[data-bc-animations-enabled="false"] body::before {
   animation: none;
+}
+
+html[data-bc-animations-enabled="false"] .bc-brand-mark::after,
+html[data-bc-animations-enabled="false"] .bc-chat-effect,
+html[data-bc-animations-enabled="false"] .bc-chat-effect::before,
+html[data-bc-animations-enabled="false"] .bc-chat-effect::after,
+html[data-bc-animations-enabled="false"] .bc-chat-effect-particle,
+html[data-bc-animations-enabled="false"] .bc-chat-effect .bc-chat-effect-letter,
+html[data-bc-animations-enabled="false"] .bc-music-top-five,
+html[data-bc-animations-enabled="false"] .bc-star-alert-card,
+html[data-bc-animations-enabled="false"] .bc-star-alert-floating-star,
+html[data-bc-animations-enabled="false"] .bc-star-alert-confetti,
+html[data-bc-animations-enabled="false"] .bc-star-alert-firework,
+html[data-bc-animations-enabled="false"] .bc-sheep-motion-blur,
+html[data-bc-animations-enabled="false"].bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-overlay]) {
+  animation: none !important;
+  filter: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+html[data-bc-particles-enabled="false"] .bc-chat-effect-particles,
+html[data-bc-particles-enabled="false"] .bc-star-alert-floating-star,
+html[data-bc-particles-enabled="false"] .bc-star-alert-confetti,
+html[data-bc-particles-enabled="false"] .bc-star-alert-firework {
+  display: none !important;
 }
 
 @supports (content-visibility: auto) {

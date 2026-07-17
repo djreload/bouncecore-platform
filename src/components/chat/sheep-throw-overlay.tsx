@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
+import type { EffectivePerformancePreferences } from "@/lib/account/performance-preferences-core";
 import type { ChatSheepThrowOverlayData, ChatSheepThrowSummary } from "@/lib/chat/sheep-throw-service";
 import { defaultSheepThrowSettings, defaultSheepThrowSprite, type SheepThrowSettings, type SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
 
@@ -55,8 +57,11 @@ function throwLabel(sheepThrow: ChatSheepThrowSummary) {
     : `${sheepThrow.throwerDisplayName} threw ${article} ${spriteLabel}`;
 }
 
-function reducedMotionEnabled() {
-  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+function reducedMotionEnabled(performancePreferences?: EffectivePerformancePreferences) {
+  return (
+    performancePreferences?.animationsEnabled === false ||
+    (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+  );
 }
 
 function mobileVibrationAvailable() {
@@ -67,8 +72,8 @@ function mobileVibrationAvailable() {
   return navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-function vibrateMobile(pattern: number | number[]) {
-  if (reducedMotionEnabled()) {
+function vibrateMobile(pattern: number | number[], enabled: boolean) {
+  if (!enabled || reducedMotionEnabled()) {
     return;
   }
 
@@ -86,6 +91,7 @@ function vibrateMobile(pattern: number | number[]) {
 }
 
 export function SheepThrowOverlay() {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const [activeThrow, setActiveThrow] = useState<ChatSheepThrowSummary | null>(null);
   const [incomingBlur, setIncomingBlur] = useState(false);
   const [settings, setSettings] = useState<SheepThrowSettings>(defaultSheepThrowSettings);
@@ -98,6 +104,7 @@ export function SheepThrowOverlay() {
   const imageCacheRef = useRef(new Map<string, LoadedImages>());
   const drawFrameRef = useRef<(timestamp: number) => void>(() => undefined);
   const playNextRef = useRef<() => void>(() => undefined);
+  const performancePreferencesRef = useRef(performancePreferences);
   const queueRef = useRef<ChatSheepThrowSummary[]>([]);
   const seenIdsRef = useRef(new Set<string>());
   const settingsRef = useRef(settings);
@@ -238,7 +245,7 @@ export function SheepThrowOverlay() {
         setIncomingBlur(false);
         document.documentElement.classList.add("bc-sheep-impact-wobble");
         playImpactSound(images.sprite.impactSoundUrl);
-        vibrateMobile(impactVibrationPattern);
+        vibrateMobile(impactVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
 
         if (wobbleTimeoutRef.current !== null) {
           window.clearTimeout(wobbleTimeoutRef.current);
@@ -309,6 +316,20 @@ export function SheepThrowOverlay() {
 
     loadingThrowRef.current = true;
 
+    if (reducedMotionEnabled(performancePreferencesRef.current)) {
+      loadingThrowRef.current = false;
+      activeThrowRef.current = nextThrow;
+      setActiveThrow(nextThrow);
+      setIncomingBlur(false);
+      timeoutRef.current = window.setTimeout(() => {
+        timeoutRef.current = null;
+        activeThrowRef.current = null;
+        setActiveThrow(null);
+        playNextRef.current();
+      }, Math.min(2500, settingsRef.current.overlayDurationMs));
+      return;
+    }
+
     void loadImagesForSprite(nextThrow.sprite)
       .then((images) => {
         loadingThrowRef.current = false;
@@ -322,7 +343,7 @@ export function SheepThrowOverlay() {
           timeoutRef.current = null;
         }
 
-        if (!reducedMotionEnabled()) {
+        if (!reducedMotionEnabled(performancePreferencesRef.current)) {
           const startAnimationWhenCanvasReady = (attempt = 0) => {
             if (activeThrowRef.current?.id !== nextThrow.id) {
               animationFrameRef.current = null;
@@ -348,7 +369,7 @@ export function SheepThrowOverlay() {
             animationFrameRef.current = null;
             stopAnimation();
             setIncomingBlur(true);
-            vibrateMobile(incomingVibrationPattern);
+            vibrateMobile(incomingVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
             startTimeRef.current = performance.now();
             animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
             timeoutRef.current = window.setTimeout(() => {
@@ -411,10 +432,28 @@ export function SheepThrowOverlay() {
   }, [settings]);
 
   useEffect(() => {
+    performancePreferencesRef.current = performancePreferences;
+
+    if (!performancePreferences.animationsEnabled) {
+      const cleanupTimer = window.setTimeout(() => {
+        setIncomingBlur(false);
+        document.documentElement.classList.remove("bc-sheep-impact-wobble");
+        stopAnimation();
+      }, 0);
+
+      return () => window.clearTimeout(cleanupTimer);
+    }
+  }, [performancePreferences, stopAnimation]);
+
+  useEffect(() => {
+    if (!performancePreferences.animationsEnabled) {
+      return;
+    }
+
     void loadImagesForSprite(defaultSheepThrowSprite).catch(() => {
       imageRef.current = null;
     });
-  }, [loadImagesForSprite]);
+  }, [loadImagesForSprite, performancePreferences.animationsEnabled]);
 
   useEffect(() => {
     let active = true;
@@ -462,7 +501,8 @@ export function SheepThrowOverlay() {
     }
 
     void refresh();
-    const interval = window.setInterval(refresh, settings.pollMs);
+    const pollMs = performancePreferences.realtimeUpdatesEnabled ? settings.pollMs : Math.max(15_000, settings.pollMs * 3);
+    const interval = window.setInterval(refresh, pollMs);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
@@ -497,7 +537,7 @@ export function SheepThrowOverlay() {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [enqueueThrows, settings.pollMs, stopAnimation]);
+  }, [enqueueThrows, performancePreferences.realtimeUpdatesEnabled, settings.pollMs, stopAnimation]);
 
   useEffect(
     () => () => {

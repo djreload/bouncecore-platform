@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import { ChatEffectSelector } from "@/app/chat/chat-effect-selector";
 import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
@@ -453,6 +454,7 @@ export function ChatRoomPanel({
   showPresenceRail = false,
   showRoomLinks = true
 }: ChatRoomPanelProps) {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const [state, setState] = useState<PublicChatActionState>(initialPublicChatActionState);
   const [pending, setPending] = useState(false);
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
@@ -716,7 +718,7 @@ export function ChatRoomPanel({
       }
 
       void refreshMessages();
-      fallbackInterval = window.setInterval(refreshMessages, 5000);
+      fallbackInterval = window.setInterval(refreshMessages, performancePreferences.realtimeUpdatesEnabled ? 5000 : 15_000);
     }
 
     function stopPollingFallback() {
@@ -861,7 +863,7 @@ export function ChatRoomPanel({
       window.removeEventListener("online", resumeRealtimeConnection);
       document.removeEventListener("visibilitychange", resumeRealtimeConnection);
     };
-  }, [loadLatestMessages, selectedRoomId]);
+  }, [loadLatestMessages, performancePreferences.realtimeUpdatesEnabled, selectedRoomId]);
 
   useEffect(() => {
     if (state.status !== "success") {
@@ -1506,9 +1508,11 @@ export function ChatRoomPanel({
                     <div className="flex flex-wrap items-center gap-2">
                       <Star className="h-5 w-5 fill-bc-acid text-bc-acid" aria-hidden="true" />
                       <ChatEffectText
+                        animationsEnabled={performancePreferences.animationsEnabled}
                         body={`${(message.starAmount ?? 0).toLocaleString("en-GB")} stars`}
                         className="!mt-0 text-xl font-black text-bc-acid"
                         effectId="legend"
+                        particlesEnabled={performancePreferences.particlesEnabled}
                       />
                       <Badge tone="acid">Stream support</Badge>
                     </div>
@@ -1516,34 +1520,49 @@ export function ChatRoomPanel({
                   </div>
                 ) : message.kind === "gif" && message.mediaUrl ? (
                   <div className="mt-3">
-                    <Image
-                      alt={message.mediaAlt ?? message.body}
-                      className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
-                      height={mediaSize.height}
-                      onLoad={scrollToLatestMessage}
-                      sizes={compact ? "320px" : "520px"}
-                      src={message.mediaUrl}
-                      unoptimized
-                      width={mediaSize.width}
-                    />
+                    {performancePreferences.animatedMediaEnabled ? (
+                      <Image
+                        alt={message.mediaAlt ?? message.body}
+                        className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
+                        height={mediaSize.height}
+                        onLoad={scrollToLatestMessage}
+                        sizes={compact ? "320px" : "520px"}
+                        src={message.mediaUrl}
+                        unoptimized
+                        width={mediaSize.width}
+                      />
+                    ) : (
+                      <p className="rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs font-semibold text-bc-muted">
+                        Animated GIF paused by your performance settings.
+                      </p>
+                    )}
                   </div>
                 ) : isCustomAssetMessage ? (
                   <div className="mt-3">
-                    <Image
-                      alt={message.mediaAlt ?? message.body}
-                      className={`h-auto w-auto max-w-full object-contain ${
-                        message.kind === "emoji" ? "max-h-20" : compact ? "max-h-36" : "max-h-56"
-                      }`}
-                      height={message.kind === "emoji" ? 96 : 240}
-                      onLoad={scrollToLatestMessage}
-                      sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
-                      src={message.mediaUrl ?? ""}
-                      unoptimized
-                      width={message.kind === "emoji" ? 96 : 240}
-                    />
+                    {performancePreferences.animatedMediaEnabled ? (
+                      <Image
+                        alt={message.mediaAlt ?? message.body}
+                        className={`h-auto w-auto max-w-full object-contain ${
+                          message.kind === "emoji" ? "max-h-20" : compact ? "max-h-36" : "max-h-56"
+                        }`}
+                        height={message.kind === "emoji" ? 96 : 240}
+                        onLoad={scrollToLatestMessage}
+                        sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
+                        src={message.mediaUrl ?? ""}
+                        unoptimized
+                        width={message.kind === "emoji" ? 96 : 240}
+                      />
+                    ) : (
+                      <p className="text-xs font-semibold text-bc-muted">Animated chat media paused.</p>
+                    )}
                   </div>
                 ) : (
-                  <ChatEffectText body={message.body} effectId={message.effectId} />
+                  <ChatEffectText
+                    animationsEnabled={performancePreferences.animationsEnabled}
+                    body={message.body}
+                    effectId={message.effectId}
+                    particlesEnabled={performancePreferences.particlesEnabled}
+                  />
                 )}
 
                 {messageActionsOpen && selectedRoom ? (
@@ -1856,7 +1875,13 @@ export function ChatRoomPanel({
               {composerBody.trim() && selectedEffectId ? (
                 <div className={cn("rounded-md border border-bc-line bg-bc-ink px-3 py-2", mobileLiveMode && "max-h-16 overflow-hidden px-2 py-1.5 lg:max-h-none lg:px-3 lg:py-2")}>
                   <div className="text-xs font-semibold uppercase text-bc-muted">Preview</div>
-                  <ChatEffectText body={composerBody} className="mt-2" effectId={selectedEffectId} />
+                  <ChatEffectText
+                    animationsEnabled={performancePreferences.animationsEnabled}
+                    body={composerBody}
+                    className="mt-2"
+                    effectId={selectedEffectId}
+                    particlesEnabled={performancePreferences.particlesEnabled}
+                  />
                 </div>
               ) : null}
               <div
@@ -2110,15 +2135,21 @@ export function ChatRoomPanel({
                               title={gif.title}
                               type="submit"
                             >
-                              <Image
-                                alt={gif.title}
-                                className="h-full w-full object-cover transition group-hover:scale-105"
-                                height={resultSize.height}
-                                sizes={compact ? "160px" : "220px"}
-                                src={gif.previewUrl}
-                                unoptimized
-                                width={resultSize.width}
-                              />
+                              {performancePreferences.animatedMediaEnabled ? (
+                                <Image
+                                  alt={gif.title}
+                                  className="h-full w-full object-cover transition group-hover:scale-105"
+                                  height={resultSize.height}
+                                  sizes={compact ? "160px" : "220px"}
+                                  src={gif.previewUrl}
+                                  unoptimized
+                                  width={resultSize.width}
+                                />
+                              ) : (
+                                <span className="grid h-full place-items-center px-2 text-center text-xs font-semibold text-bc-muted">
+                                  {gif.title || "GIF result"}
+                                </span>
+                              )}
                             </button>
                           </form>
                         );

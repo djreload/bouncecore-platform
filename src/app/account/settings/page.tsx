@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bell, Lock, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Bell, Gauge, Lock, Settings, ShieldCheck, UserRound } from "lucide-react";
 import { DeleteAccountForm } from "@/app/account/settings/delete-account-form";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { ConsentPreferencesButton } from "@/components/privacy/consent-preferences-button";
@@ -110,6 +110,19 @@ export default async function AccountSettingsPage() {
 
       <section className="mt-5">
         <NotificationPreferencesForm preferences={notificationPreferences} />
+      </section>
+
+      <section className="mt-5 rounded-md border border-bc-line bg-bc-panel p-5">
+        <Gauge className="h-6 w-6 text-bc-acid" aria-hidden="true" />
+        <h3 className="mt-4 text-xl font-black">Battery and performance</h3>
+        <p className="mt-2 max-w-3xl text-sm leading-6 text-bc-muted">
+          See browser resource readings and control livestream quality, background playback, animations, media, haptics, and native app ads.
+        </p>
+        <div className="mt-4">
+          <ButtonLink href="/account/performance" variant="ghost">
+            Open resource monitor
+          </ButtonLink>
+        </div>
       </section>
 
       <section className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">

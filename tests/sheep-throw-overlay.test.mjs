@@ -22,8 +22,8 @@ test("sheep throw overlay can play impact sounds and mobile haptics", () => {
   assert.match(content, /navigator\.vibrate\(pattern\)/);
   assert.match(content, /const incomingVibrationPattern = \[80, 55, 120, 55, 170, 55, 230, 55, 300\]/);
   assert.match(content, /const impactVibrationPattern = \[180, 45, 120, 45, 90\]/);
-  assert.match(content, /vibrateMobile\(incomingVibrationPattern\)/);
-  assert.match(content, /vibrateMobile\(impactVibrationPattern\)/);
+  assert.match(content, /vibrateMobile\(incomingVibrationPattern, performancePreferencesRef\.current\.hapticsEnabled\)/);
+  assert.match(content, /vibrateMobile\(impactVibrationPattern, performancePreferencesRef\.current\.hapticsEnabled\)/);
   assert.match(content, /if \(!mobileVibrationAvailable\(\)\)/);
 });
 

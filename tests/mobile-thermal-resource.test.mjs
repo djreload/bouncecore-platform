@@ -61,3 +61,18 @@ test("resource saver marks runtime state and disables constant Android backgroun
   assert.match(css, /html\[data-bc-android-webview="true"\] body::before/);
   assert.match(css, /content-visibility: auto/);
 });
+
+test("Android resource controls stop optional ads, haptics, and offscreen prerastering", () => {
+  const activity = readFileSync(
+    join(process.cwd(), "android-webview/app/src/main/java/uk/co/bouncecore/app/MainActivity.java"),
+    "utf8"
+  );
+
+  assert.match(activity, /setOffscreenPreRaster\(false\)/);
+  assert.match(activity, /setPerformancePreferences\(String preferencesJson\)/);
+  assert.match(activity, /nativeAdsEnabled/);
+  assert.match(activity, /hapticsEnabled/);
+  assert.match(activity, /destroyBanner\(\)/);
+  assert.match(activity, /disableInterstitialAds\(\)/);
+  assert.match(activity, /vibrator\.cancel\(\)/);
+});

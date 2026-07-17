@@ -53,6 +53,7 @@ import "./paypal-webhook-detail-core.test.mjs";
 import "./paypal-webhook-filter-core.test.mjs";
 import "./paypal-webhook-retry-core.test.mjs";
 import "./paypal-webhook-signature.test.mjs";
+import "./performance-preferences.test.mjs";
 import "./privacy-consent.test.mjs";
 import "./privacy-rights.test.mjs";
 import "./public-account-deletion.test.mjs";

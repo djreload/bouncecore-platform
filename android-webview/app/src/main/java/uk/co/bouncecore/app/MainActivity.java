@@ -76,9 +76,12 @@ public class MainActivity extends Activity {
     private static final String APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION = "once_per_session";
     private static final String MOBILE_PRIVACY_CHOICES_PATH = "/mobile/privacy-choices";
     private static final String PRIVACY_PREFS_NAME = "bouncecore_privacy";
+    private static final String PERFORMANCE_PREFS_NAME = "bouncecore_performance";
     private static final String PREF_ADS_CONSENT_SET = "ads_consent_set";
     private static final String PREF_ADS_MARKETING_CONSENT = "ads_marketing_consent";
     private static final String PREF_NOTIFICATION_DISCLOSURE_SHOWN = "notification_disclosure_shown";
+    private static final String PREF_HAPTICS_ENABLED = "haptics_enabled";
+    private static final String PREF_NATIVE_ADS_ENABLED = "native_ads_enabled";
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
@@ -121,6 +124,8 @@ public class MainActivity extends Activity {
     private boolean notificationDisclosureShowing = false;
     private boolean raveWarModeActive = false;
     private boolean persistentAudioActive = false;
+    private boolean hapticsEnabled = true;
+    private boolean nativeAdsEnabled = true;
     private int bannerRetryCount = 0;
     private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
@@ -129,6 +134,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        SharedPreferences performancePreferences = getSharedPreferences(PERFORMANCE_PREFS_NAME, MODE_PRIVATE);
+        hapticsEnabled = performancePreferences.getBoolean(PREF_HAPTICS_ENABLED, true);
+        nativeAdsEnabled = performancePreferences.getBoolean(PREF_NATIVE_ADS_ENABLED, true);
         configureWindow();
         NotificationChannels.ensureDefaultChannel(this);
         setContentView(createLayout());
@@ -509,6 +517,7 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        settings.setOffscreenPreRaster(false);
         webView.addJavascriptInterface(new BouncecoreJavascriptBridge(), "BouncecoreAndroid");
         String userAgent = settings.getUserAgentString();
         if (TextUtils.isEmpty(userAgent)) {
@@ -613,10 +622,44 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        @JavascriptInterface
+        public void setPerformancePreferences(String preferencesJson) {
+            mainHandler.post(() -> applyPerformancePreferences(preferencesJson));
+        }
+    }
+
+    private void applyPerformancePreferences(String preferencesJson) {
+        try {
+            JSONObject preferences = new JSONObject(preferencesJson);
+            hapticsEnabled = preferences.optBoolean("hapticsEnabled", true);
+            nativeAdsEnabled = preferences.optBoolean("nativeAdsEnabled", true);
+            getSharedPreferences(PERFORMANCE_PREFS_NAME, MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREF_HAPTICS_ENABLED, hapticsEnabled)
+                .putBoolean(PREF_NATIVE_ADS_ENABLED, nativeAdsEnabled)
+                .apply();
+
+            if (!hapticsEnabled) {
+                Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                if (vibrator != null) {
+                    vibrator.cancel();
+                }
+            }
+
+            if (!nativeAdsEnabled) {
+                destroyBanner();
+                disableInterstitialAds();
+            } else {
+                maybeInitializeLevelPlayWithConsent(runtimeConfig);
+            }
+        } catch (Exception error) {
+            Log.w(TAG, "Performance preferences could not be applied: " + error.getMessage());
+        }
     }
 
     private void performVibration(String patternCsv) {
-        if (TextUtils.isEmpty(patternCsv)) {
+        if (!hapticsEnabled || TextUtils.isEmpty(patternCsv)) {
             return;
         }
 
@@ -896,6 +939,12 @@ public class MainActivity extends Activity {
     }
 
     private void maybeInitializeLevelPlayWithConsent(MobileRuntimeConfig config) {
+        if (!nativeAdsEnabled) {
+            destroyBanner();
+            disableInterstitialAds();
+            return;
+        }
+
         if (!hasAdConsentChoice()) {
             LevelPlay.setConsent(false);
             destroyBanner();
@@ -1102,6 +1151,12 @@ public class MainActivity extends Activity {
     }
 
     private void syncLevelPlayAds() {
+        if (!nativeAdsEnabled) {
+            destroyBanner();
+            disableInterstitialAds();
+            return;
+        }
+
         if (raveWarModeActive) {
             if (bannerContainer != null) {
                 bannerContainer.setVisibility(View.GONE);
@@ -1129,7 +1184,7 @@ public class MainActivity extends Activity {
     }
 
     private void createAndLoadBanner() {
-        if (raveWarModeActive) {
+        if (!nativeAdsEnabled || raveWarModeActive) {
             return;
         }
 
@@ -1198,7 +1253,8 @@ public class MainActivity extends Activity {
     }
 
     private void createAndLoadInterstitial() {
-        if (!levelPlayReady
+        if (!nativeAdsEnabled
+            || !levelPlayReady
             || !runtimeConfig.appOpenInterstitialEnabled
             || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)
             || TextUtils.isEmpty(runtimeConfig.levelPlayInterstitialAdUnitId)) {
@@ -1255,7 +1311,8 @@ public class MainActivity extends Activity {
     }
 
     private void loadInterstitial() {
-        if (interstitialAd != null
+        if (nativeAdsEnabled
+            && interstitialAd != null
             && runtimeConfig.appOpenInterstitialEnabled
             && !APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
             interstitialAd.loadAd();
@@ -1268,7 +1325,8 @@ public class MainActivity extends Activity {
     }
 
     private void maybeShowAppOpenInterstitial(String reason) {
-        if (raveWarModeActive
+        if (!nativeAdsEnabled
+            || raveWarModeActive
             || !runtimeConfig.appOpenInterstitialEnabled
             || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
             return;
@@ -1293,7 +1351,7 @@ public class MainActivity extends Activity {
     }
 
     private void retryBannerLoad() {
-        if (bannerRetryCount >= MAX_BANNER_RETRIES) {
+        if (!nativeAdsEnabled || bannerRetryCount >= MAX_BANNER_RETRIES) {
             return;
         }
 
@@ -1333,7 +1391,7 @@ public class MainActivity extends Activity {
         mainHandler.postDelayed(configRefreshRunnable, CONFIG_REFRESH_INTERVAL_MS);
         maybeShowAppOpenInterstitial("resume");
 
-        if (bannerAdView != null) {
+        if (nativeAdsEnabled && bannerAdView != null) {
             bannerAdView.resumeAutoRefresh();
         }
     }

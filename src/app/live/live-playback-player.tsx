@@ -7,10 +7,12 @@ import { Radio, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildLiveHlsConfig,
+  applyLiveQualityCap,
   installLiveStallWatchdog,
   keepNormalPlaybackSpeed,
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
+import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import { subscribeToLiveStatus } from "@/components/live/live-status-client";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 import { cn } from "@/lib/utils";
@@ -80,6 +82,7 @@ function HlsVideo({
   controls,
   muted,
   onPlaybackStarted,
+  maxLiveHeight,
   playbackBufferSeconds,
   playbackUrl
 }: {
@@ -88,6 +91,7 @@ function HlsVideo({
   controls?: boolean;
   muted: boolean;
   onPlaybackStarted?: () => void;
+  maxLiveHeight: number | null;
   playbackBufferSeconds: number;
   playbackUrl: string;
 }) {
@@ -177,6 +181,7 @@ function HlsVideo({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
+          applyLiveQualityCap(hls, maxLiveHeight);
           reconnectAttemptRef.current = 0;
           mediaRecoveryAttempts = 0;
           void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
@@ -240,7 +245,7 @@ function HlsVideo({
         window.clearTimeout(reconnectTimer);
       }
     };
-  }, [onPlaybackStarted, pageVisible, playbackBufferSeconds, playbackUrl, reconnectGeneration]);
+  }, [maxLiveHeight, onPlaybackStarted, pageVisible, playbackBufferSeconds, playbackUrl, reconnectGeneration]);
 
   return (
     <video
@@ -265,6 +270,7 @@ export function LivePlaybackPlayer({
   offlineImageUrl,
   playbackSettings = defaultStreamPlaybackSettings
 }: LivePlaybackPlayerProps) {
+  const { effective: performancePreferences } = usePerformancePreferences();
   const [liveState, setLiveState] = useState<LivePlaybackState>({
     activeIngests,
     title,
@@ -288,7 +294,12 @@ export function LivePlaybackPlayer({
   const secondaryPlaybackUrl =
     secondarySource?.playbackUrl && secondarySource.playbackUrl !== primaryPlaybackUrl ? secondarySource.playbackUrl : null;
   const canAttemptPlayback = Boolean(primaryPlaybackUrl) && liveState.status !== "offline";
-  const hasSecondaryPlayback = Boolean(canAttemptPlayback && secondaryPlaybackUrl && liveState.activeIngests.length > 1);
+  const hasSecondaryPlayback = Boolean(
+    performancePreferences.secondaryVideoEnabled &&
+      canAttemptPlayback &&
+      secondaryPlaybackUrl &&
+      liveState.activeIngests.length > 1
+  );
 
   useEffect(() => {
     return subscribeToLiveStatus((payload) => {
@@ -339,6 +350,7 @@ export function LivePlaybackPlayer({
               ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
               className="absolute inset-0 h-full w-full bg-black object-contain"
               muted
+              maxLiveHeight={performancePreferences.maxLiveHeight}
               playbackBufferSeconds={liveState.playbackSettings.playbackBufferSeconds}
               playbackUrl={secondaryPlaybackUrl}
             />

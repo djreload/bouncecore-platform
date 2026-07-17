@@ -1,4 +1,4 @@
-import { Bell, Download, MessageSquare, Music, Package, Radio, ShieldCheck, Sparkles, Star, UserRound } from "lucide-react";
+import { Bell, Download, Gauge, MessageSquare, Music, Package, Radio, ShieldCheck, Sparkles, Star, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,12 @@ const overviewLinks = [
     href: "/account/security",
     icon: ShieldCheck,
     label: "Security"
+  },
+  {
+    body: "See live browser resource use and reduce battery drain or heat.",
+    href: "/account/performance",
+    icon: Gauge,
+    label: "Resource monitor"
   }
 ];
 
