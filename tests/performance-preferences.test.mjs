@@ -79,6 +79,12 @@ test("resource monitor is account-accessible and preferences persist per user", 
   assert.match(monitor, /Current resource load/);
   assert.match(monitor, /Battery and heat controls/);
   assert.match(monitor, /Battery Saver/);
+  assert.match(monitor, /Quick protection/);
+  assert.match(monitor, /Visuals and chat media/);
+  assert.match(monitor, /Livestream playback/);
+  assert.match(monitor, /Network and Android app/);
+  assert.match(monitor, /Off means the feature remains available/);
+  assert.match(monitor, /Turn off all reductions/);
   assert.match(navigation, /href: "\/account\/performance"/);
 });
 

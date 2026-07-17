@@ -88,3 +88,11 @@ test("unified GIF service uses allSettled and provider-specific failure logging"
   assert.match(service, /Promise\.allSettled/);
   assert.match(service, /\[gif-search\].*\$\{provider\} failed/);
 });
+
+test("chat GIF picker automatically loads its first page when opened", () => {
+  const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+
+  assert.match(panel, /if \(!gifPanelOpen \|\| gifResults\.length \|\| gifLoadingRef\.current\)/);
+  assert.match(panel, /void loadGifs\(gifQuery\)/);
+  assert.match(panel, /\bRetry\b/);
+});

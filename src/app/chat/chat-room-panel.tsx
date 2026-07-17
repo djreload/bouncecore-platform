@@ -1062,7 +1062,7 @@ export function ChatRoomPanel({
     window.setTimeout(keepComposerVisible, 320);
   }
 
-  async function loadGifs(query: string, offset = 0, append = false) {
+  const loadGifs = useCallback(async (query: string, offset = 0, append = false) => {
     const normalizedQuery = query.trim();
 
     if (!normalizedQuery) {
@@ -1132,7 +1132,19 @@ export function ChatRoomPanel({
       gifLoadingRef.current = false;
       setGifLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!gifPanelOpen || gifResults.length || gifLoadingRef.current) {
+      return;
+    }
+
+    const initialLoadTimer = window.setTimeout(() => {
+      void loadGifs(gifQuery);
+    }, 0);
+
+    return () => window.clearTimeout(initialLoadTimer);
+  }, [gifPanelOpen, gifQuery, gifResults.length, loadGifs]);
 
   async function searchGifs(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2101,7 +2113,14 @@ export function ChatRoomPanel({
                 </form>
 
                 {gifLoading && !gifResults.length ? <p className="mt-3 text-sm text-bc-muted">Loading GIFs...</p> : null}
-                {gifError ? <p className="mt-3 text-sm text-bc-muted">{gifError}</p> : null}
+                {gifError ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-bc-line bg-bc-panel px-3 py-2">
+                    <p className="text-sm text-bc-muted">{gifError}</p>
+                    <Button disabled={gifLoading} onClick={() => void loadGifs(gifQuery)} size="sm" type="button" variant="ghost">
+                      Retry
+                    </Button>
+                  </div>
+                ) : null}
 
                 {gifResults.length ? (
                   <div

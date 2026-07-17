@@ -406,57 +406,128 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
           </div>
         </div>
 
-        <div className="mt-5 border-y border-bc-line">
+        <fieldset className="mt-5 border-y border-bc-line">
+          <legend className="px-2 text-sm font-black uppercase text-bc-electric">Quick protection</legend>
+          <p className="pb-2 text-xs leading-5 text-bc-muted">Turn either switch on to apply a group of reductions. Battery Saver is the strongest option.</p>
           <ToggleRow
             checked={preferences.batterySaverEnabled}
-            description="Immediately limits video to 480p and disables background playback, second-DJ video, animated media, particles, native ads, haptics, and aggressive realtime updates."
-            label="Force Battery Saver"
+            description="Use when the phone is hot or losing charge quickly. Caps video at 480p and temporarily applies every reduction below, including stopping background playback."
+            label="Battery Saver - maximum reduction"
             onChange={(checked) => updateBoolean("batterySaverEnabled", checked)}
           />
           <ToggleRow
             checked={preferences.automaticMobileSaverEnabled}
-            description="Automatically applies the visual, media, ad, and realtime savings on Android and constrained devices while preserving explicitly enabled background audio."
-            label="Automatic mobile protection"
+            description="Recommended for phones. Automatically applies visual, media, ad, and refresh reductions on Android or lower-resource devices while keeping background audio available."
+            label="Automatic mobile protection - recommended"
             onChange={(checked) => updateBoolean("automaticMobileSaverEnabled", checked)}
           />
+        </fieldset>
+
+        <div className="mt-7 grid gap-8 lg:grid-cols-2">
+          <fieldset className="min-w-0 border-t border-bc-line pt-3">
+            <legend className="pr-3 text-sm font-black uppercase text-bc-pink">Visuals and chat media</legend>
+            <p className="mt-1 text-xs leading-5 text-bc-muted">Turn a switch on to remove that visual workload. Off means the feature remains available.</p>
+            <ToggleRow
+              checked={!snapshot.effective.animationsEnabled}
+              description="Stops animated chat text, interface accents, wheel lights, and decorative movement. Normal text and controls remain visible."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Pause interface and chat animations"
+              onChange={(checked) => updateBoolean("animationsEnabled", !checked)}
+            />
+            <ToggleRow
+              checked={!snapshot.effective.particlesEnabled}
+              description="Removes chat particles, star confetti, fireworks, and floating-star effects while keeping alerts readable."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Hide particle effects"
+              onChange={(checked) => updateBoolean("particlesEnabled", !checked)}
+            />
+            <ToggleRow
+              checked={!snapshot.effective.animatedMediaEnabled}
+              description="Stops GIF, animated sticker, and animated emoji images from loading. Leave this off when you want to see GIFs in chat."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Hide animated GIFs, stickers, and emoji"
+              onChange={(checked) => updateBoolean("animatedMediaEnabled", !checked)}
+            />
+            <ToggleRow
+              checked={!snapshot.effective.hapticsEnabled}
+              description="Stops incoming throw and impact vibration in the Android app. This can save power during busy chats."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Disable mobile vibration"
+              onChange={(checked) => updateBoolean("hapticsEnabled", !checked)}
+            />
+          </fieldset>
+
+          <fieldset className="min-w-0 border-t border-bc-line pt-3">
+            <legend className="pr-3 text-sm font-black uppercase text-bc-acid">Livestream playback</legend>
+            <p className="mt-1 text-xs leading-5 text-bc-muted">Use these when video decoding or continuous playback is heating the device.</p>
+            <ToggleRow
+              checked={!snapshot.effective.secondaryVideoEnabled}
+              description="Shows only the main DJ instead of decoding the second DJ picture-in-picture feed. Audio behavior is unchanged."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Hide and stop the second-DJ video"
+              onChange={(checked) => updateBoolean("secondaryVideoEnabled", !checked)}
+            />
+            <ToggleRow
+              checked={!snapshot.effective.backgroundPlaybackEnabled}
+              description="Stops the livestream after leaving the live page or putting the app in the background. Turn this on for the largest playback saving."
+              disabled={preferences.batterySaverEnabled}
+              label="Stop background livestream playback"
+              onChange={(checked) => updateBoolean("backgroundPlaybackEnabled", !checked)}
+            />
+
+            <div className="grid gap-2 border-b border-bc-line py-4">
+              <label className="text-sm font-semibold text-white" htmlFor="performance-live-quality">Maximum livestream quality</label>
+              <select
+                className="bc-focus-ring min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={snapshot.effective.batterySaverActive}
+                id="performance-live-quality"
+                onChange={(event) => updatePreferences({ ...preferences, maxLiveQuality: event.target.value as PerformancePreferences["maxLiveQuality"] })}
+                value={preferences.maxLiveQuality}
+              >
+                {liveQualityOptions.map((quality) => (
+                  <option key={quality} value={quality}>
+                    {quality === "auto" ? "Automatic quality" : `Maximum ${quality}`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs leading-5 text-bc-muted">Use 480p for coolest playback, 720p for balanced quality, or Automatic for the best connection-based quality. Active protection always caps at 480p.</p>
+            </div>
+          </fieldset>
         </div>
 
-        <div className="mt-6 grid gap-x-8 lg:grid-cols-2">
-          <div>
-            <ToggleRow checked={preferences.animationsEnabled} description="Animate chat text, interface accents, wheel lights, and decorative movement." label="Interface animations" onChange={(checked) => updateBoolean("animationsEnabled", checked)} />
-            <ToggleRow checked={preferences.particlesEnabled} description="Show chat particles, star confetti, fireworks, and floating-star effects." label="Particle effects" onChange={(checked) => updateBoolean("particlesEnabled", checked)} />
-            <ToggleRow checked={preferences.animatedMediaEnabled} description="Load animated GIF messages, sticker animations, and GIF picker previews." label="Animated GIFs and media" onChange={(checked) => updateBoolean("animatedMediaEnabled", checked)} />
-            <ToggleRow checked={preferences.hapticsEnabled} description="Allow incoming throw and impact vibration on supported mobile devices." label="Mobile vibration" onChange={(checked) => updateBoolean("hapticsEnabled", checked)} />
+        <fieldset className="mt-7 border-t border-bc-line pt-3">
+          <legend className="pr-3 text-sm font-black uppercase text-bc-electric">Network and Android app</legend>
+          <p className="mt-1 text-xs leading-5 text-bc-muted">These controls reduce background requests and optional native app work. Chat messages and essential live status updates continue.</p>
+          <div className="grid gap-x-8 lg:grid-cols-2">
+            <ToggleRow
+              checked={!snapshot.effective.realtimeUpdatesEnabled}
+              description="Slows fallback polling for presence, leaderboards, throws, and challenge updates. Realtime chat and essential live events stay connected."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Reduce background refresh frequency"
+              onChange={(checked) => updateBoolean("realtimeUpdatesEnabled", !checked)}
+            />
+            <ToggleRow
+              checked={!snapshot.effective.nativeAdsEnabled}
+              description="Stops Unity LevelPlay banner and app-open ad loading inside the Android app. Website advertising is unaffected."
+              disabled={snapshot.effective.batterySaverActive}
+              label="Disable native Android ads"
+              onChange={(checked) => updateBoolean("nativeAdsEnabled", !checked)}
+            />
           </div>
-          <div>
-            <ToggleRow checked={preferences.secondaryVideoEnabled} description="Decode and display a second connected DJ as picture-in-picture." label="Second-DJ video" onChange={(checked) => updateBoolean("secondaryVideoEnabled", checked)} />
-            <ToggleRow checked={preferences.backgroundPlaybackEnabled} description="Keep the live player active after leaving the live page or putting the app in the background." label="Background livestream audio" onChange={(checked) => updateBoolean("backgroundPlaybackEnabled", checked)} />
-            <ToggleRow checked={preferences.realtimeUpdatesEnabled} description="Use normal-frequency presence and fallback polling. Essential chat and live status events remain connected when disabled." label="High-frequency realtime updates" onChange={(checked) => updateBoolean("realtimeUpdatesEnabled", checked)} />
-            <ToggleRow checked={preferences.nativeAdsEnabled} description="Allow Unity LevelPlay banner and app-open ad activity inside the Android app, subject to consent." label="Native app ads" onChange={(checked) => updateBoolean("nativeAdsEnabled", checked)} />
-          </div>
-        </div>
+        </fieldset>
 
-        <div className="mt-6 grid gap-2 border-t border-bc-line pt-5 sm:max-w-sm">
-          <label className="text-sm font-semibold" htmlFor="performance-live-quality">Maximum livestream quality</label>
-          <select
-            className="bc-focus-ring min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 text-sm text-white"
-            id="performance-live-quality"
-            onChange={(event) => updatePreferences({ ...preferences, maxLiveQuality: event.target.value as PerformancePreferences["maxLiveQuality"] })}
-            value={preferences.maxLiveQuality}
+        <div className="mt-6 flex flex-wrap gap-2 border-t border-bc-line pt-5">
+          <Button
+            onClick={() => updatePreferences({ ...defaultPerformancePreferences, automaticMobileSaverEnabled: false })}
+            type="button"
+            variant="ghost"
           >
-            {liveQualityOptions.map((quality) => (
-              <option key={quality} value={quality}>
-                {quality === "auto" ? "Automatic quality" : `Up to ${quality}`}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs leading-5 text-bc-muted">Battery Saver always caps playback at 480p. Automatic mode lets HLS choose normally.</p>
-        </div>
-
-        <div className="mt-5">
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+            Turn off all reductions
+          </Button>
           <Button onClick={() => updatePreferences(defaultPerformancePreferences)} type="button" variant="ghost">
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
-            Restore recommended defaults
+            Restore recommended mobile protection
           </Button>
         </div>
       </section>

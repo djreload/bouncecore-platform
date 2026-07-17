@@ -71,6 +71,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Changed external restream output to transcode by default with a forced 2 second keyframe interval for Facebook/YouTube RTMP compatibility.
 - Reduced fallback polling frequency, animated chat DOM, overlay particles, dual-video decoding, HLS quality, haptics, and Android ad activity when the effective performance profile disables them.
 - Disabled Android WebView off-screen prerastering and made native ad and vibration activity respond immediately to the signed-in user's performance settings.
+- Grouped Resource Monitor controls by quick protection, visual/chat media, livestream playback, and network/native app usage, with consistent reduction-style switch labels and detailed usage guidance.
 
 ### Fixed
 
@@ -84,6 +85,7 @@ All notable project changes are tracked here. Dates use UTC.
 - Fixed local Streamlabs/OBS connection behavior by supporting separate RTMP/RTMPS server URL and stream key values.
 - Fixed live page social/menu placement issues on mobile.
 - Fixed app example configuration and docs so public repo material does not include real deployment hostnames.
+- Fixed the chat GIF picker opening with an empty result grid by automatically loading the first search page and exposing an inline retry action.
 
 ### Security
 
