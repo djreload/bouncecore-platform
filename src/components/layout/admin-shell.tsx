@@ -1,4 +1,4 @@
-import { Home, Search } from "lucide-react";
+import { Home } from "lucide-react";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { adminNavigation } from "@/config/navigation";
 import { GroupedNav } from "@/components/navigation/grouped-nav";
@@ -26,8 +26,8 @@ export async function AdminShell({ children, title, description, requiredPermiss
       data-bc-visual-part="dashboard-shell"
       style={themeStyle}
     >
-      <div className="mx-auto grid max-w-[1500px] gap-6 px-4 py-6 xl:grid-cols-[320px_1fr]">
-        <aside className="bc-dashboard-sidebar rounded-md border border-bc-line bg-bc-ink p-4" data-bc-visual-part="dashboard-sidebar">
+      <div className="mx-auto grid max-w-[1500px] gap-6 px-4 py-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+        <aside className="bc-dashboard-sidebar rounded-md border border-bc-line bg-bc-ink p-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto" data-bc-visual-part="dashboard-sidebar">
           <div className="mb-4">
             <p className="text-xs font-semibold uppercase text-bc-pink">Bouncecore admin</p>
             <h1 className="mt-1 text-xl font-black">Control room</h1>
@@ -39,13 +39,9 @@ export async function AdminShell({ children, title, description, requiredPermiss
             </ButtonLink>
             <LogoutButton />
           </div>
-          <div className="mb-5 flex items-center gap-2 rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-bc-muted">
-            <Search className="h-4 w-4" aria-hidden="true" />
-            <span>Search users, orders, streams</span>
-          </div>
           <GroupedNav items={visibleNavigation} />
         </aside>
-        <section>
+        <section className="min-w-0">
           <div className="bc-dashboard-hero mb-5 rounded-md border border-bc-line bg-bc-panel p-5" data-bc-visual-part="dashboard-hero">
             <p className="text-sm text-bc-muted">Admin / {title}</p>
             <h2 className="mt-1 text-3xl font-black">{title}</h2>

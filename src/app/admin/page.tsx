@@ -1,6 +1,7 @@
 import { Activity, CreditCard, KeyRound, Lock, MessageSquare, Music, ShoppingBag, ShieldCheck, Users } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { getAdminDashboardData } from "@/lib/admin/admin-data";
 import { requireUserPermission } from "@/lib/auth/guards";
 
@@ -10,15 +11,15 @@ export default async function AdminPage() {
   await requireUserPermission("admin.access");
   const data = await getAdminDashboardData();
   const panels = [
-    { label: "Users", value: data.users, icon: Users, tone: "cyan" as const },
-    { label: "Roles", value: data.roles, icon: ShieldCheck, tone: "pink" as const },
-    { label: "Permissions", value: data.permissions, icon: Lock, tone: "acid" as const },
-    { label: "Active sessions", value: data.activeSessions, icon: Activity, tone: "amber" as const },
-    { label: "Stream keys", value: data.streamKeys, icon: KeyRound, tone: "amber" as const },
-    { label: "Chatrooms", value: data.chatrooms, icon: MessageSquare, tone: "pink" as const },
-    { label: "Tracks", value: data.tracks, icon: Music, tone: "acid" as const },
-    { label: "Products", value: data.products, icon: ShoppingBag, tone: "cyan" as const },
-    { label: "Orders", value: data.orders, icon: CreditCard, tone: "amber" as const }
+    { body: "Find accounts, send invites, reset passwords, and manage access.", href: "/admin/users", label: "Users", value: data.users, icon: Users, tone: "cyan" as const },
+    { body: "Review role definitions, badge labels, and inherited access.", href: "/admin/roles", label: "Roles", value: data.roles, icon: ShieldCheck, tone: "pink" as const },
+    { body: "See every permission granted to owner, admin, and staff roles.", href: "/admin/permissions", label: "Permissions", value: data.permissions, icon: Lock, tone: "acid" as const },
+    { body: "Inspect current stream and account sessions.", href: "/admin/stream-sessions", label: "Active sessions", value: data.activeSessions, icon: Activity, tone: "amber" as const },
+    { body: "Issue and revoke separate OBS stream keys.", href: "/admin/stream-keys", label: "Stream keys", value: data.streamKeys, icon: KeyRound, tone: "amber" as const },
+    { body: "Configure rooms, moderation, throws, and Rave Wars.", href: "/admin/chatrooms", label: "Chatrooms", value: data.chatrooms, icon: MessageSquare, tone: "pink" as const },
+    { body: "Approve, edit, or remove producer catalogue tracks.", href: "/admin/tracks", label: "Tracks", value: data.tracks, icon: Music, tone: "acid" as const },
+    { body: "Edit merchandise, images, stock, prices, and variants.", href: "/admin/products", label: "Products", value: data.products, icon: ShoppingBag, tone: "cyan" as const },
+    { body: "Review paid purchases and customer fulfilment details.", href: "/admin/orders", label: "Orders", value: data.orders, icon: CreditCard, tone: "amber" as const }
   ];
 
   return (
@@ -26,7 +27,7 @@ export default async function AdminPage() {
       title="Dashboard"
       description="Operational control room for users, streaming, chat, marketplace, shop, payments, rewards, mobile, design, and settings."
     >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {panels.map((panel) => {
           const Icon = panel.icon;
           return (
@@ -36,7 +37,10 @@ export default async function AdminPage() {
                 <Icon className="h-5 w-5 text-bc-muted" aria-hidden="true" />
               </div>
               <p className="mt-5 text-4xl font-black">{panel.value.toLocaleString("en-GB")}</p>
-              <p className="mt-2 text-sm text-bc-muted">Live count from the Bouncecore database.</p>
+              <p className="mt-2 text-sm leading-5 text-bc-muted">{panel.body}</p>
+              <ButtonLink className="mt-4" href={panel.href} size="sm" variant="ghost">
+                Open {panel.label.toLowerCase()}
+              </ButtonLink>
             </article>
           );
         })}

@@ -16,6 +16,7 @@ import "./chat-reaction-summary-display.test.mjs";
 import "./chat-sheep-throw-notifications.test.mjs";
 import "./cart-events.test.mjs";
 import "./default-public-assets.test.mjs";
+import "./dashboard-navigation.test.mjs";
 import "./email-address.test.mjs";
 import "./fcm-push-service.test.mjs";
 import "./gif-provider-service.test.mjs";

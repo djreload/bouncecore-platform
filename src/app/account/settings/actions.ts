@@ -39,7 +39,7 @@ export async function updateNotificationPreferencesAction(
   try {
     await updateUserNotificationPreferences(actor.id, preferencesFromForm(formData));
 
-    revalidatePath("/account/settings");
+    revalidatePath("/account/preferences");
 
     return {
       message: "Notification preferences saved.",
@@ -65,7 +65,7 @@ export async function requestAccountDeletionAction(
       reason: typeof formData.get("reason") === "string" ? String(formData.get("reason")) : ""
     });
 
-    revalidatePath("/account/settings");
+    revalidatePath("/account/privacy");
 
     return {
       message: "Account deletion request submitted. The site operator must review retention requirements before removal.",

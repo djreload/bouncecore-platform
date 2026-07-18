@@ -37,7 +37,7 @@ export async function DashboardShell({ children, title, description, mode = "acc
       style={themeStyle}
     >
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[290px_1fr]">
-        <aside className="bc-dashboard-sidebar rounded-md border border-bc-line bg-bc-ink p-4" data-bc-visual-part="dashboard-sidebar">
+        <aside className="bc-dashboard-sidebar rounded-md border border-bc-line bg-bc-ink p-4 lg:max-h-[calc(100dvh-2rem)] lg:overflow-y-auto" data-bc-visual-part="dashboard-sidebar">
           <div className="mb-5">
             <p className="text-xs font-semibold uppercase text-bc-electric">Bouncecore account</p>
             <h1 className="mt-1 text-xl font-black">{mode === "account" ? "Dashboard" : title}</h1>
@@ -51,7 +51,7 @@ export async function DashboardShell({ children, title, description, mode = "acc
           </div>
           <GroupedNav items={visibleNavigation} />
         </aside>
-        <section>
+        <section className="min-w-0">
           <div className="bc-dashboard-hero mb-5 rounded-md border border-bc-line bg-bc-panel p-5" data-bc-visual-part="dashboard-hero">
             <p className="text-sm text-bc-muted">Account / {title}</p>
             <h2 className="mt-1 text-3xl font-black">{title}</h2>

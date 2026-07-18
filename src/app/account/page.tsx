@@ -97,7 +97,7 @@ export default async function AccountPage() {
 
   return (
     <DashboardShell title="Overview" description="Account summary across profile, purchases, stars, notifications, and security.">
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Orders</Badge>
           <p className="mt-4 text-3xl font-black">{data.stats.orders}</p>

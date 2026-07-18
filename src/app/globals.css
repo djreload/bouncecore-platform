@@ -641,6 +641,14 @@ input[type="file"]::file-selector-button {
   border-color: color-mix(in srgb, var(--color-bc-line) 62%, transparent);
 }
 
+.bc-dashboard-shell :where(form, fieldset, section, article) {
+  min-width: 0;
+}
+
+.bc-dashboard-shell :where(input, select, textarea) {
+  max-width: 100%;
+}
+
 @media (min-width: 1024px) {
   .bc-dashboard-sidebar {
     position: sticky;

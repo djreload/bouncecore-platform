@@ -1884,20 +1884,60 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-ink px-3 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:opacity-50"
+                    className="bc-focus-ring min-h-10 touch-none select-none rounded-md border border-bc-line bg-bc-ink px-3 text-xs font-black text-white transition hover:border-bc-electric/60 active:border-bc-electric active:bg-bc-electric/15 disabled:opacity-50"
                     disabled={!canFire || !currentPlayer?.movementLeft}
-                    onClick={() => void moveCurrentPlayer("left")}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onPointerCancel={(event) => {
+                      stopBattlefieldControlEvent(event);
+                      stopMoveHold("left");
+                    }}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      stopBattlefieldControlEvent(event);
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      startMoveHold("left");
+                    }}
+                    onLostPointerCapture={() => stopMoveHold("left")}
+                    onPointerUp={(event) => {
+                      event.preventDefault();
+                      stopBattlefieldControlEvent(event);
+                      stopMoveHold("left");
+
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                    }}
                     type="button"
                   >
-                    Walk left
+                    Hold to walk left
                   </button>
                   <button
-                    className="bc-focus-ring min-h-9 rounded-md border border-bc-line bg-bc-ink px-3 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:opacity-50"
+                    className="bc-focus-ring min-h-10 touch-none select-none rounded-md border border-bc-line bg-bc-ink px-3 text-xs font-black text-white transition hover:border-bc-electric/60 active:border-bc-electric active:bg-bc-electric/15 disabled:opacity-50"
                     disabled={!canFire || !currentPlayer?.movementLeft}
-                    onClick={() => void moveCurrentPlayer("right")}
+                    onContextMenu={(event) => event.preventDefault()}
+                    onPointerCancel={(event) => {
+                      stopBattlefieldControlEvent(event);
+                      stopMoveHold("right");
+                    }}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      stopBattlefieldControlEvent(event);
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      startMoveHold("right");
+                    }}
+                    onLostPointerCapture={() => stopMoveHold("right")}
+                    onPointerUp={(event) => {
+                      event.preventDefault();
+                      stopBattlefieldControlEvent(event);
+                      stopMoveHold("right");
+
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                    }}
                     type="button"
                   >
-                    Walk right
+                    Hold to walk right
                   </button>
                 </div>
                 <div className="grid gap-2 rounded-md border border-bc-line bg-bc-ink p-2">

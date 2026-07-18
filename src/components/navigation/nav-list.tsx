@@ -3,23 +3,26 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { icons } from "@/components/navigation/icons";
-import type { NavigationItem } from "@/config/navigation";
+import { findActiveNavigationItem, type NavigationItem } from "@/config/navigation";
 import { cn } from "@/lib/utils";
 
 type NavListProps = {
+  activeHref?: string;
   items: NavigationItem[];
   compact?: boolean;
+  onNavigate?: () => void;
   orientation?: "horizontal" | "vertical";
 };
 
-export function NavList({ items, compact = false, orientation = "vertical" }: NavListProps) {
+export function NavList({ activeHref, items, compact = false, onNavigate, orientation = "vertical" }: NavListProps) {
   const pathname = usePathname();
+  const resolvedActiveHref = activeHref ?? findActiveNavigationItem(items, pathname)?.href;
 
   return (
     <nav className={cn(orientation === "horizontal" ? "flex flex-wrap items-center gap-1" : "space-y-1")}>
       {items.map((item) => {
         const Icon = icons[item.icon];
-        const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.activePrefix ?? item.href));
+        const active = resolvedActiveHref === item.href;
 
         return (
           <Link
@@ -31,6 +34,7 @@ export function NavList({ items, compact = false, orientation = "vertical" }: Na
             )}
             href={item.href}
             key={item.href}
+            onClick={onNavigate}
             title={compact ? item.label : undefined}
           >
             <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />

@@ -1,4 +1,4 @@
-import { Bell, CheckCheck, Clock3 } from "lucide-react";
+import { Bell, CheckCheck, Clock3, Settings2 } from "lucide-react";
 import { ClearNotificationsForm } from "@/app/account/notifications/clear-notifications-form";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +59,10 @@ export default async function AccountNotificationsPage() {
           <Bell className="h-7 w-7 text-bc-pink" aria-hidden="true" />
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
+          <ButtonLink href="/account/preferences" variant="ghost">
+            <Settings2 className="h-4 w-4" aria-hidden="true" />
+            Delivery settings
+          </ButtonLink>
           <form action={markAllNotificationsReadAction}>
             <Button disabled={!data.stats.unread} type="submit" variant="primary">
               <CheckCheck className="h-4 w-4" aria-hidden="true" />

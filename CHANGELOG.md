@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added continuous press-and-hold walking to the visible Rave Wars left/right controls for touch and mouse input.
+- Reworked account and admin navigation into compact mobile menus and collapsible related submenus with active-route guidance.
+- Split account notification delivery and privacy/data controls into focused pages, and added section jump navigation to the long admin settings editor.
 - Changed new-user performance preferences to maximum performance by default, with every reduction disabled until the user explicitly changes and saves a setting.
 - Kept automatic mobile protection as a clearly labelled optional preset instead of applying it implicitly on mobile devices.
 

@@ -61,10 +61,12 @@ export const accountNavigation: NavigationItem[] = [
   { label: "Orders", href: "/account/orders", icon: "package", group: "Commerce" },
   { label: "Downloads", href: "/account/downloads", icon: "download", group: "Commerce" },
   { label: "Stars", href: "/account/rewards", icon: "star", group: "Supporter" },
-  { label: "Notifications", href: "/account/notifications", icon: "bell", group: "Account" },
-  { label: "Security", href: "/account/security", icon: "lock", group: "Account" },
-  { label: "Resource monitor", href: "/account/performance", icon: "gauge", group: "Account" },
-  { label: "Settings", href: "/account/settings", icon: "settings", group: "Account" }
+  { label: "Settings home", href: "/account/settings", icon: "settings", group: "Preferences" },
+  { label: "Notification inbox", href: "/account/notifications", icon: "bell", group: "Preferences" },
+  { label: "Notification delivery", href: "/account/preferences", icon: "bell", group: "Preferences" },
+  { label: "Security", href: "/account/security", icon: "lock", group: "Preferences" },
+  { label: "Resource monitor", href: "/account/performance", icon: "gauge", group: "Preferences" },
+  { label: "Privacy & data", href: "/account/privacy", icon: "shield", group: "Preferences" }
 ];
 
 export const accountFeatureNavigation: NavigationItem[] = [
@@ -147,10 +149,50 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Integrations", href: "/admin/integrations", icon: "activity", group: "Settings", requiredRoles: ["owner", "admin"] }
 ];
 
+export const navigationGroupDescriptions: Record<string, string> = {
+  Account: "Account overview and public profile identity.",
+  Commerce: "Orders you placed and music files you own.",
+  Supporter: "Your star wallet, purchases, and supporter activity.",
+  Preferences: "Notifications, security, performance, privacy, and data controls.",
+  "Assigned features": "Workspaces unlocked by your account roles.",
+  Overview: "System status, activity, and operational checks.",
+  "Users & Access": "Accounts, roles, permissions, and VIP access.",
+  "Live Streaming": "Ingest, stream keys, sessions, and schedules.",
+  "Chat & Moderation": "Rooms, uploads, reports, and enforcement tools.",
+  "Music Marketplace": "Producer submissions and public track catalogue.",
+  "Merch Shop": "Products, customer orders, and fulfilment.",
+  "Payments & Money": "Payment providers, stars, transactions, and payouts.",
+  Rewards: "Spin wheels, prizes, and outstanding claims.",
+  "Mobile App": "Android configuration, push delivery, and notification logs.",
+  "Site & Design": "Public pages, menus, branding, and visual themes.",
+  Settings: "General configuration, support, storage, and integrations.",
+  Streaming: "Your broadcast key, status, health, and schedule.",
+  Profile: "Public DJ or producer identity and setup guidance.",
+  Producer: "Tracks, sales, licences, and producer operations."
+};
+
 export function groupNavigation(items: NavigationItem[]) {
   return items.reduce<Record<string, NavigationItem[]>>((groups, item) => {
     const group = item.group ?? "Main";
     groups[group] = [...(groups[group] ?? []), item];
     return groups;
   }, {});
+}
+
+export function findActiveNavigationItem(items: NavigationItem[], pathname: string) {
+  return items
+    .filter((item) => {
+      if (pathname === item.href) {
+        return true;
+      }
+
+      const prefix = item.activePrefix ?? `${item.href.replace(/\/$/, "")}/`;
+      return item.href !== "/" && pathname.startsWith(prefix);
+    })
+    .sort((first, second) => {
+      const firstExact = pathname === first.href ? 1 : 0;
+      const secondExact = pathname === second.href ? 1 : 0;
+
+      return secondExact - firstExact || second.href.length - first.href.length;
+    })[0];
 }

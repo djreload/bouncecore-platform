@@ -8,6 +8,7 @@ import { adminSettingsAction } from "@/app/admin/settings/actions";
 import { initialAdminSettingsActionState, type AdminSettingsActionState } from "@/app/admin/settings/state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SectionJumpNav } from "@/components/navigation/section-jump-nav";
 import type { AdminSiteSettingsData } from "@/lib/admin/site-settings-service";
 
 type AdminSettingsPanelProps = {
@@ -78,7 +79,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid scroll-mt-24 gap-4 md:grid-cols-3" id="settings-overview">
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={data.source === "database" ? "acid" : "amber"}>Source</Badge>
           <p className="mt-4 text-3xl font-black capitalize">{data.source}</p>
@@ -95,6 +96,19 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
           <p className="mt-2 text-sm text-bc-muted">{data.settings.announcement.title ?? "No announcement displayed."}</p>
         </article>
       </div>
+
+      <SectionJumpNav
+        items={[
+          { href: "#settings-overview", label: "Overview" },
+          { href: "#branding-settings", label: "Branding" },
+          { href: "#public-copy-settings", label: "Site copy" },
+          { href: "#live-social-settings", label: "Social links" },
+          { href: "#legal-page-settings", label: "Legal pages" },
+          { href: "#announcement-settings", label: "Announcement" },
+          { href: "#settings-readiness", label: "Readiness" }
+        ]}
+        label="Settings sections"
+      />
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -121,7 +135,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
         ) : null}
 
         <form action={formAction} className="mt-5 grid gap-5">
-          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+          <div className="scroll-mt-24 rounded-md border border-bc-line bg-bc-ink p-4" id="branding-settings">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -291,7 +305,11 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
             </div>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid scroll-mt-24 gap-4 rounded-md border border-bc-line bg-bc-ink p-4 lg:grid-cols-2" id="public-copy-settings">
+            <div className="lg:col-span-2">
+              <h4 className="font-black">Core public site copy</h4>
+              <p className="mt-1 text-sm text-bc-muted">Names and short descriptions shown in the header, homepage, support links, and footer.</p>
+            </div>
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="site-name">
                 Site name
@@ -303,6 +321,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                 id="site-name"
                 name="siteName"
               />
+              <p className="mt-2 text-xs text-bc-muted">The main brand name displayed in the site header and page metadata.</p>
             </div>
             <div>
               <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="homepage-badge">
@@ -315,6 +334,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                 id="homepage-badge"
                 name="homepageBadge"
               />
+              <p className="mt-2 text-xs text-bc-muted">Short label displayed above the homepage heading.</p>
             </div>
           </div>
 
@@ -329,6 +349,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
               id="homepage-intro"
               name="homepageIntro"
             />
+            <p className="mt-2 text-xs text-bc-muted">Main homepage introduction. Keep it concise so it remains readable on phones.</p>
           </div>
 
           <div className="grid gap-4 lg:grid-cols-3">
@@ -359,6 +380,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
                 id="staging-target"
                 name="stagingTarget"
               />
+              <p className="mt-2 text-xs text-bc-muted">Optional internal deployment label. This is not used as the public site URL.</p>
             </div>
           </div>
 
@@ -373,9 +395,10 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
               id="footer-summary"
               name="footerSummary"
             />
+            <p className="mt-2 text-xs text-bc-muted">Brief platform description displayed in the public footer.</p>
           </div>
 
-          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+          <div className="scroll-mt-24 rounded-md border border-bc-line bg-bc-ink p-4" id="live-social-settings">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -445,7 +468,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
             </div>
           </div>
 
-          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+          <div className="scroll-mt-24 rounded-md border border-bc-line bg-bc-ink p-4" id="legal-page-settings">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -507,7 +530,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
             </div>
           </div>
 
-          <div className="rounded-md border border-bc-line bg-bc-ink p-4">
+          <div className="scroll-mt-24 rounded-md border border-bc-line bg-bc-ink p-4" id="announcement-settings">
             <div className="flex items-center gap-2">
               <Megaphone className="h-5 w-5 text-bc-amber" aria-hidden="true" />
               <h4 className="font-black">Homepage announcement</h4>
@@ -578,7 +601,7 @@ export function AdminSettingsPanel({ data }: AdminSettingsPanelProps) {
         </form>
       </section>
 
-      <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+      <section className="scroll-mt-24 rounded-md border border-bc-line bg-bc-panel p-5" id="settings-readiness">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <h3 className="text-xl font-black">Readiness</h3>
           <Globe2 className="h-5 w-5 text-bc-electric" aria-hidden="true" />
