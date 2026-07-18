@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made successful chat composer notices such as sent messages and throws dismiss automatically after 1.8 seconds, while actionable errors remain visible.
 - Added continuous press-and-hold walking to the visible Rave Wars left/right controls for touch and mouse input.
 - Reworked account and admin navigation into compact mobile menus and collapsible related submenus with active-route guidance.
 - Split account notification delivery and privacy/data controls into focused pages, and added section jump navigation to the long admin settings editor.

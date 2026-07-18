@@ -456,6 +456,7 @@ export function ChatRoomPanel({
 }: ChatRoomPanelProps) {
   const { effective: performancePreferences } = usePerformancePreferences();
   const [state, setState] = useState<PublicChatActionState>(initialPublicChatActionState);
+  const [dismissedSuccessRevision, setDismissedSuccessRevision] = useState<number | null>(null);
   const [pending, setPending] = useState(false);
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
   const [assetPanelOpen, setAssetPanelOpen] = useState(false);
@@ -486,6 +487,9 @@ export function ChatRoomPanel({
   const gifLoadingRef = useRef(false);
   const chatActionPendingRef = useRef(false);
   const selectedRoomId = selectedRoom?.id;
+  const showActionFeedback = Boolean(
+    state.message && (state.status !== "success" || state.revision !== dismissedSuccessRevision)
+  );
 
   const formAction = useCallback<ChatFormAction>(async (formData) => {
     if (chatActionPendingRef.current) {
@@ -917,6 +921,21 @@ export function ChatRoomPanel({
   useEffect(() => {
     scrollToLatestMessage();
   }, [latestMessageId, scrollToLatestMessage]);
+
+  useEffect(() => {
+    if (state.status !== "success" || !state.message || state.revision === undefined) {
+      return;
+    }
+
+    const successRevision = state.revision;
+    const dismissTimer = window.setTimeout(() => {
+      setDismissedSuccessRevision(successRevision);
+    }, 1_800);
+
+    return () => {
+      window.clearTimeout(dismissTimer);
+    };
+  }, [state.message, state.revision, state.status]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -1800,8 +1819,9 @@ export function ChatRoomPanel({
             "sticky bottom-0 z-30 max-h-[38dvh] overflow-y-auto bg-bc-panel/95 p-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom)+var(--bc-mobile-keyboard-inset,0px))] backdrop-blur-md lg:static lg:max-h-none lg:overflow-visible lg:bg-transparent lg:p-3 lg:backdrop-blur-none"
         )}
       >
-        {state.message ? (
+        {showActionFeedback ? (
           <div
+            aria-live="polite"
             className={`mb-2 rounded-md border p-2 text-xs ${
               state.status === "error"
                 ? "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"

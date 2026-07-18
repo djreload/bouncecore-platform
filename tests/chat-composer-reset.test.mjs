@@ -13,3 +13,12 @@ test("successful chat sends carry a revision so the composer clears after repeat
   assert.match(panel, /setComposerBody\(""\)/);
   assert.match(panel, /state\.revision/);
 });
+
+test("successful chat feedback dismisses automatically while errors remain visible", () => {
+  const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+
+  assert.match(panel, /state\.status !== "success" \|\| state\.revision !== dismissedSuccessRevision/);
+  assert.match(panel, /setDismissedSuccessRevision\(successRevision\)/);
+  assert.match(panel, /}, 1_800\)/);
+  assert.match(panel, /if \(state\.status !== "success" \|\| !state\.message/);
+});
