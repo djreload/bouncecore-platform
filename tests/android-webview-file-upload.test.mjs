@@ -40,8 +40,11 @@ test("Android WebView uses native fullscreen controls for Rave War", () => {
   assert.match(activity, /"W\+", "Next weapon", "weapon-next", false/);
   assert.match(activity, /"Z\+", "Zoom in", "zoom-in", false/);
   assert.match(activity, /"Z-", "Zoom out", "zoom-out", false/);
-  assert.match(activity, /params\.leftMargin = active \? raveWarLeftSystemInset \+ dp\(72\) : 0/);
-  assert.match(activity, /params\.rightMargin = active \? raveWarRightSystemInset \+ dp\(72\) : 0/);
+  assert.match(activity, /leftToolbarParams\.gravity = Gravity\.TOP \| Gravity\.LEFT/);
+  assert.match(activity, /leftToolbarParams\.setMargins\(dp\(6\), dp\(62\), 0, 0\)/);
+  assert.match(activity, /rightToolbarParams\.gravity = Gravity\.TOP \| Gravity\.RIGHT/);
+  assert.match(activity, /rightToolbarParams\.setMargins\(0, dp\(62\), dp\(6\), 0\)/);
+  assert.doesNotMatch(activity, /applyRaveWarContentInsets|contentContainer|raveWarLeftSystemInset|raveWarRightSystemInset/);
   assert.match(activity, /weaponLabel \+ "\\nx"/);
   assert.doesNotMatch(activity, /Gravity\.TOP \| Gravity\.CENTER_HORIZONTAL/);
   assert.match(activity, /updateRaveWarControlState/);

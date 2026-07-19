@@ -103,15 +103,12 @@ public class MainActivity extends Activity {
     };
 
     private WebView webView;
-    private LinearLayout contentContainer;
     private ValueCallback<Uri[]> filePathCallback;
     private FrameLayout bannerContainer;
     private FrameLayout raveWarControlsOverlay;
     private final List<Button> raveWarTurnControls = new ArrayList<>();
     private Button raveWarFireButton;
     private TextView raveWarStatusText;
-    private int raveWarLeftSystemInset = 0;
-    private int raveWarRightSystemInset = 0;
     private LevelPlayBannerAdView bannerAdView;
     private LevelPlayInterstitialAd interstitialAd;
 
@@ -156,11 +153,11 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        contentContainer = new LinearLayout(this);
-        contentContainer.setBackgroundColor(Color.BLACK);
-        contentContainer.setOrientation(LinearLayout.VERTICAL);
-        contentContainer.setFitsSystemWindows(false);
-        contentContainer.setOnApplyWindowInsetsListener((view, insets) -> {
+        LinearLayout content = new LinearLayout(this);
+        content.setBackgroundColor(Color.BLACK);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setFitsSystemWindows(false);
+        content.setOnApplyWindowInsetsListener((view, insets) -> {
             if (raveWarModeActive) {
                 view.setPadding(0, 0, 0, 0);
             } else {
@@ -174,7 +171,7 @@ public class MainActivity extends Activity {
 
             return insets;
         });
-        contentContainer.setLayoutParams(new FrameLayout.LayoutParams(
+        content.setLayoutParams(new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
@@ -194,9 +191,9 @@ public class MainActivity extends Activity {
             dp(56)
         ));
 
-        contentContainer.addView(webView);
-        contentContainer.addView(bannerContainer);
-        root.addView(contentContainer);
+        content.addView(webView);
+        content.addView(bannerContainer);
+        root.addView(content);
 
         raveWarControlsOverlay = createRaveWarControlsOverlay();
         root.addView(raveWarControlsOverlay);
@@ -214,60 +211,46 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.MATCH_PARENT
         ));
         overlay.setOnApplyWindowInsetsListener((view, insets) -> {
-            raveWarLeftSystemInset = Math.max(0, insets.getSystemWindowInsetLeft());
-            raveWarRightSystemInset = Math.max(0, insets.getSystemWindowInsetRight());
-            view.setPadding(raveWarLeftSystemInset, 0, raveWarRightSystemInset, 0);
-            applyRaveWarContentInsets(raveWarModeActive);
+            view.setPadding(
+                Math.max(0, insets.getSystemWindowInsetLeft()),
+                0,
+                Math.max(0, insets.getSystemWindowInsetRight()),
+                0
+            );
             return insets;
         });
 
-        LinearLayout movementCluster = new LinearLayout(this);
-        movementCluster.setGravity(Gravity.CENTER);
-        movementCluster.setOrientation(LinearLayout.VERTICAL);
-        movementCluster.setPadding(dp(4), dp(4), dp(4), dp(4));
-        movementCluster.setBackground(panelBackground("#66050712", "#8843536d"));
-        movementCluster.addView(raveWarControlButton("<", "Move left", "left", true, dp(52), dp(42)));
-        movementCluster.addView(raveWarControlButton(">", "Move right", "right", true, dp(52), dp(42)));
-        FrameLayout.LayoutParams movementParams = new FrameLayout.LayoutParams(
+        LinearLayout leftToolbar = new LinearLayout(this);
+        leftToolbar.setGravity(Gravity.CENTER);
+        leftToolbar.setOrientation(LinearLayout.HORIZONTAL);
+        leftToolbar.setPadding(dp(3), dp(3), dp(3), dp(3));
+        leftToolbar.setBackground(panelBackground("#a6050712", "#8843536d"));
+
+        Button backButton = nativeOverlayButton("LIVE", "Back to live", dp(42), dp(36));
+        backButton.setOnClickListener((view) -> {
+            setRaveWarMode(false);
+            openInternalPath("/live");
+        });
+        leftToolbar.addView(backButton);
+        leftToolbar.addView(raveWarControlButton("<", "Move left", "left", true, dp(38), dp(36)));
+        leftToolbar.addView(raveWarControlButton(">", "Move right", "right", true, dp(38), dp(36)));
+        leftToolbar.addView(raveWarControlButton("A+", "Aim up", "aim-up", true, dp(38), dp(36)));
+        leftToolbar.addView(raveWarControlButton("A-", "Aim down", "aim-down", true, dp(38), dp(36)));
+
+        FrameLayout.LayoutParams leftToolbarParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        movementParams.gravity = Gravity.BOTTOM | Gravity.LEFT;
-        movementParams.setMargins(dp(6), 0, 0, dp(6));
-        overlay.addView(movementCluster, movementParams);
+        leftToolbarParams.gravity = Gravity.TOP | Gravity.LEFT;
+        leftToolbarParams.setMargins(dp(6), dp(62), 0, 0);
+        overlay.addView(leftToolbar, leftToolbarParams);
 
-        LinearLayout aimCluster = new LinearLayout(this);
-        aimCluster.setGravity(Gravity.CENTER);
-        aimCluster.setOrientation(LinearLayout.VERTICAL);
-        aimCluster.setPadding(dp(4), dp(4), dp(4), dp(4));
-        aimCluster.setBackground(panelBackground("#66050712", "#8843536d"));
-        aimCluster.addView(raveWarControlButton("A+", "Aim up", "aim-up", true, dp(52), dp(42)));
-        aimCluster.addView(raveWarControlButton("A-", "Aim down", "aim-down", true, dp(52), dp(42)));
-        FrameLayout.LayoutParams aimParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        aimParams.gravity = Gravity.RIGHT | Gravity.CENTER_VERTICAL;
-        aimParams.setMargins(0, 0, dp(6), 0);
-        overlay.addView(aimCluster, aimParams);
-
-        raveWarFireButton = raveWarControlButton("FIRE", "Charge and fire", "fire", true, dp(60), dp(52));
-        raveWarFireButton.setTextColor(Color.BLACK);
-        raveWarFireButton.setBackground(buttonBackground("#ff32ddff", "#ffffffff"));
-        FrameLayout.LayoutParams fireParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        fireParams.gravity = Gravity.BOTTOM | Gravity.RIGHT;
-        fireParams.setMargins(0, 0, dp(6), dp(6));
-        overlay.addView(raveWarFireButton, fireParams);
-
-        LinearLayout weaponCluster = new LinearLayout(this);
-        weaponCluster.setGravity(Gravity.CENTER);
-        weaponCluster.setOrientation(LinearLayout.VERTICAL);
-        weaponCluster.setPadding(dp(4), dp(4), dp(4), dp(4));
-        weaponCluster.setBackground(panelBackground("#66050712", "#66ff3fa4"));
-        weaponCluster.addView(raveWarControlButton("W-", "Previous weapon", "weapon-prev", false, dp(52), dp(40)));
+        LinearLayout rightToolbar = new LinearLayout(this);
+        rightToolbar.setGravity(Gravity.CENTER);
+        rightToolbar.setOrientation(LinearLayout.HORIZONTAL);
+        rightToolbar.setPadding(dp(3), dp(3), dp(3), dp(3));
+        rightToolbar.setBackground(panelBackground("#a6050712", "#66ff3fa4"));
+        rightToolbar.addView(raveWarControlButton("W-", "Previous weapon", "weapon-prev", false, dp(38), dp(36)));
 
         raveWarStatusText = new TextView(this);
         raveWarStatusText.setGravity(Gravity.CENTER);
@@ -275,46 +258,26 @@ public class MainActivity extends Activity {
         raveWarStatusText.setTextColor(Color.WHITE);
         raveWarStatusText.setTextSize(8f);
         raveWarStatusText.setTypeface(Typeface.DEFAULT_BOLD);
-        raveWarStatusText.setMaxLines(3);
+        raveWarStatusText.setMaxLines(2);
         raveWarStatusText.setPadding(dp(2), dp(2), dp(2), dp(2));
-        raveWarStatusText.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(38)));
-        weaponCluster.addView(raveWarStatusText);
-        weaponCluster.addView(raveWarControlButton("W+", "Next weapon", "weapon-next", false, dp(52), dp(40)));
-        FrameLayout.LayoutParams weaponParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        weaponParams.gravity = Gravity.LEFT | Gravity.CENTER_VERTICAL;
-        weaponParams.setMargins(dp(6), 0, 0, 0);
-        overlay.addView(weaponCluster, weaponParams);
+        raveWarStatusText.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(36)));
+        rightToolbar.addView(raveWarStatusText);
+        rightToolbar.addView(raveWarControlButton("W+", "Next weapon", "weapon-next", false, dp(38), dp(36)));
+        rightToolbar.addView(raveWarControlButton("Z-", "Zoom out", "zoom-out", false, dp(38), dp(36)));
+        rightToolbar.addView(raveWarControlButton("Z+", "Zoom in", "zoom-in", false, dp(38), dp(36)));
 
-        LinearLayout zoomCluster = new LinearLayout(this);
-        zoomCluster.setGravity(Gravity.CENTER);
-        zoomCluster.setOrientation(LinearLayout.VERTICAL);
-        zoomCluster.setPadding(dp(4), dp(4), dp(4), dp(4));
-        zoomCluster.setBackground(panelBackground("#66050712", "#662bd6ff"));
-        zoomCluster.addView(raveWarControlButton("Z+", "Zoom in", "zoom-in", false, dp(52), dp(40)));
-        zoomCluster.addView(raveWarControlButton("Z-", "Zoom out", "zoom-out", false, dp(52), dp(40)));
-        FrameLayout.LayoutParams zoomParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        zoomParams.gravity = Gravity.TOP | Gravity.RIGHT;
-        zoomParams.setMargins(0, dp(6), dp(6), 0);
-        overlay.addView(zoomCluster, zoomParams);
+        raveWarFireButton = raveWarControlButton("FIRE", "Charge and fire", "fire", true, dp(54), dp(36));
+        raveWarFireButton.setTextColor(Color.BLACK);
+        raveWarFireButton.setBackground(buttonBackground("#ff32ddff", "#ffffffff"));
+        rightToolbar.addView(raveWarFireButton);
 
-        Button backButton = nativeOverlayButton("LIVE", "Back to live", dp(52), dp(38));
-        backButton.setOnClickListener((view) -> {
-            setRaveWarMode(false);
-            openInternalPath("/live");
-        });
-        FrameLayout.LayoutParams backParams = new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams rightToolbarParams = new FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        backParams.gravity = Gravity.TOP | Gravity.LEFT;
-        backParams.setMargins(dp(6), dp(6), 0, 0);
-        overlay.addView(backButton, backParams);
+        rightToolbarParams.gravity = Gravity.TOP | Gravity.RIGHT;
+        rightToolbarParams.setMargins(0, dp(62), dp(6), 0);
+        overlay.addView(rightToolbar, rightToolbarParams);
 
         updateRaveWarControlState(false, false, "Loading match controls...", "", 0);
         return overlay;
@@ -395,18 +358,6 @@ public class MainActivity extends Activity {
         return button;
     }
 
-    private void applyRaveWarContentInsets(boolean active) {
-        if (contentContainer == null) {
-            return;
-        }
-
-        FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) contentContainer.getLayoutParams();
-        params.leftMargin = active ? raveWarLeftSystemInset + dp(72) : 0;
-        params.rightMargin = active ? raveWarRightSystemInset + dp(72) : 0;
-        contentContainer.setLayoutParams(params);
-        contentContainer.requestLayout();
-    }
-
     private GradientDrawable buttonBackground(String fill, String stroke) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(Color.parseColor(fill));
@@ -458,7 +409,6 @@ public class MainActivity extends Activity {
         }
 
         raveWarModeActive = active;
-        applyRaveWarContentInsets(active);
 
         if (raveWarControlsOverlay != null) {
             raveWarControlsOverlay.setVisibility(active ? View.VISIBLE : View.GONE);
