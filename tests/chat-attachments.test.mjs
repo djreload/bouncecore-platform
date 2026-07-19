@@ -73,4 +73,8 @@ test("temporary attachment links are revoked and files are cleaned with chat lif
   assert.match(chat, /message\.kind === "attachment-image"/);
   assert.match(chat, /message\.kind === "attachment-file"/);
   assert.match(chat, /Available until this chat is cleared/);
+  const imageAttachmentBranch = chat.slice(chat.indexOf(") : isImageAttachment ? ("), chat.indexOf(") : isFileAttachment ? ("));
+  const fileAttachmentBranch = chat.slice(chat.indexOf(") : isFileAttachment ? ("), chat.indexOf(') : message.kind === "gif"'));
+  assert.doesNotMatch(imageAttachmentBranch, /download=/);
+  assert.match(fileAttachmentBranch, /download=/);
 });

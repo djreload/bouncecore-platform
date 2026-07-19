@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added moderator/admin temporary chat attachments with a paperclip composer action, inline image display, ZIP downloads, signature-based validation, active-message download authorization, and automatic file revocation on moderation, room clear, or chat-history pruning.
+- Added moderator/admin temporary chat attachments with a paperclip composer action, inline-only image display, ZIP download controls, signature-based validation, active-message download authorization, and automatic file revocation on moderation, room clear, or chat-history pruning.
 - Made targeted throwables reliable on the victim's first poll and after visibility interruptions, added static and asset-failure visual fallbacks, and kept GIFs, stickers, emoji, and safe chat-effect styling visible under reduced performance settings.
 - Added Admin -> Rave War levels with transparent PNG terrain uploads, server-generated collision heightfields, automatic spawn recommendations, battlefield previews, editable spawn positions, active-level selection, and deletion guards for referenced levels.
 - Made successful chat composer notices such as sent messages and throws dismiss automatically after 1.8 seconds, while actionable errors remain visible.

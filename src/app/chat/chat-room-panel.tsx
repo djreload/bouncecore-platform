@@ -1608,7 +1608,7 @@ export function ChatRoomPanel({
                     {message.starNote ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.starNote}</p> : null}
                   </div>
                 ) : isImageAttachment ? (
-                  <div className="mt-3 grid justify-items-start gap-2">
+                  <div className="mt-3">
                     <Image
                       alt={message.mediaAlt ?? "Chat image attachment"}
                       className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
@@ -1619,14 +1619,6 @@ export function ChatRoomPanel({
                       unoptimized
                       width={mediaSize.width}
                     />
-                    <a
-                      className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-panel px-2 text-[11px] font-bold text-white hover:border-bc-electric/60"
-                      download={message.mediaAlt ?? "chat-image"}
-                      href={message.mediaUrl ?? "#"}
-                    >
-                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                      Download {message.mediaAlt ?? "image"}
-                    </a>
                   </div>
                 ) : isFileAttachment ? (
                   <a
