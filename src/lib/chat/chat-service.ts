@@ -12,6 +12,8 @@ import { queueChatMentionNotifications } from "@/lib/chat/mention-notification-s
 import { chatPresenceAwayMs, chatPresenceStatus } from "@/lib/chat/chat-presence-core";
 import { chatReactionOptions, isChatReactionKey, type ChatReactionKey } from "@/lib/chat/reactions";
 import type { GifProvider } from "@/lib/chat/gif-provider-service";
+import { cleanupDeletedManagedUploads } from "@/lib/media/upload-cleanup-service";
+import { saveTemporaryChatAttachment } from "@/lib/media/media-service";
 
 const chatHistoryRetentionMs = 24 * 60 * 60 * 1000;
 
@@ -129,30 +131,81 @@ function chatHistoryCutoff() {
   return new Date(Date.now() - chatHistoryRetentionMs);
 }
 
+async function cleanupTemporaryChatAttachmentFiles(
+  paths: Array<string | null | undefined>,
+  context: { action: string; actorId?: string; target: string }
+) {
+  if (!paths.some(Boolean)) {
+    return;
+  }
+
+  try {
+    await cleanupDeletedManagedUploads(paths);
+  } catch (error) {
+    await writeAuditLog({
+      action: context.action,
+      actorId: context.actorId,
+      metadata: {
+        error: error instanceof Error ? error.message : "Temporary chat attachment cleanup failed."
+      },
+      severity: "warning",
+      target: context.target
+    }).catch(() => {
+      // Revoked database references still keep failed cleanup paths unavailable.
+    });
+  }
+}
+
 export async function pruneExpiredChatHistory() {
-  const result = await prisma.chatMessage.deleteMany({
-    where: {
-      createdAt: {
-        lt: chatHistoryCutoff()
+  const cutoff = chatHistoryCutoff();
+  const { attachmentPaths, deletedMessages } = await prisma.$transaction(async (tx) => {
+    const attachments = await tx.chatMessage.findMany({
+      where: {
+        createdAt: {
+          lt: cutoff
+        },
+        mediaSource: "temporary_chat_attachment"
+      },
+      select: {
+        mediaPreviewUrl: true,
+        mediaUrl: true
       }
     }
+    );
+    const result = await tx.chatMessage.deleteMany({
+      where: {
+        createdAt: {
+          lt: cutoff
+        }
+      }
+    });
+
+    return {
+      attachmentPaths: attachments.flatMap((attachment) => [attachment.mediaUrl, attachment.mediaPreviewUrl]),
+      deletedMessages: result.count
+    };
   });
 
-  if (result.count > 0) {
+  await cleanupTemporaryChatAttachmentFiles(attachmentPaths, {
+    action: "chat.attachment.prune_cleanup_failed",
+    target: "chat-attachment:expired"
+  });
+
+  if (deletedMessages > 0) {
     await writeAuditLog({
       action: "chat.history.prune",
       target: "chat-message:expired",
       severity: "info",
       metadata: {
         retentionHours: 24,
-        deletedMessages: result.count
+        deletedMessages
       }
     }).catch(() => {
       // Automatic retention should never block chat reads or writes.
     });
   }
 
-  return result.count;
+  return deletedMessages;
 }
 
 function normalizeSlug(slug: string) {
@@ -1182,6 +1235,66 @@ export async function createChatStickerMessage(roomId: string, userId: string, a
   return message;
 }
 
+export async function createTemporaryChatAttachmentMessage(roomId: string, userId: string, file: File) {
+  await pruneExpiredChatHistory();
+
+  const user = await prisma.user.findUniqueOrThrow({
+    where: {
+      id: userId
+    },
+    include: {
+      roles: {
+        include: {
+          role: true
+        }
+      }
+    }
+  });
+  const roles = normalizeRoles(user.roles.map((userRole) => userRole.role.name));
+
+  if (!hasPermission({ roles }, "moderation.use")) {
+    throw new Error("Only moderators and admins can send chat attachments.");
+  }
+
+  await prisma.chatRoom.findUniqueOrThrow({
+    where: {
+      id: roomId
+    },
+    select: {
+      id: true
+    }
+  });
+  await assertUserCanPostInChat(userId, roomId);
+
+  const attachment = await saveTemporaryChatAttachment(file);
+
+  try {
+    const message = await prisma.chatMessage.create({
+      data: {
+        body: attachment.filename,
+        kind: attachment.kind === "image" ? "attachment-image" : "attachment-file",
+        mediaAlt: attachment.filename,
+        mediaPreviewUrl: attachment.kind === "image" ? attachment.url : null,
+        mediaSource: "temporary_chat_attachment",
+        mediaSourceId: attachment.contentType,
+        mediaUrl: attachment.url,
+        roomId,
+        userId
+      }
+    });
+
+    await publishChatRoomChanged(roomId, message.id);
+    return message;
+  } catch (error) {
+    await cleanupTemporaryChatAttachmentFiles([attachment.url], {
+      action: "chat.attachment.create_cleanup_failed",
+      actorId: userId,
+      target: `chat-room:${roomId}`
+    });
+    throw error;
+  }
+}
+
 async function assertUserCanReactInChat(userId: string, roomId: string) {
   const [ban, room] = await Promise.all([
     getActiveChatBan(userId, roomId),
@@ -1300,12 +1413,20 @@ export async function moderateChatMessage(messageId: string, actorId: string) {
     return message;
   }
 
+  const attachmentPaths =
+    message.mediaSource === "temporary_chat_attachment" ? [message.mediaUrl, message.mediaPreviewUrl] : [];
   const updated = await prisma.chatMessage.update({
     where: {
       id: message.id
     },
     data: {
-      deletedAt: new Date()
+      deletedAt: new Date(),
+      ...(attachmentPaths.length
+        ? {
+            mediaPreviewUrl: null,
+            mediaUrl: null
+          }
+        : {})
     }
   });
 
@@ -1318,6 +1439,11 @@ export async function moderateChatMessage(messageId: string, actorId: string) {
       roomSlug: message.room.slug,
       ...(message.userId ? { userId: message.userId } : {})
     }
+  });
+  await cleanupTemporaryChatAttachmentFiles(attachmentPaths, {
+    action: "chat.attachment.moderate_cleanup_failed",
+    actorId,
+    target: `chat-message:${message.id}`
   });
   await publishChatRoomChanged(message.roomId, message.id);
 
@@ -1335,14 +1461,48 @@ export async function clearChatRoomMessages(roomId: string, actorId: string) {
     }
   });
   const clearedAt = new Date();
-  const result = await prisma.chatMessage.updateMany({
-    where: {
-      deletedAt: null,
-      roomId: room.id
-    },
-    data: {
-      deletedAt: clearedAt
-    }
+  const { attachmentPaths, clearedMessages } = await prisma.$transaction(async (tx) => {
+    const attachments = await tx.chatMessage.findMany({
+      where: {
+        mediaSource: "temporary_chat_attachment",
+        roomId: room.id
+      },
+      select: {
+        mediaPreviewUrl: true,
+        mediaUrl: true
+      }
+    });
+    const result = await tx.chatMessage.updateMany({
+      where: {
+        deletedAt: null,
+        roomId: room.id
+      },
+      data: {
+        deletedAt: clearedAt
+      }
+    });
+
+    await tx.chatMessage.updateMany({
+      where: {
+        mediaSource: "temporary_chat_attachment",
+        roomId: room.id
+      },
+      data: {
+        mediaPreviewUrl: null,
+        mediaUrl: null
+      }
+    });
+
+    return {
+      attachmentPaths: attachments.flatMap((attachment) => [attachment.mediaUrl, attachment.mediaPreviewUrl]),
+      clearedMessages: result.count
+    };
+  });
+
+  await cleanupTemporaryChatAttachmentFiles(attachmentPaths, {
+    action: "chat.attachment.clear_cleanup_failed",
+    actorId,
+    target: `chat-room:${room.id}`
   });
 
   await writeAuditLog({
@@ -1351,11 +1511,11 @@ export async function clearChatRoomMessages(roomId: string, actorId: string) {
     target: `chat-room:${room.id}`,
     severity: "warning",
     metadata: {
-      clearedMessages: result.count,
+      clearedMessages,
       roomSlug: room.slug
     }
   });
   await publishChatRoomChanged(room.id);
 
-  return result.count;
+  return clearedMessages;
 }

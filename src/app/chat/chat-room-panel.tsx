@@ -18,11 +18,15 @@ import {
   Ban,
   ChevronLeft,
   ChevronRight,
+  Download,
+  FileArchive,
   Flag,
   ImageIcon,
+  LoaderCircle,
   Lock,
   LogIn,
   MessageSquare,
+  Paperclip,
   Pencil,
   Plus,
   Reply,
@@ -460,6 +464,7 @@ export function ChatRoomPanel({
   const [pending, setPending] = useState(false);
   const [gifPanelOpen, setGifPanelOpen] = useState(false);
   const [assetPanelOpen, setAssetPanelOpen] = useState(false);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
   const [starsPanelOpen, setStarsPanelOpen] = useState(false);
   const [composerToolsOpen, setComposerToolsOpen] = useState(false);
   const [presenceRailOpen, setPresenceRailOpen] = useState(true);
@@ -482,6 +487,7 @@ export function ChatRoomPanel({
   const [localSheepFreeThrowAvailable, setLocalSheepFreeThrowAvailable] = useState(sheepFreeThrowAvailable);
   const [sheepCooldownRemaining, setSheepCooldownRemaining] = useState(sheepRemainingCooldownSeconds);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
   const gifResultsViewportRef = useRef<HTMLDivElement>(null);
   const gifLoadingRef = useRef(false);
@@ -1034,6 +1040,56 @@ export function ChatRoomPanel({
     updateMentionQuery(textarea.value, textarea.selectionStart ?? textarea.value.length);
   }
 
+  async function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file || !selectedRoomId || attachmentUploading) {
+      event.target.value = "";
+      return;
+    }
+
+    const uploadData = new FormData();
+    uploadData.set("file", file);
+    uploadData.set("roomId", selectedRoomId);
+    setAttachmentUploading(true);
+    closeComposerPanels();
+
+    try {
+      const response = await fetch("/api/chat/attachments", {
+        body: uploadData,
+        cache: "no-store",
+        credentials: "same-origin",
+        method: "POST"
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: unknown;
+        message?: unknown;
+        revision?: unknown;
+        status?: unknown;
+      };
+
+      if (!response.ok || payload.status !== "success") {
+        throw new Error(typeof payload.error === "string" ? payload.error : "Chat attachment could not be sent.");
+      }
+
+      setState({
+        intent: "attachment",
+        message: typeof payload.message === "string" ? payload.message : "Attachment sent.",
+        revision: typeof payload.revision === "number" ? payload.revision : Date.now(),
+        status: "success"
+      });
+    } catch (error) {
+      setState({
+        intent: "attachment",
+        message: error instanceof Error ? error.message : "Chat attachment could not be sent.",
+        status: "error"
+      });
+    } finally {
+      event.target.value = "";
+      setAttachmentUploading(false);
+    }
+  }
+
   function insertMention(displayName: string) {
     const textarea = textareaRef.current;
     const caretIndex = textarea?.selectionStart ?? composerBody.length;
@@ -1372,6 +1428,8 @@ export function ChatRoomPanel({
             const messageActionsOpen = openMessageActionsId === message.id;
             const editingThisMessage = editingMessage?.id === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
+            const isImageAttachment = message.kind === "attachment-image" && Boolean(message.mediaUrl);
+            const isFileAttachment = message.kind === "attachment-file" && Boolean(message.mediaUrl);
             const visibleReactionSummaries = message.reactions
               .filter((reaction) => reaction.count > 0)
               .map((summary) => ({
@@ -1549,6 +1607,40 @@ export function ChatRoomPanel({
                     </div>
                     {message.starNote ? <p className="mt-2 whitespace-pre-wrap break-words text-sm text-white">{message.starNote}</p> : null}
                   </div>
+                ) : isImageAttachment ? (
+                  <div className="mt-3 grid justify-items-start gap-2">
+                    <Image
+                      alt={message.mediaAlt ?? "Chat image attachment"}
+                      className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
+                      height={mediaSize.height}
+                      onLoad={scrollToLatestMessage}
+                      sizes={compact ? "320px" : "520px"}
+                      src={message.mediaUrl ?? ""}
+                      unoptimized
+                      width={mediaSize.width}
+                    />
+                    <a
+                      className="bc-focus-ring inline-flex min-h-7 items-center gap-1.5 rounded-md border border-bc-line bg-bc-panel px-2 text-[11px] font-bold text-white hover:border-bc-electric/60"
+                      download={message.mediaAlt ?? "chat-image"}
+                      href={message.mediaUrl ?? "#"}
+                    >
+                      <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                      Download {message.mediaAlt ?? "image"}
+                    </a>
+                  </div>
+                ) : isFileAttachment ? (
+                  <a
+                    className="bc-focus-ring mt-3 flex min-w-0 items-center gap-3 rounded-md border border-bc-electric/35 bg-bc-electric/10 p-3 text-white hover:border-bc-electric/70"
+                    download={message.mediaAlt ?? "chat-attachment.zip"}
+                    href={message.mediaUrl ?? "#"}
+                  >
+                    <FileArchive className="h-8 w-8 shrink-0 text-bc-electric" aria-hidden="true" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black">{message.mediaAlt ?? "ZIP attachment"}</span>
+                      <span className="mt-0.5 block text-[11px] font-semibold text-bc-muted">Available until this chat is cleared</span>
+                    </span>
+                    <Download className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  </a>
                 ) : message.kind === "gif" && message.mediaUrl ? (
                   <div className="mt-3">
                     <Image
@@ -1971,6 +2063,18 @@ export function ChatRoomPanel({
               </div>
             </form>
 
+            {currentUserCanModerate ? (
+              <input
+                accept=".jpg,.jpeg,.jfif,.png,.gif,.webp,.avif,.bmp,.zip,image/jpeg,image/png,image/gif,image/webp,image/avif,image/bmp,application/zip"
+                className="sr-only"
+                disabled={attachmentUploading || roomLockedForUser}
+                onChange={handleAttachmentChange}
+                ref={attachmentInputRef}
+                tabIndex={-1}
+                type="file"
+              />
+            ) : null}
+
             {composerToolsOpen ? (
               <section className={cn("rounded-md border border-bc-line bg-bc-ink p-2", mobileLiveMode && "p-1.5")}>
                 <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
@@ -2006,6 +2110,26 @@ export function ChatRoomPanel({
                     <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
                     GIF
                   </Button>
+                  {currentUserCanModerate ? (
+                    <Button
+                      className="min-h-8 px-2 text-xs"
+                      disabled={pending || attachmentUploading || roomLockedForUser}
+                      onClick={() => {
+                        attachmentInputRef.current?.click();
+                        closeComposerPanels();
+                      }}
+                      title="Attach a temporary image or ZIP file"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {attachmentUploading ? (
+                        <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                      ) : (
+                        <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
+                      )}
+                      Attach
+                    </Button>
+                  ) : null}
                   <Button
                     className="min-h-8 px-2 text-xs"
                     disabled={roomLockedForUser}

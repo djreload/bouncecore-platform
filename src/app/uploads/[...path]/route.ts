@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db/prisma";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,6 +18,7 @@ const uploadsRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), "public",
 const allowedUploadRoots = new Set([
   "branding-images",
   "chat-emojis",
+  "chat-attachments",
   "chat-stickers",
   "mobile-apks",
   "music-downloads",
@@ -33,6 +35,8 @@ function contentTypeForExtension(extension: string) {
   switch (extension.toLowerCase()) {
     case ".avif":
       return "image/avif";
+    case ".bmp":
+      return "image/bmp";
     case ".gif":
       return "image/gif";
     case ".ico":
@@ -60,6 +64,8 @@ function contentTypeForExtension(extension: string) {
       return "audio/webm";
     case ".webp":
       return "image/webp";
+    case ".zip":
+      return "application/zip";
     default:
       return "application/octet-stream";
   }
@@ -125,6 +131,7 @@ function parseByteRange(header: string | null, size: number) {
 async function uploadResponse(request: Request, context: RouteContext, includeBody: boolean) {
   const { path: segments } = await context.params;
   const filePath = resolveUploadPath(segments);
+  const isTemporaryChatAttachment = segments[0] === "chat-attachments";
 
   if (!filePath) {
     return NextResponse.json({ error: "Upload not found." }, { status: 404 });
@@ -142,11 +149,32 @@ async function uploadResponse(request: Request, context: RouteContext, includeBo
     return NextResponse.json({ error: "Upload not found." }, { status: 404 });
   }
 
+  if (isTemporaryChatAttachment) {
+    const uploadPath = `/uploads/${segments.join("/")}`;
+    const activeReference = await prisma.chatMessage.findFirst({
+      where: {
+        deletedAt: null,
+        mediaSource: "temporary_chat_attachment",
+        OR: [{ mediaUrl: uploadPath }, { mediaPreviewUrl: uploadPath }]
+      },
+      select: {
+        id: true
+      }
+    });
+
+    if (!activeReference) {
+      return NextResponse.json({ error: "Chat attachment is no longer available." }, { status: 404 });
+    }
+  }
+
   const contentType = contentTypeForExtension(path.extname(filePath));
+  const forceDownload = isTemporaryChatAttachment && path.extname(filePath).toLowerCase() === ".zip";
   const baseHeaders = {
     "Accept-Ranges": "bytes",
-    "Cache-Control": "public, max-age=31536000, immutable",
-    "Content-Type": contentType
+    "Cache-Control": isTemporaryChatAttachment ? "private, no-store, max-age=0" : "public, max-age=31536000, immutable",
+    ...(forceDownload ? { "Content-Disposition": `attachment; filename="${path.basename(filePath)}"` } : {}),
+    "Content-Type": contentType,
+    "X-Content-Type-Options": "nosniff"
   };
   const range = parseByteRange(request.headers.get("range"), fileStat.size);
 

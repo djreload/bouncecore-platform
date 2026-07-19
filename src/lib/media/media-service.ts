@@ -6,6 +6,7 @@ const publicUploadsRoot = path.join(process.cwd(), "public", "uploads");
 const maxPreviewMp3Bytes = 100 * 1024 * 1024;
 const maxImageBytes = 100 * 1024 * 1024;
 const maxChatImageBytes = 150 * 1024 * 1024;
+export const maxTemporaryChatAttachmentBytes = 150 * 1024 * 1024;
 const maxProfileAvatarBytes = 25 * 1024 * 1024;
 const maxDownloadBytes = 200 * 1024 * 1024;
 const maxAndroidApkBytes = 250 * 1024 * 1024;
@@ -44,6 +45,7 @@ const throwSoundUploadTypes = [
   "video/webm"
 ];
 const androidApkUploadTypes = ["application/vnd.android.package-archive", ...genericUploadTypes];
+const zipUploadTypes = ["application/zip", "application/x-zip-compressed", ...genericUploadTypes];
 
 type UploadKind =
   | "branding-images"
@@ -55,6 +57,7 @@ type UploadKind =
   | "throw-sounds"
   | "chat-stickers"
   | "chat-emojis"
+  | "chat-attachments"
   | "mobile-apks"
   | "music-previews"
   | "music-downloads";
@@ -163,7 +166,68 @@ function sniffFaviconContentType(buffer: Buffer) {
   return sniffImageContentType(buffer);
 }
 
-function validateImageUpload(file: File, buffer: Buffer, label: string) {
+function sniffBitmapContentType(buffer: Buffer) {
+  return buffer.length >= 14 && buffer.toString("ascii", 0, 2) === "BM" ? "image/bmp" : null;
+}
+
+function isZipArchive(buffer: Buffer) {
+  if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
+    return false;
+  }
+
+  const signature = buffer.readUInt16LE(2);
+  return signature === 0x0403 || signature === 0x0605 || signature === 0x0807;
+}
+
+export function safeChatAttachmentName(value: string, fallback: string) {
+  const basename = value.replace(/\\/g, "/").split("/").at(-1) ?? "";
+  const safe = basename
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 140);
+
+  return safe || fallback;
+}
+
+export function validateTemporaryChatAttachment(file: Pick<File, "name" | "type">, buffer: Buffer) {
+  const extension = fileExtension(file.name);
+  const contentType = normalizedContentType(file.type);
+  const bitmapType = sniffBitmapContentType(buffer);
+
+  if (extension === ".zip") {
+    if (!zipUploadTypes.includes(contentType) || !isZipArchive(buffer)) {
+      throw new Error("Chat ZIP attachment must contain a valid .zip archive.");
+    }
+
+    return {
+      contentType: "application/zip",
+      extension: ".zip",
+      kind: "file" as const
+    };
+  }
+
+  if (extension === ".bmp" || contentType === "image/bmp" || contentType === "image/x-ms-bmp" || bitmapType) {
+    if (!bitmapType) {
+      throw new Error("Chat image attachment must contain a valid BMP image.");
+    }
+
+    return {
+      contentType: "image/bmp",
+      extension: ".bmp",
+      kind: "image" as const
+    };
+  }
+
+  const image = validateImageUpload(file, buffer, "Chat image attachment");
+
+  return {
+    ...image,
+    kind: "image" as const
+  };
+}
+
+function validateImageUpload(file: Pick<File, "name" | "type">, buffer: Buffer, label: string) {
   const extension = fileExtension(file.name);
   const contentType = canonicalImageContentType(file.type);
   const sniffedContentType = sniffImageContentType(buffer);
@@ -759,6 +823,39 @@ export async function saveOptionalChatAssetUpload(file: File | null | undefined,
   const image = validateImageUpload(file, buffer, "Chat image upload");
 
   return savePublicUpload(kind, file, maxChatImageBytes, "Chat image upload", image.extension, buffer);
+}
+
+export async function saveTemporaryChatAttachment(file: File | null | undefined) {
+  if (!file || !file.size) {
+    throw new Error("Choose an image or ZIP file to attach.");
+  }
+
+  if (file.size > maxTemporaryChatAttachmentBytes) {
+    throw new Error(`Chat attachment is too large. Maximum ${formatBytes(maxTemporaryChatAttachmentBytes)}.`);
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const attachment = validateTemporaryChatAttachment(file, buffer);
+  const url = await savePublicUpload(
+    "chat-attachments",
+    file,
+    maxTemporaryChatAttachmentBytes,
+    "Chat attachment",
+    attachment.extension,
+    buffer
+  );
+
+  if (!url) {
+    throw new Error("Chat attachment did not produce a file path.");
+  }
+
+  return {
+    contentType: attachment.contentType,
+    filename: safeChatAttachmentName(file.name, attachment.kind === "file" ? "attachment.zip" : `attachment${attachment.extension}`),
+    kind: attachment.kind,
+    size: file.size,
+    url
+  };
 }
 
 export async function saveOptionalThrowSpriteUpload(file: File | null | undefined) {
