@@ -53,8 +53,7 @@ const cameraZoomStep = 0.18;
 const terminalRaveWarStatuses = new Set(["cancelled", "declined", "expired", "finished"]);
 const raveWarAssets = {
   explosion: "/rave-wars/assets/big-explosion.png",
-  hedgehog: "/rave-wars/assets/hedgehog.png",
-  hedgehogIdle: "/rave-wars/assets/hedgehog-idle.png"
+  worms: ["/rave-wars/assets/rave-worm-pink.png", "/rave-wars/assets/rave-worm-lime.png"]
 } as const;
 
 const raveWarWeapons = raveWarWeaponDefinitions;
@@ -305,32 +304,39 @@ function playRaveWarSfx(kind: RaveWarSfx) {
   scheduleTone({ context, duration: 0.12, endFrequency: 130, frequency: 170, gain: 0.045, startAt: now, type: "square" });
 }
 
-function HedgehogFrame({
+function RaveWormFrame({
   angle,
   facing,
   isWalking,
+  playerIndex,
   showWeapon,
   weapon
 }: {
   angle: number;
   facing: RaveWarPlayerState["facing"];
   isWalking: boolean;
+  playerIndex: number;
   showWeapon: boolean;
   weapon: RaveWarWeaponDefinition;
 }) {
+  const wormUrl = raveWarAssets.worms[playerIndex % raveWarAssets.worms.length] ?? raveWarAssets.worms[0];
+
   return (
-    <span className="bc-rave-war-hog-shell" data-facing={facing}>
-      <span
-        className="bc-rave-war-hog-frame"
+    <span className="bc-rave-war-worm-shell" data-facing={facing}>
+      <Image
+        alt=""
+        className="bc-rave-war-worm-body"
         data-walking={isWalking ? "true" : "false"}
-        style={{
-          backgroundImage: `url(${raveWarAssets.hedgehogIdle})`
-        }}
+        draggable={false}
+        height={96}
+        src={wormUrl}
+        unoptimized
+        width={96}
       />
       {showWeapon ? (
         <Image
           alt=""
-          className="bc-rave-war-hog-weapon"
+          className="bc-rave-war-worm-weapon"
           draggable={false}
           height={32}
           src={weapon.iconUrl}
@@ -1781,11 +1787,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       }`}
                     />
                     <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
-                      <HedgehogFrame
+                      <RaveWormFrame
                         angle={player.userId === currentUserId ? angle : player.angle}
                         facing={displayFacing}
                         isWalking={walkingPlayerIds.has(player.userId)}
-                        showWeapon={isActivePlayer}
+                        playerIndex={player.playerIndex}
+                        showWeapon={war.status === "active"}
                         weapon={playerWeapon}
                       />
                     </div>

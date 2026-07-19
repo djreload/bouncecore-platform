@@ -215,10 +215,23 @@ public class MainActivity extends Activity {
                 Math.max(0, insets.getSystemWindowInsetLeft()),
                 0,
                 Math.max(0, insets.getSystemWindowInsetRight()),
-                0
+                Math.max(0, insets.getSystemWindowInsetBottom())
             );
             return insets;
         });
+
+        Button backButton = nativeOverlayButton("LIVE", "Back to live", dp(42), dp(36));
+        backButton.setOnClickListener((view) -> {
+            setRaveWarMode(false);
+            openInternalPath("/live");
+        });
+        FrameLayout.LayoutParams backButtonParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        backButtonParams.gravity = Gravity.TOP | Gravity.LEFT;
+        backButtonParams.setMargins(dp(6), dp(62), 0, 0);
+        overlay.addView(backButton, backButtonParams);
 
         LinearLayout leftToolbar = new LinearLayout(this);
         leftToolbar.setGravity(Gravity.CENTER);
@@ -226,12 +239,6 @@ public class MainActivity extends Activity {
         leftToolbar.setPadding(dp(3), dp(3), dp(3), dp(3));
         leftToolbar.setBackground(panelBackground("#a6050712", "#8843536d"));
 
-        Button backButton = nativeOverlayButton("LIVE", "Back to live", dp(42), dp(36));
-        backButton.setOnClickListener((view) -> {
-            setRaveWarMode(false);
-            openInternalPath("/live");
-        });
-        leftToolbar.addView(backButton);
         leftToolbar.addView(raveWarControlButton("<", "Move left", "left", true, dp(38), dp(36)));
         leftToolbar.addView(raveWarControlButton(">", "Move right", "right", true, dp(38), dp(36)));
         leftToolbar.addView(raveWarControlButton("A+", "Aim up", "aim-up", true, dp(38), dp(36)));
@@ -241,8 +248,8 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        leftToolbarParams.gravity = Gravity.TOP | Gravity.LEFT;
-        leftToolbarParams.setMargins(dp(6), dp(62), 0, 0);
+        leftToolbarParams.gravity = Gravity.BOTTOM | Gravity.LEFT;
+        leftToolbarParams.setMargins(dp(6), 0, 0, dp(6));
         overlay.addView(leftToolbar, leftToolbarParams);
 
         LinearLayout rightToolbar = new LinearLayout(this);
@@ -275,8 +282,8 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        rightToolbarParams.gravity = Gravity.TOP | Gravity.RIGHT;
-        rightToolbarParams.setMargins(0, dp(62), dp(6), 0);
+        rightToolbarParams.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+        rightToolbarParams.setMargins(0, 0, dp(6), dp(6));
         overlay.addView(rightToolbar, rightToolbarParams);
 
         updateRaveWarControlState(false, false, "Loading match controls...", "", 0);
