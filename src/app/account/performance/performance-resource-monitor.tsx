@@ -444,9 +444,9 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
             />
             <ToggleRow
               checked={!snapshot.effective.animatedMediaEnabled}
-              description="Stops GIF, animated sticker, and animated emoji images from loading. Leave this off when you want to see GIFs in chat."
+              description="Keeps every GIF, sticker, and emoji visible while preferring the lighter provider preview where one is available."
               disabled={snapshot.effective.batterySaverActive}
-              label="Hide animated GIFs, stickers, and emoji"
+              label="Reduce animated chat media workload"
               onChange={(checked) => updateBoolean("animatedMediaEnabled", !checked)}
             />
             <ToggleRow

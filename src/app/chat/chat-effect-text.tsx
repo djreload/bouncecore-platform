@@ -109,7 +109,7 @@ export function ChatEffectText({
   effectId,
   particlesEnabled = true
 }: ChatEffectTextProps) {
-  const effect = animationsEnabled ? getChatEffectById(effectId) : undefined;
+  const effect = getChatEffectById(effectId);
   const segments = splitTextMentions(body);
   const letterOffset = { value: 0 };
   const renderLetters = effect?.renderMode === "letters";
@@ -121,11 +121,12 @@ export function ChatEffectText({
         effect ? ["bc-chat-effect", effect.className] : null,
         className
       )}
+      data-chat-animations={animationsEnabled ? "on" : "reduced"}
       data-chat-effect={effect?.id}
       data-chat-particles={effect?.particlePreset}
     >
       {segments.map((segment, index) => renderMentionSegment(segment, `${index}-${segment.text}`, renderLetters, letterOffset))}
-      {particlesEnabled && effect?.particlePreset ? <ChatEffectParticles preset={effect.particlePreset} /> : null}
+      {animationsEnabled && particlesEnabled && effect?.particlePreset ? <ChatEffectParticles preset={effect.particlePreset} /> : null}
     </p>
   );
 }

@@ -1551,41 +1551,37 @@ export function ChatRoomPanel({
                   </div>
                 ) : message.kind === "gif" && message.mediaUrl ? (
                   <div className="mt-3">
-                    {performancePreferences.animatedMediaEnabled ? (
-                      <Image
-                        alt={message.mediaAlt ?? message.body}
-                        className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
-                        height={mediaSize.height}
-                        onLoad={scrollToLatestMessage}
-                        sizes={compact ? "320px" : "520px"}
-                        src={message.mediaUrl}
-                        unoptimized
-                        width={mediaSize.width}
-                      />
-                    ) : (
-                      <p className="rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-xs font-semibold text-bc-muted">
-                        Animated GIF paused by your performance settings.
-                      </p>
-                    )}
+                    <Image
+                      alt={message.mediaAlt ?? message.body}
+                      className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
+                      data-chat-media-motion={performancePreferences.animatedMediaEnabled ? "animated" : "preview"}
+                      height={mediaSize.height}
+                      onLoad={scrollToLatestMessage}
+                      sizes={compact ? "320px" : "520px"}
+                      src={
+                        performancePreferences.animatedMediaEnabled
+                          ? message.mediaUrl
+                          : message.mediaPreviewUrl ?? message.mediaUrl
+                      }
+                      unoptimized
+                      width={mediaSize.width}
+                    />
                   </div>
                 ) : isCustomAssetMessage ? (
                   <div className="mt-3">
-                    {performancePreferences.animatedMediaEnabled ? (
-                      <Image
-                        alt={message.mediaAlt ?? message.body}
-                        className={`h-auto w-auto max-w-full object-contain ${
-                          message.kind === "emoji" ? "max-h-20" : compact ? "max-h-36" : "max-h-56"
-                        }`}
-                        height={message.kind === "emoji" ? 96 : 240}
-                        onLoad={scrollToLatestMessage}
-                        sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
-                        src={message.mediaUrl ?? ""}
-                        unoptimized
-                        width={message.kind === "emoji" ? 96 : 240}
-                      />
-                    ) : (
-                      <p className="text-xs font-semibold text-bc-muted">Animated chat media paused.</p>
-                    )}
+                    <Image
+                      alt={message.mediaAlt ?? message.body}
+                      className={`h-auto w-auto max-w-full object-contain ${
+                        message.kind === "emoji" ? "max-h-20" : compact ? "max-h-36" : "max-h-56"
+                      }`}
+                      data-chat-media-motion={performancePreferences.animatedMediaEnabled ? "animated" : "visible"}
+                      height={message.kind === "emoji" ? 96 : 240}
+                      onLoad={scrollToLatestMessage}
+                      sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
+                      src={message.mediaPreviewUrl ?? message.mediaUrl ?? ""}
+                      unoptimized
+                      width={message.kind === "emoji" ? 96 : 240}
+                    />
                   </div>
                 ) : (
                   <ChatEffectText
@@ -2174,21 +2170,16 @@ export function ChatRoomPanel({
                               title={gif.title}
                               type="submit"
                             >
-                              {performancePreferences.animatedMediaEnabled ? (
-                                <Image
-                                  alt={gif.title}
-                                  className="h-full w-full object-cover transition group-hover:scale-105"
-                                  height={resultSize.height}
-                                  sizes={compact ? "160px" : "220px"}
-                                  src={gif.previewUrl}
-                                  unoptimized
-                                  width={resultSize.width}
-                                />
-                              ) : (
-                                <span className="grid h-full place-items-center px-2 text-center text-xs font-semibold text-bc-muted">
-                                  {gif.title || "GIF result"}
-                                </span>
-                              )}
+                              <Image
+                                alt={gif.title}
+                                className="h-full w-full object-cover transition group-hover:scale-105"
+                                data-chat-media-motion={performancePreferences.animatedMediaEnabled ? "animated" : "preview"}
+                                height={resultSize.height}
+                                sizes={compact ? "160px" : "220px"}
+                                src={gif.previewUrl}
+                                unoptimized
+                                width={resultSize.width}
+                              />
                             </button>
                           </form>
                         );

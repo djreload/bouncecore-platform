@@ -23,6 +23,8 @@ const frameMs = 38;
 const impactShakeMs = 650;
 const fadeMs = 520;
 const maxOverlayDevicePixelRatio = 1.5;
+const seenThrowStorageKey = "bouncecore.chat.seen-throw-overlays.v1";
+const maxRememberedThrowIds = 96;
 const incomingVibrationPattern = [80, 55, 120, 55, 170, 55, 230, 55, 300];
 const impactVibrationPattern = [180, 45, 120, 45, 90];
 
@@ -46,6 +48,50 @@ function easeOutBack(value: number) {
 
 function hashText(value: string) {
   return value.split("").reduce((hash, character) => hash + character.charCodeAt(0), 0);
+}
+
+function fallbackThrowableGlyph(label: string) {
+  const normalized = label.toLowerCase();
+
+  if (normalized.includes("poop")) {
+    return String.fromCodePoint(0x1f4a9);
+  }
+
+  if (normalized.includes("unicorn")) {
+    return String.fromCodePoint(0x1f984);
+  }
+
+  if (normalized.includes("leaf")) {
+    return String.fromCodePoint(0x1f343);
+  }
+
+  return String.fromCodePoint(0x1f411);
+}
+
+function readSeenThrowIds() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const value = JSON.parse(window.sessionStorage.getItem(seenThrowStorageKey) ?? "[]") as unknown;
+
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string").slice(-maxRememberedThrowIds) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSeenThrowIds(ids: Set<string>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(seenThrowStorageKey, JSON.stringify([...ids].slice(-maxRememberedThrowIds)));
+  } catch {
+    // Private browsing or full storage must not stop a received throw.
+  }
 }
 
 function throwLabel(sheepThrow: ChatSheepThrowSummary) {
@@ -95,6 +141,7 @@ export function SheepThrowOverlay() {
   const [activeThrow, setActiveThrow] = useState<ChatSheepThrowSummary | null>(null);
   const [incomingBlur, setIncomingBlur] = useState(false);
   const [settings, setSettings] = useState<SheepThrowSettings>(defaultSheepThrowSettings);
+  const [visualFallback, setVisualFallback] = useState(false);
   const activeThrowRef = useRef<ChatSheepThrowSummary | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const audioCacheRef = useRef(new Map<string, HTMLAudioElement>());
@@ -142,31 +189,14 @@ export function SheepThrowOverlay() {
     }
 
     try {
-      const [spriteImage, glass] = await Promise.all([loadOverlayImage(sprite.spriteSheetUrl), loadOverlayImage(sprite.glassSmashUrl)]);
+      const spriteImage = await loadOverlayImage(sprite.spriteSheetUrl);
+      const glass = await loadOverlayImage(sprite.glassSmashUrl).catch(() => loadOverlayImage(defaultSheepThrowSprite.glassSmashUrl));
       const images = { glass, sprite, spriteImage };
 
       imageCacheRef.current.set(cacheKey, images);
       return images;
     } catch {
-      if (sprite.id === defaultSheepThrowSprite.id) {
-        throw new Error("Default throw sprite could not load.");
-      }
-
-      const fallbackCacheKey = `${defaultSheepThrowSprite.id}:${defaultSheepThrowSprite.spriteSheetUrl}:${defaultSheepThrowSprite.glassSmashUrl}`;
-      const cachedFallback = imageCacheRef.current.get(fallbackCacheKey);
-
-      if (cachedFallback) {
-        return cachedFallback;
-      }
-
-      const [spriteImage, glass] = await Promise.all([
-        loadOverlayImage(defaultSheepThrowSprite.spriteSheetUrl),
-        loadOverlayImage(defaultSheepThrowSprite.glassSmashUrl)
-      ]);
-      const fallbackImages = { glass, sprite: defaultSheepThrowSprite, spriteImage };
-
-      imageCacheRef.current.set(fallbackCacheKey, fallbackImages);
-      return fallbackImages;
+      throw new Error(`${sprite.label} throw sprite could not load.`);
     }
   }, []);
 
@@ -299,6 +329,50 @@ export function SheepThrowOverlay() {
     [playImpactSound, stopAnimation]
   );
 
+  const drawStaticImpact = useCallback((images: LoadedImages) => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return false;
+    }
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const ratio = Math.min(window.devicePixelRatio || 1, maxOverlayDevicePixelRatio);
+    const targetX = width * 0.5;
+    const targetY = height * 0.5;
+    const drawSize = Math.max(56, Math.min(width, height) * 0.56);
+    const glassSize = Math.min(width, height) * 0.74;
+    const totalFrames = Math.max(1, Math.min(images.sprite.frameCount, images.sprite.columns * images.sprite.rows));
+    const frameIndex = totalFrames - 1;
+    const frameColumn = frameIndex % images.sprite.columns;
+    const frameRow = Math.floor(frameIndex / images.sprite.columns);
+
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.clearRect(0, 0, width, height);
+    context.globalAlpha = 0.9;
+    context.drawImage(images.glass, targetX - glassSize / 2, targetY - glassSize / 2, glassSize, glassSize);
+    context.globalAlpha = 1;
+    context.drawImage(
+      images.spriteImage,
+      frameColumn * images.sprite.frameWidth,
+      frameRow * images.sprite.frameHeight,
+      images.sprite.frameWidth,
+      images.sprite.frameHeight,
+      targetX - drawSize / 2,
+      targetY - drawSize / 2,
+      drawSize,
+      drawSize
+    );
+
+    return true;
+  }, []);
+
   const playNext = useCallback(() => {
     if (activeThrowRef.current) {
       return;
@@ -316,26 +390,13 @@ export function SheepThrowOverlay() {
 
     loadingThrowRef.current = true;
 
-    if (reducedMotionEnabled(performancePreferencesRef.current)) {
-      loadingThrowRef.current = false;
-      activeThrowRef.current = nextThrow;
-      setActiveThrow(nextThrow);
-      setIncomingBlur(false);
-      timeoutRef.current = window.setTimeout(() => {
-        timeoutRef.current = null;
-        activeThrowRef.current = null;
-        setActiveThrow(null);
-        playNextRef.current();
-      }, Math.min(2500, settingsRef.current.overlayDurationMs));
-      return;
-    }
-
     void loadImagesForSprite(nextThrow.sprite)
       .then((images) => {
         loadingThrowRef.current = false;
         imageRef.current = images;
         activeThrowRef.current = nextThrow;
         setActiveThrow(nextThrow);
+        setVisualFallback(false);
         impactTriggeredRef.current = false;
 
         if (timeoutRef.current !== null) {
@@ -384,19 +445,45 @@ export function SheepThrowOverlay() {
           return;
         }
 
+        const showStaticImpactWhenCanvasReady = (attempt = 0) => {
+          if (activeThrowRef.current?.id !== nextThrow.id) {
+            return;
+          }
+
+          if (!drawStaticImpact(images) && attempt < 20) {
+            animationFrameRef.current = window.requestAnimationFrame(() => showStaticImpactWhenCanvasReady(attempt + 1));
+            return;
+          }
+
+          animationFrameRef.current = null;
+          setIncomingBlur(false);
+          timeoutRef.current = window.setTimeout(() => {
+            timeoutRef.current = null;
+            activeThrowRef.current = null;
+            setActiveThrow(null);
+            setVisualFallback(false);
+            stopAnimation();
+            playNextRef.current();
+          }, Math.min(2500, settingsRef.current.overlayDurationMs));
+        };
+
+        animationFrameRef.current = window.requestAnimationFrame(() => showStaticImpactWhenCanvasReady());
+      })
+      .catch(() => {
+        loadingThrowRef.current = false;
+        activeThrowRef.current = nextThrow;
+        setActiveThrow(nextThrow);
         setIncomingBlur(false);
+        setVisualFallback(true);
         timeoutRef.current = window.setTimeout(() => {
           timeoutRef.current = null;
           activeThrowRef.current = null;
           setActiveThrow(null);
+          setVisualFallback(false);
           playNextRef.current();
         }, Math.min(2500, settingsRef.current.overlayDurationMs));
-      })
-      .catch(() => {
-        loadingThrowRef.current = false;
-        playNextRef.current();
       });
-  }, [loadImagesForSprite, stopAnimation]);
+  }, [drawStaticImpact, loadImagesForSprite, stopAnimation]);
 
   const enqueueThrows = useCallback(
     (throws: ChatSheepThrowSummary[]) => {
@@ -413,6 +500,7 @@ export function SheepThrowOverlay() {
         return;
       }
 
+      persistSeenThrowIds(seenIdsRef.current);
       queueRef.current.push(...newThrows);
       playNext();
     },
@@ -434,26 +522,23 @@ export function SheepThrowOverlay() {
   useEffect(() => {
     performancePreferencesRef.current = performancePreferences;
 
-    if (!performancePreferences.animationsEnabled) {
+    if (!performancePreferences.animationsEnabled && activeThrowRef.current && imageRef.current) {
       const cleanupTimer = window.setTimeout(() => {
         setIncomingBlur(false);
         document.documentElement.classList.remove("bc-sheep-impact-wobble");
         stopAnimation();
+        drawStaticImpact(imageRef.current as LoadedImages);
       }, 0);
 
       return () => window.clearTimeout(cleanupTimer);
     }
-  }, [performancePreferences, stopAnimation]);
+  }, [drawStaticImpact, performancePreferences, stopAnimation]);
 
   useEffect(() => {
-    if (!performancePreferences.animationsEnabled) {
-      return;
-    }
-
     void loadImagesForSprite(defaultSheepThrowSprite).catch(() => {
       imageRef.current = null;
     });
-  }, [loadImagesForSprite, performancePreferences.animationsEnabled]);
+  }, [loadImagesForSprite]);
 
   useEffect(() => {
     let active = true;
@@ -476,15 +561,15 @@ export function SheepThrowOverlay() {
         setSettings(payload.settings);
 
         if (!initializedRef.current) {
-          payload.recentThrows.forEach((sheepThrow) => seenIdsRef.current.add(sheepThrow.id));
+          readSeenThrowIds().forEach((id) => seenIdsRef.current.add(id));
           initializedRef.current = true;
-          return;
         }
 
         if (!payload.settings.enabled) {
           queueRef.current = [];
           activeThrowRef.current = null;
           setActiveThrow(null);
+          setVisualFallback(false);
           setIncomingBlur(false);
           if (timeoutRef.current !== null) {
             window.clearTimeout(timeoutRef.current);
@@ -501,16 +586,21 @@ export function SheepThrowOverlay() {
     }
 
     void refresh();
-    const pollMs = performancePreferences.realtimeUpdatesEnabled ? settings.pollMs : Math.max(15_000, settings.pollMs * 3);
-    const interval = window.setInterval(refresh, pollMs);
+    const interval = window.setInterval(refresh, settings.pollMs);
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
+        const interruptedIds = [activeThrowRef.current?.id, ...queueRef.current.map((sheepThrow) => sheepThrow.id)].filter(
+          (id): id is string => Boolean(id)
+        );
+
+        interruptedIds.forEach((id) => seenIdsRef.current.delete(id));
+        persistSeenThrowIds(seenIdsRef.current);
         queueRef.current = [];
         activeThrowRef.current = null;
         setActiveThrow(null);
+        setVisualFallback(false);
         setIncomingBlur(false);
-        initializedRef.current = false;
 
         if (timeoutRef.current !== null) {
           window.clearTimeout(timeoutRef.current);
@@ -537,7 +627,7 @@ export function SheepThrowOverlay() {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [enqueueThrows, performancePreferences.realtimeUpdatesEnabled, settings.pollMs, stopAnimation]);
+  }, [enqueueThrows, settings.pollMs, stopAnimation]);
 
   useEffect(
     () => () => {
@@ -566,6 +656,13 @@ export function SheepThrowOverlay() {
     <div aria-live="polite" className="pointer-events-none fixed inset-0 z-[72] overflow-hidden" data-sheep-throw-overlay>
       {incomingBlur ? <div className="bc-sheep-motion-blur absolute inset-0" aria-hidden="true" /> : null}
       <canvas className="absolute inset-0 h-full w-full" ref={canvasRef} />
+      {visualFallback ? (
+        <div className="absolute inset-0 grid place-items-center" aria-hidden="true">
+          <span className="text-[clamp(6rem,28vmin,18rem)] drop-shadow-[0_18px_28px_rgba(0,0,0,0.7)]">
+            {fallbackThrowableGlyph(activeThrow.sprite.label)}
+          </span>
+        </div>
+      ) : null}
       <div className="absolute inset-x-3 top-[18dvh] flex justify-center">
         <div className="max-w-[min(34rem,92vw)] rounded-md border border-white/20 bg-bc-void/78 px-4 py-3 text-center shadow-2xl shadow-black/40 backdrop-blur">
           <p className="text-base font-black text-white sm:text-xl">{activeLabel}</p>

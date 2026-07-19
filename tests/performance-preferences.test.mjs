@@ -127,8 +127,11 @@ test("expensive browser and Android features obey effective performance settings
   assert.match(player, /applyLiveQualityCap/);
   assert.match(persistentAudio, /backgroundPlaybackEnabled/);
   assert.match(chat, /animatedMediaEnabled/);
-  assert.match(chatEffect, /animationsEnabled \? getChatEffectById/);
-  assert.match(chatEffect, /particlesEnabled && effect\?\.particlePreset/);
+  assert.match(chatEffect, /const effect = getChatEffectById\(effectId\)/);
+  assert.match(chatEffect, /animationsEnabled && particlesEnabled && effect\?\.particlePreset/);
+  assert.match(chat, /message\.mediaPreviewUrl \?\? message\.mediaUrl/);
+  assert.doesNotMatch(chat, /Animated GIF paused by your performance settings/);
+  assert.doesNotMatch(chat, /Animated chat media paused/);
   assert.match(activity, /setOffscreenPreRaster\(false\)/);
   assert.match(activity, /setPerformancePreferences\(String preferencesJson\)/);
   assert.match(activity, /if \(!nativeAdsEnabled\)/);

@@ -36,6 +36,26 @@ test("sheep throw overlay waits for the canvas before starting animation", () =>
   assert.match(content, /startTimeRef\.current = performance\.now\(\)/);
 });
 
+test("received throwables are queued on first load and remain visible in reduced motion", () => {
+  const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+
+  assert.match(content, /readSeenThrowIds\(\)\.forEach/);
+  assert.match(content, /enqueueThrows\(payload\.recentThrows\)/);
+  assert.doesNotMatch(content, /payload\.recentThrows\.forEach\(\(sheepThrow\) => seenIdsRef\.current\.add/);
+  assert.match(content, /const drawStaticImpact = useCallback/);
+  assert.match(content, /showStaticImpactWhenCanvasReady/);
+  assert.match(content, /fallbackThrowableGlyph\(activeThrow\.sprite\.label\)/);
+  assert.match(content, /const interval = window\.setInterval\(refresh, settings\.pollMs\)/);
+});
+
+test("interrupted throwable overlays can replay when the victim returns", () => {
+  const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+
+  assert.match(content, /const interruptedIds = \[activeThrowRef\.current\?\.id, \.\.\.queueRef\.current\.map/);
+  assert.match(content, /interruptedIds\.forEach\(\(id\) => seenIdsRef\.current\.delete\(id\)\)/);
+  assert.match(content, /persistSeenThrowIds\(seenIdsRef\.current\)/);
+});
+
 test("sheep throw impact wobble does not transform body or overlay", () => {
   const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
   const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");
