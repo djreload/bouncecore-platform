@@ -27,13 +27,21 @@ const seenThrowStorageKey = "bouncecore.chat.seen-throw-overlays.v1";
 const maxRememberedThrowIds = 96;
 const incomingVibrationPattern = [80, 55, 120, 55, 170, 55, 230, 55, 300];
 const impactVibrationPattern = [180, 45, 120, 45, 90];
+const imageLoadTimeoutMs = 5000;
 
 function loadOverlayImage(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new window.Image();
+    const timeout = window.setTimeout(() => reject(new Error(`Timed out loading ${src}.`)), imageLoadTimeoutMs);
 
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error(`Could not load ${src}.`));
+    image.onload = () => {
+      window.clearTimeout(timeout);
+      resolve(image);
+    };
+    image.onerror = () => {
+      window.clearTimeout(timeout);
+      reject(new Error(`Could not load ${src}.`));
+    };
     image.src = src;
   });
 }
@@ -136,6 +144,42 @@ function vibrateMobile(pattern: number | number[], enabled: boolean) {
   navigator.vibrate(pattern);
 }
 
+function canvasRegionHasVisiblePixels(
+  context: CanvasRenderingContext2D,
+  left: number,
+  top: number,
+  size: number,
+  ratio: number
+) {
+  const pixelLeft = Math.max(0, Math.floor((left - 12) * ratio));
+  const pixelTop = Math.max(0, Math.floor((top - 12) * ratio));
+  const pixelRight = Math.min(context.canvas.width, Math.ceil((left + size + 12) * ratio));
+  const pixelBottom = Math.min(context.canvas.height, Math.ceil((top + size + 12) * ratio));
+  const pixelWidth = pixelRight - pixelLeft;
+  const pixelHeight = pixelBottom - pixelTop;
+
+  if (pixelWidth < 1 || pixelHeight < 1) {
+    return false;
+  }
+
+  try {
+    const pixels = context.getImageData(pixelLeft, pixelTop, pixelWidth, pixelHeight).data;
+    const sampleStep = Math.max(1, Math.floor(Math.min(pixelWidth, pixelHeight) / 36));
+
+    for (let y = 0; y < pixelHeight; y += sampleStep) {
+      for (let x = 0; x < pixelWidth; x += sampleStep) {
+        if (pixels[(y * pixelWidth + x) * 4 + 3] > 12) {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // Cross-origin or constrained WebViews keep the guaranteed DOM fallback visible.
+  }
+
+  return false;
+}
+
 export function SheepThrowOverlay() {
   const { effective: performancePreferences } = usePerformancePreferences();
   const [activeThrow, setActiveThrow] = useState<ChatSheepThrowSummary | null>(null);
@@ -145,6 +189,8 @@ export function SheepThrowOverlay() {
   const activeThrowRef = useRef<ChatSheepThrowSummary | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const audioCacheRef = useRef(new Map<string, HTMLAudioElement>());
+  const canvasFrameCheckAttemptedRef = useRef(false);
+  const canvasFrameConfirmedRef = useRef(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const initializedRef = useRef(false);
   const imageRef = useRef<LoadedImages | null>(null);
@@ -157,8 +203,9 @@ export function SheepThrowOverlay() {
   const settingsRef = useRef(settings);
   const startTimeRef = useRef(0);
   const timeoutRef = useRef<number | null>(null);
+  const impactTimeoutRef = useRef<number | null>(null);
   const impactTriggeredRef = useRef(false);
-  const loadingThrowRef = useRef(false);
+  const loadingThrowRef = useRef<string | null>(null);
   const wobbleTimeoutRef = useRef<number | null>(null);
   const activeLabel = useMemo(() => (activeThrow ? throwLabel(activeThrow) : ""), [activeThrow]);
 
@@ -190,6 +237,13 @@ export function SheepThrowOverlay() {
 
     try {
       const spriteImage = await loadOverlayImage(sprite.spriteSheetUrl);
+      const expectedWidth = sprite.columns * sprite.frameWidth;
+      const expectedHeight = sprite.rows * sprite.frameHeight;
+
+      if (spriteImage.naturalWidth < expectedWidth || spriteImage.naturalHeight < expectedHeight) {
+        throw new Error(`${sprite.label} sprite grid does not fit its uploaded image.`);
+      }
+
       const glass = await loadOverlayImage(sprite.glassSmashUrl).catch(() => loadOverlayImage(defaultSheepThrowSprite.glassSmashUrl));
       const images = { glass, sprite, spriteImage };
 
@@ -199,6 +253,30 @@ export function SheepThrowOverlay() {
       throw new Error(`${sprite.label} throw sprite could not load.`);
     }
   }, []);
+
+  const triggerImpact = useCallback(
+    (sprite: SheepThrowSprite) => {
+      if (impactTriggeredRef.current) {
+        return;
+      }
+
+      impactTriggeredRef.current = true;
+      setIncomingBlur(false);
+      document.documentElement.classList.add("bc-sheep-impact-wobble");
+      playImpactSound(sprite.impactSoundUrl);
+      vibrateMobile(impactVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
+
+      if (wobbleTimeoutRef.current !== null) {
+        window.clearTimeout(wobbleTimeoutRef.current);
+      }
+
+      wobbleTimeoutRef.current = window.setTimeout(() => {
+        document.documentElement.classList.remove("bc-sheep-impact-wobble");
+        wobbleTimeoutRef.current = null;
+      }, impactShakeMs);
+    },
+    [playImpactSound]
+  );
 
   const stopAnimation = useCallback(() => {
     if (animationFrameRef.current !== null) {
@@ -270,21 +348,8 @@ export function SheepThrowOverlay() {
       const frameRow = Math.floor(frameIndex / images.sprite.columns);
       const rotation = (fromLeft ? 1 : -1) * (0.9 - progress * 0.9) + Math.sin(elapsed / 95) * 0.08;
 
-      if (impactStarted && !impactTriggeredRef.current) {
-        impactTriggeredRef.current = true;
-        setIncomingBlur(false);
-        document.documentElement.classList.add("bc-sheep-impact-wobble");
-        playImpactSound(images.sprite.impactSoundUrl);
-        vibrateMobile(impactVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
-
-        if (wobbleTimeoutRef.current !== null) {
-          window.clearTimeout(wobbleTimeoutRef.current);
-        }
-
-        wobbleTimeoutRef.current = window.setTimeout(() => {
-          document.documentElement.classList.remove("bc-sheep-impact-wobble");
-          wobbleTimeoutRef.current = null;
-        }, impactShakeMs);
+      if (impactStarted) {
+        triggerImpact(images.sprite);
       }
 
       if (impactStarted && elapsed - approachMs < impactShakeMs) {
@@ -320,13 +385,28 @@ export function SheepThrowOverlay() {
       );
       context.restore();
 
+      if (!canvasFrameCheckAttemptedRef.current && progress >= 0.45) {
+        canvasFrameCheckAttemptedRef.current = true;
+        canvasFrameConfirmedRef.current = canvasRegionHasVisiblePixels(
+          context,
+          (impactStarted ? targetX : x) - drawSize / 2,
+          (impactStarted ? targetY : y) - drawSize / 2,
+          drawSize,
+          ratio
+        );
+
+        if (canvasFrameConfirmedRef.current) {
+          setVisualFallback(false);
+        }
+      }
+
       if (elapsed < settingsRef.current.overlayDurationMs) {
         animationFrameRef.current = window.requestAnimationFrame((nextTimestamp) => drawFrameRef.current(nextTimestamp));
       } else {
         stopAnimation();
       }
     },
-    [playImpactSound, stopAnimation]
+    [stopAnimation, triggerImpact]
   );
 
   const drawStaticImpact = useCallback((images: LoadedImages) => {
@@ -355,6 +435,27 @@ export function SheepThrowOverlay() {
     canvas.style.height = `${height}px`;
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
     context.clearRect(0, 0, width, height);
+    context.globalAlpha = 1;
+    context.drawImage(
+      images.spriteImage,
+      frameColumn * images.sprite.frameWidth,
+      frameRow * images.sprite.frameHeight,
+      images.sprite.frameWidth,
+      images.sprite.frameHeight,
+      targetX - drawSize / 2,
+      targetY - drawSize / 2,
+      drawSize,
+      drawSize
+    );
+    const spriteIsVisible = canvasRegionHasVisiblePixels(
+      context,
+      targetX - drawSize / 2,
+      targetY - drawSize / 2,
+      drawSize,
+      ratio
+    );
+
+    context.clearRect(0, 0, width, height);
     context.globalAlpha = 0.9;
     context.drawImage(images.glass, targetX - glassSize / 2, targetY - glassSize / 2, glassSize, glassSize);
     context.globalAlpha = 1;
@@ -369,6 +470,11 @@ export function SheepThrowOverlay() {
       drawSize,
       drawSize
     );
+
+    if (spriteIsVisible) {
+      canvasFrameConfirmedRef.current = true;
+      setVisualFallback(false);
+    }
 
     return true;
   }, []);
@@ -388,23 +494,71 @@ export function SheepThrowOverlay() {
       return;
     }
 
-    loadingThrowRef.current = true;
+    const motionEnabled = !reducedMotionEnabled(performancePreferencesRef.current);
+
+    loadingThrowRef.current = nextThrow.id;
+    activeThrowRef.current = nextThrow;
+    imageRef.current = null;
+    impactTriggeredRef.current = false;
+    canvasFrameCheckAttemptedRef.current = false;
+    canvasFrameConfirmedRef.current = false;
+    setActiveThrow(nextThrow);
+    setVisualFallback(true);
+    setIncomingBlur(motionEnabled);
+
+    if (motionEnabled) {
+      vibrateMobile(incomingVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
+    }
+
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+    }
+
+    if (impactTimeoutRef.current !== null) {
+      window.clearTimeout(impactTimeoutRef.current);
+    }
+
+    impactTimeoutRef.current = window.setTimeout(() => {
+      impactTimeoutRef.current = null;
+
+      if (activeThrowRef.current?.id === nextThrow.id) {
+        triggerImpact(nextThrow.sprite);
+      }
+    }, approachMs);
+
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
+
+      if (activeThrowRef.current?.id !== nextThrow.id) {
+        return;
+      }
+
+      if (loadingThrowRef.current === nextThrow.id) {
+        loadingThrowRef.current = null;
+      }
+
+      activeThrowRef.current = null;
+      imageRef.current = null;
+      setActiveThrow(null);
+      setVisualFallback(false);
+      setIncomingBlur(false);
+      stopAnimation();
+      playNextRef.current();
+    }, settingsRef.current.overlayDurationMs);
 
     void loadImagesForSprite(nextThrow.sprite)
       .then((images) => {
-        loadingThrowRef.current = false;
-        imageRef.current = images;
-        activeThrowRef.current = nextThrow;
-        setActiveThrow(nextThrow);
-        setVisualFallback(false);
-        impactTriggeredRef.current = false;
-
-        if (timeoutRef.current !== null) {
-          window.clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
+        if (activeThrowRef.current?.id !== nextThrow.id) {
+          return;
         }
 
-        if (!reducedMotionEnabled(performancePreferencesRef.current)) {
+        if (loadingThrowRef.current === nextThrow.id) {
+          loadingThrowRef.current = null;
+        }
+
+        imageRef.current = images;
+
+        if (motionEnabled) {
           const startAnimationWhenCanvasReady = (attempt = 0) => {
             if (activeThrowRef.current?.id !== nextThrow.id) {
               animationFrameRef.current = null;
@@ -418,27 +572,14 @@ export function SheepThrowOverlay() {
 
             if (!canvasRef.current) {
               setIncomingBlur(false);
-              timeoutRef.current = window.setTimeout(() => {
-                timeoutRef.current = null;
-                activeThrowRef.current = null;
-                setActiveThrow(null);
-                playNextRef.current();
-              }, Math.min(2500, settingsRef.current.overlayDurationMs));
+              setVisualFallback(true);
               return;
             }
 
             animationFrameRef.current = null;
             stopAnimation();
-            setIncomingBlur(true);
-            vibrateMobile(incomingVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
             startTimeRef.current = performance.now();
             animationFrameRef.current = window.requestAnimationFrame((timestamp) => drawFrameRef.current(timestamp));
-            timeoutRef.current = window.setTimeout(() => {
-              timeoutRef.current = null;
-              activeThrowRef.current = null;
-              setActiveThrow(null);
-              playNextRef.current();
-            }, settingsRef.current.overlayDurationMs);
           };
 
           animationFrameRef.current = window.requestAnimationFrame(() => startAnimationWhenCanvasReady());
@@ -457,33 +598,21 @@ export function SheepThrowOverlay() {
 
           animationFrameRef.current = null;
           setIncomingBlur(false);
-          timeoutRef.current = window.setTimeout(() => {
-            timeoutRef.current = null;
-            activeThrowRef.current = null;
-            setActiveThrow(null);
-            setVisualFallback(false);
-            stopAnimation();
-            playNextRef.current();
-          }, Math.min(2500, settingsRef.current.overlayDurationMs));
         };
 
         animationFrameRef.current = window.requestAnimationFrame(() => showStaticImpactWhenCanvasReady());
       })
       .catch(() => {
-        loadingThrowRef.current = false;
-        activeThrowRef.current = nextThrow;
-        setActiveThrow(nextThrow);
-        setIncomingBlur(false);
-        setVisualFallback(true);
-        timeoutRef.current = window.setTimeout(() => {
-          timeoutRef.current = null;
-          activeThrowRef.current = null;
-          setActiveThrow(null);
-          setVisualFallback(false);
-          playNextRef.current();
-        }, Math.min(2500, settingsRef.current.overlayDurationMs));
+        if (loadingThrowRef.current === nextThrow.id) {
+          loadingThrowRef.current = null;
+        }
+
+        if (activeThrowRef.current?.id === nextThrow.id) {
+          imageRef.current = null;
+          setVisualFallback(true);
+        }
       });
-  }, [drawStaticImpact, loadImagesForSprite, stopAnimation]);
+  }, [drawStaticImpact, loadImagesForSprite, stopAnimation, triggerImpact]);
 
   const enqueueThrows = useCallback(
     (throws: ChatSheepThrowSummary[]) => {
@@ -506,6 +635,17 @@ export function SheepThrowOverlay() {
     },
     [playNext]
   );
+
+  const releaseInterruptedThrows = useCallback(() => {
+    const interruptedIds = new Set(
+      [activeThrowRef.current?.id, loadingThrowRef.current, ...queueRef.current.map((sheepThrow) => sheepThrow.id)].filter(
+        (id): id is string => Boolean(id)
+      )
+    );
+
+    interruptedIds.forEach((id) => seenIdsRef.current.delete(id));
+    persistSeenThrowIds(seenIdsRef.current);
+  }, []);
 
   useEffect(() => {
     drawFrameRef.current = drawFrame;
@@ -549,8 +689,12 @@ export function SheepThrowOverlay() {
       }
 
       try {
-        const response = await fetch("/api/chat/sheep-throws", {
-          cache: "no-store"
+        const response = await fetch(`/api/chat/sheep-throws?revision=${Date.now()}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json"
+          }
         });
         const payload = (await response.json()) as ChatSheepThrowOverlayData;
 
@@ -568,12 +712,19 @@ export function SheepThrowOverlay() {
         if (!payload.settings.enabled) {
           queueRef.current = [];
           activeThrowRef.current = null;
+          loadingThrowRef.current = null;
+          imageRef.current = null;
           setActiveThrow(null);
           setVisualFallback(false);
           setIncomingBlur(false);
           if (timeoutRef.current !== null) {
             window.clearTimeout(timeoutRef.current);
             timeoutRef.current = null;
+          }
+
+          if (impactTimeoutRef.current !== null) {
+            window.clearTimeout(impactTimeoutRef.current);
+            impactTimeoutRef.current = null;
           }
           stopAnimation();
           return;
@@ -590,14 +741,11 @@ export function SheepThrowOverlay() {
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
-        const interruptedIds = [activeThrowRef.current?.id, ...queueRef.current.map((sheepThrow) => sheepThrow.id)].filter(
-          (id): id is string => Boolean(id)
-        );
-
-        interruptedIds.forEach((id) => seenIdsRef.current.delete(id));
-        persistSeenThrowIds(seenIdsRef.current);
+        releaseInterruptedThrows();
         queueRef.current = [];
         activeThrowRef.current = null;
+        loadingThrowRef.current = null;
+        imageRef.current = null;
         setActiveThrow(null);
         setVisualFallback(false);
         setIncomingBlur(false);
@@ -610,6 +758,11 @@ export function SheepThrowOverlay() {
         if (wobbleTimeoutRef.current !== null) {
           window.clearTimeout(wobbleTimeoutRef.current);
           wobbleTimeoutRef.current = null;
+        }
+
+        if (impactTimeoutRef.current !== null) {
+          window.clearTimeout(impactTimeoutRef.current);
+          impactTimeoutRef.current = null;
         }
 
         document.documentElement.classList.remove("bc-sheep-impact-wobble");
@@ -627,10 +780,15 @@ export function SheepThrowOverlay() {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [enqueueThrows, settings.pollMs, stopAnimation]);
+  }, [enqueueThrows, releaseInterruptedThrows, settings.pollMs, stopAnimation]);
 
   useEffect(
     () => () => {
+      releaseInterruptedThrows();
+      queueRef.current = [];
+      activeThrowRef.current = null;
+      loadingThrowRef.current = null;
+      imageRef.current = null;
       stopAnimation();
 
       if (timeoutRef.current !== null) {
@@ -643,9 +801,14 @@ export function SheepThrowOverlay() {
         wobbleTimeoutRef.current = null;
       }
 
+      if (impactTimeoutRef.current !== null) {
+        window.clearTimeout(impactTimeoutRef.current);
+        impactTimeoutRef.current = null;
+      }
+
       document.documentElement.classList.remove("bc-sheep-impact-wobble");
     },
-    [stopAnimation]
+    [releaseInterruptedThrows, stopAnimation]
   );
 
   if (!activeThrow) {
@@ -657,8 +820,12 @@ export function SheepThrowOverlay() {
       {incomingBlur ? <div className="bc-sheep-motion-blur absolute inset-0" aria-hidden="true" /> : null}
       <canvas className="absolute inset-0 h-full w-full" ref={canvasRef} />
       {visualFallback ? (
-        <div className="absolute inset-0 grid place-items-center" aria-hidden="true">
-          <span className="text-[clamp(6rem,28vmin,18rem)] drop-shadow-[0_18px_28px_rgba(0,0,0,0.7)]">
+        <div
+          className="absolute inset-0 grid place-items-center"
+          data-throw-origin={hashText(activeThrow.id) % 2 === 0 ? "left" : "right"}
+          aria-hidden="true"
+        >
+          <span className="bc-throwable-fallback text-[clamp(6rem,28vmin,18rem)] drop-shadow-[0_18px_28px_rgba(0,0,0,0.7)]">
             {fallbackThrowableGlyph(activeThrow.sprite.label)}
           </span>
         </div>

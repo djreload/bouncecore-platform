@@ -20,6 +20,8 @@ import { prisma } from "@/lib/db/prisma";
 
 const sheepThrowSettingsKey = "chat.sheep_throw";
 const sheepThrowRetentionMs = 24 * 60 * 60 * 1000;
+const sheepThrowDeliveryMinimumMs = 2 * 60 * 1000;
+const sheepThrowDeliveryMinimumEvents = 24;
 
 export type ChatSheepThrowSummary = {
   id: string;
@@ -495,7 +497,8 @@ export async function getChatSheepThrowOverlayData(targetUserId?: string | null)
     };
   }
 
-  const recentWindowMs = Math.max(60_000, settings.overlayDurationMs * settings.maxRecentEvents);
+  const deliveryEventLimit = Math.max(sheepThrowDeliveryMinimumEvents, settings.maxRecentEvents);
+  const recentWindowMs = Math.max(sheepThrowDeliveryMinimumMs, settings.overlayDurationMs * deliveryEventLimit);
   const throws = await prisma.chatSheepThrow.findMany({
     where: {
       createdAt: {
@@ -506,7 +509,7 @@ export async function getChatSheepThrowOverlayData(targetUserId?: string | null)
     orderBy: {
       createdAt: "desc"
     },
-    take: settings.maxRecentEvents
+    take: deliveryEventLimit
   });
   const userIds = [...new Set(throws.flatMap((sheepThrow) => [sheepThrow.throwerId, sheepThrow.targetUserId]).filter(Boolean) as string[])];
   const users = userIds.length

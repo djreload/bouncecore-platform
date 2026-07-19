@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Made targeted throwable delivery fail-safe with immediate animated fallbacks, canvas pixel confirmation, interrupted-load replay, uncached victim polling, burst-safe event retrieval, and guaranteed impact feedback even when custom sprite assets fail.
 - Added moderator/admin temporary chat attachments with a paperclip composer action, inline-only image display, ZIP download controls, signature-based validation, active-message download authorization, and automatic file revocation on moderation, room clear, or chat-history pruning.
 - Made targeted throwables reliable on the victim's first poll and after visibility interruptions, added static and asset-failure visual fallbacks, and kept GIFs, stickers, emoji, and safe chat-effect styling visible under reduced performance settings.
 - Added Admin -> Rave War levels with transparent PNG terrain uploads, server-generated collision heightfields, automatic spawn recommendations, battlefield previews, editable spawn positions, active-level selection, and deletion guards for referenced levels.

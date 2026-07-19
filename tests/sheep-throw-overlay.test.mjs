@@ -16,7 +16,7 @@ test("sheep throw impact targets exact viewport center", () => {
 test("sheep throw overlay can play impact sounds and mobile haptics", () => {
   const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
 
-  assert.match(content, /playImpactSound\(images\.sprite\.impactSoundUrl\)/);
+  assert.match(content, /playImpactSound\(sprite\.impactSoundUrl\)/);
   assert.match(content, /BouncecoreAndroid/);
   assert.match(content, /androidBridge\.vibrate/);
   assert.match(content, /navigator\.vibrate\(pattern\)/);
@@ -45,15 +45,42 @@ test("received throwables are queued on first load and remain visible in reduced
   assert.match(content, /const drawStaticImpact = useCallback/);
   assert.match(content, /showStaticImpactWhenCanvasReady/);
   assert.match(content, /fallbackThrowableGlyph\(activeThrow\.sprite\.label\)/);
+  assert.match(content, /bc-throwable-fallback/);
   assert.match(content, /const interval = window\.setInterval\(refresh, settings\.pollMs\)/);
+});
+
+test("every accepted throwable becomes visible before its sprite asset finishes loading", () => {
+  const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+  const claimIndex = content.indexOf("activeThrowRef.current = nextThrow;");
+  const loadIndex = content.indexOf("void loadImagesForSprite(nextThrow.sprite)");
+
+  assert.ok(claimIndex > -1);
+  assert.ok(loadIndex > claimIndex);
+  assert.match(content, /setVisualFallback\(true\);/);
+  assert.match(content, /canvasRegionHasVisiblePixels/);
+  assert.match(content, /if \(canvasFrameConfirmedRef\.current\) \{[\s\S]*setVisualFallback\(false\)/);
+  assert.match(content, /imageLoadTimeoutMs = 5000/);
 });
 
 test("interrupted throwable overlays can replay when the victim returns", () => {
   const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
 
-  assert.match(content, /const interruptedIds = \[activeThrowRef\.current\?\.id, \.\.\.queueRef\.current\.map/);
+  assert.match(content, /const interruptedIds = new Set\([\s\S]*activeThrowRef\.current\?\.id,[\s\S]*loadingThrowRef\.current/);
   assert.match(content, /interruptedIds\.forEach\(\(id\) => seenIdsRef\.current\.delete\(id\)\)/);
   assert.match(content, /persistSeenThrowIds\(seenIdsRef\.current\)/);
+  assert.match(content, /releaseInterruptedThrows\(\);[\s\S]*loadingThrowRef\.current = null/);
+});
+
+test("throw polling bypasses caches and keeps a burst-safe victim delivery window", () => {
+  const overlay = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+  const route = readFileSync(join(process.cwd(), "src/app/api/chat/sheep-throws/route.ts"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/lib/chat/sheep-throw-service.ts"), "utf8");
+
+  assert.match(overlay, /sheep-throws\?revision=\$\{Date\.now\(\)\}/);
+  assert.match(overlay, /credentials: "same-origin"/);
+  assert.match(route, /private, no-store, max-age=0, must-revalidate/);
+  assert.match(service, /sheepThrowDeliveryMinimumEvents = 24/);
+  assert.match(service, /take: deliveryEventLimit/);
 });
 
 test("sheep throw impact wobble does not transform body or overlay", () => {

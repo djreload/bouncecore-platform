@@ -8,8 +8,22 @@ export async function GET() {
   try {
     const user = await getCurrentUser();
 
-    return NextResponse.json(await getChatSheepThrowOverlayData(user?.id));
+    return NextResponse.json(await getChatSheepThrowOverlayData(user?.id), {
+      headers: {
+        "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+        Pragma: "no-cache"
+      }
+    });
   } catch {
-    return NextResponse.json({ error: "Sheep throw data is not available right now." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Sheep throw data is not available right now." },
+      {
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+          Pragma: "no-cache"
+        },
+        status: 500
+      }
+    );
   }
 }
