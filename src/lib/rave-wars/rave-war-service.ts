@@ -194,7 +194,7 @@ function createInitialState(input: {
       const spawn = input.level.spawns[player.playerIndex] ?? input.level.spawns[0];
 
       return {
-        angle: 80,
+        angle: 81,
         color: colors[player.playerIndex] ?? "#a3ff12",
         displayName: player.displayName,
         facing: spawn.facing,
@@ -244,7 +244,7 @@ function normalizePlayerState(value: unknown): RaveWarPlayerState | null {
   }
 
   return {
-    angle: normalizeShotNumber(value.angle, 80, 0, 90),
+    angle: normalizeShotNumber(value.angle, 81, 0, 90),
     color: typeof value.color === "string" ? value.color : "#00d5ff",
     displayName,
     facing: value.facing === "left" ? "left" : "right",

@@ -15,7 +15,7 @@ function player(id, spawnIndex) {
   const spawn = bazookaBattlefieldLevel.spawns[spawnIndex];
 
   return {
-    angle: 80,
+    angle: 81,
     color: spawnIndex === 0 ? "#00d5ff" : "#ff3fa4",
     displayName: id,
     facing: spawn.facing,
@@ -88,10 +88,10 @@ test("rave war terrain shots create visible craters that affect the surface", ()
   const first = player("first", 0);
   const second = player("second", 1);
   const terrainShot = simulateRaveWarShot({
-    angle: 35,
+    angle: 5,
     craters: [],
     level: bazookaBattlefieldLevel,
-    power: 100,
+    power: 55,
     shooter: first,
     target: second,
     weaponId: "bazooka"

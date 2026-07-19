@@ -11,6 +11,7 @@ import {
   terrainSurfaceFromRgba
 } from "../src/lib/rave-wars/rave-war-terrain-core.ts";
 import { analyzeRaveWarTerrainUpload } from "../src/lib/rave-wars/rave-war-terrain-upload.ts";
+import { bazookaBattlefieldLevel } from "../src/lib/rave-wars/levels/bazooka-battlefield.ts";
 
 test("terrain alpha pixels generate interpolated collision heights", () => {
   const width = 64;
@@ -68,6 +69,21 @@ test("spawn recommendations and interpolation follow generated terrain", () => {
   assert.equal(spawns[1].facing, "left");
   assert.equal(spawns[0].y, terrainSurfaceAtX(surfaceY, spawns[0].x));
   assert.equal(spawns[1].y, terrainSurfaceAtX(surfaceY, spawns[1].x));
+});
+
+test("the built-in Neon Ravine asset matches its collision surface and spawn points", async () => {
+  const terrainPath = join(process.cwd(), "public/rave-wars/maps/neon-ravine/terrain.png");
+  const terrain = readFileSync(terrainPath);
+  const metadata = await sharp(terrain).metadata();
+  const analysis = await analyzeRaveWarTerrainUpload(new File([terrain], "terrain.png", { type: "image/png" }));
+
+  assert.equal(metadata.width, raveWarLevelWidth);
+  assert.equal(metadata.height, raveWarLevelHeight);
+  assert.equal(metadata.channels, 4);
+  assert.equal(bazookaBattlefieldLevel.mapImageUrl, "/rave-wars/maps/neon-ravine/terrain.png");
+  assert.deepEqual(bazookaBattlefieldLevel.terrain.surfaceY, analysis.surfaceY);
+  assert.deepEqual(bazookaBattlefieldLevel.spawns, analysis.recommendedSpawns);
+  assert.equal(analysis.coveragePercent, 100);
 });
 
 test("custom Rave War levels are admin managed and selected for new challenges", () => {
