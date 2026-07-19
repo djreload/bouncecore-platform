@@ -153,9 +153,11 @@ test("homing bee costs ten stars and battlefield camera supports full-map zoom",
   assert.match(service, /balance:\s*{\s*gte: weaponStarCost/s);
   assert.match(service, /decrement: weaponStarCost/);
   assert.match(service, /updatedAt: war\.updatedAt/);
-  assert.match(game, /const cameraFitZoom = 0\.84/);
+  assert.match(game, /const cameraFitZoom = 1\.02/);
   assert.match(game, /handleBattlefieldWheel/);
   assert.match(game, /bc-rave-war-world/);
+  assert.match(game, /className="bc-rave-war-world-svg[^\"]*overflow-visible"/);
+  assert.match(game, /overflow="visible"/);
   assert.match(game, /wind: currentWar\.state\.wind/);
   assert.match(level, /rave-arena-background\.png/);
   assert.match(android, /"Z-", "Zoom out", "zoom-out"/);

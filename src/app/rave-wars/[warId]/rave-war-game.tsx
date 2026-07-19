@@ -46,7 +46,7 @@ const aimHoldStep = 1.35;
 const moveHoldIntervalMs = 185;
 const shotAnimationMinMs = 700;
 const shotAnimationMaxMs = 1350;
-const cameraFitZoom = 0.84;
+const cameraFitZoom = 1.02;
 const cameraMinZoom = 0.72;
 const cameraMaxZoom = 1.8;
 const cameraZoomStep = 0.18;
@@ -1663,7 +1663,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             </div>
 
             <div className="bc-rave-war-world pointer-events-none absolute inset-0" style={worldStyle}>
-            <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${war.level.width} ${war.level.height}`} aria-hidden="true">
+            <svg
+              aria-hidden="true"
+              className="bc-rave-war-world-svg absolute inset-0 h-full w-full overflow-visible"
+              overflow="visible"
+              viewBox={`0 0 ${war.level.width} ${war.level.height}`}
+            >
               <defs>
                 <mask id={terrainMaskId}>
                   <rect fill="#ffffff" height={war.level.height} width={war.level.width} x="0" y="0" />
