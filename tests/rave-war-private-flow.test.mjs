@@ -117,6 +117,7 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /startAimHold/);
   assert.match(game, /bc-rave-war-worm-body/);
   assert.match(game, /bc-rave-war-worm-weapon/);
+  assert.match(game, /bc-rave-war-player-name/);
   assert.match(game, /rave-worm-pink\.png/);
   assert.match(game, /rave-worm-lime\.png/);
   assert.match(game, /playerIndex=\{player\.playerIndex\}/);
@@ -132,6 +133,7 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /visibleProjectileSize/);
   assert.match(css, /\.bc-rave-war-worm-shell\s*{\s*position: relative;\s*display: block;\s*width: 78px;/s);
   assert.match(css, /\.bc-rave-war-worm-body\s*{[^}]*width: 78px;[^}]*object-fit: contain;/s);
+  assert.match(css, /\.bc-rave-war-player-name\s*{\s*bottom: calc\(100% \+ 1rem\);/s);
   assert.match(css, /@keyframes bc-rave-war-worm-wriggle/);
   assert.match(game, /raveWarAssets\.explosion/);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/assets/rave-worm-pink.png")), true);

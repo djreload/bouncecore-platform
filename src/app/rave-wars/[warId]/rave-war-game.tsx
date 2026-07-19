@@ -1803,7 +1803,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                       <div className={healthTone(player.health)} style={{ height: "100%", width: `${player.health}%` }} />
                     </div>
                     <div
-                      className="absolute -top-1 left-1/2 max-w-28 -translate-x-1/2 truncate rounded-full border bg-black/65 px-2 py-0.5 text-center text-[10px] font-black text-white backdrop-blur-sm"
+                      className="bc-rave-war-player-name absolute left-1/2 max-w-28 -translate-x-1/2 truncate rounded-full border bg-black/65 px-2 py-0.5 text-center text-[10px] font-black text-white backdrop-blur-sm"
                       style={{ borderColor: player.color }}
                     >
                       {player.displayName}

@@ -1831,6 +1831,10 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   transform: scaleX(-1);
 }
 
+.bc-rave-war-player-name {
+  bottom: calc(100% + 1rem);
+}
+
 .bc-rave-war-worm-body {
   display: block;
   width: 78px;
