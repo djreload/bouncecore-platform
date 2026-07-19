@@ -6,4 +6,3 @@ export type AdminRaveWarLevelsActionState = {
 export const initialAdminRaveWarLevelsActionState: AdminRaveWarLevelsActionState = {
   status: "idle"
 };
-

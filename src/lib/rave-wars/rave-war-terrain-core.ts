@@ -110,4 +110,3 @@ export function recommendRaveWarSpawns(surfaceY: number[]): [RaveWarLevelSpawn, 
 
   return [first, second];
 }
-

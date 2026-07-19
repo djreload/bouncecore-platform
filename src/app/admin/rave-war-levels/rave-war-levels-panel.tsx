@@ -237,4 +237,3 @@ export function AdminRaveWarLevelsPanel({ data }: AdminRaveWarLevelsPanelProps) 
     </div>
   );
 }
-
