@@ -36,8 +36,14 @@ test("Android WebView uses native fullscreen controls for Rave War", () => {
   assert.match(activity, /WindowInsets\.Type\.statusBars\(\) \| WindowInsets\.Type\.navigationBars\(\)/);
   assert.match(activity, /dispatchRaveWarControl\(control, "down"\)/);
   assert.match(activity, /dispatchRaveWarControl\(control, holdControl \? "up" : "press"\)/);
-  assert.match(activity, /"WPN -", "weapon-prev", false/);
-  assert.match(activity, /"WPN \+", "weapon-next", false/);
+  assert.match(activity, /"W-", "Previous weapon", "weapon-prev", false/);
+  assert.match(activity, /"W\+", "Next weapon", "weapon-next", false/);
+  assert.match(activity, /"Z\+", "Zoom in", "zoom-in", false/);
+  assert.match(activity, /"Z-", "Zoom out", "zoom-out", false/);
+  assert.match(activity, /params\.leftMargin = active \? raveWarLeftSystemInset \+ dp\(72\) : 0/);
+  assert.match(activity, /params\.rightMargin = active \? raveWarRightSystemInset \+ dp\(72\) : 0/);
+  assert.match(activity, /weaponLabel \+ "\\nx"/);
+  assert.doesNotMatch(activity, /Gravity\.TOP \| Gravity\.CENTER_HORIZONTAL/);
   assert.match(activity, /updateRaveWarControlState/);
   assert.match(activity, /button\.setAlpha\(enabled \? 1f : 0\.34f\)/);
   assert.match(activity, /bouncecore:rave-war-native-control/);

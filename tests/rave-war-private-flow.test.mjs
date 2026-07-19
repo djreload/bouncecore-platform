@@ -158,8 +158,8 @@ test("homing bee costs ten stars and battlefield camera supports full-map zoom",
   assert.match(game, /bc-rave-war-world/);
   assert.match(game, /wind: currentWar\.state\.wind/);
   assert.match(level, /rave-arena-background\.png/);
-  assert.match(android, /"ZOOM -", "zoom-out"/);
-  assert.match(android, /"ZOOM \+", "zoom-in"/);
+  assert.match(android, /"Z-", "Zoom out", "zoom-out"/);
+  assert.match(android, /"Z\+", "Zoom in", "zoom-in"/);
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/maps/bazooka-battlefield/rave-arena-background.png")), true);
 });
 
