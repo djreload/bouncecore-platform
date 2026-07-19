@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useActionState, useState } from "react";
 import { CheckCircle2, ImagePlus, Map, MapPin, Play, Trash2 } from "lucide-react";
 import { adminRaveWarLevelsAction } from "@/app/admin/rave-war-levels/actions";
 import { initialAdminRaveWarLevelsActionState } from "@/app/admin/rave-war-levels/state";
@@ -24,23 +25,69 @@ function percent(value: number, total: number) {
 }
 
 export function AdminRaveWarLevelsPanel({ data }: AdminRaveWarLevelsPanelProps) {
-  const [state, formAction, pending] = useActionState(
+  const router = useRouter();
+  const [state, formAction, actionPending] = useActionState(
     adminRaveWarLevelsAction,
     initialAdminRaveWarLevelsActionState
   );
+  const [uploadPending, setUploadPending] = useState(false);
+  const [uploadState, setUploadState] = useState(initialAdminRaveWarLevelsActionState);
+  const pending = actionPending || uploadPending;
+  const feedback = uploadState.status === "idle" ? state : uploadState;
   const activeLevel = data.levels.find((entry) => entry.isActive);
+
+  async function uploadLevel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    setUploadPending(true);
+    setUploadState(initialAdminRaveWarLevelsActionState);
+
+    try {
+      const response = await fetch("/api/admin/rave-war-levels", {
+        body: new FormData(form),
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json"
+        },
+        method: "POST"
+      });
+      const result = (await response.json().catch(() => null)) as { error?: string; message?: string } | null;
+
+      if (!response.ok) {
+        const fallback = response.status === 413
+          ? "The server rejected the combined upload size. Upload smaller source images and try again."
+          : "The level upload failed before it could be processed.";
+        throw new Error(result?.error ?? fallback);
+      }
+
+      setUploadState({
+        message: result?.message ?? "Rave War level uploaded.",
+        status: "success"
+      });
+      form.reset();
+      router.refresh();
+    } catch (error) {
+      setUploadState({
+        message: error instanceof Error ? error.message : "Rave War level upload failed.",
+        status: "error"
+      });
+    } finally {
+      setUploadPending(false);
+    }
+  }
 
   return (
     <div className="grid gap-5">
-      {state.message ? (
+      {feedback.message ? (
         <div
           className={`rounded-md border p-3 text-sm ${
-            state.status === "error"
+            feedback.status === "error"
               ? "border-bc-pink/35 bg-bc-pink/10 text-bc-pink"
               : "border-bc-acid/35 bg-bc-acid/10 text-bc-acid"
           }`}
         >
-          {state.message}
+          {feedback.message}
         </div>
       ) : null}
 
@@ -69,8 +116,7 @@ export function AdminRaveWarLevelsPanel({ data }: AdminRaveWarLevelsPanelProps) 
           </p>
         </div>
 
-        <form action={formAction} className="grid gap-4 lg:grid-cols-2">
-          <input name="intent" type="hidden" value="create" />
+        <form className="grid gap-4 lg:grid-cols-2" onSubmit={uploadLevel}>
           <label className="block">
             <span className="text-xs font-black uppercase text-bc-muted">Level name</span>
             <input className={inputClassName} maxLength={60} name="name" placeholder="Neon Canyon" required />

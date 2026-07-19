@@ -90,6 +90,7 @@ test("custom Rave War levels are admin managed and selected for new challenges",
   const levelService = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-level-service.ts"), "utf8");
   const warService = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
   const panel = readFileSync(join(process.cwd(), "src/app/admin/rave-war-levels/rave-war-levels-panel.tsx"), "utf8");
+  const uploadRoute = readFileSync(join(process.cwd(), "src/app/api/admin/rave-war-levels/route.ts"), "utf8");
 
   assert.match(levelService, /rave-wars\.levels/);
   assert.match(levelService, /prisma\.raveWar\.count/);
@@ -99,4 +100,9 @@ test("custom Rave War levels are admin managed and selected for new challenges",
   assert.match(panel, /name="terrainFile"/);
   assert.match(panel, /name="firstSpawnX"/);
   assert.match(panel, /Levels referenced by wars are retained/);
+  assert.match(panel, /fetch\("\/api\/admin\/rave-war-levels"/);
+  assert.doesNotMatch(panel, /value="create"/);
+  assert.match(uploadRoute, /getApiUserWithPermission\("settings\.manage"\)/);
+  assert.match(uploadRoute, /saveRaveWarTerrainUpload/);
+  assert.match(uploadRoute, /saveOptionalRaveWarBackgroundUpload/);
 });
