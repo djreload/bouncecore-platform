@@ -1786,7 +1786,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
                         isActivePlayer ? "bg-bc-acid/45" : "bg-black/55"
                       }`}
                     />
-                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+                    <div className="bc-rave-war-character-anchor absolute bottom-0 left-1/2 -translate-x-1/2">
                       <RaveWormFrame
                         angle={player.userId === currentUserId ? angle : player.angle}
                         facing={displayFacing}

@@ -117,6 +117,7 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /startAimHold/);
   assert.match(game, /bc-rave-war-worm-body/);
   assert.match(game, /bc-rave-war-worm-weapon/);
+  assert.match(game, /bc-rave-war-character-anchor absolute bottom-0/);
   assert.match(game, /bc-rave-war-player-name/);
   assert.match(game, /rave-worm-pink\.png/);
   assert.match(game, /rave-worm-lime\.png/);
