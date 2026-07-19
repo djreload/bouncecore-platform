@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Inbox, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Send, UserPlus } from "lucide-react";
+import { Ban, Download, Flag, Inbox, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Send, UserPlus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { directMessageMaxLength } from "@/lib/messages/direct-message-core";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 type DirectMessagesPanelProps = {
   currentUserId: string;
   initialData: DirectMessagingData;
+  initialError?: string | null;
 };
 
 type Feedback = {
@@ -62,7 +63,7 @@ async function responseJson(response: Response) {
   return payload;
 }
 
-export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessagesPanelProps) {
+export function DirectMessagesPanel({ currentUserId, initialData, initialError = null }: DirectMessagesPanelProps) {
   const [data, setData] = useState(initialData);
   const [selectedConversationId, setSelectedConversationId] = useState(initialData.selectedConversationId);
   const [recipientId, setRecipientId] = useState(initialData.recipients[0]?.id ?? "");
@@ -70,7 +71,10 @@ export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessag
   const [filename, setFilename] = useState("");
   const [pending, setPending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback>(null);
+  const [feedback, setFeedback] = useState<Feedback>(initialError ? { message: initialError, status: "error" } : null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("harassment");
+  const [reportNotes, setReportNotes] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageViewportRef = useRef<HTMLDivElement>(null);
   const sendFormRef = useRef<HTMLFormElement>(null);
@@ -79,6 +83,7 @@ export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessag
     [data.conversations, selectedConversationId]
   );
   const totalUnread = data.conversations.reduce((total, conversation) => total + conversation.unreadCount, 0);
+  const messagingBlocked = data.selectedBlockState.blockedByCurrentUser || data.selectedBlockState.blockedCurrentUser;
 
   const refresh = useCallback(async (conversationId: string | null = selectedConversationId, quiet = false) => {
     if (!quiet) {
@@ -201,8 +206,57 @@ export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessag
     }
   }
 
+  async function conversationAction(intent: "block" | "report" | "unblock", values?: { notes?: string; reason?: string }) {
+    if (!selectedConversationId || pending) {
+      return;
+    }
+
+    if (
+      intent === "block" &&
+      !window.confirm(`Block ${selectedConversation?.otherUser.displayName ?? "this user"}? Neither of you will be able to send private messages until you unblock them.`)
+    ) {
+      return;
+    }
+
+    setPending(true);
+    setFeedback(null);
+
+    try {
+      const formData = new FormData();
+      formData.set("intent", intent);
+      formData.set("conversationId", selectedConversationId);
+
+      if (values?.reason) {
+        formData.set("reason", values.reason);
+      }
+
+      if (values?.notes) {
+        formData.set("notes", values.notes);
+      }
+
+      const response = await fetch("/api/direct-messages", { body: formData, method: "POST" });
+      await responseJson(response);
+      await refresh(selectedConversationId, true);
+
+      if (intent === "report") {
+        setReportOpen(false);
+        setReportNotes("");
+      }
+
+      setFeedback({
+        message: intent === "block" ? "User blocked." : intent === "unblock" ? "User unblocked." : "Report sent to moderation.",
+        status: "success"
+      });
+    } catch (error) {
+      setFeedback({ message: error instanceof Error ? error.message : "Private message action failed.", status: "error" });
+    } finally {
+      setPending(false);
+    }
+  }
+
   function selectConversation(conversationId: string) {
     setSelectedConversationId(conversationId);
+    setReportOpen(false);
 
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -286,12 +340,86 @@ export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessag
         <div className="flex min-h-[34rem] min-w-0 flex-col">
           {selectedConversation ? (
             <>
-              <header className="flex items-center gap-3 border-b border-bc-line bg-bc-ink/70 p-3">
-                <Avatar user={selectedConversation.otherUser} />
-                <div className="min-w-0">
-                  <h3 className="truncate text-base font-black">{selectedConversation.otherUser.displayName}</h3>
-                  <p className="text-xs text-bc-muted">Private one-to-one conversation</p>
+              <header className="border-b border-bc-line bg-bc-ink/70 p-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar user={selectedConversation.otherUser} />
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-base font-black">{selectedConversation.otherUser.displayName}</h3>
+                    <p className="text-xs text-bc-muted">
+                      {data.selectedBlockState.blockedByCurrentUser
+                        ? "Blocked by you"
+                        : data.selectedBlockState.blockedCurrentUser
+                          ? "This account has blocked private messages"
+                          : "Private one-to-one conversation"}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      aria-label={data.selectedBlockState.blockedByCurrentUser ? `Unblock ${selectedConversation.otherUser.displayName}` : `Block ${selectedConversation.otherUser.displayName}`}
+                      disabled={pending}
+                      onClick={() => void conversationAction(data.selectedBlockState.blockedByCurrentUser ? "unblock" : "block")}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="hidden sm:inline">{data.selectedBlockState.blockedByCurrentUser ? "Unblock" : "Block"}</span>
+                    </Button>
+                    <Button
+                      aria-expanded={reportOpen}
+                      aria-label={`Report ${selectedConversation.otherUser.displayName}`}
+                      disabled={pending}
+                      onClick={() => setReportOpen((current) => !current)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {reportOpen ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <Flag className="h-3.5 w-3.5" aria-hidden="true" />}
+                      <span className="hidden sm:inline">Report</span>
+                    </Button>
+                  </div>
                 </div>
+                {reportOpen ? (
+                  <form
+                    className="mt-3 grid gap-2 rounded-md border border-bc-pink/30 bg-bc-pink/5 p-3 sm:grid-cols-[10rem_minmax(0,1fr)_auto]"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void conversationAction("report", { notes: reportNotes, reason: reportReason });
+                    }}
+                  >
+                    <label className="grid gap-1 text-[11px] font-semibold text-bc-muted">
+                      Report reason
+                      <select
+                        className="min-h-9 rounded-md border border-bc-line bg-bc-panel px-2 text-xs text-white"
+                        disabled={pending}
+                        onChange={(event) => setReportReason(event.target.value)}
+                        value={reportReason}
+                      >
+                        <option value="spam">Spam</option>
+                        <option value="harassment">Harassment</option>
+                        <option value="hate">Hate</option>
+                        <option value="explicit">Explicit content</option>
+                        <option value="copyright">Copyright</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+                    <label className="grid gap-1 text-[11px] font-semibold text-bc-muted">
+                      Optional details
+                      <input
+                        className="min-h-9 min-w-0 rounded-md border border-bc-line bg-bc-panel px-2 text-xs text-white"
+                        disabled={pending}
+                        maxLength={500}
+                        onChange={(event) => setReportNotes(event.target.value)}
+                        placeholder="Tell moderation what happened"
+                        value={reportNotes}
+                      />
+                    </label>
+                    <Button className="self-end" disabled={pending} size="sm" type="submit" variant="pink">
+                      <Flag className="h-3.5 w-3.5" aria-hidden="true" />
+                      Send report
+                    </Button>
+                  </form>
+                ) : null}
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto p-3" ref={messageViewportRef}>
                 <div className="grid gap-3">
@@ -357,6 +485,13 @@ export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessag
                     {feedback.message}
                   </div>
                 ) : null}
+                {messagingBlocked ? (
+                  <div className="rounded-md border border-bc-amber/35 bg-bc-amber/10 px-3 py-2 text-xs text-bc-amber">
+                    {data.selectedBlockState.blockedByCurrentUser
+                      ? `You blocked ${selectedConversation.otherUser.displayName}. Unblock them to resume this conversation.`
+                      : `${selectedConversation.otherUser.displayName} is not accepting private messages from you.`}
+                  </div>
+                ) : (
                 <form className="grid gap-2" onSubmit={sendMessage} ref={sendFormRef}>
                   <textarea
                     className="min-h-16 w-full resize-none rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white placeholder:text-bc-muted"
@@ -401,6 +536,7 @@ export function DirectMessagesPanel({ currentUserId, initialData }: DirectMessag
                   />
                   <p className="text-[11px] text-bc-muted">Enter sends. Shift+Enter adds a line. Images display inline; ZIP files show a private download button.</p>
                 </form>
+                )}
               </footer>
             </>
           ) : (

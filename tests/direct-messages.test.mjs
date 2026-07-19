@@ -38,6 +38,12 @@ test("private messaging schema cascades account deletion and keeps participants 
   assert.match(schema, /DirectConversationUserOne[\s\S]*onDelete: Cascade/);
   assert.match(schema, /DirectConversationUserTwo[\s\S]*onDelete: Cascade/);
   assert.match(schema, /model DirectMessage[\s\S]*conversation[\s\S]*onDelete: Cascade/);
+  assert.match(schema, /model DirectMessageBlock/);
+  assert.match(schema, /DirectMessageBlocker[\s\S]*onDelete: Cascade/);
+  assert.match(schema, /DirectMessageBlockedUser[\s\S]*onDelete: Cascade/);
+  assert.match(schema, /@@unique\(\[blockerId, blockedUserId\]\)/);
+  assert.match(schema, /directConversationId\s+String\?/);
+  assert.match(schema, /directMessageId\s+String\?/);
 });
 
 test("direct message routes authorize participants and private attachment downloads", () => {
@@ -50,6 +56,9 @@ test("direct message routes authorize participants and private attachment downlo
   assert.match(service, /directMessageSendIntervalMs/);
   assert.match(service, /readAt && readAt >= conversation\.lastMessageAt/);
   assert.match(api, /getCurrentUser\(\)/);
+  assert.match(api, /intent === "block"/);
+  assert.match(api, /intent === "unblock"/);
+  assert.match(api, /intent === "report"/);
   assert.match(api, /"Cache-Control": "private, no-store, max-age=0"/);
   assert.match(uploads, /mediaSource: "direct_message_attachment"/);
   assert.match(uploads, /OR: \[\{ userOneId: user\.id \}, \{ userTwoId: user\.id \}\]/);
@@ -69,8 +78,33 @@ test("account messages provides polling unread counts and private file controls"
   assert.match(panel, /\.jpg,\.jpeg,\.jfif,\.png,\.gif,\.webp,\.avif,\.bmp,\.zip/);
   assert.match(panel, /message\.kind === "attachment-image"/);
   assert.match(panel, /message\.kind === "attachment-file"/);
+  assert.match(panel, /blockedByCurrentUser/);
+  assert.match(panel, /blockedCurrentUser/);
+  assert.match(panel, /Send report/);
   const imageBranch = panel.slice(panel.indexOf('message.kind === "attachment-image"'), panel.indexOf('message.kind === "attachment-file"'));
   assert.doesNotMatch(imageBranch, /download/);
+});
+
+test("chat and online user lists provide direct private-message entry points", () => {
+  const chat = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
+  const mobileUsers = readFileSync(join(process.cwd(), "src/components/chat/mobile-online-user-list.tsx"), "utf8");
+  const page = readFileSync(join(process.cwd(), "src/app/account/messages/page.tsx"), "utf8");
+
+  assert.match(chat, /account\/messages\?user=/);
+  assert.match(mobileUsers, /account\/messages\?user=/);
+  assert.match(page, /startDirectConversation\(user\.id, targetUserId\)/);
+});
+
+test("private-message blocks and reports are enforced by the service", () => {
+  const service = readFileSync(join(process.cwd(), "src/lib/messages/direct-message-service.ts"), "utf8");
+
+  assert.match(service, /directMessageBlocksBetween/);
+  assert.match(service, /Unblock this user before sending another private message/);
+  assert.match(service, /blockDirectMessageUser/);
+  assert.match(service, /unblockDirectMessageUser/);
+  assert.match(service, /reportDirectMessageConversation/);
+  assert.match(service, /You already have an open report for this private conversation/);
+  assert.match(service, /messageKind: "direct-message"/);
 });
 
 test("direct message notifications are durable and account deletion removes private files", () => {

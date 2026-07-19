@@ -1,13 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { Target, UsersRound } from "lucide-react";
+import Link from "next/link";
+import { MessageSquare, Target, UsersRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { PublicChatPresenceUserRow } from "@/app/chat/state";
 import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { cn } from "@/lib/utils";
 
 type MobileOnlineUserListProps = {
+  currentUserId?: string | null;
+  onNavigate?: () => void;
   roleDisplayLabels?: RoleDisplayNameMap;
   users: PublicChatPresenceUserRow[];
 };
@@ -30,7 +33,7 @@ function formatPresenceLastActive(value: string) {
   );
 }
 
-export function MobileOnlineUserList({ roleDisplayLabels, users }: MobileOnlineUserListProps) {
+export function MobileOnlineUserList({ currentUserId = null, onNavigate, roleDisplayLabels, users }: MobileOnlineUserListProps) {
   const onlineCount = users.filter((user) => user.status === "online").length;
 
   if (!users.length) {
@@ -85,6 +88,16 @@ export function MobileOnlineUserList({ roleDisplayLabels, users }: MobileOnlineU
                   </Badge>
                 ))}
               </div>
+            ) : null}
+            {currentUserId && user.id !== currentUserId ? (
+              <Link
+                className="bc-focus-ring mt-2 inline-flex min-h-8 w-full items-center justify-center gap-1.5 rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-semibold text-white transition hover:border-bc-electric/60 hover:text-bc-electric"
+                href={`/account/messages?user=${encodeURIComponent(user.id)}`}
+                onClick={onNavigate}
+              >
+                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                Message
+              </Link>
             ) : null}
           </article>
         ))}

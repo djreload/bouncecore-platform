@@ -90,6 +90,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, mobile
           </div>
           <div className="ml-auto lg:hidden">
             <PublicMobileMenu
+              currentUserId={user?.id ?? null}
               isSignedIn={signedIn}
               items={visibleNavigationItems}
               logoUrl={logoUrl}

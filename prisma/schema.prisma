@@ -20,54 +20,56 @@ enum AuditSeverity {
 }
 
 model User {
-  id                      String                      @id @default(cuid())
-  email                   String                      @unique
-  displayName             String
-  passwordHash            String?
-  status                  UserStatus                  @default(pending)
-  emailVerifiedAt         DateTime?
-  lastLoginAt             DateTime?
-  createdAt               DateTime                    @default(now())
-  updatedAt               DateTime                    @updatedAt
-  profile                 Profile?
-  roles                   UserRole[]
-  authAccounts            AuthAccount[]
-  authSessions            AuthSession[]
-  streamKeys              StreamKey[]
-  streamSchedules         StreamSchedule[]
-  auditLogs               AuditLog[]
-  notifications           Notification[]
-  notificationPreference  UserNotificationPreference?
-  performancePreference   UserPerformancePreference?
-  chatReportsMade         ChatReport[]                @relation("ChatReportReporter")
-  chatReportsTargeted     ChatReport[]                @relation("ChatReportTarget")
-  chatReportsResolved     ChatReport[]                @relation("ChatReportResolver")
-  chatBans                ChatBan[]                   @relation("ChatBanUser")
-  chatBansCreated         ChatBan[]                   @relation("ChatBanCreatedBy")
-  chatBansRevoked         ChatBan[]                   @relation("ChatBanRevokedBy")
-  chatReactions           ChatReaction[]
-  directConversationsOne  DirectConversation[]        @relation("DirectConversationUserOne")
-  directConversationsTwo  DirectConversation[]        @relation("DirectConversationUserTwo")
-  directMessagesSent      DirectMessage[]
-  raveWarsChallenged      RaveWar[]                   @relation("RaveWarChallenger")
-  raveWarsTargeted        RaveWar[]                   @relation("RaveWarTarget")
-  raveWarParticipants     RaveWarParticipant[]
-  raveWarEvents           RaveWarEvent[]
-  prizeClaims             PrizeClaim[]                @relation("PrizeClaimUser")
-  prizeClaimsResolved     PrizeClaim[]                @relation("PrizeClaimResolvedBy")
-  invitesCreated          UserInvite[]                @relation("UserInviteCreatedBy")
-  invitesAccepted         UserInvite[]                @relation("UserInviteAcceptedBy")
-  invitesRevoked          UserInvite[]                @relation("UserInviteRevokedBy")
-  producerProfile         ProducerProfile?
-  orders                  Order[]
-  starPurchases           StarPurchase[]
-  starSends               StarSend[]                  @relation("StarSendUser")
-  trackPurchases          DigitalTrackPurchase[]
-  musicCheckouts          MusicCheckout[]
-  requestedPayoutBatches  ProducerPayoutBatch[]       @relation("ProducerPayoutBatchRequestedBy")
-  mobileDevices           MobileDevice[]
-  supportRequests         SupportRequest[]            @relation("SupportRequestUser")
-  supportRequestsResolved SupportRequest[]            @relation("SupportRequestResolver")
+  id                          String                      @id @default(cuid())
+  email                       String                      @unique
+  displayName                 String
+  passwordHash                String?
+  status                      UserStatus                  @default(pending)
+  emailVerifiedAt             DateTime?
+  lastLoginAt                 DateTime?
+  createdAt                   DateTime                    @default(now())
+  updatedAt                   DateTime                    @updatedAt
+  profile                     Profile?
+  roles                       UserRole[]
+  authAccounts                AuthAccount[]
+  authSessions                AuthSession[]
+  streamKeys                  StreamKey[]
+  streamSchedules             StreamSchedule[]
+  auditLogs                   AuditLog[]
+  notifications               Notification[]
+  notificationPreference      UserNotificationPreference?
+  performancePreference       UserPerformancePreference?
+  chatReportsMade             ChatReport[]                @relation("ChatReportReporter")
+  chatReportsTargeted         ChatReport[]                @relation("ChatReportTarget")
+  chatReportsResolved         ChatReport[]                @relation("ChatReportResolver")
+  chatBans                    ChatBan[]                   @relation("ChatBanUser")
+  chatBansCreated             ChatBan[]                   @relation("ChatBanCreatedBy")
+  chatBansRevoked             ChatBan[]                   @relation("ChatBanRevokedBy")
+  chatReactions               ChatReaction[]
+  directConversationsOne      DirectConversation[]        @relation("DirectConversationUserOne")
+  directConversationsTwo      DirectConversation[]        @relation("DirectConversationUserTwo")
+  directMessagesSent          DirectMessage[]
+  directMessageBlocksMade     DirectMessageBlock[]        @relation("DirectMessageBlocker")
+  directMessageBlocksReceived DirectMessageBlock[]        @relation("DirectMessageBlockedUser")
+  raveWarsChallenged          RaveWar[]                   @relation("RaveWarChallenger")
+  raveWarsTargeted            RaveWar[]                   @relation("RaveWarTarget")
+  raveWarParticipants         RaveWarParticipant[]
+  raveWarEvents               RaveWarEvent[]
+  prizeClaims                 PrizeClaim[]                @relation("PrizeClaimUser")
+  prizeClaimsResolved         PrizeClaim[]                @relation("PrizeClaimResolvedBy")
+  invitesCreated              UserInvite[]                @relation("UserInviteCreatedBy")
+  invitesAccepted             UserInvite[]                @relation("UserInviteAcceptedBy")
+  invitesRevoked              UserInvite[]                @relation("UserInviteRevokedBy")
+  producerProfile             ProducerProfile?
+  orders                      Order[]
+  starPurchases               StarPurchase[]
+  starSends                   StarSend[]                  @relation("StarSendUser")
+  trackPurchases              DigitalTrackPurchase[]
+  musicCheckouts              MusicCheckout[]
+  requestedPayoutBatches      ProducerPayoutBatch[]       @relation("ProducerPayoutBatchRequestedBy")
+  mobileDevices               MobileDevice[]
+  supportRequests             SupportRequest[]            @relation("SupportRequestUser")
+  supportRequestsResolved     SupportRequest[]            @relation("SupportRequestResolver")
 
   @@index([status])
   @@index([createdAt])
@@ -484,53 +486,68 @@ model DirectConversation {
   userOne       User            @relation("DirectConversationUserOne", fields: [userOneId], references: [id], onDelete: Cascade)
   userTwo       User            @relation("DirectConversationUserTwo", fields: [userTwoId], references: [id], onDelete: Cascade)
   messages      DirectMessage[]
+  reports       ChatReport[]
 
   @@index([userOneId, lastMessageAt])
   @@index([userTwoId, lastMessageAt])
 }
 
 model DirectMessage {
-  id               String             @id @default(cuid())
-  conversationId   String
-  senderId         String
-  body             String
-  kind             String             @default("text")
-  mediaUrl         String?
-  mediaPreviewUrl  String?
-  mediaAlt         String?
-  mediaSource      String?
-  mediaSourceId    String?
-  deletedAt        DateTime?
-  createdAt        DateTime           @default(now())
-  conversation     DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender           User               @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  id              String             @id @default(cuid())
+  conversationId  String
+  senderId        String
+  body            String
+  kind            String             @default("text")
+  mediaUrl        String?
+  mediaPreviewUrl String?
+  mediaAlt        String?
+  mediaSource     String?
+  mediaSourceId   String?
+  deletedAt       DateTime?
+  createdAt       DateTime           @default(now())
+  conversation    DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User               @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reports         ChatReport[]
 
   @@index([conversationId, createdAt])
   @@index([senderId, createdAt])
 }
 
+model DirectMessageBlock {
+  id            String   @id @default(cuid())
+  blockerId     String
+  blockedUserId String
+  createdAt     DateTime @default(now())
+  blocker       User     @relation("DirectMessageBlocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedUser   User     @relation("DirectMessageBlockedUser", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedUserId])
+  @@index([blockedUserId])
+  @@index([createdAt])
+}
+
 model RaveWar {
-  id            String               @id @default(cuid())
-  roomId        String
-  challengerId  String
-  targetId      String
-  levelKey      String               @default("bazooka-battlefield")
-  status        String               @default("pending")
-  seed          String
-  turnUserId    String?
-  winnerUserId  String?
-  state         Json
-  expiresAt     DateTime
-  acceptedAt    DateTime?
-  startedAt     DateTime?
-  endedAt       DateTime?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  room          ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  challenger    User                 @relation("RaveWarChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
-  target        User                 @relation("RaveWarTarget", fields: [targetId], references: [id], onDelete: Cascade)
-  participants  RaveWarParticipant[]
-  events        RaveWarEvent[]
+  id           String               @id @default(cuid())
+  roomId       String
+  challengerId String
+  targetId     String
+  levelKey     String               @default("bazooka-battlefield")
+  status       String               @default("pending")
+  seed         String
+  turnUserId   String?
+  winnerUserId String?
+  state        Json
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  room         ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  challenger   User                 @relation("RaveWarChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
+  target       User                 @relation("RaveWarTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  participants RaveWarParticipant[]
+  events       RaveWarEvent[]
 
   @@index([roomId, createdAt])
   @@index([challengerId, createdAt])
@@ -687,34 +704,40 @@ model StarSend {
 }
 
 model ChatReport {
-  id                  String       @id @default(cuid())
-  messageId           String?
-  reporterId          String?
-  targetUserId        String?
-  roomId              String?
-  reason              String
-  notes               String?
-  status              String       @default("open")
-  messageBody         String?
-  messageKind         String?
-  mediaPreviewUrl     String?
-  targetDisplayName   String?
-  reporterDisplayName String?
-  resolvedById        String?
-  resolvedAt          DateTime?
-  resolutionNote      String?
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
-  message             ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  reporter            User?        @relation("ChatReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
-  targetUser          User?        @relation("ChatReportTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
-  room                ChatRoom?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
-  resolvedBy          User?        @relation("ChatReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  id                   String              @id @default(cuid())
+  messageId            String?
+  reporterId           String?
+  targetUserId         String?
+  roomId               String?
+  directConversationId String?
+  directMessageId      String?
+  reason               String
+  notes                String?
+  status               String              @default("open")
+  messageBody          String?
+  messageKind          String?
+  mediaPreviewUrl      String?
+  targetDisplayName    String?
+  reporterDisplayName  String?
+  resolvedById         String?
+  resolvedAt           DateTime?
+  resolutionNote       String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  message              ChatMessage?        @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  reporter             User?               @relation("ChatReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  targetUser           User?               @relation("ChatReportTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  room                 ChatRoom?           @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  directConversation   DirectConversation? @relation(fields: [directConversationId], references: [id], onDelete: SetNull)
+  directMessage        DirectMessage?      @relation(fields: [directMessageId], references: [id], onDelete: SetNull)
+  resolvedBy           User?               @relation("ChatReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
 
   @@index([messageId])
   @@index([reporterId])
   @@index([targetUserId])
   @@index([roomId])
+  @@index([directConversationId])
+  @@index([directMessageId])
   @@index([status])
   @@index([createdAt])
 }

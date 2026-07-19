@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import {
+  blockDirectMessageUser,
   getDirectMessagingData,
+  reportDirectMessageConversation,
   sendDirectMessage,
-  startDirectConversation
+  startDirectConversation,
+  unblockDirectMessageUser
 } from "@/lib/messages/direct-message-service";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +70,29 @@ export async function POST(request: Request) {
       });
 
       return noStoreJson({ conversationId, messageId: message.id, status: "success" });
+    }
+
+    if (intent === "block") {
+      const conversationId = formString(formData, "conversationId");
+      await blockDirectMessageUser(conversationId, user.id);
+      return noStoreJson({ conversationId, status: "success" });
+    }
+
+    if (intent === "unblock") {
+      const conversationId = formString(formData, "conversationId");
+      await unblockDirectMessageUser(conversationId, user.id);
+      return noStoreJson({ conversationId, status: "success" });
+    }
+
+    if (intent === "report") {
+      const conversationId = formString(formData, "conversationId");
+      const report = await reportDirectMessageConversation({
+        conversationId,
+        notes: formString(formData, "notes"),
+        reason: formString(formData, "reason"),
+        reporterId: user.id
+      });
+      return noStoreJson({ conversationId, reportId: report.id, status: "success" });
     }
 
     return noStoreJson({ error: "Private message action was not recognized." }, 400);

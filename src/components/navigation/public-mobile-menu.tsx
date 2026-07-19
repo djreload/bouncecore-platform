@@ -16,6 +16,7 @@ import type { RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { cn } from "@/lib/utils";
 
 type PublicMobileMenuProps = {
+  currentUserId?: string | null;
   isSignedIn: boolean;
   items: NavigationItem[];
   logoUrl?: string | null;
@@ -38,7 +39,7 @@ function navigationForAuth(items: NavigationItem[], signedIn: boolean) {
   });
 }
 
-export function PublicMobileMenu({ isSignedIn, items, logoUrl, mobilePresenceUsers = [], roleDisplayLabels, siteName }: PublicMobileMenuProps) {
+export function PublicMobileMenu({ currentUserId = null, isSignedIn, items, logoUrl, mobilePresenceUsers = [], roleDisplayLabels, siteName }: PublicMobileMenuProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [presenceUsers, setPresenceUsers] = useState(mobilePresenceUsers);
@@ -146,7 +147,7 @@ export function PublicMobileMenu({ isSignedIn, items, logoUrl, mobilePresenceUse
                 </button>
               </div>
               <RaveWarChallengeLauncher onNavigate={closeMenu} placement="mobile-menu" />
-              <MobileOnlineUserList roleDisplayLabels={roleDisplayLabels} users={presenceUsers} />
+              <MobileOnlineUserList currentUserId={currentUserId} onNavigate={closeMenu} roleDisplayLabels={roleDisplayLabels} users={presenceUsers} />
             </nav>
 
             <div className="grid shrink-0 gap-2 border-t border-bc-line bg-bc-ink p-4">

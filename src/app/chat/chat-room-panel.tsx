@@ -306,6 +306,7 @@ function ChatPresenceRail({
           {users.length ? (
             <div className="grid gap-2">
               {users.map((user) => {
+                const canShowMessageAction = Boolean(currentUserId && user.id !== currentUserId);
                 const canShowThrowAction = Boolean(currentUserCanThrowSheep && currentUserId && roomId && user.id !== currentUserId);
                 const canShowRaveWarAction = Boolean(currentUserCanStartRaveWars && currentUserId && roomId && user.id !== currentUserId);
                 const throwDisabled =
@@ -351,6 +352,17 @@ function ChatPresenceRail({
                           </Badge>
                         ))}
                       </div>
+                    ) : null}
+                    {canShowMessageAction ? (
+                      <ButtonLink
+                        className="mt-2 w-full min-h-7 px-2 text-[11px]"
+                        href={`/account/messages?user=${encodeURIComponent(user.id)}`}
+                        size="sm"
+                        variant="ghost"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
+                        Message
+                      </ButtonLink>
                     ) : null}
                     {canShowRaveWarAction ? (
                       <form action={formAction} className="mt-2">
@@ -1402,6 +1414,7 @@ export function ChatRoomPanel({
           {visibleMessages.map((message) => {
             const mediaSize = imageSize(message.mediaWidth, message.mediaHeight);
             const canReportMessage = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
+            const canMessageAuthor = Boolean(currentUser && message.authorUserId && currentUser.id !== message.authorUserId);
             const canUseMessageActions = Boolean(currentUser && selectedRoom && !message.deletedAt);
             const canEditOwnMessage = canEditChatMessage({
               authorUserId: message.authorUserId,
@@ -1687,6 +1700,16 @@ export function ChatRoomPanel({
                         <Reply className="h-3.5 w-3.5" aria-hidden="true" />
                         Reply
                       </button>
+
+                      {canMessageAuthor ? (
+                        <Link
+                          className={messageActionButtonClass}
+                          href={`/account/messages?user=${encodeURIComponent(message.authorUserId ?? "")}`}
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-bc-electric" aria-hidden="true" />
+                          Message
+                        </Link>
+                      ) : null}
 
                       {canStartRaveWarAtMessageAuthor ? (
                         <form action={formAction} className="inline-flex">

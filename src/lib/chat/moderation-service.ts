@@ -457,7 +457,7 @@ export async function getAdminReportsData(): Promise<AdminReportsData> {
       resolutionNote: report.resolutionNote,
       resolvedAt: report.resolvedAt?.toISOString() ?? null,
       resolvedByDisplayName: report.resolvedBy?.displayName ?? null,
-      roomName: report.room?.name ?? "Deleted room",
+      roomName: report.room?.name ?? (report.directConversationId ? "Private messages" : "Deleted room"),
       roomSlug: report.room?.slug ?? null,
       status: report.status,
       targetDisplayName: report.targetUser?.displayName ?? report.targetDisplayName ?? "Guest",

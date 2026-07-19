@@ -23,7 +23,7 @@ test("mobile menu receives and refreshes online chat users", () => {
   assert.match(shell, /mobilePresenceUsers\?: PublicChatPresenceUserRow\[\]/);
   assert.match(shell, /<PublicMobileMenu[\s\S]*mobilePresenceUsers=\{mobilePresenceUsers\}/);
   assert.match(mobileMenu, /window\.addEventListener\("bouncecore:chat-presence"/);
-  assert.match(mobileMenu, /<MobileOnlineUserList roleDisplayLabels=\{roleDisplayLabels\} users=\{presenceUsers\}/);
+  assert.match(mobileMenu, /<MobileOnlineUserList[\s\S]*currentUserId=\{currentUserId\}[\s\S]*users=\{presenceUsers\}/);
   assert.match(chatPanel, /new CustomEvent\("bouncecore:chat-presence", \{ detail: \{ users: visiblePresence \} \}\)/);
   assert.match(onlineList, /data-mobile-online-users/);
 });
