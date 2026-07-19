@@ -58,6 +58,7 @@ export const publicNavigation: NavigationItem[] = [
 export const accountNavigation: NavigationItem[] = [
   { label: "Overview", href: "/account", icon: "layout", group: "Account" },
   { label: "Profile", href: "/account/profile", icon: "user", group: "Account" },
+  { label: "Private messages", href: "/account/messages", icon: "message", group: "Account" },
   { label: "Orders", href: "/account/orders", icon: "package", group: "Commerce" },
   { label: "Downloads", href: "/account/downloads", icon: "download", group: "Commerce" },
   { label: "Stars", href: "/account/rewards", icon: "star", group: "Supporter" },

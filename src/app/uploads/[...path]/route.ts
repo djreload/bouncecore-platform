@@ -3,6 +3,7 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db/prisma";
 
 export const dynamic = "force-dynamic";
@@ -151,7 +152,7 @@ async function uploadResponse(request: Request, context: RouteContext, includeBo
 
   if (isTemporaryChatAttachment) {
     const uploadPath = `/uploads/${segments.join("/")}`;
-    const activeReference = await prisma.chatMessage.findFirst({
+    const publicReference = await prisma.chatMessage.findFirst({
       where: {
         deletedAt: null,
         mediaSource: "temporary_chat_attachment",
@@ -162,8 +163,25 @@ async function uploadResponse(request: Request, context: RouteContext, includeBo
       }
     });
 
-    if (!activeReference) {
-      return NextResponse.json({ error: "Chat attachment is no longer available." }, { status: 404 });
+    if (!publicReference) {
+      const user = await getCurrentUser();
+      const privateReference = user
+        ? await prisma.directMessage.findFirst({
+            select: { id: true },
+            where: {
+              conversation: {
+                OR: [{ userOneId: user.id }, { userTwoId: user.id }]
+              },
+              deletedAt: null,
+              mediaSource: "direct_message_attachment",
+              OR: [{ mediaUrl: uploadPath }, { mediaPreviewUrl: uploadPath }]
+            }
+          })
+        : null;
+
+      if (!privateReference) {
+        return NextResponse.json({ error: "Chat attachment is no longer available." }, { status: 404 });
+      }
     }
   }
 

@@ -79,6 +79,7 @@ export async function getManagedUploadReferences(values?: Array<string | null | 
     profiles,
     streamChannels,
     chatMessages,
+    directMessages,
     chatReports,
     chatStickers,
     products,
@@ -117,6 +118,28 @@ export async function getManagedUploadReferences(values?: Array<string | null | 
         mediaPreviewUrl: true,
         mediaUrl: true,
         roomId: true
+      },
+      where: {
+        OR: [
+          {
+            mediaUrl: {
+              startsWith: "/uploads/"
+            }
+          },
+          {
+            mediaPreviewUrl: {
+              startsWith: "/uploads/"
+            }
+          }
+        ]
+      }
+    }),
+    prisma.directMessage.findMany({
+      select: {
+        conversationId: true,
+        id: true,
+        mediaPreviewUrl: true,
+        mediaUrl: true
       },
       where: {
         OR: [
@@ -271,6 +294,32 @@ export async function getManagedUploadReferences(values?: Array<string | null | 
       targets
     );
   });
+  directMessages.forEach((message) => {
+    addUploadReference(
+      references,
+      message.mediaUrl,
+      {
+        field: "mediaUrl",
+        href: "/account/messages",
+        label: `Private message ${message.id}`,
+        recordId: message.id,
+        source: "Private message media"
+      },
+      targets
+    );
+    addUploadReference(
+      references,
+      message.mediaPreviewUrl,
+      {
+        field: "mediaPreviewUrl",
+        href: "/account/messages",
+        label: `Private message ${message.id}`,
+        recordId: message.id,
+        source: "Private message preview"
+      },
+      targets
+    );
+  });
   chatReports.forEach((report) =>
     addUploadReference(
       references,
@@ -400,6 +449,8 @@ export async function getManagedUploadReferenceCount(uploadPath: string) {
     streamChannels,
     chatMessageMediaUrls,
     chatMessagePreviewUrls,
+    directMessageMediaUrls,
+    directMessagePreviewUrls,
     chatReports,
     chatStickers,
     products,
@@ -413,6 +464,8 @@ export async function getManagedUploadReferenceCount(uploadPath: string) {
     prisma.streamChannel.count({ where: { offlineImageUrl: uploadPath } }),
     prisma.chatMessage.count({ where: { mediaUrl: uploadPath } }),
     prisma.chatMessage.count({ where: { mediaPreviewUrl: uploadPath } }),
+    prisma.directMessage.count({ where: { mediaUrl: uploadPath } }),
+    prisma.directMessage.count({ where: { mediaPreviewUrl: uploadPath } }),
     prisma.chatReport.count({ where: { mediaPreviewUrl: uploadPath } }),
     prisma.chatSticker.count({ where: { imageUrl: uploadPath } }),
     prisma.product.count({ where: { imageUrl: uploadPath } }),
@@ -428,6 +481,8 @@ export async function getManagedUploadReferenceCount(uploadPath: string) {
     streamChannels +
     chatMessageMediaUrls +
     chatMessagePreviewUrls +
+    directMessageMediaUrls +
+    directMessagePreviewUrls +
     chatReports +
     chatStickers +
     products +

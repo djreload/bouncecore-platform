@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added participant-authorized private messaging with unread tracking, in-site/mobile alerts, responsive account inboxes, and private image/ZIP sharing whose downloads remain limited to both conversation members.
 - Made targeted throwable visuals, motion, impact feedback, and mobile haptics bypass every in-site performance setting while retaining operating-system reduced-motion accessibility support.
 - Made targeted throwable delivery fail-safe with immediate animated fallbacks, canvas pixel confirmation, interrupted-load replay, uncached victim polling, burst-safe event retrieval, and guaranteed impact feedback even when custom sprite assets fail.
 - Added moderator/admin temporary chat attachments with a paperclip composer action, inline-only image display, ZIP download controls, signature-based validation, active-message download authorization, and automatic file revocation on moderation, room clear, or chat-history pruning.

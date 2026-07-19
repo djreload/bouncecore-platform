@@ -79,6 +79,17 @@ export async function deleteUserAndRelatedData(input: DeleteUserAndRelatedDataIn
         mediaPreviewUrl: true
       }
     });
+    const removedDirectMessageMedia = await tx.directMessage.findMany({
+      where: {
+        conversation: {
+          OR: [{ userOneId: user.id }, { userTwoId: user.id }]
+        }
+      },
+      select: {
+        mediaPreviewUrl: true,
+        mediaUrl: true
+      }
+    });
     const removedProducerTrackMedia = await tx.digitalTrack.findMany({
       where: {
         producer: {
@@ -107,6 +118,7 @@ export async function deleteUserAndRelatedData(input: DeleteUserAndRelatedDataIn
     const uploadPaths = [
       user.profile?.avatarUrl ?? null,
       ...removedChatMedia.flatMap((message) => [message.mediaUrl, message.mediaPreviewUrl]),
+      ...removedDirectMessageMedia.flatMap((message) => [message.mediaUrl, message.mediaPreviewUrl]),
       ...removedReportMedia.map((report) => report.mediaPreviewUrl),
       ...removedProducerTrackMedia.flatMap((track) => [
         track.artworkUrl,
