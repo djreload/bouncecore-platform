@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added Admin -> Rave War levels with transparent PNG terrain uploads, server-generated collision heightfields, automatic spawn recommendations, battlefield previews, editable spawn positions, active-level selection, and deletion guards for referenced levels.
 - Made successful chat composer notices such as sent messages and throws dismiss automatically after 1.8 seconds, while actionable errors remain visible.
 - Added continuous press-and-hold walking to the visible Rave Wars left/right controls for touch and mouse input.
 - Reworked account and admin navigation into compact mobile menus and collapsible related submenus with active-route guidance.

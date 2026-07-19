@@ -14,7 +14,8 @@ import {
   simulateRaveWarShot,
   walkPlayerOnTerrain
 } from "@/lib/rave-wars/rave-war-engine";
-import { getRaveWarLevel, type RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
+import type { RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
+import { getActiveRaveWarLevel, getRaveWarLevel } from "@/lib/rave-wars/rave-war-level-service";
 import { publishRaveWarChanged } from "@/lib/rave-wars/rave-war-realtime";
 import {
   defaultRaveWarSettings,
@@ -362,8 +363,8 @@ function currentUserRole(war: Pick<RaveWarSummarySource, "challengerId" | "targe
   return "spectator";
 }
 
-function toWarSummary(war: RaveWarSummarySource, currentUserId: string): RaveWarSummary {
-  const level = getRaveWarLevel(war.levelKey);
+async function toWarSummary(war: RaveWarSummarySource, currentUserId: string): Promise<RaveWarSummary> {
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
 
   if (normalizeRaveWarStatus(war.status) === "active" && !state.warEndsAt) {
@@ -395,8 +396,9 @@ function toWarSummary(war: RaveWarSummarySource, currentUserId: string): RaveWar
   };
 }
 
-function toChallengeSummary(war: RaveWarSummarySource, currentUserId: string): RaveWarChallengeSummary {
+async function toChallengeSummary(war: RaveWarSummarySource, currentUserId: string): Promise<RaveWarChallengeSummary> {
   const participantsById = new Map(war.participants.map((participant) => [participant.userId, participantDisplayName(participant)]));
+  const level = await getRaveWarLevel(war.levelKey);
 
   return {
     challengerDisplayName: participantsById.get(war.challengerId) ?? "Someone",
@@ -404,7 +406,7 @@ function toChallengeSummary(war: RaveWarSummarySource, currentUserId: string): R
     currentUserRole: war.challengerId === currentUserId ? "challenger" : "target",
     expiresAt: war.expiresAt.toISOString(),
     id: war.id,
-    levelName: getRaveWarLevel(war.levelKey).name,
+    levelName: level.name,
     roomSlug: war.room.slug,
     status: normalizeRaveWarStatus(war.status),
     targetDisplayName: participantsById.get(war.targetId) ?? "Someone"
@@ -620,7 +622,7 @@ async function finishExpiredActiveRaveWarIfNeeded(war: RaveWarSummarySource, cur
     return war;
   }
 
-  const level = getRaveWarLevel(war.levelKey);
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   const effectiveWarEndsAt = state.warEndsAt ?? warEndsAtFallback(war.startedAt);
 
@@ -732,7 +734,7 @@ async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUser
     return war;
   }
 
-  const level = getRaveWarLevel(war.levelKey);
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   state.warEndsAt ??= warEndsAtFallback(war.startedAt);
 
@@ -934,7 +936,7 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
     throw new Error(existing.status === "active" ? "You already have an active Rave War with that chatter." : "A Rave War challenge is already pending.");
   }
 
-  const level = getRaveWarLevel("bazooka-battlefield");
+  const level = await getActiveRaveWarLevel();
   const state = createInitialState({
     activeUserId: null,
     level,
@@ -1194,9 +1196,11 @@ export async function getPendingRaveWarChallenges(userId: string) {
 
   const refreshedWars = await Promise.all(wars.map((war) => finishExpiredActiveRaveWarIfNeeded(war, userId)));
 
-  return refreshedWars
-    .filter((war) => war.status === "pending" || war.status === "active")
-    .map((war) => toChallengeSummary(war, userId));
+  return Promise.all(
+    refreshedWars
+      .filter((war) => war.status === "pending" || war.status === "active")
+      .map((war) => toChallengeSummary(war, userId))
+  );
 }
 
 export async function acceptRaveWarChallenge(warId: string, userId: string) {
@@ -1212,7 +1216,7 @@ export async function acceptRaveWarChallenge(warId: string, userId: string) {
     throw new Error("That Rave War challenge has expired.");
   }
 
-  const level = getRaveWarLevel(war.levelKey);
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   const now = new Date();
   const nextTurnWindow = turnWindow(now);
@@ -1445,7 +1449,7 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
     throw new Error("Choose a valid movement direction.");
   }
 
-  const level = getRaveWarLevel(war.levelKey);
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   state.warEndsAt ??= warEndsAtFallback(war.startedAt);
 
@@ -1549,7 +1553,7 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     throw new Error("Wait for your Rave War turn.");
   }
 
-  const level = getRaveWarLevel(war.levelKey);
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   state.warEndsAt ??= warEndsAtFallback(war.startedAt);
 
@@ -1806,7 +1810,7 @@ export async function surrenderRaveWar(warId: string, userId: string) {
     throw new Error("That Rave War is not active.");
   }
 
-  const level = getRaveWarLevel(war.levelKey);
+  const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   const winner = state.players.find((player) => player.userId !== userId);
   const loser = state.players.find((player) => player.userId === userId);

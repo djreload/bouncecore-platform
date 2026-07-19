@@ -111,6 +111,7 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Stream sessions", href: "/admin/stream-sessions", icon: "activity", group: "Live Streaming", requiredRoles: ["owner", "admin"] },
   { label: "Schedules", href: "/admin/schedules", icon: "calendar", group: "Live Streaming", requiredRoles: ["owner", "admin"] },
   { label: "Chatrooms", href: "/admin/chatrooms", icon: "message", group: "Chat & Moderation", requiredPermission: "moderation.use" },
+  { label: "Rave War levels", href: "/admin/rave-war-levels", icon: "layout", group: "Chat & Moderation", requiredPermission: "settings.manage" },
   { label: "Chat assets", href: "/admin/chat-assets", icon: "sparkles", group: "Chat & Moderation", requiredRoles: ["owner", "admin"] },
   { label: "Reports", href: "/admin/reports", icon: "shield", group: "Chat & Moderation", requiredPermission: "moderation.use" },
   { label: "Bans", href: "/admin/bans", icon: "lock", group: "Chat & Moderation", requiredPermission: "moderation.use" },

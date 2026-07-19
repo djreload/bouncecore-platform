@@ -63,6 +63,8 @@ export const raveWarLevels = {
 
 export type RaveWarLevelKey = keyof typeof raveWarLevels;
 
-export function getRaveWarLevel(levelKey?: string | null) {
+export function getBuiltInRaveWarLevel(levelKey?: string | null) {
   return raveWarLevels[levelKey as RaveWarLevelKey] ?? bazookaBattlefieldLevel;
 }
+
+export const getRaveWarLevel = getBuiltInRaveWarLevel;
