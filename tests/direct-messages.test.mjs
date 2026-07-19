@@ -60,8 +60,10 @@ test("direct message routes authorize participants and private attachment downlo
 test("account messages provides polling unread counts and private file controls", () => {
   const panel = readFileSync(join(process.cwd(), "src/app/account/messages/direct-messages-panel.tsx"), "utf8");
   const navigation = readFileSync(join(process.cwd(), "src/config/navigation.ts"), "utf8");
+  const smoke = readFileSync(join(process.cwd(), "scripts/authenticated-smoke-check.mjs"), "utf8");
 
   assert.match(navigation, /Private messages.*\/account\/messages/);
+  assert.match(smoke, /Private message inbox[\s\S]*\/account\/messages/);
   assert.match(panel, /document\.visibilityState === "visible"/);
   assert.match(panel, /conversation\.unreadCount/);
   assert.match(panel, /\.jpg,\.jpeg,\.jfif,\.png,\.gif,\.webp,\.avif,\.bmp,\.zip/);

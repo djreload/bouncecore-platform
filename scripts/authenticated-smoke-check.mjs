@@ -35,6 +35,12 @@ export const defaultAuthenticatedSmokeChecks = [
     requiredText: ['data-bc-visual-shell="account"', "Settings"]
   }),
   protectedHtmlCheck({
+    id: "account-messages",
+    label: "Private message inbox",
+    path: "/account/messages",
+    requiredText: ['data-bc-visual-shell="account"', "Private messages", "Start a conversation"]
+  }),
+  protectedHtmlCheck({
     id: "admin",
     label: "Admin dashboard",
     path: "/admin",
