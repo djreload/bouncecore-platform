@@ -130,6 +130,7 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /selectedWeapon/);
   assert.match(game, /simulateRaveWarShot/);
   assert.match(game, /startShotAnimation/);
+  assert.match(game, /const visibleShotPath = animatedShot\?\.trail \?\? \[\]/);
   assert.match(game, /visibleShotWeapon\.projectileUrl/);
   assert.match(game, /visibleProjectileSize/);
   assert.match(css, /\.bc-rave-war-worm-shell\s*{\s*position: relative;\s*display: block;\s*width: 78px;/s);

@@ -249,6 +249,15 @@ function turnAngleTowards(current: number, target: number, maxStep: number) {
   return current + clamp(delta, -maxStep, maxStep);
 }
 
+function projectileIntersectsPlayer(x: number, y: number, player: RaveWarPlayerState, hitRadius: number) {
+  const horizontalRadius = Math.max(38, hitRadius * 0.72);
+  const verticalRadius = Math.max(52, hitRadius);
+  const normalizedX = (x - player.x) / horizontalRadius;
+  const normalizedY = (y - (player.y - 43)) / verticalRadius;
+
+  return normalizedX ** 2 + normalizedY ** 2 <= 1;
+}
+
 export function simulateRaveWarShot(input: {
   angle: number;
   craters: RaveWarTerrainCrater[];
@@ -299,7 +308,8 @@ export function simulateRaveWarShot(input: {
       vy += weapon.gravity;
     }
 
-    const substeps = Math.max(2, Math.ceil(Math.hypot(x - previousX, y - previousY) / 18));
+    // Fine-grained swept sampling prevents fast projectiles from tunnelling through a player.
+    const substeps = Math.max(2, Math.ceil(Math.hypot(x - previousX, y - previousY) / 6));
 
     for (let substep = 1; substep <= substeps; substep += 1) {
       const t = substep / substeps;
@@ -309,7 +319,7 @@ export function simulateRaveWarShot(input: {
 
       closestDistance = Math.min(closestDistance, targetDistance);
 
-      if (targetDistance <= weapon.hitRadius) {
+      if (projectileIntersectsPlayer(sampleX, sampleY, input.target, weapon.hitRadius)) {
         impactKind = "hog";
         impactPoint = {
           x: sampleX,
@@ -340,7 +350,17 @@ export function simulateRaveWarShot(input: {
       }
     }
 
-    if (step % weapon.pathStep === 0) {
+    if (hasImpact) {
+      const finalPoint = {
+        x: Math.round(impactPoint.x),
+        y: Math.round(impactPoint.y)
+      };
+      const previousPoint = path[path.length - 1];
+
+      if (!previousPoint || previousPoint.x !== finalPoint.x || previousPoint.y !== finalPoint.y) {
+        path.push(finalPoint);
+      }
+    } else if (step % weapon.pathStep === 0) {
       path.push({
         x: Math.round(x),
         y: Math.round(y)

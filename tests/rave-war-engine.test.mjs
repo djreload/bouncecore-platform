@@ -59,6 +59,47 @@ test("rave war default spawns can hit in both directions", () => {
   assert.ok(secondShot.damage > 0);
 });
 
+test("fast projectiles stop and explode at the first player contact", () => {
+  const level = {
+    ...bazookaBattlefieldLevel,
+    height: 600,
+    spawns: [
+      { facing: "right", x: 100, y: 500 },
+      { facing: "left", x: 900, y: 500 }
+    ],
+    terrain: {
+      sampleStep: 20,
+      surfaceY: Array.from({ length: 61 }, () => 550)
+    },
+    width: 1200
+  };
+  const shooter = {
+    ...player("shooter", 0),
+    facing: "right",
+    x: 100,
+    y: 500
+  };
+  const target = {
+    ...player("target", 1),
+    facing: "left",
+    x: 900,
+    y: 500
+  };
+  const shot = simulateRaveWarShot({
+    angle: 0,
+    craters: [],
+    level,
+    power: 100,
+    shooter,
+    target,
+    weaponId: "shotgun"
+  });
+
+  assert.equal(shot.impactKind, "hog");
+  assert.deepEqual(shot.path.at(-1), shot.impactPoint);
+  assert.ok(shot.impactPoint.x < target.x, "the projectile should stop at the near edge of the player");
+});
+
 test("every registered rave war weapon has physics and produces a visible projectile path", () => {
   const first = player("first", 0);
   const second = player("second", 1);

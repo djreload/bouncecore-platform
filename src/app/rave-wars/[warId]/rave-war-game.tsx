@@ -423,7 +423,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const selectedWeaponAmmo = ammoForWeapon(currentPlayer, selectedWeapon);
   const canFire = canControl && !busy && selectedWeaponAmmo > 0;
   const canAccept = war.status === "pending" && war.currentUserRole === "target";
-  const visibleShotPath = animatedShot ? animatedShot.trail : war.state.lastShot?.path ?? [];
+  const visibleShotPath = animatedShot?.trail ?? [];
   const currentAimPlayer = currentPlayer
     ? {
         ...currentPlayer,
