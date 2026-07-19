@@ -22,9 +22,21 @@ test("sheep throw overlay can play impact sounds and mobile haptics", () => {
   assert.match(content, /navigator\.vibrate\(pattern\)/);
   assert.match(content, /const incomingVibrationPattern = \[80, 55, 120, 55, 170, 55, 230, 55, 300\]/);
   assert.match(content, /const impactVibrationPattern = \[180, 45, 120, 45, 90\]/);
-  assert.match(content, /vibrateMobile\(incomingVibrationPattern, performancePreferencesRef\.current\.hapticsEnabled\)/);
-  assert.match(content, /vibrateMobile\(impactVibrationPattern, performancePreferencesRef\.current\.hapticsEnabled\)/);
+  assert.match(content, /vibrateMobile\(incomingVibrationPattern\)/);
+  assert.match(content, /vibrateMobile\(impactVibrationPattern\)/);
   assert.match(content, /if \(!mobileVibrationAvailable\(\)\)/);
+});
+
+test("targeted throwables bypass in-site performance settings", () => {
+  const content = readFileSync(join(process.cwd(), "src/components/chat/sheep-throw-overlay.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+
+  assert.doesNotMatch(content, /usePerformancePreferences|performancePreferencesRef/);
+  assert.doesNotMatch(css, /data-bc-animations-enabled="false"\][^{]*bc-throwable-fallback/);
+  assert.doesNotMatch(css, /data-bc-animations-enabled="false"\][^{]*bc-sheep-motion-blur/);
+  assert.doesNotMatch(css, /data-bc-animations-enabled="false"\][^{]*bc-sheep-impact-wobble/);
+  assert.match(content, /window\.matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
 test("sheep throw overlay waits for the canvas before starting animation", () => {

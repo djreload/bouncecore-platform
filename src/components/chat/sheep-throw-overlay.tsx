@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
-import type { EffectivePerformancePreferences } from "@/lib/account/performance-preferences-core";
 import type { ChatSheepThrowOverlayData, ChatSheepThrowSummary } from "@/lib/chat/sheep-throw-service";
 import { defaultSheepThrowSettings, defaultSheepThrowSprite, type SheepThrowSettings, type SheepThrowSprite } from "@/lib/chat/sheep-throw-settings";
 
@@ -111,11 +109,8 @@ function throwLabel(sheepThrow: ChatSheepThrowSummary) {
     : `${sheepThrow.throwerDisplayName} threw ${article} ${spriteLabel}`;
 }
 
-function reducedMotionEnabled(performancePreferences?: EffectivePerformancePreferences) {
-  return (
-    performancePreferences?.animationsEnabled === false ||
-    (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
-  );
+function reducedMotionEnabled() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 function mobileVibrationAvailable() {
@@ -126,8 +121,8 @@ function mobileVibrationAvailable() {
   return navigator.maxTouchPoints > 0 || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-function vibrateMobile(pattern: number | number[], enabled: boolean) {
-  if (!enabled || reducedMotionEnabled()) {
+function vibrateMobile(pattern: number | number[]) {
+  if (reducedMotionEnabled()) {
     return;
   }
 
@@ -181,7 +176,6 @@ function canvasRegionHasVisiblePixels(
 }
 
 export function SheepThrowOverlay() {
-  const { effective: performancePreferences } = usePerformancePreferences();
   const [activeThrow, setActiveThrow] = useState<ChatSheepThrowSummary | null>(null);
   const [incomingBlur, setIncomingBlur] = useState(false);
   const [settings, setSettings] = useState<SheepThrowSettings>(defaultSheepThrowSettings);
@@ -197,7 +191,6 @@ export function SheepThrowOverlay() {
   const imageCacheRef = useRef(new Map<string, LoadedImages>());
   const drawFrameRef = useRef<(timestamp: number) => void>(() => undefined);
   const playNextRef = useRef<() => void>(() => undefined);
-  const performancePreferencesRef = useRef(performancePreferences);
   const queueRef = useRef<ChatSheepThrowSummary[]>([]);
   const seenIdsRef = useRef(new Set<string>());
   const settingsRef = useRef(settings);
@@ -264,7 +257,7 @@ export function SheepThrowOverlay() {
       setIncomingBlur(false);
       document.documentElement.classList.add("bc-sheep-impact-wobble");
       playImpactSound(sprite.impactSoundUrl);
-      vibrateMobile(impactVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
+      vibrateMobile(impactVibrationPattern);
 
       if (wobbleTimeoutRef.current !== null) {
         window.clearTimeout(wobbleTimeoutRef.current);
@@ -494,7 +487,7 @@ export function SheepThrowOverlay() {
       return;
     }
 
-    const motionEnabled = !reducedMotionEnabled(performancePreferencesRef.current);
+    const motionEnabled = !reducedMotionEnabled();
 
     loadingThrowRef.current = nextThrow.id;
     activeThrowRef.current = nextThrow;
@@ -507,7 +500,7 @@ export function SheepThrowOverlay() {
     setIncomingBlur(motionEnabled);
 
     if (motionEnabled) {
-      vibrateMobile(incomingVibrationPattern, performancePreferencesRef.current.hapticsEnabled);
+      vibrateMobile(incomingVibrationPattern);
     }
 
     if (timeoutRef.current !== null) {
@@ -658,21 +651,6 @@ export function SheepThrowOverlay() {
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
-
-  useEffect(() => {
-    performancePreferencesRef.current = performancePreferences;
-
-    if (!performancePreferences.animationsEnabled && activeThrowRef.current && imageRef.current) {
-      const cleanupTimer = window.setTimeout(() => {
-        setIncomingBlur(false);
-        document.documentElement.classList.remove("bc-sheep-impact-wobble");
-        stopAnimation();
-        drawStaticImpact(imageRef.current as LoadedImages);
-      }, 0);
-
-      return () => window.clearTimeout(cleanupTimer);
-    }
-  }, [drawStaticImpact, performancePreferences, stopAnimation]);
 
   useEffect(() => {
     void loadImagesForSprite(defaultSheepThrowSprite).catch(() => {

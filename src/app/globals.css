@@ -142,10 +142,7 @@ html[data-bc-animations-enabled="false"] .bc-music-top-five,
 html[data-bc-animations-enabled="false"] .bc-star-alert-card,
 html[data-bc-animations-enabled="false"] .bc-star-alert-floating-star,
 html[data-bc-animations-enabled="false"] .bc-star-alert-confetti,
-html[data-bc-animations-enabled="false"] .bc-star-alert-firework,
-html[data-bc-animations-enabled="false"] .bc-throwable-fallback,
-html[data-bc-animations-enabled="false"] .bc-sheep-motion-blur,
-html[data-bc-animations-enabled="false"].bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-overlay]) {
+html[data-bc-animations-enabled="false"] .bc-star-alert-firework {
   animation: none !important;
   filter: none !important;
   transform: none !important;
