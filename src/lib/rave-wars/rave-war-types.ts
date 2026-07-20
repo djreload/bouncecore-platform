@@ -65,6 +65,7 @@ export type RaveWarLastShot = {
 
 export type RaveWarState = {
   activeUserId: string | null;
+  challengeCostStars: number | null;
   craters: RaveWarTerrainCrater[];
   lastShot: RaveWarLastShot | null;
   levelKey: string;
@@ -113,12 +114,15 @@ export type RaveWarSummary = {
 
 export type RaveWarChallengeSummary = {
   challengerDisplayName: string;
+  costStars: number | null;
   createdAt: string;
   currentUserRole: "challenger" | "target";
   expiresAt: string;
   id: string;
   levelName: string;
+  matchDurationSeconds: number;
   roomSlug: string;
   status: RaveWarStatus;
   targetDisplayName: string;
+  turnDurationSeconds: number;
 };

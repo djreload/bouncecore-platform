@@ -198,6 +198,13 @@ test("rave war controls share one global provider and pending recipient invites 
   assert.match(overlay, /role="dialog"/);
   assert.match(overlay, /fixed inset-0 z-\[110\] grid place-items-center/);
   assert.match(overlay, /This invitation stays here until you accept, decline, or it expires\./);
+  assert.match(overlay, /<RaveWarChallengeTerms challenge=\{pendingInvite\} \/>/);
+  assert.match(overlay, /Accepting deducts 0 stars from you\./);
+  assert.match(overlay, /formatRaveWarChallengeCost\(challenge\.costStars\)/);
+  assert.match(overlay, /formatRaveWarRuleDuration\(challenge\.matchDurationSeconds\)/);
+  assert.match(service, /costStars: state\.challengeCostStars/);
+  assert.match(service, /matchDurationSeconds: state\.matchDurationSeconds/);
+  assert.match(service, /turnDurationSeconds: state\.turnDurationSeconds/);
   assert.doesNotMatch(overlay, /Hide Rave War challenge/);
   assert.doesNotMatch(overlay, /dismissedIds/);
   assert.match(layout, /<RaveWarChallengeProvider>/);

@@ -31,6 +31,7 @@ import {
   type RaveWarSettings,
   type RaveWarSettingsInput
 } from "@/lib/rave-wars/rave-war-settings";
+import { formatRaveWarRuleDuration } from "@/lib/rave-wars/rave-war-challenge-terms";
 import {
   raveWarWeaponIds,
   raveWarStatuses,
@@ -168,14 +169,14 @@ function isWarExpired(state: Pick<RaveWarState, "warEndsAt">, now = new Date()) 
   return Boolean(state.warEndsAt && new Date(state.warEndsAt).getTime() <= now.getTime());
 }
 
-function warEndsAtFallback(startedAt: Date | string | null | undefined) {
+function warEndsAtFallback(startedAt: Date | string | null | undefined, matchDurationSeconds = raveWarMatchSeconds) {
   if (!startedAt) {
     return null;
   }
 
   const startedAtMs = startedAt instanceof Date ? startedAt.getTime() : new Date(startedAt).getTime();
 
-  return Number.isFinite(startedAtMs) ? new Date(startedAtMs + raveWarMatchSeconds * 1000).toISOString() : null;
+  return Number.isFinite(startedAtMs) ? new Date(startedAtMs + matchDurationSeconds * 1000).toISOString() : null;
 }
 
 function participantDisplayName(participant: RaveWarParticipantSource | null | undefined) {
@@ -184,6 +185,7 @@ function participantDisplayName(participant: RaveWarParticipantSource | null | u
 
 function createInitialState(input: {
   activeUserId: string | null;
+  challengeCostStars?: number | null;
   level: RaveWarLevel;
   matchDurationSeconds?: number;
   players: Array<{
@@ -197,6 +199,7 @@ function createInitialState(input: {
 
   return {
     activeUserId: input.activeUserId,
+    challengeCostStars: input.challengeCostStars ?? null,
     craters: [],
     lastShot: null,
     levelKey: input.level.key,
@@ -340,6 +343,10 @@ export function normalizeRaveWarState(value: Prisma.JsonValue, participants: Rav
 
   return {
     activeUserId: typeof value.activeUserId === "string" ? value.activeUserId : null,
+    challengeCostStars:
+      typeof value.challengeCostStars === "number" && Number.isFinite(value.challengeCostStars)
+        ? Math.floor(normalizeShotNumber(value.challengeCostStars, 0, 0, 1_000_000))
+        : null,
     craters: Array.isArray(value.craters)
       ? value.craters.map(normalizeTerrainCrater).filter((crater): crater is RaveWarTerrainCrater => Boolean(crater)).slice(-raveWarMaxTerrainCraters)
       : [],
@@ -393,7 +400,7 @@ async function toWarSummary(war: RaveWarSummarySource, currentUserId: string): P
   const state = normalizeRaveWarState(war.state, war.participants, level);
 
   if (normalizeRaveWarStatus(war.status) === "active" && !state.warEndsAt) {
-    state.warEndsAt = warEndsAtFallback(war.startedAt);
+    state.warEndsAt = warEndsAtFallback(war.startedAt, state.matchDurationSeconds);
   }
 
   return {
@@ -424,17 +431,21 @@ async function toWarSummary(war: RaveWarSummarySource, currentUserId: string): P
 async function toChallengeSummary(war: RaveWarSummarySource, currentUserId: string): Promise<RaveWarChallengeSummary> {
   const participantsById = new Map(war.participants.map((participant) => [participant.userId, participantDisplayName(participant)]));
   const level = await getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
 
   return {
     challengerDisplayName: participantsById.get(war.challengerId) ?? "Someone",
+    costStars: state.challengeCostStars,
     createdAt: war.createdAt.toISOString(),
     currentUserRole: war.challengerId === currentUserId ? "challenger" : "target",
     expiresAt: war.expiresAt.toISOString(),
     id: war.id,
     levelName: level.name,
+    matchDurationSeconds: state.matchDurationSeconds,
     roomSlug: war.room.slug,
     status: normalizeRaveWarStatus(war.status),
-    targetDisplayName: participantsById.get(war.targetId) ?? "Someone"
+    targetDisplayName: participantsById.get(war.targetId) ?? "Someone",
+    turnDurationSeconds: state.turnDurationSeconds
   };
 }
 
@@ -1042,6 +1053,7 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
   const level = await getActiveRaveWarLevel();
   const state = createInitialState({
     activeUserId: null,
+    challengeCostStars: settings.costStars,
     level,
     matchDurationSeconds: settings.matchDurationSeconds,
     players: [
@@ -1138,7 +1150,10 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
     const event = await writeWarEvent(tx, {
       payload: {
         challengerDisplayName: challenger.displayName,
-        targetDisplayName: target.displayName
+        costStars: settings.costStars,
+        matchDurationSeconds: settings.matchDurationSeconds,
+        targetDisplayName: target.displayName,
+        turnDurationSeconds: settings.turnDurationSeconds
       },
       type: "challenge.created",
       userId: challenger.id,
@@ -1161,7 +1176,7 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
       },
       data: {
         actionUrl: `/rave-wars/${war.id}`,
-        body: `Open the private arena from #${room.slug}.`,
+        body: `${formatRaveWarRuleDuration(settings.matchDurationSeconds)} match, ${formatRaveWarRuleDuration(settings.turnDurationSeconds)} turns. Accepting costs no additional stars.`,
         dedupeKey: `chat.rave_war.challenge:${war.id}:user:${target.id}`,
         title: `${challenger.displayName} challenged you to a Rave War`,
         type: "chat.rave_war.challenge",

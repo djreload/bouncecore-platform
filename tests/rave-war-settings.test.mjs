@@ -9,6 +9,10 @@ import {
   normalizeRaveWarSettingsInput,
   remainingRaveWarCooldownSeconds
 } from "../src/lib/rave-wars/rave-war-settings.ts";
+import {
+  formatRaveWarChallengeCost,
+  formatRaveWarRuleDuration
+} from "../src/lib/rave-wars/rave-war-challenge-terms.ts";
 
 test("rave war settings default to enabled with free five minute challenges", () => {
   assert.equal(defaultRaveWarSettings.enabled, true);
@@ -112,6 +116,15 @@ test("rave war cooldown returns remaining seconds and compact labels", () => {
   assert.equal(formatRaveWarCooldownLabel(75), "1m 15s");
 });
 
+test("rave war challenge terms use compact, honest labels", () => {
+  assert.equal(formatRaveWarRuleDuration(45), "45s");
+  assert.equal(formatRaveWarRuleDuration(90), "1m 30s");
+  assert.equal(formatRaveWarRuleDuration(600), "10m");
+  assert.equal(formatRaveWarChallengeCost(0), "Free");
+  assert.equal(formatRaveWarChallengeCost(10), "10 stars");
+  assert.equal(formatRaveWarChallengeCost(null), "Legacy");
+});
+
 test("rave war service enforces enabled flag cooldown and cost before creating", () => {
   const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
   const targetIndex = service.indexOf("resolveActiveChallengeTarget(challengerId, targetUserId)");
@@ -146,6 +159,7 @@ test("new challenges snapshot timer settings for their full lifecycle", () => {
   const adminService = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-admin-service.ts"), "utf8");
 
   assert.match(service, /matchDurationSeconds: settings\.matchDurationSeconds/);
+  assert.match(service, /challengeCostStars: settings\.costStars/);
   assert.match(service, /turnDurationSeconds: settings\.turnDurationSeconds/);
   assert.match(service, /matchWindow\(now, state\.matchDurationSeconds\)/);
   assert.match(service, /turnWindow\(now, state\.turnDurationSeconds\)/);

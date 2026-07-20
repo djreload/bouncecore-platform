@@ -2,9 +2,10 @@
 
 import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { ChevronDown, Clock3, Swords } from "lucide-react";
+import { ChevronDown, Clock3, Hourglass, Star, Swords, TimerReset } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
+import { formatRaveWarChallengeCost, formatRaveWarRuleDuration } from "@/lib/rave-wars/rave-war-challenge-terms";
 import type { RaveWarChallengeSummary } from "@/lib/rave-wars/rave-war-types";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +47,49 @@ function challengeExpiryLabel(expiresAt: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date)}.`;
+}
+
+function RaveWarChallengeTerms({ challenge }: { challenge: RaveWarChallengeSummary }) {
+  const acceptingIsFree = challenge.currentUserRole === "target" && challenge.status === "pending";
+
+  return (
+    <div className="mt-3">
+      <dl className="grid grid-cols-3 divide-x divide-bc-line overflow-hidden rounded-md border border-bc-line bg-bc-ink text-center">
+        <div className="min-w-0 px-2 py-2.5">
+          <dt className="flex items-center justify-center gap-1 text-[10px] font-black uppercase text-bc-muted">
+            <Hourglass className="h-3 w-3 text-bc-electric" aria-hidden="true" />
+            Match
+          </dt>
+          <dd className="mt-1 truncate text-xs font-black text-white">
+            {formatRaveWarRuleDuration(challenge.matchDurationSeconds)}
+          </dd>
+        </div>
+        <div className="min-w-0 px-2 py-2.5">
+          <dt className="flex items-center justify-center gap-1 text-[10px] font-black uppercase text-bc-muted">
+            <TimerReset className="h-3 w-3 text-bc-amber" aria-hidden="true" />
+            Turn
+          </dt>
+          <dd className="mt-1 truncate text-xs font-black text-white">
+            {formatRaveWarRuleDuration(challenge.turnDurationSeconds)}
+          </dd>
+        </div>
+        <div className="min-w-0 px-2 py-2.5">
+          <dt className="flex items-center justify-center gap-1 text-[10px] font-black uppercase text-bc-muted">
+            <Star className="h-3 w-3 text-bc-acid" aria-hidden="true" />
+            Stars
+          </dt>
+          <dd className="mt-1 truncate text-xs font-black text-white">
+            {formatRaveWarChallengeCost(challenge.costStars)}
+          </dd>
+        </div>
+      </dl>
+      {acceptingIsFree ? (
+        <p className="mt-2 text-center text-[11px] font-semibold text-bc-acid">Accepting deducts 0 stars from you.</p>
+      ) : challenge.costStars && challenge.costStars > 0 ? (
+        <p className="mt-2 text-center text-[11px] font-semibold text-bc-muted">Entry stars were deducted when this challenge was sent.</p>
+      ) : null}
+    </div>
+  );
 }
 
 function useRaveWarChallengeContext() {
@@ -209,6 +253,7 @@ export function RaveWarChallengeLauncher({ onNavigate, placement = "desktop" }: 
               <p className="mt-1 text-xs text-bc-muted">
                 {challenge.levelName} in #{challenge.roomSlug}
               </p>
+              <RaveWarChallengeTerms challenge={challenge} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {isActive ? (
@@ -393,6 +438,7 @@ export function RaveWarChallengeOverlay() {
           <div className="mt-4 rounded-md border border-bc-line bg-bc-panel p-3">
             <p className="font-black text-white">{challengeLabel(pendingInvite)}</p>
             <p className="mt-1 text-xs text-bc-muted">#{pendingInvite.roomSlug}</p>
+            <RaveWarChallengeTerms challenge={pendingInvite} />
             <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-bc-muted">
               <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
               {challengeExpiryLabel(pendingInvite.expiresAt)}
