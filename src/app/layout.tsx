@@ -4,6 +4,10 @@ import { MobileApkInstallPrompt } from "@/components/mobile/mobile-apk-install-p
 import { BrowserResourceSaver } from "@/components/performance/browser-resource-saver";
 import { SitePresenceHeartbeat } from "@/components/presence/site-presence-heartbeat";
 import { CookieConsentManager } from "@/components/privacy/cookie-consent-manager";
+import {
+  RaveWarChallengeOverlay,
+  RaveWarChallengeProvider
+} from "@/components/rave-wars/rave-war-challenge-overlay";
 import { SiteConnectionRecovery } from "@/components/runtime/site-connection-recovery";
 import { defaultSiteFaviconUrl, getPublicSiteSettings } from "@/lib/admin/site-settings-service";
 import { configuredAppOrigin } from "@/lib/http/app-url";
@@ -97,7 +101,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body>
-        {children}
+        <RaveWarChallengeProvider>
+          {children}
+          <RaveWarChallengeOverlay />
+        </RaveWarChallengeProvider>
         <BrowserResourceSaver />
         <PersistentLiveAudio />
         <SiteConnectionRecovery />

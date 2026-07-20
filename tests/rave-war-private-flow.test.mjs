@@ -183,16 +183,27 @@ test("homing bee costs ten stars and battlefield camera supports full-map zoom",
   assert.equal(existsSync(join(process.cwd(), "public/rave-wars/maps/bazooka-battlefield/rave-arena-background.png")), true);
 });
 
-test("rave war prompts live in header and mobile menu instead of covering chat", () => {
+test("rave war controls share one global provider and pending recipient invites stay in a centered modal", () => {
   const overlay = readFileSync(join(process.cwd(), "src/components/rave-wars/rave-war-challenge-overlay.tsx"), "utf8");
+  const layout = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
   const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");
   const mobileMenu = readFileSync(join(process.cwd(), "src/components/navigation/public-mobile-menu.tsx"), "utf8");
   const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
 
   assert.match(service, /in: \["pending", "active"\]/);
+  assert.match(overlay, /RaveWarChallengeProvider/);
   assert.match(overlay, /RaveWarChallengeLauncher/);
-  assert.doesNotMatch(overlay, /fixed bottom-4 right-4/);
-  assert.match(shell, /<RaveWarChallengeOverlay \/>/);
+  assert.match(overlay, /challenge\.status === "pending" && challenge\.currentUserRole === "target"/);
+  assert.match(overlay, /aria-modal="true"/);
+  assert.match(overlay, /role="dialog"/);
+  assert.match(overlay, /fixed inset-0 z-\[110\] grid place-items-center/);
+  assert.match(overlay, /This invitation stays here until you accept, decline, or it expires\./);
+  assert.doesNotMatch(overlay, /Hide Rave War challenge/);
+  assert.doesNotMatch(overlay, /dismissedIds/);
+  assert.match(layout, /<RaveWarChallengeProvider>/);
+  assert.match(layout, /<RaveWarChallengeOverlay \/>/);
+  assert.match(layout, /\{children\}[\s\S]*<RaveWarChallengeOverlay \/>/);
+  assert.match(shell, /<RaveWarChallengeLauncher placement="desktop" \/>/);
   assert.match(mobileMenu, /placement="mobile-menu"/);
   assert.match(overlay, /Open Battle/);
 });

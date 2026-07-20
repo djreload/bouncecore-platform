@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   consentAllowsCategory,
@@ -65,4 +67,18 @@ test("saved consent records are normalized defensively", () => {
   assert.equal(record?.preferences.analytics, false);
   assert.equal(record?.preferences.marketing, true);
   assert.equal(record?.version, 1);
+});
+
+test("cookie choices use a centered accessible modal on first visit and when reopened", () => {
+  const manager = readFileSync(join(process.cwd(), "src/components/privacy/cookie-consent-manager.tsx"), "utf8");
+
+  assert.match(manager, /fixed inset-0 z-\[100\] grid place-items-center/);
+  assert.match(manager, /role="dialog"/);
+  assert.match(manager, /aria-modal="true"/);
+  assert.match(manager, /aria-labelledby="cookie-consent-title"/);
+  assert.match(manager, /aria-describedby="cookie-consent-description"/);
+  assert.match(manager, /max-h-\[calc\(100dvh-2rem\)\]/);
+  assert.match(manager, /data-cookie-primary/);
+  assert.match(manager, /event\.key !== "Tab"/);
+  assert.doesNotMatch(manager, /fixed inset-x-0 bottom-0/);
 });

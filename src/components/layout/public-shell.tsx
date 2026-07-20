@@ -5,7 +5,7 @@ import { HeaderAjaxCart } from "@/components/cart/header-ajax-cart";
 import { SheepThrowOverlay } from "@/components/chat/sheep-throw-overlay";
 import { NavList } from "@/components/navigation/nav-list";
 import { PublicMobileMenu } from "@/components/navigation/public-mobile-menu";
-import { RaveWarChallengeOverlay } from "@/components/rave-wars/rave-war-challenge-overlay";
+import { RaveWarChallengeLauncher } from "@/components/rave-wars/rave-war-challenge-overlay";
 import { ButtonLink } from "@/components/ui/button";
 import { StarSupportOverlay } from "@/app/live/star-support-panel";
 import type { PublicChatPresenceUserRow } from "@/app/chat/state";
@@ -73,7 +73,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, mobile
             <NavList items={visibleNavigationItems} orientation="horizontal" />
           </div>
           <div className="ml-auto hidden items-center gap-2 lg:flex">
-            <RaveWarChallengeOverlay />
+            <RaveWarChallengeLauncher placement="desktop" />
             <HeaderAjaxCart />
             {signedIn ? (
               <LogoutButton />

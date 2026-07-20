@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Cookie, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,7 @@ export function CookieConsentManager() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [customizing, setCustomizing] = useState(false);
   const [draft, setDraft] = useState<ConsentPreferences>(defaultConsentPreferences);
+  const dialogRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -67,6 +68,60 @@ export function CookieConsentManager() {
       window.removeEventListener(privacyChoicesEventName, openPreferences);
     };
   }, []);
+
+  useEffect(() => {
+    if (!panelOpen) {
+      return;
+    }
+
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const frame = window.requestAnimationFrame(() =>
+      dialogRef.current?.querySelector<HTMLButtonElement>("[data-cookie-primary]")?.focus()
+    );
+
+    function keepFocusInside(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+
+        if (record) {
+          setPanelOpen(false);
+        }
+
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) {
+        return;
+      }
+
+      const controls = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      );
+      const first = controls[0];
+      const last = controls.at(-1);
+
+      if (!first || !last) {
+        event.preventDefault();
+        dialogRef.current.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", keepFocusInside);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener("keydown", keepFocusInside);
+      previouslyFocused?.focus();
+    };
+  }, [panelOpen, record]);
 
   const allAccepted = useMemo(
     () =>
@@ -106,21 +161,25 @@ export function CookieConsentManager() {
   return (
     <>
       {panelOpen ? (
-        <div
-          className={
-            record
-              ? "fixed inset-0 z-[80] grid place-items-center bg-black/55 px-4 py-4 text-white backdrop-blur-sm"
-              : "fixed inset-x-0 bottom-0 z-[80] border-t border-bc-line bg-bc-void/95 px-4 py-4 text-white shadow-[0_-20px_80px_rgba(0,0,0,0.7)] backdrop-blur"
-          }
-        >
-          <section className={record ? "mx-auto w-full max-w-5xl rounded-md border border-bc-line bg-bc-void/95 p-4 shadow-2xl" : "mx-auto max-w-5xl"}>
+        <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/70 p-4 text-white backdrop-blur-sm">
+          <section
+            aria-describedby="cookie-consent-description"
+            aria-labelledby="cookie-consent-title"
+            aria-modal="true"
+            className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-md border border-bc-line bg-bc-void/98 p-4 shadow-[0_28px_100px_rgba(0,0,0,0.78),0_0_45px_rgba(0,213,255,0.12)] sm:p-5"
+            ref={dialogRef}
+            role="dialog"
+            tabIndex={-1}
+          >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="max-w-3xl">
                 <div className="flex items-center gap-2">
                   <Cookie className="h-5 w-5 text-bc-electric" aria-hidden="true" />
-                  <h2 className="text-lg font-black">Privacy and cookie choices</h2>
+                  <h2 className="text-lg font-black" id="cookie-consent-title">
+                    Privacy and cookie choices
+                  </h2>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-bc-muted">
+                <p className="mt-2 text-sm leading-6 text-bc-muted" id="cookie-consent-description">
                   Bouncecore uses necessary cookies and browser storage for sign-in, checkout, carts, chat, security, and app
                   operation. Optional analytics, marketing, and preference storage only run when enabled here.
                 </p>
@@ -146,7 +205,7 @@ export function CookieConsentManager() {
             </div>
 
             {customizing ? (
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {consentCategories.map((category) => (
                   <label className="rounded-md border border-bc-line bg-bc-panel p-3 text-sm" key={category.key}>
                     <span className="flex items-center justify-between gap-3">
@@ -166,7 +225,7 @@ export function CookieConsentManager() {
             ) : null}
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button onClick={() => persist(allAccepted)} size="sm" type="button" variant="primary">
+              <Button data-cookie-primary onClick={() => persist(allAccepted)} size="sm" type="button" variant="primary">
                 <Check className="h-4 w-4" aria-hidden="true" />
                 Accept all
               </Button>
