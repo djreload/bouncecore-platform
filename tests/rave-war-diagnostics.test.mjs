@@ -6,6 +6,7 @@ import {
   analyzeRaveWarEventWindow,
   raveWarClientActionIdFromPayload,
   raveWarDiagnosticStaleMs,
+  raveWarMatchIsStalled,
   raveWarMatchNeedsAttention
 } from "../src/lib/rave-wars/rave-war-diagnostics-core.ts";
 
@@ -44,6 +45,9 @@ test("Rave War diagnostics flag stalled active matches but not completed quiet m
 
   assert.equal(raveWarMatchNeedsAttention({ diagnostics, now, status: "active", updatedAt: staleUpdatedAt }), true);
   assert.equal(raveWarMatchNeedsAttention({ diagnostics, now, status: "finished", updatedAt: staleUpdatedAt }), false);
+  assert.equal(raveWarMatchIsStalled({ latestEventAt: null, now, status: "active", updatedAt: staleUpdatedAt }), true);
+  assert.equal(raveWarMatchIsStalled({ latestEventAt: now, now, status: "active", updatedAt: staleUpdatedAt }), false);
+  assert.equal(raveWarMatchIsStalled({ latestEventAt: staleUpdatedAt, now, status: "active", updatedAt: now }), false);
 });
 
 test("Rave War diagnostics admin page is permission protected and linked in navigation", () => {
@@ -60,6 +64,7 @@ test("Rave War diagnostics admin page is permission protected and linked in navi
   assert.match(detailPage, /getAdminRaveWarMatchDiagnostics/);
   assert.match(detailPage, /notFound\(\)/);
   assert.match(detailPage, /event\.payloadPreview/);
+  assert.match(detailPage, /RaveWarRepairControls/);
   assert.doesNotMatch(detailPage, /dangerouslySetInnerHTML/);
   assert.match(navigation, /href: "\/admin\/rave-wars"/);
   assert.match(service, /take: raveWarEventInspectionLimit/);

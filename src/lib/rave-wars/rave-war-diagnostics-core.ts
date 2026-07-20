@@ -88,12 +88,26 @@ export function raveWarMatchNeedsAttention(input: {
     return true;
   }
 
+  return raveWarMatchIsStalled({
+    latestEventAt: input.diagnostics.latestEventAt,
+    now: input.now,
+    status: input.status,
+    updatedAt: input.updatedAt
+  });
+}
+
+export function raveWarMatchIsStalled(input: {
+  latestEventAt: Date | null;
+  now?: Date;
+  status: string;
+  updatedAt: Date;
+}) {
   if (input.status !== "active") {
     return false;
   }
 
   const nowMs = (input.now ?? new Date()).getTime();
-  const latestActivityMs = (input.diagnostics.latestEventAt ?? input.updatedAt).getTime();
+  const latestActivityMs = Math.max(input.updatedAt.getTime(), input.latestEventAt?.getTime() ?? 0);
 
   return nowMs - latestActivityMs > raveWarDiagnosticStaleMs;
 }

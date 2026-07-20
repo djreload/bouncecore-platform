@@ -56,9 +56,9 @@ const raveWarSettingsKey = "chat.rave_wars";
 const raveWarHealth = 100;
 const raveWarMaxLogEntries = 8;
 const explosionRadius = 150;
-const raveWarMatchSeconds = 10 * 60;
-const raveWarTurnSeconds = 90;
-const raveWarTurnMovement = 220;
+export const raveWarMatchSeconds = 10 * 60;
+export const raveWarTurnSeconds = 90;
+export const raveWarTurnMovement = 220;
 
 type RaveWarParticipantSource = {
   acceptedAt: Date | null;
@@ -317,7 +317,7 @@ function normalizeShotPath(value: unknown): RaveWarLastShot | null {
   };
 }
 
-function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarParticipantSource[], level: RaveWarLevel): RaveWarState {
+export function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarParticipantSource[], level: RaveWarLevel): RaveWarState {
   if (!isObject(value) || !Array.isArray(value.players)) {
     return createInitialState({
       activeUserId: participants[0]?.userId ?? null,

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Activity, ArrowLeft, Clock3, FileJson, Radio, ShieldCheck, Swords } from "lucide-react";
+import { RaveWarRepairControls } from "@/app/admin/rave-wars/rave-war-repair-controls";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
@@ -105,6 +106,8 @@ export default async function AdminRaveWarTimelinePage({ params }: { params: Pro
             </article>
           </div>
         </section>
+
+        <RaveWarRepairControls stalled={match.stalled} status={match.status} warId={match.id} />
 
         <section className="rounded-md border border-bc-line bg-bc-panel">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">
