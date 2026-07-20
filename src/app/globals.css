@@ -1948,6 +1948,38 @@ html.bc-sheep-impact-wobble [data-bc-public-shell] > :not([data-sheep-throw-over
   text-transform: uppercase;
 }
 
+.bc-rave-war-rule-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.bc-rave-war-rule-strip > div {
+  min-width: 0;
+}
+
+.bc-rave-war-rule-strip dt {
+  color: #9da8bf;
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.bc-rave-war-rule-strip dd {
+  overflow: hidden;
+  margin-top: 0.18rem;
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bc-rave-war-player-card {
   --rave-war-player-color: #00d5ff;
   display: grid;
@@ -2216,7 +2248,33 @@ html.bc-rave-war-active .bc-site-footer {
   }
 
   .bc-rave-war-titleplate {
+    display: block;
+    top: 0.25rem;
+    width: min(19rem, 36vw);
+    padding: 0.22rem 0.35rem;
+    border-radius: 0.42rem;
+    backdrop-filter: blur(5px);
+  }
+
+  .bc-rave-war-logo-text,
+  .bc-rave-war-round-label {
     display: none;
+  }
+
+  .bc-rave-war-rule-strip {
+    gap: 0.12rem;
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .bc-rave-war-rule-strip dt {
+    font-size: 0.46rem;
+  }
+
+  .bc-rave-war-rule-strip dd {
+    margin-top: 0.1rem;
+    font-size: 0.56rem;
   }
 
   .bc-rave-war-hud {
@@ -2373,6 +2431,36 @@ html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-battlefield
   border: 0;
   border-radius: 0;
   box-shadow: none;
+}
+
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-titleplate {
+  display: block;
+  top: max(0.25rem, env(safe-area-inset-top));
+  width: min(19rem, 36vw);
+  padding: 0.22rem 0.35rem;
+  border-radius: 0.42rem;
+  backdrop-filter: blur(5px);
+}
+
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-titleplate .bc-rave-war-logo-text,
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-titleplate .bc-rave-war-round-label {
+  display: none;
+}
+
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-titleplate .bc-rave-war-rule-strip {
+  gap: 0.12rem;
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-titleplate .bc-rave-war-rule-strip dt {
+  font-size: 0.46rem;
+}
+
+html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-titleplate .bc-rave-war-rule-strip dd {
+  margin-top: 0.1rem;
+  font-size: 0.56rem;
 }
 
 html[data-bc-android-webview="true"].bc-rave-war-active .bc-rave-war-weapon-dock,

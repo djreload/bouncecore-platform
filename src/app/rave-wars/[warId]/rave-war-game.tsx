@@ -7,6 +7,7 @@ import { Crosshair, Flag, HeartPulse, Maximize2, Radio, Swords, Timer, X, ZoomIn
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
+import { formatRaveWarChallengeCost, formatRaveWarRuleDuration } from "@/lib/rave-wars/rave-war-challenge-terms";
 import { raveWarMoveStep, simulateRaveWarShot, walkPlayerOnTerrain } from "@/lib/rave-wars/rave-war-engine";
 import {
   getRaveWarNetworkQuality,
@@ -1864,6 +1865,20 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             <div className="bc-rave-war-titleplate pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 text-center">
               <p className="bc-rave-war-logo-text">Rave War</p>
               <p className="bc-rave-war-round-label">Turn {war.state.turnNumber}</p>
+              <dl className="bc-rave-war-rule-strip" aria-label="Rave War match rules">
+                <div>
+                  <dt>Match</dt>
+                  <dd>{formatRaveWarRuleDuration(war.state.matchDurationSeconds)}</dd>
+                </div>
+                <div>
+                  <dt>Turn</dt>
+                  <dd>{formatRaveWarRuleDuration(war.state.turnDurationSeconds)}</dd>
+                </div>
+                <div>
+                  <dt>Entry</dt>
+                  <dd>{formatRaveWarChallengeCost(war.state.challengeCostStars)}</dd>
+                </div>
+              </dl>
             </div>
 
             <div className="bc-rave-war-hud pointer-events-none absolute inset-x-2 top-2 z-20 grid grid-cols-2 gap-2">

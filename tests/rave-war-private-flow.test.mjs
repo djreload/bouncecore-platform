@@ -241,6 +241,12 @@ test("rave war active challenges auto-open once and finished wars return to live
   assert.match(game, /turnAnnouncement/);
   assert.match(game, /bc-rave-war-announcement/);
   assert.match(game, /bc-rave-war-titleplate/);
+  assert.match(game, /aria-label="Rave War match rules"/);
+  assert.match(game, /formatRaveWarRuleDuration\(war\.state\.matchDurationSeconds\)/);
+  assert.match(game, /formatRaveWarRuleDuration\(war\.state\.turnDurationSeconds\)/);
+  assert.match(game, /formatRaveWarChallengeCost\(war\.state\.challengeCostStars\)/);
+  assert.match(css, /\.bc-rave-war-rule-strip/);
+  assert.match(css, /data-bc-android-webview="true"[^}]+\.bc-rave-war-titleplate/s);
   assert.doesNotMatch(game, /rave-war-crater-rim-gradient/);
   assert.doesNotMatch(game, /war\.state\.lastShot && !animatedShot/);
   assert.match(css, /bc-rave-war-player-card/);
