@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Crosshair, Flag, HeartPulse, Maximize2, Radio, Swords, Timer, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { simulateRaveWarShot } from "@/lib/rave-wars/rave-war-engine";
+import { raveWarMoveStep, simulateRaveWarShot, walkPlayerOnTerrain } from "@/lib/rave-wars/rave-war-engine";
 import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary, RaveWarWeaponId } from "@/lib/rave-wars/rave-war-types";
 import { defaultRaveWarWeaponAmmo, raveWarWeaponDefinitions, weaponAmmoOrDefault, type RaveWarWeaponDefinition } from "@/lib/rave-wars/rave-war-weapons";
 
@@ -39,13 +39,13 @@ type RaveWarMoveDirection = "left" | "right";
 type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | "weapon-next" | "weapon-prev" | "zoom-in" | "zoom-out";
 type RaveWarNativeControlState = "down" | "press" | "up";
 
-const chargeDurationMs = 1450;
+const chargeDurationMs = 900;
 const liveReturnDelayMs = 4500;
-const aimHoldIntervalMs = 45;
-const aimHoldStep = 1.35;
-const moveHoldIntervalMs = 185;
-const shotAnimationMinMs = 700;
-const shotAnimationMaxMs = 1350;
+const aimHoldIntervalMs = 24;
+const aimHoldStep = 1.25;
+const moveHoldIntervalMs = 90;
+const shotAnimationMinMs = 420;
+const shotAnimationMaxMs = 900;
 const cameraFitZoom = 1.02;
 const cameraMinZoom = 0.72;
 const cameraMaxZoom = 1.8;
@@ -181,6 +181,42 @@ function stopBattlefieldControlEvent(event: PointerEvent<HTMLElement>) {
 
 function ammoForWeapon(player: RaveWarPlayerState | null | undefined, weaponId: RaveWarWeaponId) {
   return player ? weaponAmmoOrDefault(player.weaponAmmo, weaponId) : defaultRaveWarWeaponAmmo[weaponId];
+}
+
+function moveWarLocally(war: RaveWarSummary, userId: string, direction: RaveWarMoveDirection) {
+  if (war.status !== "active" || war.turnUserId !== userId) {
+    return war;
+  }
+
+  const mover = war.state.players.find((player) => player.userId === userId);
+
+  if (!mover || mover.health <= 0 || mover.movementLeft <= 0) {
+    return war;
+  }
+
+  const step = Math.min(raveWarMoveStep, mover.movementLeft);
+  const movedPlayer = walkPlayerOnTerrain(war.level, war.state.craters, mover, direction === "left" ? -1 : 1, step);
+  const movementSpent = Math.min(step, Math.abs(movedPlayer.x - mover.x));
+
+  if (movementSpent <= 0) {
+    return war;
+  }
+
+  return {
+    ...war,
+    state: {
+      ...war.state,
+      players: war.state.players.map((player) =>
+        player.userId === userId
+          ? {
+              ...movedPlayer,
+              facing: direction,
+              movementLeft: Math.max(0, player.movementLeft - movementSpent)
+            }
+          : player
+      )
+    }
+  };
 }
 
 function gameInputShouldIgnoreTarget(target: EventTarget | null) {
@@ -358,6 +394,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const impactPulseTimeoutRef = useRef<number | null>(null);
   const shotAnimationFrameRef = useRef<number | null>(null);
   const warRef = useRef(initialWar);
+  const authoritativeWarRef = useRef(initialWar);
   const currentPlayer = war.state.players.find((player) => player.userId === currentUserId) ?? null;
   const activePlayer = war.state.players.find((player) => player.userId === war.turnUserId) ?? null;
   const opponent = war.state.players.find((player) => player.userId !== currentUserId) ?? null;
@@ -391,7 +428,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const isChargingShotRef = useRef(false);
   const moveHoldDirectionRef = useRef<RaveWarMoveDirection | null>(null);
   const moveHoldIntervalRef = useRef<number | null>(null);
-  const moveInFlightRef = useRef(false);
+  const moveQueueRef = useRef<RaveWarMoveDirection[]>([]);
+  const moveFlushPromiseRef = useRef<Promise<void> | null>(null);
   const powerRef = useRef(power);
   const selectedWeaponRef = useRef<RaveWarWeaponId>(selectedWeapon);
   const canFireRef = useRef(false);
@@ -521,13 +559,44 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   }, [setWalkingPlayerIds]);
 
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
-    setWar(nextWar);
+    authoritativeWarRef.current = nextWar;
+    const locallyMovedWar = moveQueueRef.current.reduce(
+      (current, direction) => moveWarLocally(current, currentUserId, direction),
+      nextWar
+    );
+    const preserveLiveControls =
+      warRef.current.status === "active" &&
+      warRef.current.turnUserId === currentUserId &&
+      locallyMovedWar.status === "active" &&
+      locallyMovedWar.turnUserId === currentUserId;
+    const reconciledWar = preserveLiveControls
+      ? {
+          ...locallyMovedWar,
+          state: {
+            ...locallyMovedWar.state,
+            players: locallyMovedWar.state.players.map((player) =>
+              player.userId === currentUserId
+                ? {
+                    ...player,
+                    angle: angleRef.current,
+                    facing: aimFacingRef.current,
+                    power: powerRef.current,
+                    selectedWeapon: selectedWeaponRef.current
+                  }
+                : player
+            )
+          }
+        }
+      : locallyMovedWar;
+
+    warRef.current = reconciledWar;
+    setWar(reconciledWar);
     setError(null);
 
-    const nextCurrentPlayer = nextWar.state.players.find((player) => player.userId === currentUserId);
+    const nextCurrentPlayer = reconciledWar.state.players.find((player) => player.userId === currentUserId);
     const seenUserIds = new Set<string>();
 
-    for (const player of nextWar.state.players) {
+    for (const player of reconciledWar.state.players) {
       seenUserIds.add(player.userId);
 
       const previousPosition = lastPlayerPositionsRef.current.get(player.userId);
@@ -559,6 +628,56 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     } else if (payload.error) {
       setError(payload.error);
     }
+  }, [applyWar, setError]);
+
+  const flushMoveQueue = useCallback(() => {
+    if (moveFlushPromiseRef.current) {
+      return moveFlushPromiseRef.current;
+    }
+
+    const request = (async () => {
+      try {
+        while (moveQueueRef.current.length > 0 && canControlRef.current) {
+          const direction = moveQueueRef.current.shift();
+
+          if (!direction) {
+            continue;
+          }
+
+          const response = await fetch(`/api/rave-wars/${encodeURIComponent(warRef.current.id)}/actions`, {
+            body: JSON.stringify({
+              action: "move",
+              direction
+            }),
+            cache: "no-store",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            method: "POST"
+          });
+          const payload = (await response.json()) as WarPayload;
+
+          if (!response.ok || !payload.war) {
+            throw new Error(payload.error ?? "Rave War movement failed.");
+          }
+
+          applyWar(payload.war);
+        }
+      } catch (nextError) {
+        moveQueueRef.current = [];
+        applyWar(authoritativeWarRef.current);
+        setError(nextError instanceof Error ? nextError.message : "Rave War movement failed.");
+      }
+    })();
+
+    moveFlushPromiseRef.current = request;
+    void request.finally(() => {
+      if (moveFlushPromiseRef.current === request) {
+        moveFlushPromiseRef.current = null;
+      }
+    });
+
+    return request;
   }, [applyWar, setError]);
 
   const postWarAction = useCallback(
@@ -656,7 +775,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return !previous || previous.x !== point.x || previous.y !== point.y;
       });
       const animationPath = path.length ? path : [input.impactPoint];
-      const duration = clampNumber(animationPath.length * 18, shotAnimationMinMs, shotAnimationMaxMs);
+      const duration = clampNumber(animationPath.length * 10, shotAnimationMinMs, shotAnimationMaxMs);
       const startedAt = window.performance.now();
 
       if (input.playFire) {
@@ -749,6 +868,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return;
       }
 
+      busyRef.current = true;
+      setBusy(true);
       setPower(nextPower);
       powerRef.current = nextPower;
       playRaveWarSfx("fire");
@@ -782,6 +903,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         });
       }
 
+      await flushMoveQueue();
       await postWarAction("fire", {
         angle: nextAngle,
         facing: aimFacingRef.current,
@@ -789,7 +911,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         weaponId
       });
     },
-    [currentUserId, postWarAction, setError, setPower, startShotAnimation]
+    [currentUserId, flushMoveQueue, postWarAction, setBusy, setError, setPower, startShotAnimation]
   );
 
   const stopChargingShot = useCallback(
@@ -970,28 +1092,28 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   );
 
   const moveCurrentPlayer = useCallback(
-    async (direction: RaveWarMoveDirection) => {
+    (direction: RaveWarMoveDirection) => {
       if (!canControlRef.current || busyRef.current) {
         playRaveWarSfx("blocked");
         return;
       }
 
-      if (moveInFlightRef.current) {
+      const currentWar = warRef.current;
+      const nextWar = moveWarLocally(currentWar, currentUserId, direction);
+
+      if (nextWar === currentWar) {
         return;
       }
 
-      moveInFlightRef.current = true;
+      warRef.current = nextWar;
+      setWar(nextWar);
       setAimFacing(direction);
       aimFacingRef.current = direction;
       markPlayerWalking(currentUserId);
-
-      try {
-        await postWarAction("move", { direction });
-      } finally {
-        moveInFlightRef.current = false;
-      }
+      moveQueueRef.current.push(direction);
+      void flushMoveQueue();
     },
-    [currentUserId, markPlayerWalking, postWarAction, setAimFacing]
+    [currentUserId, flushMoveQueue, markPlayerWalking, setAimFacing, setWar]
   );
 
   const stopMoveHold = useCallback((direction?: RaveWarMoveDirection) => {
@@ -1015,10 +1137,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
       stopMoveHold();
       moveHoldDirectionRef.current = direction;
-      void moveCurrentPlayer(direction);
+      moveCurrentPlayer(direction);
       moveHoldIntervalRef.current = window.setInterval(() => {
         if (moveHoldDirectionRef.current === direction) {
-          void moveCurrentPlayer(direction);
+          moveCurrentPlayer(direction);
         }
       }, moveHoldIntervalMs);
     },
@@ -1133,6 +1255,9 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       return;
     }
 
+    if (!canControl) {
+      moveQueueRef.current = [];
+    }
     stopMoveHold();
     stopAimHold();
     stopChargingShot(false);
@@ -1773,7 +1898,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
               return (
                 <div
-                  className="absolute -translate-x-1/2 -translate-y-full transition-[left,top] duration-200 ease-out"
+                  className="absolute -translate-x-1/2 -translate-y-full will-change-[left,top] transition-[left,top] duration-75 ease-linear"
                   key={player.userId}
                   style={{
                     left: percent(player.x, war.level.width),

@@ -10,6 +10,7 @@ import { queueMobilePushForNotification } from "@/lib/mobile/account-notificatio
 import {
   appendTerrainCrater,
   raveWarMaxTerrainCraters,
+  raveWarMoveStep,
   settlePlayersOnTerrain,
   simulateRaveWarShot,
   walkPlayerOnTerrain
@@ -53,7 +54,6 @@ const explosionRadius = 150;
 const raveWarMatchSeconds = 10 * 60;
 const raveWarTurnSeconds = 90;
 const raveWarTurnMovement = 220;
-const raveWarMoveStep = 34;
 
 type RaveWarParticipantSource = {
   acceptedAt: Date | null;

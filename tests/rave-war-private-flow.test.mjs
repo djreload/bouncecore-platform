@@ -115,6 +115,14 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /window\.addEventListener\("keydown", handleKeyDown\)/);
   assert.match(game, /startMoveHold/);
   assert.match(game, /startAimHold/);
+  assert.match(game, /const chargeDurationMs = 900/);
+  assert.match(game, /const aimHoldIntervalMs = 24/);
+  assert.match(game, /const moveHoldIntervalMs = 90/);
+  assert.match(game, /moveWarLocally/);
+  assert.match(game, /moveQueueRef/);
+  assert.match(game, /flushMoveQueue/);
+  assert.doesNotMatch(game, /moveInFlightRef/);
+  assert.match(game, /will-change-\[left,top\].*duration-75 ease-linear/);
   assert.match(game, /bc-rave-war-worm-body/);
   assert.match(game, /bc-rave-war-worm-weapon/);
   assert.match(game, /bc-rave-war-character-anchor absolute bottom-0/);

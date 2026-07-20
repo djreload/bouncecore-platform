@@ -2,6 +2,7 @@ import type { RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
 import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarTerrainCrater, RaveWarWeaponId } from "@/lib/rave-wars/rave-war-types";
 
 export const raveWarMaxTerrainCraters = 36;
+export const raveWarMoveStep = 34;
 
 export type RaveWarWeaponConfig = {
   blastRadius: number;
