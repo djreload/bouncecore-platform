@@ -6,7 +6,7 @@ import {
   raveWarStalledOperatorAlertContent,
   raveWarStalledOperatorAlertDedupeKey
 } from "@/lib/rave-wars/rave-war-operator-alert-core";
-import { raveWarMatchSeconds } from "@/lib/rave-wars/rave-war-service";
+import { defaultRaveWarSettings } from "@/lib/rave-wars/rave-war-settings";
 
 function stateRevision(state: unknown) {
   if (!state || typeof state !== "object" || Array.isArray(state)) {
@@ -29,8 +29,19 @@ function stateTimestamp(state: unknown, key: string) {
   return Number.isFinite(timestamp) ? timestamp : null;
 }
 
+function stateDurationSeconds(state: unknown, key: string, fallback: number) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    return fallback;
+  }
+
+  const value = (state as Record<string, unknown>)[key];
+
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : fallback;
+}
+
 function matchDeadlineHasPassed(state: unknown, startedAt: Date | null, nowMs: number) {
-  const deadlineMs = stateTimestamp(state, "warEndsAt") ?? (startedAt ? startedAt.getTime() + raveWarMatchSeconds * 1000 : null);
+  const durationSeconds = stateDurationSeconds(state, "matchDurationSeconds", defaultRaveWarSettings.matchDurationSeconds);
+  const deadlineMs = stateTimestamp(state, "warEndsAt") ?? (startedAt ? startedAt.getTime() + durationSeconds * 1000 : null);
 
   return deadlineMs !== null && deadlineMs <= nowMs;
 }

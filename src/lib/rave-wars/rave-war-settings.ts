@@ -3,6 +3,8 @@ export type RaveWarSettings = {
   challengeTtlSeconds: number;
   cooldownSeconds: number;
   costStars: number;
+  matchDurationSeconds: number;
+  turnDurationSeconds: number;
 };
 
 export type RaveWarSettingsInput = {
@@ -10,13 +12,17 @@ export type RaveWarSettingsInput = {
   challengeTtlMinutes: string;
   cooldownMinutes: string;
   costStars: string;
+  matchDurationMinutes: string;
+  turnDurationSeconds: string;
 };
 
 export const defaultRaveWarSettings: RaveWarSettings = {
   enabled: true,
   challengeTtlSeconds: 300,
   cooldownSeconds: 300,
-  costStars: 0
+  costStars: 0,
+  matchDurationSeconds: 10 * 60,
+  turnDurationSeconds: 90
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -58,11 +64,17 @@ export function normalizeRaveWarSettings(value: unknown): RaveWarSettings {
     return defaultRaveWarSettings;
   }
 
+  const matchDurationSeconds = wholeNumber(value.matchDurationSeconds, defaultRaveWarSettings.matchDurationSeconds, 2 * 60, 60 * 60);
+  const turnDurationSeconds = wholeNumber(value.turnDurationSeconds, defaultRaveWarSettings.turnDurationSeconds, 15, 5 * 60);
+  const timerPairIsValid = matchDurationSeconds > turnDurationSeconds;
+
   return {
     enabled: typeof value.enabled === "boolean" ? value.enabled : defaultRaveWarSettings.enabled,
     challengeTtlSeconds: wholeNumber(value.challengeTtlSeconds, defaultRaveWarSettings.challengeTtlSeconds, 60, 30 * 60),
     cooldownSeconds: wholeNumber(value.cooldownSeconds, defaultRaveWarSettings.cooldownSeconds, 0, 24 * 60 * 60),
-    costStars: wholeNumber(value.costStars, defaultRaveWarSettings.costStars, 0, 1000000)
+    costStars: wholeNumber(value.costStars, defaultRaveWarSettings.costStars, 0, 1000000),
+    matchDurationSeconds: timerPairIsValid ? matchDurationSeconds : defaultRaveWarSettings.matchDurationSeconds,
+    turnDurationSeconds: timerPairIsValid ? turnDurationSeconds : defaultRaveWarSettings.turnDurationSeconds
   };
 }
 
@@ -70,12 +82,21 @@ export function normalizeRaveWarSettingsInput(input: RaveWarSettingsInput): Rave
   const challengeTtlMinutes = requiredDecimal(input.challengeTtlMinutes, "Rave War challenge expiry", 1, 30);
   const cooldownMinutes = requiredDecimal(input.cooldownMinutes, "Rave War cooldown", 0, 1440);
   const costStars = requiredWholeNumber(input.costStars, "Rave War cost", 0, 1000000);
+  const matchDurationMinutes = requiredDecimal(input.matchDurationMinutes, "Rave War match duration", 2, 60);
+  const turnDurationSeconds = requiredWholeNumber(input.turnDurationSeconds, "Rave War turn duration", 15, 300);
+  const matchDurationSeconds = Math.round(matchDurationMinutes * 60);
+
+  if (matchDurationSeconds <= turnDurationSeconds) {
+    throw new Error("Rave War match duration must be longer than the turn duration.");
+  }
 
   return {
     enabled: input.enabled,
     challengeTtlSeconds: Math.round(challengeTtlMinutes * 60),
     cooldownSeconds: Math.round(cooldownMinutes * 60),
-    costStars
+    costStars,
+    matchDurationSeconds,
+    turnDurationSeconds
   };
 }
 

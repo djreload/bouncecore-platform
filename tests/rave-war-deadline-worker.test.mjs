@@ -31,6 +31,7 @@ test("expired matches are settled instead of reported as stalled incidents", () 
   const alerts = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-operator-alert-service.ts"), "utf8");
 
   assert.match(alerts, /matchDeadlineHasPassed/);
-  assert.match(alerts, /startedAt\.getTime\(\) \+ raveWarMatchSeconds \* 1000/);
+  assert.match(alerts, /stateDurationSeconds\(state, "matchDurationSeconds", defaultRaveWarSettings\.matchDurationSeconds\)/);
+  assert.match(alerts, /startedAt\.getTime\(\) \+ durationSeconds \* 1000/);
   assert.match(alerts, /!matchDeadlineHasPassed\(war\.state, war\.startedAt, now\.getTime\(\)\)/);
 });

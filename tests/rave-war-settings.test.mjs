@@ -15,6 +15,8 @@ test("rave war settings default to enabled with free five minute challenges", ()
   assert.equal(defaultRaveWarSettings.challengeTtlSeconds, 300);
   assert.equal(defaultRaveWarSettings.cooldownSeconds, 300);
   assert.equal(defaultRaveWarSettings.costStars, 0);
+  assert.equal(defaultRaveWarSettings.matchDurationSeconds, 600);
+  assert.equal(defaultRaveWarSettings.turnDurationSeconds, 90);
   assert.deepEqual(normalizeRaveWarSettings(null), defaultRaveWarSettings);
 });
 
@@ -24,29 +26,78 @@ test("rave war settings input normalizes admin form values", () => {
       enabled: false,
       challengeTtlMinutes: "7.5",
       cooldownMinutes: "2.5",
-      costStars: "25"
+      costStars: "25",
+      matchDurationMinutes: "12.5",
+      turnDurationSeconds: "75"
     }),
     {
       enabled: false,
       challengeTtlSeconds: 450,
       cooldownSeconds: 150,
-      costStars: 25
+      costStars: 25,
+      matchDurationSeconds: 750,
+      turnDurationSeconds: 75
     }
   );
+
+  const contradictorySavedTimers = normalizeRaveWarSettings({
+    ...defaultRaveWarSettings,
+    matchDurationSeconds: 120,
+    turnDurationSeconds: 300
+  });
+
+  assert.equal(contradictorySavedTimers.matchDurationSeconds, defaultRaveWarSettings.matchDurationSeconds);
+  assert.equal(contradictorySavedTimers.turnDurationSeconds, defaultRaveWarSettings.turnDurationSeconds);
 });
 
 test("rave war settings reject impossible admin values", () => {
   assert.throws(
-    () => normalizeRaveWarSettingsInput({ enabled: true, challengeTtlMinutes: "0.5", cooldownMinutes: "5", costStars: "0" }),
+    () =>
+      normalizeRaveWarSettingsInput({
+        enabled: true,
+        challengeTtlMinutes: "0.5",
+        cooldownMinutes: "5",
+        costStars: "0",
+        matchDurationMinutes: "10",
+        turnDurationSeconds: "90"
+      }),
     /challenge expiry/
   );
   assert.throws(
-    () => normalizeRaveWarSettingsInput({ enabled: true, challengeTtlMinutes: "5", cooldownMinutes: "-1", costStars: "0" }),
+    () =>
+      normalizeRaveWarSettingsInput({
+        enabled: true,
+        challengeTtlMinutes: "5",
+        cooldownMinutes: "-1",
+        costStars: "0",
+        matchDurationMinutes: "10",
+        turnDurationSeconds: "90"
+      }),
     /cooldown/
   );
   assert.throws(
-    () => normalizeRaveWarSettingsInput({ enabled: true, challengeTtlMinutes: "5", cooldownMinutes: "5", costStars: "1.5" }),
+    () =>
+      normalizeRaveWarSettingsInput({
+        enabled: true,
+        challengeTtlMinutes: "5",
+        cooldownMinutes: "5",
+        costStars: "1.5",
+        matchDurationMinutes: "10",
+        turnDurationSeconds: "90"
+      }),
     /whole number/
+  );
+  assert.throws(
+    () =>
+      normalizeRaveWarSettingsInput({
+        enabled: true,
+        challengeTtlMinutes: "5",
+        cooldownMinutes: "5",
+        costStars: "0",
+        matchDurationMinutes: "2",
+        turnDurationSeconds: "180"
+      }),
+    /longer than the turn duration/
   );
 });
 
@@ -83,7 +134,22 @@ test("admin chatrooms and chat rail expose rave war settings safely", () => {
 
   assert.match(adminPage, /getRaveWarSettings/);
   assert.match(adminPanel, /name="intent" type="hidden" value="rave-war-settings"/);
+  assert.match(adminPanel, /name="matchDurationMinutes"/);
+  assert.match(adminPanel, /name="turnDurationSeconds"/);
   assert.match(adminPanel, /Save Rave War/);
   assert.match(chatPanel, /raveWarDisabledReason/);
   assert.match(chatPanel, /formatRaveWarCooldownLabel/);
+});
+
+test("new challenges snapshot timer settings for their full lifecycle", () => {
+  const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+  const adminService = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-admin-service.ts"), "utf8");
+
+  assert.match(service, /matchDurationSeconds: settings\.matchDurationSeconds/);
+  assert.match(service, /turnDurationSeconds: settings\.turnDurationSeconds/);
+  assert.match(service, /matchWindow\(now, state\.matchDurationSeconds\)/);
+  assert.match(service, /turnWindow\(now, state\.turnDurationSeconds\)/);
+  assert.match(service, /turnWindow\(new Date\(firedAt\), state\.turnDurationSeconds\)/);
+  assert.match(adminService, /state\.matchDurationSeconds \* 1000/);
+  assert.match(adminService, /state\.turnDurationSeconds \* 1000/);
 });

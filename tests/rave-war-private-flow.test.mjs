@@ -278,12 +278,14 @@ test("rave war timers and chat toasts use enforced match state", () => {
   const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");
   const panel = readFileSync(join(process.cwd(), "src/app/chat/chat-room-panel.tsx"), "utf8");
 
-  assert.match(service, /const raveWarMatchSeconds = 10 \* 60/);
-  assert.match(service, /const raveWarTurnSeconds = 90/);
+  assert.match(service, /raveWarMatchSeconds = defaultRaveWarSettings\.matchDurationSeconds/);
+  assert.match(service, /raveWarTurnSeconds = defaultRaveWarSettings\.turnDurationSeconds/);
   assert.match(service, /finishExpiredActiveRaveWarIfNeeded/);
   assert.match(service, /advanceExpiredTurnIfNeeded/);
   assert.match(service, /kind: "rave-war"/);
   assert.match(types, /warEndsAt: string \| null/);
+  assert.match(types, /matchDurationSeconds: number/);
+  assert.match(types, /turnDurationSeconds: number/);
   assert.match(panel, /message\.kind === "sheep" \|\| message\.kind === "rave-war"/);
 });
 

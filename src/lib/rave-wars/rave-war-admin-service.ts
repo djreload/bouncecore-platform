@@ -12,9 +12,7 @@ import { publishRaveWarChanged } from "@/lib/rave-wars/rave-war-realtime";
 import { normalizeRaveWarAdminRepairReason } from "@/lib/rave-wars/rave-war-admin-repair-core";
 import {
   normalizeRaveWarState,
-  raveWarMatchSeconds,
-  raveWarTurnMovement,
-  raveWarTurnSeconds
+  raveWarTurnMovement
 } from "@/lib/rave-wars/rave-war-service";
 import type { RaveWarState } from "@/lib/rave-wars/rave-war-types";
 
@@ -50,7 +48,7 @@ function repairMatchDeadline(state: RaveWarState, startedAt: Date | null) {
     return storedDeadlineMs;
   }
 
-  return startedAt ? startedAt.getTime() + raveWarMatchSeconds * 1000 : Number.NaN;
+  return startedAt ? startedAt.getTime() + state.matchDurationSeconds * 1000 : Number.NaN;
 }
 
 async function nextAdminRepairEventSequence(tx: Prisma.TransactionClient, warId: string) {
@@ -316,7 +314,7 @@ export async function resyncAdminRaveWar(warId: string, actorId: string, rawReas
         : player
     ),
     revision: nextRevision,
-    turnEndsAt: new Date(now.getTime() + raveWarTurnSeconds * 1000).toISOString(),
+    turnEndsAt: new Date(now.getTime() + state.turnDurationSeconds * 1000).toISOString(),
     turnStartedAt: now.toISOString(),
     warEndsAt: new Date(matchDeadlineMs).toISOString()
   };

@@ -344,7 +344,7 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
           </div>
           <Badge tone={raveWarSettings.enabled ? "acid" : "muted"}>{raveWarSettings.enabled ? "Enabled" : "Disabled"}</Badge>
         </div>
-        <form action={formAction} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[150px_repeat(3,minmax(160px,1fr))_auto]">
+        <form action={formAction} className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <input name="intent" type="hidden" value="rave-war-settings" />
           <div>
             <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-enabled">
@@ -408,6 +408,38 @@ export function AdminChatroomsPanel({ rooms, messages, raveWarSettings, sheepThr
               type="number"
             />
             <p className="mt-1 text-xs text-bc-muted">How long the private challenge prompt stays valid.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-match-duration">
+              Match duration minutes
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(raveWarSettings.matchDurationSeconds / 60)}
+              id="rave-war-match-duration"
+              min={2}
+              max={60}
+              name="matchDurationMinutes"
+              step={0.5}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Total game time for newly created challenges, from 2 to 60 minutes.</p>
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-bc-muted" htmlFor="rave-war-turn-duration">
+              Turn duration seconds
+            </label>
+            <input
+              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+              defaultValue={String(raveWarSettings.turnDurationSeconds)}
+              id="rave-war-turn-duration"
+              min={15}
+              max={300}
+              name="turnDurationSeconds"
+              step={1}
+              type="number"
+            />
+            <p className="mt-1 text-xs text-bc-muted">Time allowed per turn for new challenges, from 15 seconds to 5 minutes.</p>
           </div>
           <div className="flex items-end">
             <Button disabled={pending} type="submit" variant="dark">

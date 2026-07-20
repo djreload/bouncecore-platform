@@ -69,10 +69,12 @@ export type RaveWarState = {
   lastShot: RaveWarLastShot | null;
   levelKey: string;
   log: string[];
+  matchDurationSeconds: number;
   players: RaveWarPlayerState[];
   processedActionIds: string[];
   revision: number;
   turnEndsAt: string | null;
+  turnDurationSeconds: number;
   turnNumber: number;
   turnStartedAt: string | null;
   version: 1;

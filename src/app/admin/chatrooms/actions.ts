@@ -152,7 +152,9 @@ export async function adminChatroomsAction(
           enabled: formString(formData, "enabled") === "true",
           challengeTtlMinutes: formString(formData, "challengeTtlMinutes"),
           cooldownMinutes: formString(formData, "cooldownMinutes"),
-          costStars: formString(formData, "costStars")
+          costStars: formString(formData, "costStars"),
+          matchDurationMinutes: formString(formData, "matchDurationMinutes"),
+          turnDurationSeconds: formString(formData, "turnDurationSeconds")
         },
         actor.id
       );

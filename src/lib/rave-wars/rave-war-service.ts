@@ -56,8 +56,8 @@ const raveWarSettingsKey = "chat.rave_wars";
 const raveWarHealth = 100;
 const raveWarMaxLogEntries = 8;
 const explosionRadius = 150;
-export const raveWarMatchSeconds = 10 * 60;
-export const raveWarTurnSeconds = 90;
+export const raveWarMatchSeconds = defaultRaveWarSettings.matchDurationSeconds;
+export const raveWarTurnSeconds = defaultRaveWarSettings.turnDurationSeconds;
 export const raveWarTurnMovement = 220;
 
 type RaveWarParticipantSource = {
@@ -142,9 +142,9 @@ function normalizeWeaponAmmo(value: unknown): RaveWarWeaponAmmo {
   return ammo;
 }
 
-function turnWindow(now = new Date()) {
+function turnWindow(now = new Date(), durationSeconds = raveWarTurnSeconds) {
   return {
-    turnEndsAt: new Date(now.getTime() + raveWarTurnSeconds * 1000).toISOString(),
+    turnEndsAt: new Date(now.getTime() + durationSeconds * 1000).toISOString(),
     turnStartedAt: now.toISOString()
   };
 }
@@ -154,9 +154,9 @@ function windForTurn(turnNumber: number) {
   return windPattern[(Math.max(1, Math.floor(turnNumber)) - 1) % windPattern.length];
 }
 
-function matchWindow(now = new Date()) {
+function matchWindow(now = new Date(), durationSeconds = raveWarMatchSeconds) {
   return {
-    warEndsAt: new Date(now.getTime() + raveWarMatchSeconds * 1000).toISOString()
+    warEndsAt: new Date(now.getTime() + durationSeconds * 1000).toISOString()
   };
 }
 
@@ -185,11 +185,13 @@ function participantDisplayName(participant: RaveWarParticipantSource | null | u
 function createInitialState(input: {
   activeUserId: string | null;
   level: RaveWarLevel;
+  matchDurationSeconds?: number;
   players: Array<{
     displayName: string;
     playerIndex: number;
     userId: string;
   }>;
+  turnDurationSeconds?: number;
 }): RaveWarState {
   const colors = ["#00d5ff", "#ff3fa4"] as const;
 
@@ -199,6 +201,7 @@ function createInitialState(input: {
     lastShot: null,
     levelKey: input.level.key,
     log: ["Challenge created."],
+    matchDurationSeconds: input.matchDurationSeconds ?? raveWarMatchSeconds,
     players: input.players.map((player) => {
       const spawn = input.level.spawns[player.playerIndex] ?? input.level.spawns[0];
 
@@ -221,6 +224,7 @@ function createInitialState(input: {
     processedActionIds: [],
     revision: 0,
     turnEndsAt: null,
+    turnDurationSeconds: input.turnDurationSeconds ?? raveWarTurnSeconds,
     turnNumber: 1,
     turnStartedAt: null,
     version: 1,
@@ -342,6 +346,9 @@ export function normalizeRaveWarState(value: Prisma.JsonValue, participants: Rav
     lastShot: normalizeShotPath(value.lastShot),
     levelKey: typeof value.levelKey === "string" ? value.levelKey : level.key,
     log: Array.isArray(value.log) ? value.log.filter((entry): entry is string => typeof entry === "string").slice(-raveWarMaxLogEntries) : [],
+    matchDurationSeconds: Math.floor(
+      normalizeShotNumber(value.matchDurationSeconds, raveWarMatchSeconds, 2 * 60, 60 * 60)
+    ),
     players,
     processedActionIds: Array.isArray(value.processedActionIds)
       ? value.processedActionIds
@@ -350,6 +357,7 @@ export function normalizeRaveWarState(value: Prisma.JsonValue, participants: Rav
       : [],
     revision: Math.floor(normalizeShotNumber(value.revision, 0, 0, 1_000_000_000)),
     turnEndsAt: typeof value.turnEndsAt === "string" ? value.turnEndsAt : null,
+    turnDurationSeconds: Math.floor(normalizeShotNumber(value.turnDurationSeconds, raveWarTurnSeconds, 15, 5 * 60)),
     turnNumber: normalizeShotNumber(value.turnNumber, 1, 1, 999),
     turnStartedAt: typeof value.turnStartedAt === "string" ? value.turnStartedAt : null,
     version: 1,
@@ -791,7 +799,7 @@ async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUser
         : player
     ),
     revision: state.revision + 1,
-    ...turnWindow(now),
+    ...turnWindow(now, state.turnDurationSeconds),
     turnNumber: state.turnNumber + 1,
     wind: windForTurn(state.turnNumber + 1)
   };
@@ -1035,6 +1043,7 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
   const state = createInitialState({
     activeUserId: null,
     level,
+    matchDurationSeconds: settings.matchDurationSeconds,
     players: [
       {
         displayName: challenger.displayName,
@@ -1046,7 +1055,8 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
         playerIndex: 1,
         userId: target.id
       }
-    ]
+    ],
+    turnDurationSeconds: settings.turnDurationSeconds
   });
   const expiresAt = new Date(Date.now() + settings.challengeTtlSeconds * 1000);
   const seed = randomUUID();
@@ -1314,8 +1324,8 @@ export async function acceptRaveWarChallenge(warId: string, userId: string) {
   const level = await getRaveWarLevel(war.levelKey);
   const state = normalizeRaveWarState(war.state, war.participants, level);
   const now = new Date();
-  const nextTurnWindow = turnWindow(now);
-  const nextMatchWindow = matchWindow(now);
+  const nextTurnWindow = turnWindow(now, state.turnDurationSeconds);
+  const nextMatchWindow = matchWindow(now, state.matchDurationSeconds);
   const activeState = {
     ...state,
     activeUserId: war.challengerId,
@@ -1788,7 +1798,9 @@ export async function fireRaveWarShot(
   );
   const activeUserId = winnerUserId ? null : target.userId;
   const firedAt = new Date().toISOString();
-  const nextTurnWindow = winnerUserId ? { turnEndsAt: null, turnStartedAt: null } : turnWindow(new Date(firedAt));
+  const nextTurnWindow = winnerUserId
+    ? { turnEndsAt: null, turnStartedAt: null }
+    : turnWindow(new Date(firedAt), state.turnDurationSeconds);
   const lastShot: RaveWarLastShot = {
     angle,
     blastRadius: shot.blastRadius,
