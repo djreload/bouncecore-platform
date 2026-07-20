@@ -447,7 +447,7 @@ async function nextEventSequence(tx: Prisma.TransactionClient, warId: string) {
 }
 
 async function expireStaleRaveWarChallenges() {
-  await prisma.raveWar.updateMany({
+  const result = await prisma.raveWar.updateMany({
     where: {
       expiresAt: {
         lt: new Date()
@@ -459,6 +459,8 @@ async function expireStaleRaveWarChallenges() {
       status: "expired"
     }
   });
+
+  return result.count;
 }
 
 export async function getRaveWarSettings() {
@@ -852,6 +854,80 @@ async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUser
   }
 
   return result.war ?? (await getWarForUserRecord(war.id, currentUserId)) ?? war;
+}
+
+export async function reconcileRaveWarDeadlines() {
+  const expiredChallengeCount = await expireStaleRaveWarChallenges();
+  const activeWars = await prisma.raveWar.findMany({
+    include: {
+      participants: {
+        orderBy: {
+          playerIndex: "asc"
+        }
+      },
+      room: {
+        select: {
+          id: true,
+          name: true,
+          slug: true
+        }
+      }
+    },
+    orderBy: {
+      updatedAt: "asc"
+    },
+    where: {
+      status: "active"
+    }
+  });
+  let advancedTurnCount = 0;
+  let finishedMatchCount = 0;
+  const failures: Array<{ error: string; warId: string }> = [];
+
+  for (const war of activeWars) {
+    try {
+      let reconciledWar = await finishExpiredActiveRaveWarIfNeeded(war, war.challengerId);
+
+      if (reconciledWar.status === "active") {
+        reconciledWar = await advanceExpiredTurnIfNeeded(reconciledWar, war.challengerId);
+      }
+
+      if (reconciledWar.status === "finished") {
+        finishedMatchCount += 1;
+      } else if (reconciledWar.turnUserId !== war.turnUserId) {
+        advancedTurnCount += 1;
+      }
+    } catch (error) {
+      failures.push({
+        error: error instanceof Error ? error.message : "Unknown Rave War reconciliation error.",
+        warId: war.id
+      });
+    }
+  }
+
+  if (expiredChallengeCount || advancedTurnCount || finishedMatchCount || failures.length) {
+    await writeAuditLog({
+      action: "chat.rave_war.deadlines.reconcile",
+      actorId: null,
+      metadata: {
+        activeMatchCount: activeWars.length,
+        advancedTurnCount,
+        expiredChallengeCount,
+        failures,
+        finishedMatchCount
+      },
+      severity: failures.length ? "warning" : "info",
+      target: "rave-war-deadlines"
+    });
+  }
+
+  return {
+    activeMatchCount: activeWars.length,
+    advancedTurnCount,
+    expiredChallengeCount,
+    failedMatchCount: failures.length,
+    finishedMatchCount
+  };
 }
 
 async function writeWarEvent(

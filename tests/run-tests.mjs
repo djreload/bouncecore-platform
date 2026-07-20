@@ -62,6 +62,7 @@ import "./privacy-rights.test.mjs";
 import "./public-account-deletion.test.mjs";
 import "./public-smoke-check.test.mjs";
 import "./rave-war-diagnostics.test.mjs";
+import "./rave-war-deadline-worker.test.mjs";
 import "./rave-war-admin-repair.test.mjs";
 import "./rave-war-operator-alerts.test.mjs";
 import "./rave-war-engine.test.mjs";

@@ -6,6 +6,7 @@ import {
   raveWarStalledOperatorAlertContent,
   raveWarStalledOperatorAlertDedupeKey
 } from "@/lib/rave-wars/rave-war-operator-alert-core";
+import { raveWarMatchSeconds } from "@/lib/rave-wars/rave-war-service";
 
 function stateRevision(state: unknown) {
   if (!state || typeof state !== "object" || Array.isArray(state)) {
@@ -15,6 +16,23 @@ function stateRevision(state: unknown) {
   const revision = (state as Record<string, unknown>).revision;
 
   return typeof revision === "number" && Number.isFinite(revision) ? Math.max(0, Math.trunc(revision)) : 0;
+}
+
+function stateTimestamp(state: unknown, key: string) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    return null;
+  }
+
+  const value = (state as Record<string, unknown>)[key];
+  const timestamp = typeof value === "string" ? new Date(value).getTime() : Number.NaN;
+
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function matchDeadlineHasPassed(state: unknown, startedAt: Date | null, nowMs: number) {
+  const deadlineMs = stateTimestamp(state, "warEndsAt") ?? (startedAt ? startedAt.getTime() + raveWarMatchSeconds * 1000 : null);
+
+  return deadlineMs !== null && deadlineMs <= nowMs;
 }
 
 const operatorRoleNames = roleDefinitions
@@ -51,6 +69,7 @@ export async function monitorStalledRaveWars() {
         }
       },
       state: true,
+      startedAt: true,
       status: true,
       updatedAt: true
     },
@@ -58,9 +77,12 @@ export async function monitorStalledRaveWars() {
       status: "active"
     }
   });
+  const now = new Date();
   const stalledWars = activeWars.filter((war) =>
+    !matchDeadlineHasPassed(war.state, war.startedAt, now.getTime()) &&
     raveWarMatchIsStalled({
       latestEventAt: war.events[0]?.createdAt ?? null,
+      now,
       status: war.status,
       updatedAt: war.updatedAt
     })
