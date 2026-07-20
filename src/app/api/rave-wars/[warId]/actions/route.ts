@@ -34,6 +34,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (action === "fire") {
       return NextResponse.json({
         war: await fireRaveWarShot(warId, user.id, {
+          actionId: payload.actionId,
           angle: payload.angle,
           facing: payload.facing,
           power: payload.power,
@@ -45,6 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (action === "move") {
       return NextResponse.json({
         war: await moveRaveWarPlayer(warId, user.id, {
+          actionId: payload.actionId,
           direction: payload.direction
         })
       });

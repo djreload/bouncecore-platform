@@ -6,7 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { Crosshair, Flag, HeartPulse, Maximize2, Radio, Swords, Timer, X, ZoomIn, ZoomOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 import { raveWarMoveStep, simulateRaveWarShot, walkPlayerOnTerrain } from "@/lib/rave-wars/rave-war-engine";
+import { shouldApplyRaveWarSnapshot } from "@/lib/rave-wars/rave-war-network-core";
 import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary, RaveWarWeaponId } from "@/lib/rave-wars/rave-war-types";
 import { defaultRaveWarWeaponAmmo, raveWarWeaponDefinitions, weaponAmmoOrDefault, type RaveWarWeaponDefinition } from "@/lib/rave-wars/rave-war-weapons";
 
@@ -17,6 +19,7 @@ type RaveWarGameProps = {
 
 type WarPayload = {
   error?: string;
+  sentAt?: string;
   war?: RaveWarSummary;
 };
 
@@ -36,6 +39,11 @@ type RaveWarImpactPulse = {
 
 type RaveWarSfx = "blocked" | "fire" | "hit" | "impact" | "miss";
 type RaveWarMoveDirection = "left" | "right";
+type RaveWarQueuedMove = {
+  actionId: string;
+  direction: RaveWarMoveDirection;
+};
+type RaveWarConnectionState = "connecting" | "live" | "polling" | "reconnecting";
 type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | "weapon-next" | "weapon-prev" | "zoom-in" | "zoom-out";
 type RaveWarNativeControlState = "down" | "press" | "up";
 
@@ -46,6 +54,9 @@ const aimHoldStep = 1.25;
 const moveHoldIntervalMs = 90;
 const shotAnimationMinMs = 420;
 const shotAnimationMaxMs = 900;
+const raveWarSnapshotPollMs = 2500;
+const raveWarActionTimeoutMs = 6500;
+const raveWarActionAttempts = 3;
 const cameraFitZoom = 1.02;
 const cameraMinZoom = 0.72;
 const cameraMaxZoom = 1.8;
@@ -63,6 +74,55 @@ let raveWarAudioContext: AudioContext | null = null;
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function createRaveWarActionId(action: string) {
+  const randomPart = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+  return `${action}:${randomPart}`;
+}
+
+function waitForRetry(delayMs: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
+}
+
+async function requestRaveWarAction(warId: string, body: Record<string, unknown>, attempts = raveWarActionAttempts) {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), raveWarActionTimeoutMs);
+
+    try {
+      const response = await fetch(`/api/rave-wars/${encodeURIComponent(warId)}/actions`, {
+        body: JSON.stringify(body),
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        method: "POST",
+        signal: controller.signal
+      });
+      const payload = (await response.json()) as WarPayload;
+
+      if (response.ok || response.status < 500 || attempt === attempts - 1) {
+        return { payload, response };
+      }
+
+      lastError = new Error(payload.error ?? "Rave War server action failed.");
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === attempts - 1) {
+        throw error;
+      }
+    } finally {
+      window.clearTimeout(timeout);
+    }
+
+    await waitForRetry(reconnectDelayMs(attempt, 250, 1200));
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Rave War action failed.");
 }
 
 function percent(value: number, max: number) {
@@ -412,6 +472,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [error, setError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [turnNotice, setTurnNotice] = useState("");
+  const [connectionState, setConnectionState] = useState<RaveWarConnectionState>("connecting");
+  const [syncLatencyMs, setSyncLatencyMs] = useState<number | null>(null);
   const [cameraZoom, setCameraZoom] = useState(cameraFitZoom);
   const [cameraOrigin, setCameraOrigin] = useState<RaveWarShotPoint>(() => ({
     x: initialWar.level.width / 2,
@@ -428,7 +490,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const isChargingShotRef = useRef(false);
   const moveHoldDirectionRef = useRef<RaveWarMoveDirection | null>(null);
   const moveHoldIntervalRef = useRef<number | null>(null);
-  const moveQueueRef = useRef<RaveWarMoveDirection[]>([]);
+  const moveQueueRef = useRef<RaveWarQueuedMove[]>([]);
   const moveFlushPromiseRef = useRef<Promise<void> | null>(null);
   const powerRef = useRef(power);
   const selectedWeaponRef = useRef<RaveWarWeaponId>(selectedWeapon);
@@ -491,6 +553,15 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
           ? `${winner.displayName} wins. Returning to live.`
           : "Rave War finished. Returning to live."
         : "Waiting for the challenge.";
+  const connectionTone = connectionState === "live" ? "acid" : connectionState === "polling" ? "amber" : "pink";
+  const connectionLabel =
+    connectionState === "live"
+      ? "Live sync"
+      : connectionState === "polling"
+        ? "Backup sync"
+        : connectionState === "reconnecting"
+          ? "Reconnecting"
+          : "Connecting";
   const hudPlayers = war.state.players.slice().sort((first, second) => first.playerIndex - second.playerIndex);
 
   useEffect(() => {
@@ -559,9 +630,13 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   }, [setWalkingPlayerIds]);
 
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
+    if (!shouldApplyRaveWarSnapshot(authoritativeWarRef.current.state.revision, nextWar.state.revision)) {
+      return;
+    }
+
     authoritativeWarRef.current = nextWar;
     const locallyMovedWar = moveQueueRef.current.reduce(
-      (current, direction) => moveWarLocally(current, currentUserId, direction),
+      (current, queuedMove) => moveWarLocally(current, currentUserId, queuedMove.direction),
       nextWar
     );
     const preserveLiveControls =
@@ -638,24 +713,17 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     const request = (async () => {
       try {
         while (moveQueueRef.current.length > 0 && canControlRef.current) {
-          const direction = moveQueueRef.current.shift();
+          const queuedMove = moveQueueRef.current.shift();
 
-          if (!direction) {
+          if (!queuedMove) {
             continue;
           }
 
-          const response = await fetch(`/api/rave-wars/${encodeURIComponent(warRef.current.id)}/actions`, {
-            body: JSON.stringify({
-              action: "move",
-              direction
-            }),
-            cache: "no-store",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            method: "POST"
+          const { payload, response } = await requestRaveWarAction(warRef.current.id, {
+            actionId: queuedMove.actionId,
+            action: "move",
+            direction: queuedMove.direction
           });
-          const payload = (await response.json()) as WarPayload;
 
           if (!response.ok || !payload.war) {
             throw new Error(payload.error ?? "Rave War movement failed.");
@@ -686,18 +754,16 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       setError(null);
 
       try {
-        const response = await fetch(`/api/rave-wars/${encodeURIComponent(war.id)}/actions`, {
-          body: JSON.stringify({
+        const actionId = createRaveWarActionId(action);
+        const { payload, response } = await requestRaveWarAction(
+          war.id,
+          {
+            actionId,
             action,
             ...body
-          }),
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json"
           },
-          method: "POST"
-        });
-        const payload = (await response.json()) as WarPayload;
+          action === "fire" ? raveWarActionAttempts : 1
+        );
 
         if (!response.ok) {
           throw new Error(payload.error ?? "Rave War action failed.");
@@ -1110,7 +1176,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       setAimFacing(direction);
       aimFacingRef.current = direction;
       markPlayerWalking(currentUserId);
-      moveQueueRef.current.push(direction);
+      moveQueueRef.current.push({
+        actionId: createRaveWarActionId("move"),
+        direction
+      });
       void flushMoveQueue();
     },
     [currentUserId, flushMoveQueue, markPlayerWalking, setAimFacing, setWar]
@@ -1474,18 +1543,46 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     let active = true;
     let fallbackInterval: number | null = null;
     let eventSource: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
+    const streamUrl = `/api/rave-wars/${encodeURIComponent(war.id)}/stream`;
 
-    async function refreshWar() {
+    function recordServerDelivery(sentAt?: string) {
+      const sentAtMs = sentAt ? Date.parse(sentAt) : Number.NaN;
+
+      if (Number.isFinite(sentAtMs)) {
+        setSyncLatencyMs(Math.round(clampNumber(Date.now() - sentAtMs, 0, 9999)));
+      }
+    }
+
+    async function refreshWarSnapshot() {
+      const startedAt = window.performance.now();
+
       try {
-        const response = await fetch(`/api/rave-wars/${encodeURIComponent(war.id)}/stream`, {
+        const response = await fetch(`${streamUrl}?snapshot=1`, {
           cache: "no-store"
         });
 
         if (!response.ok) {
-          return;
+          return false;
         }
+
+        const payload = (await response.json()) as WarPayload;
+
+        if (!active) {
+          return false;
+        }
+
+        refreshWarFromPayload(payload);
+        setSyncLatencyMs(Math.round(window.performance.now() - startedAt));
+
+        if (!eventSource || eventSource.readyState !== EventSource.OPEN) {
+          setConnectionState("polling");
+        }
+
+        return true;
       } catch {
-        // The EventSource path handles live updates; fetch fallback is only a liveness nudge.
+        return false;
       }
     }
 
@@ -1494,49 +1591,123 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return;
       }
 
-      fallbackInterval = window.setInterval(() => {
-        window.location.reload();
-      }, 10000);
+      void refreshWarSnapshot();
+      fallbackInterval = window.setInterval(() => void refreshWarSnapshot(), raveWarSnapshotPollMs);
     }
 
-    if ("EventSource" in window) {
-      eventSource = new EventSource(`/api/rave-wars/${encodeURIComponent(war.id)}/stream`);
+    function stopPollingFallback() {
+      if (fallbackInterval !== null) {
+        window.clearInterval(fallbackInterval);
+        fallbackInterval = null;
+      }
+    }
 
-      eventSource.addEventListener("war", (event) => {
-        if (!active) {
+    function scheduleReconnect() {
+      if (!active || !("EventSource" in window) || reconnectTimer !== null) {
+        return;
+      }
+
+      setConnectionState("reconnecting");
+      const delay = reconnectDelayMs(reconnectAttempt, 500, 5000);
+      reconnectAttempt += 1;
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connectEventSource();
+      }, delay);
+    }
+
+    function handleStreamPayload(event: Event) {
+      if (!active) {
+        return;
+      }
+
+      try {
+        const payload = JSON.parse((event as MessageEvent<string>).data) as WarPayload;
+        recordServerDelivery(payload.sentAt);
+        refreshWarFromPayload(payload);
+      } catch {
+        // A malformed event is ignored; the next revision or snapshot repairs state.
+      }
+    }
+
+    function connectEventSource() {
+      if (!active || !("EventSource" in window) || eventSource) {
+        return;
+      }
+
+      setConnectionState(reconnectAttempt > 0 ? "reconnecting" : "connecting");
+      const source = new EventSource(streamUrl);
+      eventSource = source;
+
+      source.onopen = () => {
+        if (!active || eventSource !== source) {
+          return;
+        }
+
+        reconnectAttempt = 0;
+        setConnectionState("live");
+        stopPollingFallback();
+      };
+
+      source.addEventListener("war", handleStreamPayload);
+      source.addEventListener("heartbeat", (event) => {
+        if (!active || eventSource !== source) {
           return;
         }
 
         try {
-          refreshWarFromPayload(JSON.parse((event as MessageEvent<string>).data) as WarPayload);
+          const payload = JSON.parse((event as MessageEvent<string>).data) as Pick<WarPayload, "sentAt">;
+          recordServerDelivery(payload.sentAt);
         } catch {
-          // Ignore malformed stream events.
+          // The next heartbeat updates the indicator.
         }
       });
 
-      eventSource.onerror = () => {
-        if (!active) {
+      source.onerror = () => {
+        if (!active || eventSource !== source) {
           return;
         }
 
-        eventSource?.close();
+        source.close();
         eventSource = null;
         startPollingFallback();
+        scheduleReconnect();
       };
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState !== "visible" || eventSource) {
+        return;
+      }
+
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+
+      connectEventSource();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    if ("EventSource" in window) {
+      connectEventSource();
     } else {
-      void refreshWar();
       startPollingFallback();
     }
 
     return () => {
       active = false;
       eventSource?.close();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
 
-      if (fallbackInterval !== null) {
-        window.clearInterval(fallbackInterval);
+      stopPollingFallback();
+
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
       }
     };
-  }, [refreshWarFromPayload, war.id]);
+  }, [refreshWarFromPayload, setConnectionState, setSyncLatencyMs, war.id]);
 
   useEffect(() => {
     const lastShot = war.state.lastShot;
@@ -1617,6 +1788,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               <Badge tone="muted">#{war.roomSlug}</Badge>
               <Badge tone={remainingWarSeconds !== null && remainingWarSeconds <= 30 ? "pink" : "cyan"}>War {formatCountdown(remainingWarSeconds)}</Badge>
               <Badge tone={remainingTurnSeconds !== null && remainingTurnSeconds <= 10 ? "pink" : "amber"}>Turn {formatCountdown(remainingTurnSeconds)}</Badge>
+              <Badge className="gap-1" tone={connectionTone}>
+                <Radio className="h-3 w-3" aria-hidden="true" />
+                {connectionLabel}{syncLatencyMs !== null ? ` ${syncLatencyMs}ms` : ""}
+              </Badge>
             </div>
             <h1 className="mt-1 truncate text-base font-black lg:text-xl">{war.level.name}</h1>
           </div>
@@ -1898,7 +2073,9 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
 
               return (
                 <div
-                  className="absolute -translate-x-1/2 -translate-y-full will-change-[left,top] transition-[left,top] duration-75 ease-linear"
+                  className={`absolute -translate-x-1/2 -translate-y-full will-change-[left,top] transition-[left,top] ${
+                    player.userId === currentUserId ? "duration-75 ease-linear" : "duration-150 ease-out"
+                  }`}
                   key={player.userId}
                   style={{
                     left: percent(player.x, war.level.width),

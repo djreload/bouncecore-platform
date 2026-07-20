@@ -18,12 +18,8 @@ const raveWarStreamConsistencyPollMs = 30000;
 const raveWarStreamHeartbeatMs = 15000;
 const encoder = new TextEncoder();
 
-function encodeServerEvent(event: string, data: unknown) {
-  return encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-}
-
-function encodeServerComment(comment: string) {
-  return encoder.encode(`: ${comment}\n\n`);
+function encodeServerEvent(event: string, data: unknown, id?: string) {
+  return encoder.encode(`${id ? `id: ${id}\n` : ""}event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
 function warSignature(war: RaveWarSummary) {
@@ -36,6 +32,7 @@ function warSignature(war: RaveWarSummary) {
       (player) =>
         `${player.userId}:${player.health}:${player.angle}:${player.power}:${player.x}:${player.y}:${player.facing}:${player.movementLeft}:${player.selectedWeapon}`
     ),
+    revision: war.state.revision,
     status: war.status,
     turnEndsAt: war.state.turnEndsAt,
     turnNumber: war.state.turnNumber,
@@ -138,6 +135,20 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: "Rave War not found." }, { status: 404 });
   }
 
+  if (new URL(request.url).searchParams.get("snapshot") === "1") {
+    return NextResponse.json(
+      {
+        sentAt: new Date().toISOString(),
+        war: initialWar
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store, no-transform"
+        }
+      }
+    );
+  }
+
   let cancelled = false;
 
   const stream = new ReadableStream({
@@ -160,7 +171,7 @@ export async function GET(request: Request, context: RouteContext) {
         }
       }
 
-      enqueue(encodeServerEvent("war", { war: initialWar }));
+      enqueue(encodeServerEvent("war", { sentAt: new Date().toISOString(), war: initialWar }, String(initialWar.state.revision)));
 
       async function pumpWar() {
         const unsubscribe = await subscribeToRaveWarChanges(warId, refreshSignal.notify).catch(() => null);
@@ -182,7 +193,7 @@ export async function GET(request: Request, context: RouteContext) {
             const nextSignature = warSignature(war);
 
             if (nextSignature !== lastSignature) {
-              if (!enqueue(encodeServerEvent("war", { war }))) {
+              if (!enqueue(encodeServerEvent("war", { sentAt: new Date().toISOString(), war }, String(war.state.revision)))) {
                 break;
               }
 
@@ -192,7 +203,7 @@ export async function GET(request: Request, context: RouteContext) {
             }
 
             if (Date.now() - lastHeartbeatAt >= raveWarStreamHeartbeatMs) {
-              if (!enqueue(encodeServerComment("keep-alive"))) {
+              if (!enqueue(encodeServerEvent("heartbeat", { sentAt: new Date().toISOString() }))) {
                 break;
               }
 

@@ -122,7 +122,8 @@ test("rave war shots carve authoritative terrain craters and render imported gam
   assert.match(game, /moveQueueRef/);
   assert.match(game, /flushMoveQueue/);
   assert.doesNotMatch(game, /moveInFlightRef/);
-  assert.match(game, /will-change-\[left,top\].*duration-75 ease-linear/);
+  assert.match(game, /will-change-\[left,top\] transition-\[left,top\]/);
+  assert.match(game, /player\.userId === currentUserId \? "duration-75 ease-linear" : "duration-150 ease-out"/);
   assert.match(game, /bc-rave-war-worm-body/);
   assert.match(game, /bc-rave-war-worm-weapon/);
   assert.match(game, /bc-rave-war-character-anchor absolute bottom-0/);
@@ -228,6 +229,32 @@ test("rave war active challenges auto-open once and finished wars return to live
   assert.match(css, /bc-rave-war-weapon-dock/);
   assert.match(game, /setRaveWarControlState/);
   assert.match(game, /canControl && !busy/);
+});
+
+test("rave war multiplayer sync rejects stale state and recovers without a page reload", () => {
+  const actionRoute = readFileSync(join(process.cwd(), "src/app/api/rave-wars/[warId]/actions/route.ts"), "utf8");
+  const streamRoute = readFileSync(join(process.cwd(), "src/app/api/rave-wars/[warId]/stream/route.ts"), "utf8");
+  const game = readFileSync(join(process.cwd(), "src/app/rave-wars/[warId]/rave-war-game.tsx"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-service.ts"), "utf8");
+  const types = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-types.ts"), "utf8");
+
+  assert.match(types, /processedActionIds: string\[\]/);
+  assert.match(types, /revision: number/);
+  assert.match(actionRoute, /actionId: payload\.actionId/);
+  assert.match(service, /parseRaveWarClientActionId/);
+  assert.match(service, /state\.processedActionIds\.includes\(actionId\)/);
+  assert.match(service, /updatedAt: war\.updatedAt/);
+  assert.match(streamRoute, /searchParams\.get\("snapshot"\) === "1"/);
+  assert.match(streamRoute, /encodeServerEvent\("heartbeat"/);
+  assert.match(streamRoute, /String\(war\.state\.revision\)/);
+  assert.match(game, /shouldApplyRaveWarSnapshot/);
+  assert.match(game, /requestRaveWarAction/);
+  assert.match(game, /createRaveWarActionId/);
+  assert.match(game, /reconnectDelayMs/);
+  assert.match(game, /raveWarSnapshotPollMs/);
+  assert.match(game, /Live sync/);
+  assert.match(game, /Backup sync/);
+  assert.doesNotMatch(game, /window\.location\.reload\(\)/);
 });
 
 test("rave war timers and chat toasts use enforced match state", () => {

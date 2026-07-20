@@ -17,6 +17,11 @@ import {
 } from "@/lib/rave-wars/rave-war-engine";
 import type { RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
 import { getActiveRaveWarLevel, getRaveWarLevel } from "@/lib/rave-wars/rave-war-level-service";
+import {
+  appendProcessedRaveWarActionId,
+  parseRaveWarClientActionId,
+  raveWarProcessedActionLimit
+} from "@/lib/rave-wars/rave-war-network-core";
 import { publishRaveWarChanged } from "@/lib/rave-wars/rave-war-realtime";
 import {
   defaultRaveWarSettings,
@@ -103,6 +108,10 @@ function clamp(value: number, min: number, max: number) {
 
 function compactLog(entries: string[]) {
   return entries.slice(-raveWarMaxLogEntries);
+}
+
+function nextProcessedActionIds(state: RaveWarState, actionId: string | null) {
+  return appendProcessedRaveWarActionId(state.processedActionIds, actionId);
 }
 
 function normalizeRaveWarStatus(value: string): RaveWarStatus {
@@ -209,6 +218,8 @@ function createInitialState(input: {
         y: spawn.y
       };
     }),
+    processedActionIds: [],
+    revision: 0,
     turnEndsAt: null,
     turnNumber: 1,
     turnStartedAt: null,
@@ -332,6 +343,12 @@ function normalizeRaveWarState(value: Prisma.JsonValue, participants: RaveWarPar
     levelKey: typeof value.levelKey === "string" ? value.levelKey : level.key,
     log: Array.isArray(value.log) ? value.log.filter((entry): entry is string => typeof entry === "string").slice(-raveWarMaxLogEntries) : [],
     players,
+    processedActionIds: Array.isArray(value.processedActionIds)
+      ? value.processedActionIds
+          .filter((entry): entry is string => typeof entry === "string" && /^[a-zA-Z0-9:_-]{8,96}$/.test(entry))
+          .slice(-raveWarProcessedActionLimit)
+      : [],
+    revision: Math.floor(normalizeShotNumber(value.revision, 0, 0, 1_000_000_000)),
     turnEndsAt: typeof value.turnEndsAt === "string" ? value.turnEndsAt : null,
     turnNumber: normalizeShotNumber(value.turnNumber, 1, 1, 999),
     turnStartedAt: typeof value.turnStartedAt === "string" ? value.turnStartedAt : null,
@@ -639,6 +656,7 @@ async function finishExpiredActiveRaveWarIfNeeded(war: RaveWarSummarySource, cur
       ...state.log,
       winner ? `Time up. ${winner.displayName} won on health.` : "Time up. Rave War ended in a draw."
     ]),
+    revision: state.revision + 1,
     turnEndsAt: null,
     turnStartedAt: null,
     warEndsAt: effectiveWarEndsAt,
@@ -770,6 +788,7 @@ async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUser
           }
         : player
     ),
+    revision: state.revision + 1,
     ...turnWindow(now),
     turnNumber: state.turnNumber + 1,
     wind: windForTurn(state.turnNumber + 1)
@@ -1233,6 +1252,7 @@ export async function acceptRaveWarChallenge(warId: string, userId: string) {
           }
         : player
     ),
+    revision: state.revision + 1,
     ...nextMatchWindow,
     ...nextTurnWindow
   } satisfies RaveWarState;
@@ -1428,11 +1448,19 @@ export async function cancelRaveWarChallenge(warId: string, userId: string) {
   return toWarSummary(result.war, userId);
 }
 
-export async function moveRaveWarPlayer(warId: string, userId: string, input: { direction: unknown }) {
+export async function moveRaveWarPlayer(warId: string, userId: string, input: { actionId?: unknown; direction: unknown }) {
   const war = await getWarForUserRecord(warId, userId);
 
   if (!war) {
     throw new Error("Rave War not found.");
+  }
+
+  const level = await getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
+  const actionId = parseRaveWarClientActionId(input.actionId);
+
+  if (actionId && state.processedActionIds.includes(actionId)) {
+    return toWarSummary(war, userId);
   }
 
   if (war.status !== "active") {
@@ -1449,8 +1477,6 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
     throw new Error("Choose a valid movement direction.");
   }
 
-  const level = await getRaveWarLevel(war.levelKey);
-  const state = normalizeRaveWarState(war.state, war.participants, level);
   state.warEndsAt ??= warEndsAtFallback(war.startedAt);
 
   if (isWarExpired(state)) {
@@ -1492,15 +1518,33 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
   const nextState: RaveWarState = {
     ...state,
     log: compactLog([...state.log, `${mover.displayName} moved ${direction}.`]),
-    players: nextPlayers
+    players: nextPlayers,
+    processedActionIds: nextProcessedActionIds(state, actionId),
+    revision: state.revision + 1
   };
   const result = await prisma.$transaction(async (tx) => {
-    const updatedWar = await tx.raveWar.update({
+    const updated = await tx.raveWar.updateMany({
       where: {
-        id: warId
+        id: warId,
+        status: "active",
+        turnUserId: userId,
+        updatedAt: war.updatedAt
       },
       data: {
         state: nextState as Prisma.InputJsonValue
+      }
+    });
+
+    if (updated.count !== 1) {
+      return {
+        event: null,
+        war: null
+      };
+    }
+
+    const updatedWar = await tx.raveWar.findUniqueOrThrow({
+      where: {
+        id: warId
       },
       include: {
         participants: {
@@ -1519,6 +1563,7 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
     });
     const event = await writeWarEvent(tx, {
       payload: {
+        clientActionId: actionId,
         direction,
         x: movedPlayer.x
       },
@@ -1533,16 +1578,42 @@ export async function moveRaveWarPlayer(warId: string, userId: string, input: { 
     };
   });
 
+  if (!result.war || !result.event) {
+    const latestWar = await getWarForUserRecord(warId, userId);
+
+    if (latestWar && actionId) {
+      const latestState = normalizeRaveWarState(latestWar.state, latestWar.participants, level);
+
+      if (latestState.processedActionIds.includes(actionId)) {
+        return toWarSummary(latestWar, userId);
+      }
+    }
+
+    throw new Error("That movement arrived after newer game state. The battlefield has been resynced.");
+  }
+
   await publishRaveWarChanged(warId, result.event.id);
 
   return toWarSummary(result.war, userId);
 }
 
-export async function fireRaveWarShot(warId: string, userId: string, input: { angle: unknown; facing?: unknown; power: unknown; weaponId?: unknown }) {
+export async function fireRaveWarShot(
+  warId: string,
+  userId: string,
+  input: { actionId?: unknown; angle: unknown; facing?: unknown; power: unknown; weaponId?: unknown }
+) {
   const war = await getWarForUserRecord(warId, userId);
 
   if (!war) {
     throw new Error("Rave War not found.");
+  }
+
+  const level = await getRaveWarLevel(war.levelKey);
+  const state = normalizeRaveWarState(war.state, war.participants, level);
+  const actionId = parseRaveWarClientActionId(input.actionId);
+
+  if (actionId && state.processedActionIds.includes(actionId)) {
+    return toWarSummary(war, userId);
   }
 
   if (war.status !== "active") {
@@ -1553,8 +1624,6 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     throw new Error("Wait for your Rave War turn.");
   }
 
-  const level = await getRaveWarLevel(war.levelKey);
-  const state = normalizeRaveWarState(war.state, war.participants, level);
   state.warEndsAt ??= warEndsAtFallback(war.startedAt);
 
   if (isWarExpired(state)) {
@@ -1673,6 +1742,8 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
           : `${shooter.displayName}'s ${raveWarWeaponLabel(weaponId)} missed.`
     ]),
     players: nextPlayers,
+    processedActionIds: nextProcessedActionIds(state, actionId),
+    revision: state.revision + 1,
     ...nextTurnWindow,
     turnNumber: state.turnNumber + 1,
     wind: windForTurn(state.turnNumber + 1),
@@ -1696,7 +1767,11 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
     });
 
     if (updated.count !== 1) {
-      throw new Error("That Rave War turn already changed. Refreshing the battlefield.");
+      return {
+        event: null,
+        message: null,
+        war: null
+      };
     }
 
     if (weaponStarCost > 0) {
@@ -1765,7 +1840,10 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
         })
       : null;
     const event = await writeWarEvent(tx, {
-      payload: lastShot as unknown as Prisma.InputJsonValue,
+      payload: {
+        ...lastShot,
+        clientActionId: actionId
+      } as unknown as Prisma.InputJsonValue,
       type: "shot.fired",
       userId,
       warId
@@ -1777,6 +1855,20 @@ export async function fireRaveWarShot(warId: string, userId: string, input: { an
       war: updatedWar
     };
   });
+
+  if (!result.war || !result.event) {
+    const latestWar = await getWarForUserRecord(warId, userId);
+
+    if (latestWar && actionId) {
+      const latestState = normalizeRaveWarState(latestWar.state, latestWar.participants, level);
+
+      if (latestState.processedActionIds.includes(actionId)) {
+        return toWarSummary(latestWar, userId);
+      }
+    }
+
+    throw new Error("That shot arrived after the turn changed. The battlefield has been resynced.");
+  }
 
   await writeAuditLog({
     action: "chat.rave_war.shot.fire",
@@ -1823,6 +1915,7 @@ export async function surrenderRaveWar(warId: string, userId: string) {
     ...state,
     activeUserId: null,
     log: compactLog([...state.log, `${state.players.find((player) => player.userId === userId)?.displayName ?? "A raver"} surrendered.`]),
+    revision: state.revision + 1,
     turnEndsAt: null,
     turnStartedAt: null,
     winnerUserId: winner.userId
