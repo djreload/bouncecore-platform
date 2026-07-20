@@ -87,7 +87,7 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
   const notificationId = await createNotificationOnce(input);
 
   if (!notificationId) {
-    return;
+    return false;
   }
 
   const deliveryPreferences = await getNotificationDeliveryPreferencesForUser(input.user.id, input.type);
@@ -175,4 +175,6 @@ export async function notifyAccountUserOnce(input: AccountNotificationEmailInput
     severity: (mailResult.sent || emailSkipped) && !pushFailed ? "info" : "warning",
     metadata: metadataWithReason
   });
+
+  return true;
 }
