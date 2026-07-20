@@ -252,6 +252,11 @@ test("rave war multiplayer sync rejects stale state and recovers without a page 
   assert.match(game, /createRaveWarActionId/);
   assert.match(game, /reconnectDelayMs/);
   assert.match(game, /raveWarSnapshotPollMs/);
+  assert.match(game, /recordNetworkCounter\("reconnectCount"\)/);
+  assert.match(game, /recordNetworkCounter\("fallbackCount"\)/);
+  assert.match(game, /recordNetworkCounter\("actionRetryCount"\)/);
+  assert.match(game, /recordNetworkCounter\("staleSnapshotCount"\)/);
+  assert.match(game, /connectionDiagnosticTitle/);
   assert.match(game, /Live sync/);
   assert.match(game, /Backup sync/);
   assert.doesNotMatch(game, /window\.location\.reload\(\)/);

@@ -8,7 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 import { raveWarMoveStep, simulateRaveWarShot, walkPlayerOnTerrain } from "@/lib/rave-wars/rave-war-engine";
-import { shouldApplyRaveWarSnapshot } from "@/lib/rave-wars/rave-war-network-core";
+import {
+  getRaveWarNetworkQuality,
+  incrementRaveWarNetworkCounter,
+  initialRaveWarNetworkDiagnostics,
+  recordRaveWarLatency,
+  shouldApplyRaveWarSnapshot,
+  type RaveWarConnectionState,
+  type RaveWarNetworkCounter
+} from "@/lib/rave-wars/rave-war-network-core";
 import type { RaveWarLastShot, RaveWarPlayerState, RaveWarShotPoint, RaveWarSummary, RaveWarWeaponId } from "@/lib/rave-wars/rave-war-types";
 import { defaultRaveWarWeaponAmmo, raveWarWeaponDefinitions, weaponAmmoOrDefault, type RaveWarWeaponDefinition } from "@/lib/rave-wars/rave-war-weapons";
 
@@ -43,9 +51,12 @@ type RaveWarQueuedMove = {
   actionId: string;
   direction: RaveWarMoveDirection;
 };
-type RaveWarConnectionState = "connecting" | "live" | "polling" | "reconnecting";
 type RaveWarNativeControl = "aim-down" | "aim-up" | "fire" | "left" | "right" | "weapon-next" | "weapon-prev" | "zoom-in" | "zoom-out";
 type RaveWarNativeControlState = "down" | "press" | "up";
+type RaveWarActionRequestOptions = {
+  attempts?: number;
+  onRetry?: () => void;
+};
 
 const chargeDurationMs = 900;
 const liveReturnDelayMs = 4500;
@@ -85,7 +96,8 @@ function waitForRetry(delayMs: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
 }
 
-async function requestRaveWarAction(warId: string, body: Record<string, unknown>, attempts = raveWarActionAttempts) {
+async function requestRaveWarAction(warId: string, body: Record<string, unknown>, options: RaveWarActionRequestOptions = {}) {
+  const attempts = options.attempts ?? raveWarActionAttempts;
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -102,7 +114,7 @@ async function requestRaveWarAction(warId: string, body: Record<string, unknown>
         method: "POST",
         signal: controller.signal
       });
-      const payload = (await response.json()) as WarPayload;
+      const payload = (await response.json().catch(() => ({ error: `Rave War request failed (${response.status}).` }))) as WarPayload;
 
       if (response.ok || response.status < 500 || attempt === attempts - 1) {
         return { payload, response };
@@ -119,6 +131,7 @@ async function requestRaveWarAction(warId: string, body: Record<string, unknown>
       window.clearTimeout(timeout);
     }
 
+    options.onRetry?.();
     await waitForRetry(reconnectDelayMs(attempt, 250, 1200));
   }
 
@@ -473,7 +486,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [turnNotice, setTurnNotice] = useState("");
   const [connectionState, setConnectionState] = useState<RaveWarConnectionState>("connecting");
-  const [syncLatencyMs, setSyncLatencyMs] = useState<number | null>(null);
+  const [networkDiagnostics, setNetworkDiagnostics] = useState(initialRaveWarNetworkDiagnostics);
   const [cameraZoom, setCameraZoom] = useState(cameraFitZoom);
   const [cameraOrigin, setCameraOrigin] = useState<RaveWarShotPoint>(() => ({
     x: initialWar.level.width / 2,
@@ -553,7 +566,8 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
           ? `${winner.displayName} wins. Returning to live.`
           : "Rave War finished. Returning to live."
         : "Waiting for the challenge.";
-  const connectionTone = connectionState === "live" ? "acid" : connectionState === "polling" ? "amber" : "pink";
+  const networkQuality = getRaveWarNetworkQuality(connectionState, networkDiagnostics.averageLatencyMs);
+  const connectionTone = networkQuality === "good" ? "acid" : networkQuality === "fair" || networkQuality === "backup" ? "amber" : "pink";
   const connectionLabel =
     connectionState === "live"
       ? "Live sync"
@@ -562,6 +576,11 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         : connectionState === "reconnecting"
           ? "Reconnecting"
           : "Connecting";
+  const connectionDiagnosticTitle = `${connectionLabel}. Average delay ${networkDiagnostics.averageLatencyMs ?? "--"}ms, peak ${
+    networkDiagnostics.peakLatencyMs ?? "--"
+  }ms. Reconnects ${networkDiagnostics.reconnectCount}; backup syncs ${networkDiagnostics.fallbackCount}; action retries ${
+    networkDiagnostics.actionRetryCount
+  }; stale updates ignored ${networkDiagnostics.staleSnapshotCount}.`;
   const hudPlayers = war.state.players.slice().sort((first, second) => first.playerIndex - second.playerIndex);
 
   useEffect(() => {
@@ -629,8 +648,17 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     walkingTimeoutsRef.current.set(userId, timeout);
   }, [setWalkingPlayerIds]);
 
+  const recordNetworkCounter = useCallback((counter: RaveWarNetworkCounter) => {
+    setNetworkDiagnostics((current) => incrementRaveWarNetworkCounter(current, counter));
+  }, [setNetworkDiagnostics]);
+
+  const recordNetworkLatency = useCallback((latencyMs: number) => {
+    setNetworkDiagnostics((current) => recordRaveWarLatency(current, latencyMs));
+  }, [setNetworkDiagnostics]);
+
   const applyWar = useCallback((nextWar: RaveWarSummary) => {
     if (!shouldApplyRaveWarSnapshot(authoritativeWarRef.current.state.revision, nextWar.state.revision)) {
+      recordNetworkCounter("staleSnapshotCount");
       return;
     }
 
@@ -695,7 +723,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       setPower(nextCurrentPlayer.power);
       setSelectedWeapon(nextCurrentPlayer.selectedWeapon);
     }
-  }, [currentUserId, markPlayerWalking, setAimFacing, setAngle, setError, setPower, setSelectedWeapon, setWar]);
+  }, [currentUserId, markPlayerWalking, recordNetworkCounter, setAimFacing, setAngle, setError, setPower, setSelectedWeapon, setWar]);
 
   const refreshWarFromPayload = useCallback((payload: WarPayload) => {
     if (payload.war) {
@@ -719,11 +747,17 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             continue;
           }
 
-          const { payload, response } = await requestRaveWarAction(warRef.current.id, {
-            actionId: queuedMove.actionId,
-            action: "move",
-            direction: queuedMove.direction
-          });
+          const { payload, response } = await requestRaveWarAction(
+            warRef.current.id,
+            {
+              actionId: queuedMove.actionId,
+              action: "move",
+              direction: queuedMove.direction
+            },
+            {
+              onRetry: () => recordNetworkCounter("actionRetryCount")
+            }
+          );
 
           if (!response.ok || !payload.war) {
             throw new Error(payload.error ?? "Rave War movement failed.");
@@ -746,7 +780,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
     });
 
     return request;
-  }, [applyWar, setError]);
+  }, [applyWar, recordNetworkCounter, setError]);
 
   const postWarAction = useCallback(
     async (action: string, body: Record<string, unknown> = {}) => {
@@ -762,7 +796,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
             action,
             ...body
           },
-          action === "fire" ? raveWarActionAttempts : 1
+          {
+            attempts: action === "fire" ? raveWarActionAttempts : 1,
+            onRetry: () => recordNetworkCounter("actionRetryCount")
+          }
         );
 
         if (!response.ok) {
@@ -779,7 +816,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         setBusy(false);
       }
     },
-    [refreshWarFromPayload, setBusy, setError, war.id]
+    [recordNetworkCounter, refreshWarFromPayload, setBusy, setError, war.id]
   );
 
   const postChallengeAction = useCallback(
@@ -1551,7 +1588,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       const sentAtMs = sentAt ? Date.parse(sentAt) : Number.NaN;
 
       if (Number.isFinite(sentAtMs)) {
-        setSyncLatencyMs(Math.round(clampNumber(Date.now() - sentAtMs, 0, 9999)));
+        recordNetworkLatency(clampNumber(Date.now() - sentAtMs, 0, 9999));
       }
     }
 
@@ -1574,7 +1611,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         }
 
         refreshWarFromPayload(payload);
-        setSyncLatencyMs(Math.round(window.performance.now() - startedAt));
+        recordNetworkLatency(window.performance.now() - startedAt);
 
         if (!eventSource || eventSource.readyState !== EventSource.OPEN) {
           setConnectionState("polling");
@@ -1591,6 +1628,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return;
       }
 
+      recordNetworkCounter("fallbackCount");
       void refreshWarSnapshot();
       fallbackInterval = window.setInterval(() => void refreshWarSnapshot(), raveWarSnapshotPollMs);
     }
@@ -1607,6 +1645,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         return;
       }
 
+      recordNetworkCounter("reconnectCount");
       setConnectionState("reconnecting");
       const delay = reconnectDelayMs(reconnectAttempt, 500, 5000);
       reconnectAttempt += 1;
@@ -1707,7 +1746,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         window.clearTimeout(reconnectTimer);
       }
     };
-  }, [refreshWarFromPayload, setConnectionState, setSyncLatencyMs, war.id]);
+  }, [recordNetworkCounter, recordNetworkLatency, refreshWarFromPayload, setConnectionState, war.id]);
 
   useEffect(() => {
     const lastShot = war.state.lastShot;
@@ -1788,10 +1827,12 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
               <Badge tone="muted">#{war.roomSlug}</Badge>
               <Badge tone={remainingWarSeconds !== null && remainingWarSeconds <= 30 ? "pink" : "cyan"}>War {formatCountdown(remainingWarSeconds)}</Badge>
               <Badge tone={remainingTurnSeconds !== null && remainingTurnSeconds <= 10 ? "pink" : "amber"}>Turn {formatCountdown(remainingTurnSeconds)}</Badge>
-              <Badge className="gap-1" tone={connectionTone}>
-                <Radio className="h-3 w-3" aria-hidden="true" />
-                {connectionLabel}{syncLatencyMs !== null ? ` ${syncLatencyMs}ms` : ""}
-              </Badge>
+              <span title={connectionDiagnosticTitle}>
+                <Badge className="gap-1" tone={connectionTone}>
+                  <Radio className="h-3 w-3" aria-hidden="true" />
+                  {connectionLabel}{networkDiagnostics.averageLatencyMs !== null ? ` ${networkDiagnostics.averageLatencyMs}ms` : ""}
+                </Badge>
+              </span>
             </div>
             <h1 className="mt-1 truncate text-base font-black lg:text-xl">{war.level.name}</h1>
           </div>

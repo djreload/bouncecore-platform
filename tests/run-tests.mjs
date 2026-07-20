@@ -63,6 +63,7 @@ import "./public-account-deletion.test.mjs";
 import "./public-smoke-check.test.mjs";
 import "./rave-war-engine.test.mjs";
 import "./rave-war-levels.test.mjs";
+import "./rave-war-network.test.mjs";
 import "./rave-war-private-flow.test.mjs";
 import "./restream-settings.test.mjs";
 import "./role-permission-display.test.mjs";
