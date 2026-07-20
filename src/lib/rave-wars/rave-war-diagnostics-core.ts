@@ -20,7 +20,7 @@ export type RaveWarEventWindowDiagnostics = {
   totalEventCount: number;
 };
 
-function clientActionIdFromPayload(payload: unknown) {
+export function raveWarClientActionIdFromPayload(payload: unknown) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     return null;
   }
@@ -39,7 +39,7 @@ export function analyzeRaveWarEventWindow(events: RaveWarDiagnosticEvent[], tota
 
   for (let index = 0; index < orderedEvents.length; index += 1) {
     const event = orderedEvents[index];
-    const actionId = clientActionIdFromPayload(event.payload);
+    const actionId = raveWarClientActionIdFromPayload(event.payload);
 
     if (actionId) {
       actionIds.push(actionId);

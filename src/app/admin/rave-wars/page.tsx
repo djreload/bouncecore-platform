@@ -1,6 +1,7 @@
 import { Activity, Radio, ShieldCheck, Swords } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminRaveWarDiagnosticsData } from "@/lib/rave-wars/rave-war-admin-service";
 
@@ -106,6 +107,9 @@ export default async function AdminRaveWarsPage() {
                     <p className="mt-1 text-xs text-bc-muted">#{match.room.slug}</p>
                     <p className="mt-1 font-mono text-xs text-bc-muted" title={match.id}>{match.id.slice(0, 12)}</p>
                     <p className="mt-1 text-xs text-bc-muted">{match.levelKey}</p>
+                    <ButtonLink className="mt-3" href={`/admin/rave-wars/${encodeURIComponent(match.id)}`} size="sm" variant="ghost">
+                      Open timeline
+                    </ButtonLink>
                   </td>
                   <td className="px-4 py-4">
                     <div className="space-y-2">

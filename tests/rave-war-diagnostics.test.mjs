@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   analyzeRaveWarEventWindow,
+  raveWarClientActionIdFromPayload,
   raveWarDiagnosticStaleMs,
   raveWarMatchNeedsAttention
 } from "../src/lib/rave-wars/rave-war-diagnostics-core.ts";
@@ -30,6 +31,12 @@ test("Rave War diagnostics detect event gaps and duplicate accepted action IDs",
   assert.equal(diagnostics.latestEventAt?.getTime(), 700);
 });
 
+test("Rave War diagnostic action IDs are read only from structured payload fields", () => {
+  assert.equal(raveWarClientActionIdFromPayload({ clientActionId: "fire:action-123" }), "fire:action-123");
+  assert.equal(raveWarClientActionIdFromPayload({ clientActionId: 123 }), null);
+  assert.equal(raveWarClientActionIdFromPayload("fire:action-123"), null);
+});
+
 test("Rave War diagnostics flag stalled active matches but not completed quiet matches", () => {
   const diagnostics = analyzeRaveWarEventWindow([], 0);
   const now = new Date(1_000_000);
@@ -41,13 +48,22 @@ test("Rave War diagnostics flag stalled active matches but not completed quiet m
 
 test("Rave War diagnostics admin page is permission protected and linked in navigation", () => {
   const page = readFileSync(join(process.cwd(), "src/app/admin/rave-wars/page.tsx"), "utf8");
+  const detailPage = readFileSync(join(process.cwd(), "src/app/admin/rave-wars/[warId]/page.tsx"), "utf8");
   const navigation = readFileSync(join(process.cwd(), "src/config/navigation.ts"), "utf8");
   const service = readFileSync(join(process.cwd(), "src/lib/rave-wars/rave-war-admin-service.ts"), "utf8");
 
   assert.match(page, /requireUserPermission\("settings\.manage"\)/);
   assert.match(page, /Rave War diagnostics/);
   assert.match(page, /Duplicate actions/);
+  assert.match(page, /Open timeline/);
+  assert.match(detailPage, /requireUserPermission\("settings\.manage"\)/);
+  assert.match(detailPage, /getAdminRaveWarMatchDiagnostics/);
+  assert.match(detailPage, /notFound\(\)/);
+  assert.match(detailPage, /event\.payloadPreview/);
+  assert.doesNotMatch(detailPage, /dangerouslySetInnerHTML/);
   assert.match(navigation, /href: "\/admin\/rave-wars"/);
   assert.match(service, /take: raveWarEventInspectionLimit/);
+  assert.match(service, /take: raveWarEventDetailLimit/);
+  assert.match(service, /payload truncated/);
   assert.match(service, /raveWarMatchNeedsAttention/);
 });
