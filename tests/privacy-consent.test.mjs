@@ -71,8 +71,11 @@ test("saved consent records are normalized defensively", () => {
 
 test("cookie choices use a centered accessible modal on first visit and when reopened", () => {
   const manager = readFileSync(join(process.cwd(), "src/components/privacy/cookie-consent-manager.tsx"), "utf8");
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
-  assert.match(manager, /fixed inset-0 z-\[100\] grid place-items-center/);
+  assert.match(manager, /createPortal\(/);
+  assert.match(manager, /bc-cookie-consent-backdrop grid place-items-center/);
+  assert.match(manager, /document\.body/);
   assert.match(manager, /role="dialog"/);
   assert.match(manager, /aria-modal="true"/);
   assert.match(manager, /aria-labelledby="cookie-consent-title"/);
@@ -80,5 +83,10 @@ test("cookie choices use a centered accessible modal on first visit and when reo
   assert.match(manager, /max-h-\[calc\(100dvh-2rem\)\]/);
   assert.match(manager, /data-cookie-primary/);
   assert.match(manager, /event\.key !== "Tab"/);
+  assert.match(manager, /classList\.add\("bc-cookie-consent-open"\)/);
+  assert.match(manager, /classList\.remove\("bc-cookie-consent-open"\)/);
+  assert.match(css, /body > :not\(\.bc-cookie-consent-backdrop\)/);
+  assert.match(css, /body > \.bc-cookie-consent-backdrop\s*{\s*position: fixed;/s);
+  assert.doesNotMatch(css, /body > \*\s*{/);
   assert.doesNotMatch(manager, /fixed inset-x-0 bottom-0/);
 });

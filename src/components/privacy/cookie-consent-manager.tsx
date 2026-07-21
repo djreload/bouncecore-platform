@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, Cookie, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -74,6 +75,7 @@ export function CookieConsentManager() {
       return;
     }
 
+    document.documentElement.classList.add("bc-cookie-consent-open");
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const frame = window.requestAnimationFrame(() =>
       dialogRef.current?.querySelector<HTMLButtonElement>("[data-cookie-primary]")?.focus()
@@ -117,6 +119,7 @@ export function CookieConsentManager() {
     document.addEventListener("keydown", keepFocusInside);
 
     return () => {
+      document.documentElement.classList.remove("bc-cookie-consent-open");
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", keepFocusInside);
       previouslyFocused?.focus();
@@ -158,15 +161,14 @@ export function CookieConsentManager() {
     }));
   }
 
-  return (
-    <>
-      {panelOpen ? (
-        <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/70 p-4 text-white backdrop-blur-sm">
+  return panelOpen
+    ? createPortal(
+        <div className="bc-cookie-consent-backdrop grid place-items-center overflow-y-auto bg-black/75 p-4 text-white backdrop-blur-sm">
           <section
             aria-describedby="cookie-consent-description"
             aria-labelledby="cookie-consent-title"
             aria-modal="true"
-            className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-md border border-bc-line bg-bc-void/98 p-4 shadow-[0_28px_100px_rgba(0,0,0,0.78),0_0_45px_rgba(0,213,255,0.12)] sm:p-5"
+            className="bc-cookie-consent-dialog my-auto max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-md border border-bc-line bg-bc-void/98 p-4 shadow-[0_28px_100px_rgba(0,0,0,0.78),0_0_45px_rgba(0,213,255,0.12)] sm:p-5"
             ref={dialogRef}
             role="dialog"
             tabIndex={-1}
@@ -243,8 +245,8 @@ export function CookieConsentManager() {
               )}
             </div>
           </section>
-        </div>
-      ) : null}
-    </>
-  );
+        </div>,
+        document.body
+      )
+    : null;
 }

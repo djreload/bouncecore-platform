@@ -163,9 +163,27 @@ html[data-bc-particles-enabled="false"] .bc-star-alert-firework {
   }
 }
 
-body > * {
+body > :not(.bc-cookie-consent-backdrop) {
   position: relative;
   z-index: 1;
+}
+
+body > .bc-cookie-consent-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  width: 100dvw;
+  min-height: 100dvh;
+  overscroll-behavior: contain;
+}
+
+html.bc-cookie-consent-open,
+html.bc-cookie-consent-open body {
+  overflow: hidden;
+}
+
+.bc-cookie-consent-dialog {
+  scrollbar-gutter: stable;
 }
 
 a {
