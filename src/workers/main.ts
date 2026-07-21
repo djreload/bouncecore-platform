@@ -6,6 +6,7 @@ import { checkExpoMobilePushReceipts, processQueuedMobilePushDeliveries } from "
 import { syncStreamProviderSnapshot } from "../lib/stream/stream-session-sync-service";
 import { monitorStalledRaveWars } from "../lib/rave-wars/rave-war-operator-alert-service";
 import { reconcileRaveWarDeadlines } from "../lib/rave-wars/rave-war-service";
+import { retryPendingSquareWebhookEvents } from "../lib/payments/square-webhook-service";
 import { recordWorkerHeartbeat, type WorkerHeartbeatTask } from "../lib/workers/worker-heartbeat";
 
 type WorkerTask = {
@@ -147,6 +148,12 @@ const tasks: WorkerTask[] = [
     intervalMs: envNumber("WORKER_RAVE_WAR_ALERTS_INTERVAL_SECONDS", 30) * 1000,
     name: "rave-war-stalled-alerts",
     run: monitorStalledRaveWars
+  },
+  {
+    enabled: envBoolean("WORKER_SQUARE_WEBHOOK_RETRY_ENABLED", true),
+    intervalMs: envNumber("WORKER_SQUARE_WEBHOOK_RETRY_INTERVAL_SECONDS", 60) * 1000,
+    name: "square-webhook-retry",
+    run: retryPendingSquareWebhookEvents
   },
   {
     enabled: envBoolean("WORKER_MOBILE_PUSH_DISPATCH_ENABLED", true),

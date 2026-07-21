@@ -8,6 +8,7 @@ import {
 } from "@/lib/checkout/checkout-confirmation-service";
 import { prisma } from "@/lib/db/prisma";
 import { getPayPalSettings } from "@/lib/payments/paypal-service";
+import { reconcileCompletedPaymentRefund } from "@/lib/payments/payment-refund-service";
 import { paypalWebhookPayloadPreview } from "@/lib/payments/paypal-webhook-detail-core";
 import {
   normalizePayPalWebhookFilters,
@@ -119,6 +120,24 @@ function penceValue(value: unknown) {
   const numeric = Number(value);
 
   return Number.isFinite(numeric) ? Math.round(numeric * 100) : null;
+}
+
+function captureIdFromLinks(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  for (const entry of value) {
+    const link = asRecord(entry);
+    const href = stringValue(link.href);
+
+    if (!href) continue;
+
+    const match = href.match(/\/v2\/payments\/captures\/([^/?#]+)/i);
+    if (match?.[1]) return decodeURIComponent(match[1]);
+  }
+
+  return null;
 }
 
 function eventSummary(event: Record<string, unknown>) {
@@ -980,6 +999,36 @@ async function reconcileCaptureCompleted(event: Record<string, unknown>) {
   );
 }
 
+async function reconcileCaptureRefund(event: Record<string, unknown>) {
+  const resource = asRecord(event.resource);
+  const amount = asRecord(resource.amount);
+  const supplementaryData = asRecord(resource.supplementary_data);
+  const relatedIds = asRecord(supplementaryData.related_ids);
+  const captureId =
+    stringValue(relatedIds.capture_id) ??
+    captureIdFromLinks(resource.links) ??
+    stringValue(resource.capture_id) ??
+    stringValue(resource.id);
+  const amountPence = penceValue(amount.value);
+
+  if (!captureId || !amountPence) {
+    return { action: "refund-unmatched" };
+  }
+
+  const result = await reconcileCompletedPaymentRefund({
+    amountPence,
+    currency: stringValue(amount.currency_code),
+    paypalCaptureId: captureId,
+    provider: "paypal",
+    providerEventId: stringValue(event.id) ?? "unknown"
+  });
+
+  return {
+    action: `refund-${result.status}`,
+    target: result.recordId ? `${result.type}:${result.recordId}` : undefined
+  };
+}
+
 async function reconcilePayoutBatchEvent(eventType: string, event: Record<string, unknown>) {
   const status = payoutBatchStatus(eventType);
   const resource = asRecord(event.resource);
@@ -1110,6 +1159,10 @@ async function reconcilePayPalWebhookEvent(event: Record<string, unknown>): Prom
 
   if (eventType === "PAYMENT.CAPTURE.COMPLETED") {
     return reconcileCaptureCompleted(event);
+  }
+
+  if (eventType === "PAYMENT.CAPTURE.REFUNDED" || eventType === "PAYMENT.CAPTURE.REVERSED") {
+    return reconcileCaptureRefund(event);
   }
 
   if (eventType.startsWith("PAYMENT.PAYOUTSBATCH.")) {

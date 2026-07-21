@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added idempotent Rave War entry-fee refunds for declined, cancelled, expired, force-ended, and manually repaired matches, including admin-visible refund state and audit history.
+- Added Rave War reconnect recovery on browser focus, page visibility, network restoration, page cache restore, Android app resume, and realtime transport reconnection.
+- Added automated Rave War accounting, lifecycle, timeout, reconnect, mobile-layout, private-flow, and admin-repair coverage.
+- Added durable Square webhook recording, duplicate protection, retry processing, completed-payment recovery, and PayPal/Square refund reconciliation for stars, merch, and music purchases.
+- Added refund-aware stock, wallet, download-entitlement, and producer-payout safeguards so duplicate or partial provider events cannot silently grant value twice.
+- Added a release-candidate smoke runner covering public routes, authenticated account pages, admin controls, streamer health, chat, uploads, purchases, notifications, privacy, backups, permissions, and account deletion access.
+- Added Android app-resume recovery signaling and automated debug/release compilation checks for mobile Rave War recovery.
 - Added participant-authorized private messaging with unread tracking, in-site/mobile alerts, responsive account inboxes, and private image/ZIP sharing whose downloads remain limited to both conversation members.
 - Made targeted throwable visuals, motion, impact feedback, and mobile haptics bypass every in-site performance setting while retaining operating-system reduced-motion accessibility support.
 - Made targeted throwable delivery fail-safe with immediate animated fallbacks, canvas pixel confirmation, interrupted-load replay, uncached victim polling, burst-safe event retrieval, and guaranteed impact feedback even when custom sprite assets fail.

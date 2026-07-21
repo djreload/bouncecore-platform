@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { publishChatRoomChanged } from "@/lib/chat/chat-realtime";
 import { prisma } from "@/lib/db/prisma";
+import { refundRaveWarEntryStars } from "@/lib/rave-wars/rave-war-accounting-service";
 import {
   analyzeRaveWarEventWindow,
   raveWarClientActionIdFromPayload,
@@ -67,7 +68,9 @@ async function nextAdminRepairEventSequence(tx: Prisma.TransactionClient, warId:
   return (latest?.sequence ?? 0) + 1;
 }
 
-export async function getAdminRaveWarDiagnosticsData() {
+export async function getAdminRaveWarDiagnosticsData(filters: { query?: string; status?: string } = {}) {
+  const query = filters.query?.trim().slice(0, 120) ?? "";
+  const status = filters.status?.trim().toLowerCase() ?? "";
   const wars = await prisma.raveWar.findMany({
     include: {
       _count: {
@@ -107,7 +110,25 @@ export async function getAdminRaveWarDiagnosticsData() {
     orderBy: {
       createdAt: "desc"
     },
-    take: recentRaveWarLimit
+    take: recentRaveWarLimit,
+    where: {
+      ...(status && status !== "all" ? { status } : {}),
+      ...(query
+        ? {
+            OR: [
+              { id: { contains: query, mode: Prisma.QueryMode.insensitive } },
+              { levelKey: { contains: query, mode: Prisma.QueryMode.insensitive } },
+              { room: { name: { contains: query, mode: Prisma.QueryMode.insensitive } } },
+              { room: { slug: { contains: query, mode: Prisma.QueryMode.insensitive } } },
+              {
+                participants: {
+                  some: { displayNameSnapshot: { contains: query, mode: Prisma.QueryMode.insensitive } }
+                }
+              }
+            ]
+          }
+        : {})
+    }
   });
 
   const matches = wars.map((war) => {
@@ -117,6 +138,9 @@ export async function getAdminRaveWarDiagnosticsData() {
       createdAt: war.createdAt,
       diagnostics,
       endedAt: war.endedAt,
+      entryStars: war.entryStars,
+      entryStarsRefundReason: war.entryStarsRefundReason,
+      entryStarsRefundedAt: war.entryStarsRefundedAt,
       id: war.id,
       levelKey: war.levelKey,
       needsAttention: raveWarMatchNeedsAttention({ diagnostics, status: war.status, updatedAt: war.updatedAt }),
@@ -125,6 +149,7 @@ export async function getAdminRaveWarDiagnosticsData() {
       room: war.room,
       startedAt: war.startedAt,
       status: war.status,
+      terminationReason: war.terminationReason,
       turnNumber: stateNumber(war.state, "turnNumber"),
       updatedAt: war.updatedAt,
       winnerUserId: war.winnerUserId
@@ -211,6 +236,11 @@ export async function getAdminRaveWarMatchDiagnostics(warId: string) {
     createdAt: war.createdAt,
     diagnostics,
     endedAt: war.endedAt,
+    entryStars: war.entryStars,
+    entryStarsChargedAt: war.entryStarsChargedAt,
+    entryStarsRefundReason: war.entryStarsRefundReason,
+    entryStarsRefundedAt: war.entryStarsRefundedAt,
+    entryStarsRefundedById: war.entryStarsRefundedById,
     events: orderedEvents.map((event, index) => ({
       actionId: raveWarClientActionIdFromPayload(event.payload),
       actorDisplayName: event.user?.displayName ?? null,
@@ -231,6 +261,7 @@ export async function getAdminRaveWarMatchDiagnostics(warId: string) {
     startedAt: war.startedAt,
     status: war.status,
     stalled,
+    terminationReason: war.terminationReason,
     turnNumber: stateNumber(war.state, "turnNumber"),
     updatedAt: war.updatedAt,
     winnerUserId: war.winnerUserId
@@ -441,6 +472,7 @@ export async function forceEndAdminRaveWar(warId: string, actorId: string, rawRe
         endedAt: now,
         state: nextState as Prisma.InputJsonValue,
         status: nextStatus,
+        terminationReason: `Admin force-end: ${reason}`,
         turnUserId: null,
         winnerUserId: null
       },
@@ -469,6 +501,13 @@ export async function forceEndAdminRaveWar(warId: string, actorId: string, rawRe
         warId: war.id
       }
     });
+    const refund = war.status === "pending"
+      ? await refundRaveWarEntryStars(tx, {
+          actorId,
+          reason: `Pending challenge force-ended by an administrator: ${reason}`,
+          warId: war.id
+        })
+      : null;
     const message = await tx.chatMessage.create({
       data: {
         body: `${playerNames || "The Rave War players"}'s match was ended by an administrator.`,
@@ -488,6 +527,7 @@ export async function forceEndAdminRaveWar(warId: string, actorId: string, rawRe
           nextRevision,
           previousStatus: war.status,
           reason,
+          refundedStars: refund?.refunded ? refund.amount : 0,
           resultingStatus: nextStatus,
           roomSlug: war.room.slug
         },
@@ -498,13 +538,15 @@ export async function forceEndAdminRaveWar(warId: string, actorId: string, rawRe
 
     return {
       eventId: event.id,
+      publishEventId: refund?.eventId ?? event.id,
+      refundedStars: refund?.refunded ? refund.amount : 0,
       messageId: message.id,
       status: nextStatus
     };
   });
 
   await publishChatRoomChanged(war.roomId, result.messageId);
-  await publishRaveWarChanged(war.id, result.eventId);
+  await publishRaveWarChanged(war.id, result.publishEventId);
 
   return result;
 }

@@ -1,10 +1,10 @@
 export const raveWarAdminRepairReasonMaxLength = 240;
 export const raveWarAdminRepairReasonMinLength = 5;
 
-export type RaveWarAdminRepairAction = "force-end" | "resync";
+export type RaveWarAdminRepairAction = "force-end" | "refund-entry" | "resync";
 
 export function raveWarAdminRepairConfirmationText(action: RaveWarAdminRepairAction, warId: string) {
-  const command = action === "force-end" ? "FORCE END" : "RESYNC";
+  const command = action === "force-end" ? "FORCE END" : action === "refund-entry" ? "REFUND" : "RESYNC";
 
   return `${command} ${warId.trim()}`;
 }

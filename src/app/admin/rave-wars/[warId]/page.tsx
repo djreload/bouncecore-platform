@@ -107,7 +107,24 @@ export default async function AdminRaveWarTimelinePage({ params }: { params: Pro
           </div>
         </section>
 
-        <RaveWarRepairControls stalled={match.stalled} status={match.status} warId={match.id} />
+        <section className="rounded-md border border-bc-line bg-bc-panel p-5">
+          <h2 className="text-xl font-black">Entry accounting</h2>
+          <div className="mt-4 grid gap-2 text-sm text-bc-muted sm:grid-cols-2 xl:grid-cols-4">
+            <p><span className="font-semibold text-white">Charged:</span> {match.entryStars.toLocaleString("en-GB")} stars</p>
+            <p><span className="font-semibold text-white">Charged at:</span> {formatDate(match.entryStarsChargedAt)}</p>
+            <p><span className="font-semibold text-white">Refunded at:</span> {formatDate(match.entryStarsRefundedAt)}</p>
+            <p><span className="font-semibold text-white">End reason:</span> {match.terminationReason ?? "Not recorded"}</p>
+          </div>
+          {match.entryStarsRefundReason ? <p className="mt-3 text-sm text-bc-muted"><span className="font-semibold text-white">Refund reason:</span> {match.entryStarsRefundReason}</p> : null}
+        </section>
+
+        <RaveWarRepairControls
+          entryStars={match.entryStars}
+          entryStarsRefundedAt={match.entryStarsRefundedAt}
+          stalled={match.stalled}
+          status={match.status}
+          warId={match.id}
+        />
 
         <section className="rounded-md border border-bc-line bg-bc-panel">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-bc-line p-4">

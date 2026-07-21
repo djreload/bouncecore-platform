@@ -35,12 +35,14 @@ export type PaymentReconciliationData = {
   staleAfterMinutes: number;
   stats: {
     failedWebhooks24h: number;
+    failedSquareWebhooks24h: number;
     paidMusicPurchasesMissingDelivery: number;
     paidMusicPurchasesMissingSnapshotDelivery: number;
     paidOrdersMissingCapture: number;
     staleMusicCheckouts: number;
     staleMusicPurchases: number;
     staleReceivedWebhooks: number;
+    staleSquareWebhooks: number;
     staleShopOrders: number;
     staleStarPurchases: number;
   };
@@ -176,7 +178,9 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
     staleMusicPurchases,
     staleMusicCheckouts,
     failedWebhooks24h,
+    failedSquareWebhooks24h,
     staleReceivedWebhooks,
+    staleSquareWebhooks,
     paidMusicPurchasesMissingDelivery,
     paidMusicPurchasesMissingSnapshotDelivery,
     paidOrdersMissingCapture,
@@ -205,12 +209,24 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
         }
       }
     }),
+    prisma.squareWebhookEvent.count({
+      where: {
+        processingStatus: "failed",
+        receivedAt: { gte: recentWebhookCutoff }
+      }
+    }),
     prisma.payPalWebhookEvent.count({
       where: {
         processingStatus: "received",
         receivedAt: {
           lt: webhookStaleCutoff
         }
+      }
+    }),
+    prisma.squareWebhookEvent.count({
+      where: {
+        processingStatus: { in: ["received", "processing"] },
+        receivedAt: { lt: webhookStaleCutoff }
       }
     }),
     prisma.digitalTrackPurchase.count({
@@ -245,6 +261,7 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
     prisma.order.count({
       where: {
         paypalCaptureId: null,
+        paymentProvider: "paypal",
         status: {
           in: ["paid", "processing", "fulfilled"]
         }
@@ -315,12 +332,14 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
   const totalStalePending = staleStarPurchases + staleShopOrders + staleMusicPurchases + staleMusicCheckouts;
   const stats = {
     failedWebhooks24h,
+    failedSquareWebhooks24h,
     paidMusicPurchasesMissingDelivery,
     paidMusicPurchasesMissingSnapshotDelivery,
     paidOrdersMissingCapture,
     staleMusicCheckouts,
     staleMusicPurchases,
     staleReceivedWebhooks,
+    staleSquareWebhooks,
     staleShopOrders,
     staleStarPurchases
   };
@@ -361,6 +380,16 @@ export async function getPaymentReconciliationData(now = new Date()): Promise<Pa
         healthyDetail: "No PayPal webhooks are stuck in received state.",
         href: "/admin/payments",
         label: "Unprocessed PayPal webhooks",
+        plural: "events",
+        singular: "event"
+      }),
+      paymentReconciliationRisk({
+        count: failedSquareWebhooks24h + staleSquareWebhooks,
+        critical: failedSquareWebhooks24h > 0,
+        detail: "Square webhook events failed or remain unprocessed and are queued for automatic worker retry.",
+        healthyDetail: "Square webhook delivery and reconciliation are clear.",
+        href: "/admin/payments",
+        label: "Square webhook processing",
         plural: "events",
         singular: "event"
       }),

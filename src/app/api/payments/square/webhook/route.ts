@@ -1,13 +1,10 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db/prisma";
-import { completeSquareStarsCheckout } from "@/lib/rewards/stars-checkout-service";
-import { completeSquareShopCheckout } from "@/lib/shop/checkout-service";
 import {
   getSquareSettings,
-  squareWebhookPaymentFromPayload,
   verifySquareWebhookSignature
 } from "@/lib/payments/square-service";
+import { processStoredSquareWebhookEvent, recordSquareWebhookEvent } from "@/lib/payments/square-webhook-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -29,53 +26,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid Square webhook payload." }, { status: 400 });
   }
 
-  const payment = squareWebhookPaymentFromPayload(payload);
+  try {
+    const recorded = await recordSquareWebhookEvent(payload);
+    const result = await processStoredSquareWebhookEvent(recorded.event.id);
 
-  if (!payment || payment.status !== "COMPLETED") {
-    return NextResponse.json({ status: "ignored" });
+    if (result.type === "stars") {
+      revalidatePath("/account/rewards");
+      revalidatePath("/admin/stars");
+      revalidatePath("/admin/supporters");
+      revalidatePath("/rewards");
+    } else if (result.type === "shop") {
+      revalidatePath("/account/orders");
+      revalidatePath("/admin/orders");
+      revalidatePath("/admin/fulfilment");
+    }
+
+    return NextResponse.json({ duplicate: recorded.duplicate, status: result.action, type: result.type });
+  } catch (error) {
+    console.error("Square webhook processing failed", error);
+    return NextResponse.json({ error: "Square webhook processing failed." }, { status: 500 });
   }
-
-  const [starPurchase, shopOrder] = await Promise.all([
-    prisma.starPurchase.findUnique({
-      where: {
-        squareOrderId: payment.squareOrderId
-      },
-      select: {
-        id: true,
-        status: true,
-        userId: true
-      }
-    }),
-    prisma.order.findUnique({
-      where: {
-        squareOrderId: payment.squareOrderId
-      },
-      select: {
-        id: true,
-        status: true,
-        userId: true
-      }
-    })
-  ]);
-
-  if (starPurchase?.status === "pending") {
-    await completeSquareStarsCheckout(starPurchase.userId, starPurchase.id);
-    revalidatePath("/account/rewards");
-    revalidatePath("/admin/stars");
-    revalidatePath("/admin/supporters");
-    revalidatePath("/rewards");
-
-    return NextResponse.json({ status: "processed", type: "stars" });
-  }
-
-  if (shopOrder?.status === "pending") {
-    await completeSquareShopCheckout(shopOrder.userId, shopOrder.id);
-    revalidatePath("/account/orders");
-    revalidatePath("/admin/orders");
-    revalidatePath("/admin/fulfilment");
-
-    return NextResponse.json({ status: "processed", type: "shop" });
-  }
-
-  return NextResponse.json({ status: "recorded" });
 }

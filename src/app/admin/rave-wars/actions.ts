@@ -9,6 +9,7 @@ import {
   type RaveWarAdminRepairAction
 } from "@/lib/rave-wars/rave-war-admin-repair-core";
 import { forceEndAdminRaveWar, resyncAdminRaveWar } from "@/lib/rave-wars/rave-war-admin-service";
+import { refundRaveWarEntryStarsByAdmin } from "@/lib/rave-wars/rave-war-accounting-service";
 
 function formString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -34,7 +35,7 @@ export async function adminRaveWarRepairAction(
     const intent = formString(formData, "intent") as RaveWarAdminRepairAction;
     const warId = formString(formData, "warId").trim();
 
-    if (intent !== "resync" && intent !== "force-end") {
+    if (intent !== "resync" && intent !== "force-end" && intent !== "refund-entry") {
       throw new Error("Choose a valid Rave War repair action.");
     }
 
@@ -51,6 +52,16 @@ export async function adminRaveWarRepairAction(
 
       return {
         message: `Match resynced at revision ${result.revision}. Connected players were notified.`,
+        status: "success"
+      };
+    }
+
+    if (intent === "refund-entry") {
+      const result = await refundRaveWarEntryStarsByAdmin(warId, actor.id, reason);
+      revalidateRaveWarRepairViews(warId);
+
+      return {
+        message: `${result.amount.toLocaleString("en-GB")} entry stars refunded to the challenger.`,
         status: "success"
       };
     }

@@ -1687,6 +1687,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         reconnectAttempt = 0;
         setConnectionState("live");
         stopPollingFallback();
+        void refreshWarSnapshot();
       };
 
       source.addEventListener("war", handleStreamPayload);
@@ -1715,20 +1716,43 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       };
     }
 
-    function handleVisibilityChange() {
-      if (document.visibilityState !== "visible" || eventSource) {
+    function recoverAuthoritativeState() {
+      if (!active || document.visibilityState !== "visible") {
         return;
       }
+
+      stopMoveHold();
+      stopAimHold();
+      stopChargingShot(false);
 
       if (reconnectTimer !== null) {
         window.clearTimeout(reconnectTimer);
         reconnectTimer = null;
       }
 
-      connectEventSource();
+      if (eventSource && eventSource.readyState !== EventSource.OPEN) {
+        eventSource.close();
+        eventSource = null;
+      }
+
+      void refreshWarSnapshot();
+
+      if (!eventSource) {
+        connectEventSource();
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        recoverAuthoritativeState();
+      }
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("bouncecore:app-resume", recoverAuthoritativeState);
+    window.addEventListener("focus", recoverAuthoritativeState);
+    window.addEventListener("online", recoverAuthoritativeState);
+    window.addEventListener("pageshow", recoverAuthoritativeState);
 
     if ("EventSource" in window) {
       connectEventSource();
@@ -1740,6 +1764,10 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
       active = false;
       eventSource?.close();
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("bouncecore:app-resume", recoverAuthoritativeState);
+      window.removeEventListener("focus", recoverAuthoritativeState);
+      window.removeEventListener("online", recoverAuthoritativeState);
+      window.removeEventListener("pageshow", recoverAuthoritativeState);
 
       stopPollingFallback();
 
@@ -1747,7 +1775,7 @@ export function RaveWarGame({ currentUserId, initialWar }: RaveWarGameProps) {
         window.clearTimeout(reconnectTimer);
       }
     };
-  }, [recordNetworkCounter, recordNetworkLatency, refreshWarFromPayload, setConnectionState, war.id]);
+  }, [recordNetworkCounter, recordNetworkLatency, refreshWarFromPayload, setConnectionState, stopAimHold, stopChargingShot, stopMoveHold, war.id]);
 
   useEffect(() => {
     const lastShot = war.state.lastShot;

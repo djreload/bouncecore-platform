@@ -527,22 +527,28 @@ model DirectMessageBlock {
 }
 
 model RaveWar {
-  id           String               @id @default(cuid())
-  roomId       String
-  challengerId String
-  targetId     String
-  levelKey     String               @default("bazooka-battlefield")
-  status       String               @default("pending")
-  seed         String
-  turnUserId   String?
-  winnerUserId String?
-  state        Json
-  expiresAt    DateTime
-  acceptedAt   DateTime?
-  startedAt    DateTime?
-  endedAt      DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  id                       String               @id @default(cuid())
+  roomId                   String
+  challengerId             String
+  targetId                 String
+  levelKey                 String               @default("bazooka-battlefield")
+  status                   String               @default("pending")
+  seed                     String
+  turnUserId               String?
+  winnerUserId             String?
+  state                    Json
+  expiresAt                DateTime
+  entryStars               Int                  @default(0)
+  entryStarsChargedAt      DateTime?
+  entryStarsRefundedAt     DateTime?
+  entryStarsRefundReason   String?
+  entryStarsRefundedById   String?
+  terminationReason        String?
+  acceptedAt               DateTime?
+  startedAt                DateTime?
+  endedAt                  DateTime?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
   room         ChatRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
   challenger   User                 @relation("RaveWarChallenger", fields: [challengerId], references: [id], onDelete: Cascade)
   target       User                 @relation("RaveWarTarget", fields: [targetId], references: [id], onDelete: Cascade)
@@ -813,6 +819,9 @@ model Order {
   shippingCountry     String?
   completedAt         DateTime?
   cancelledAt         DateTime?
+  refundedAt          DateTime?
+  refundedPence       Int         @default(0)
+  restockedAt         DateTime?
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
   user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -898,6 +907,8 @@ model DigitalTrackPurchase {
   paypalPayerEmail      String?
   completedAt           DateTime?
   cancelledAt           DateTime?
+  refundedAt            DateTime?
+  refundedPence         Int                  @default(0)
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
   buyer                 User                 @relation(fields: [buyerId], references: [id], onDelete: Cascade)
@@ -925,6 +936,8 @@ model MusicCheckout {
   paypalPayerEmail String?
   completedAt      DateTime?
   cancelledAt      DateTime?
+  refundedAt       DateTime?
+  refundedPence    Int                    @default(0)
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   buyer            User                   @relation(fields: [buyerId], references: [id], onDelete: Cascade)
@@ -1007,6 +1020,25 @@ model PayPalWebhookEvent {
   @@index([resourceType, resourceId])
 }
 
+model SquareWebhookEvent {
+  id               String    @id @default(cuid())
+  squareEventId    String    @unique
+  eventType        String
+  squareOrderId    String?
+  squarePaymentId  String?
+  processingStatus String    @default("received")
+  payload          Json
+  errorMessage     String?
+  retryCount       Int       @default(0)
+  receivedAt       DateTime  @default(now())
+  processedAt      DateTime?
+
+  @@index([eventType])
+  @@index([processingStatus, receivedAt])
+  @@index([squareOrderId])
+  @@index([squarePaymentId])
+}
+
 model StarWallet {
   id        String   @id @default(cuid())
   userId    String   @unique
@@ -1033,6 +1065,9 @@ model StarPurchase {
   squareBuyerEmail    String?
   completedAt         DateTime?
   cancelledAt         DateTime?
+  refundedAt          DateTime?
+  refundedPence       Int       @default(0)
+  refundedStars       Int       @default(0)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
   user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)

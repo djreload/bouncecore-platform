@@ -1379,6 +1379,7 @@ public class MainActivity extends Activity {
             webView.onResume();
             webView.resumeTimers();
             syncRaveWarModeFromUrl(webView.getUrl());
+            webView.evaluateJavascript("window.dispatchEvent(new Event('bouncecore:app-resume'));", null);
         }
         if (!pausedForInterstitial) {
             appOpenShownThisForeground = false;

@@ -17,6 +17,8 @@ import {
 } from "@/lib/rave-wars/rave-war-engine";
 import type { RaveWarLevel } from "@/lib/rave-wars/levels/bazooka-battlefield";
 import { getActiveRaveWarLevel, getRaveWarLevel } from "@/lib/rave-wars/rave-war-level-service";
+import { refundRaveWarEntryStars } from "@/lib/rave-wars/rave-war-accounting-service";
+import { nextLivingRaveWarPlayer, raveWarDeadlineHasPassed } from "@/lib/rave-wars/rave-war-lifecycle-core";
 import {
   appendProcessedRaveWarActionId,
   parseRaveWarClientActionId,
@@ -162,11 +164,11 @@ function matchWindow(now = new Date(), durationSeconds = raveWarMatchSeconds) {
 }
 
 function isTurnExpired(state: Pick<RaveWarState, "turnEndsAt">, now = new Date()) {
-  return Boolean(state.turnEndsAt && new Date(state.turnEndsAt).getTime() <= now.getTime());
+  return raveWarDeadlineHasPassed(state.turnEndsAt, now);
 }
 
 function isWarExpired(state: Pick<RaveWarState, "warEndsAt">, now = new Date()) {
-  return Boolean(state.warEndsAt && new Date(state.warEndsAt).getTime() <= now.getTime());
+  return raveWarDeadlineHasPassed(state.warEndsAt, now);
 }
 
 function warEndsAtFallback(startedAt: Date | string | null | undefined, matchDurationSeconds = raveWarMatchSeconds) {
@@ -466,20 +468,58 @@ async function nextEventSequence(tx: Prisma.TransactionClient, warId: string) {
 }
 
 async function expireStaleRaveWarChallenges() {
-  const result = await prisma.raveWar.updateMany({
+  const staleWars = await prisma.raveWar.findMany({
     where: {
       expiresAt: {
         lt: new Date()
       },
       status: "pending"
     },
-    data: {
-      endedAt: new Date(),
-      status: "expired"
-    }
+    orderBy: { expiresAt: "asc" },
+    select: { id: true },
+    take: 250
   });
+  let expiredCount = 0;
 
-  return result.count;
+  for (const staleWar of staleWars) {
+    const result = await prisma.$transaction(async (tx) => {
+      const endedAt = new Date();
+      const updated = await tx.raveWar.updateMany({
+        where: {
+          id: staleWar.id,
+          status: "pending"
+        },
+        data: {
+          endedAt,
+          status: "expired",
+          terminationReason: "challenge-expired"
+        }
+      });
+
+      if (updated.count !== 1) {
+        return null;
+      }
+
+      const expiredEvent = await writeWarEvent(tx, {
+        payload: { endedAt: endedAt.toISOString() },
+        type: "challenge.expired",
+        warId: staleWar.id
+      });
+      const refund = await refundRaveWarEntryStars(tx, {
+        reason: "Challenge expired before acceptance.",
+        warId: staleWar.id
+      });
+
+      return refund.eventId ?? expiredEvent.id;
+    });
+
+    if (result) {
+      expiredCount += 1;
+      await publishRaveWarChanged(staleWar.id, result);
+    }
+  }
+
+  return expiredCount;
 }
 
 export async function getRaveWarSettings() {
@@ -698,6 +738,7 @@ async function finishExpiredActiveRaveWarIfNeeded(war: RaveWarSummarySource, cur
         endedAt: new Date(),
         state: nextState as Prisma.InputJsonValue,
         status: "finished",
+        terminationReason: "match-timeout",
         turnUserId: null,
         winnerUserId
       }
@@ -785,12 +826,7 @@ async function advanceExpiredTurnIfNeeded(war: RaveWarSummarySource, currentUser
     return war;
   }
 
-  const currentTurnIndex = state.players.findIndex((player) => player.userId === war.turnUserId);
-  const nextPlayer =
-    state.players
-      .slice(currentTurnIndex + 1)
-      .concat(state.players.slice(0, Math.max(0, currentTurnIndex + 1)))
-      .find((player) => player.health > 0) ?? state.players.find((player) => player.health > 0);
+  const nextPlayer = nextLivingRaveWarPlayer(state.players, war.turnUserId);
 
   if (!nextPlayer) {
     return war;
@@ -1111,6 +1147,8 @@ export async function createRaveWarChallenge(roomId: string, challengerId: strin
     const war = await tx.raveWar.create({
       data: {
         challengerId: challenger.id,
+        entryStars: settings.costStars,
+        entryStarsChargedAt: settings.costStars > 0 ? new Date() : null,
         expiresAt,
         levelKey: level.key,
         roomId: room.id,
@@ -1445,14 +1483,21 @@ export async function declineRaveWarChallenge(warId: string, userId: string) {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const updatedWar = await tx.raveWar.update({
-      where: {
-        id: warId
-      },
+    const updated = await tx.raveWar.updateMany({
+      where: { id: warId, status: "pending" },
       data: {
         endedAt: new Date(),
-        status: "declined"
-      },
+        status: "declined",
+        terminationReason: "target-declined"
+      }
+    });
+
+    if (updated.count !== 1) {
+      throw new Error("That Rave War challenge changed before it could be declined.");
+    }
+
+    const updatedWar = await tx.raveWar.findUniqueOrThrow({
+      where: { id: warId },
       include: {
         participants: {
           orderBy: {
@@ -1473,9 +1518,15 @@ export async function declineRaveWarChallenge(warId: string, userId: string) {
       userId,
       warId
     });
+    const refund = await refundRaveWarEntryStars(tx, {
+      actorId: userId,
+      reason: "Challenge declined by the invited player.",
+      warId
+    });
 
     return {
       event,
+      refund,
       war: updatedWar
     };
   });
@@ -1483,10 +1534,11 @@ export async function declineRaveWarChallenge(warId: string, userId: string) {
   await writeAuditLog({
     action: "chat.rave_war.challenge.decline",
     actorId: userId,
+    metadata: { refundedStars: result.refund.refunded ? result.refund.amount : 0 },
     severity: "info",
     target: `rave-war:${warId}`
   });
-  await publishRaveWarChanged(warId, result.event.id);
+  await publishRaveWarChanged(warId, result.refund.eventId ?? result.event.id);
 
   return toWarSummary(result.war, userId);
 }
@@ -1503,14 +1555,21 @@ export async function cancelRaveWarChallenge(warId: string, userId: string) {
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    const updatedWar = await tx.raveWar.update({
-      where: {
-        id: warId
-      },
+    const updated = await tx.raveWar.updateMany({
+      where: { id: warId, status: "pending" },
       data: {
         endedAt: new Date(),
-        status: "cancelled"
-      },
+        status: "cancelled",
+        terminationReason: "challenger-cancelled"
+      }
+    });
+
+    if (updated.count !== 1) {
+      throw new Error("That Rave War challenge changed before it could be cancelled.");
+    }
+
+    const updatedWar = await tx.raveWar.findUniqueOrThrow({
+      where: { id: warId },
       include: {
         participants: {
           orderBy: {
@@ -1531,9 +1590,15 @@ export async function cancelRaveWarChallenge(warId: string, userId: string) {
       userId,
       warId
     });
+    const refund = await refundRaveWarEntryStars(tx, {
+      actorId: userId,
+      reason: "Challenge cancelled by the challenger.",
+      warId
+    });
 
     return {
       event,
+      refund,
       war: updatedWar
     };
   });
@@ -1541,10 +1606,11 @@ export async function cancelRaveWarChallenge(warId: string, userId: string) {
   await writeAuditLog({
     action: "chat.rave_war.challenge.cancel",
     actorId: userId,
+    metadata: { refundedStars: result.refund.refunded ? result.refund.amount : 0 },
     severity: "info",
     target: `rave-war:${warId}`
   });
-  await publishRaveWarChanged(warId, result.event.id);
+  await publishRaveWarChanged(warId, result.refund.eventId ?? result.event.id);
 
   return toWarSummary(result.war, userId);
 }
@@ -1864,6 +1930,7 @@ export async function fireRaveWarShot(
         endedAt: winnerUserId ? new Date() : null,
         state: nextState as Prisma.InputJsonValue,
         status: winnerUserId ? "finished" : "active",
+        terminationReason: winnerUserId ? "knockout" : null,
         turnUserId: activeUserId,
         winnerUserId
       }
@@ -2032,6 +2099,7 @@ export async function surrenderRaveWar(warId: string, userId: string) {
         endedAt: new Date(),
         state: nextState as Prisma.InputJsonValue,
         status: "finished",
+        terminationReason: "surrender",
         turnUserId: null,
         winnerUserId: winner.userId
       },

@@ -2,7 +2,7 @@ import { writeAuditLog } from "@/lib/auth/audit";
 import { notifyShopOrderPaid, notifyShopOrderStatusUpdated } from "@/lib/checkout/checkout-confirmation-service";
 import { prisma } from "@/lib/db/prisma";
 
-export const orderStatusOptions = ["pending", "paid", "processing", "fulfilled", "cancelled", "refunded"] as const;
+export const orderStatusOptions = ["pending", "paid", "processing", "fulfilled", "cancelled", "partially-refunded", "refunded"] as const;
 
 export type OrderStatus = (typeof orderStatusOptions)[number];
 

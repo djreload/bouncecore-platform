@@ -41,6 +41,30 @@ export const defaultAuthenticatedSmokeChecks = [
     requiredText: ['data-bc-visual-shell="account"', "Private messages", "Start a conversation"]
   }),
   protectedHtmlCheck({
+    id: "account-notifications",
+    label: "Account notifications",
+    path: "/account/notifications",
+    requiredText: ['data-bc-visual-shell="account"', "Notifications"]
+  }),
+  protectedHtmlCheck({
+    id: "account-privacy",
+    label: "Account privacy and deletion",
+    path: "/account/privacy",
+    requiredText: ['data-bc-visual-shell="account"', "Privacy and data"]
+  }),
+  protectedHtmlCheck({
+    id: "account-orders",
+    label: "Customer order history",
+    path: "/account/orders",
+    requiredText: ['data-bc-visual-shell="account"', "Orders"]
+  }),
+  protectedHtmlCheck({
+    id: "account-rewards",
+    label: "Stars wallet and checkout",
+    path: "/account/rewards",
+    requiredText: ['data-bc-visual-shell="account"', "Stars"]
+  }),
+  protectedHtmlCheck({
     id: "admin",
     label: "Admin dashboard",
     path: "/admin",
@@ -59,10 +83,52 @@ export const defaultAuthenticatedSmokeChecks = [
     requiredText: ['data-bc-visual-shell="admin"', "System health"]
   }),
   protectedHtmlCheck({
+    id: "admin-payments",
+    label: "Payment reconciliation",
+    path: "/admin/payments",
+    requiredText: ['data-bc-visual-shell="admin"', "Payments"]
+  }),
+  protectedHtmlCheck({
+    id: "admin-storage",
+    label: "Uploads and backup storage",
+    path: "/admin/storage",
+    requiredText: ['data-bc-visual-shell="admin"', "Storage"]
+  }),
+  protectedHtmlCheck({
+    id: "admin-products",
+    label: "Merch upload management",
+    path: "/admin/products",
+    requiredText: ['data-bc-visual-shell="admin"', "Products"]
+  }),
+  protectedHtmlCheck({
+    id: "admin-tracks",
+    label: "Music upload management",
+    path: "/admin/tracks",
+    requiredText: ['data-bc-visual-shell="admin"', "Tracks"]
+  }),
+  protectedHtmlCheck({
+    id: "admin-roles",
+    label: "Role and permission management",
+    path: "/admin/roles",
+    requiredText: ['data-bc-visual-shell="admin"', "Roles"]
+  }),
+  protectedHtmlCheck({
+    id: "admin-rave-wars",
+    label: "Rave War accounting and diagnostics",
+    path: "/admin/rave-wars",
+    requiredText: ['data-bc-visual-shell="admin"', "Rave War diagnostics"]
+  }),
+  protectedHtmlCheck({
     id: "streamer-obs",
     label: "Streamer OBS setup",
     path: "/streamer/obs",
     requiredText: ['data-bc-visual-shell="streamer"', "OBS setup help"]
+  }),
+  protectedHtmlCheck({
+    id: "streamer-health",
+    label: "Streaming health",
+    path: "/streamer/health",
+    requiredText: ['data-bc-visual-shell="streamer"', "Stream health"]
   }),
   protectedHtmlCheck({
     id: "producer-tracks",

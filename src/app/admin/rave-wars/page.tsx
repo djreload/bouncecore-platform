@@ -1,7 +1,7 @@
-import { Activity, Radio, ShieldCheck, Swords } from "lucide-react";
+import { Activity, Radio, Search, ShieldCheck, Swords } from "lucide-react";
 import { AdminShell } from "@/components/layout/admin-shell";
 import { Badge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminRaveWarDiagnosticsData } from "@/lib/rave-wars/rave-war-admin-service";
 
@@ -39,9 +39,16 @@ function statusTone(status: string): "acid" | "amber" | "cyan" | "muted" | "pink
   return "muted";
 }
 
-export default async function AdminRaveWarsPage() {
+export default async function AdminRaveWarsPage({
+  searchParams
+}: {
+  searchParams: Promise<{ q?: string; status?: string }>;
+}) {
   await requireUserPermission("settings.manage");
-  const data = await getAdminRaveWarDiagnosticsData();
+  const filters = await searchParams;
+  const query = filters.q?.trim() ?? "";
+  const status = filters.status?.trim().toLowerCase() ?? "all";
+  const data = await getAdminRaveWarDiagnosticsData({ query, status });
 
   return (
     <AdminShell
@@ -83,13 +90,39 @@ export default async function AdminRaveWarsPage() {
             {data.summary.attention > 0 ? `${data.summary.attention} flagged` : "All clear"}
           </Badge>
         </div>
+        <form className="grid gap-3 border-b border-bc-line p-4 sm:grid-cols-[minmax(0,1fr)_180px_auto_auto]" method="get">
+          <label className="grid gap-1 text-xs font-semibold uppercase text-bc-muted">
+            Search matches
+            <input
+              className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-normal normal-case text-white"
+              defaultValue={query}
+              name="q"
+              placeholder="Player, room, level, or match ID"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-semibold uppercase text-bc-muted">
+            Match status
+            <select className="min-h-10 rounded-md border border-bc-line bg-bc-ink px-3 text-sm font-normal normal-case text-white" defaultValue={status} name="status">
+              <option value="all">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="active">Active</option>
+              <option value="finished">Finished</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="declined">Declined</option>
+              <option value="expired">Expired</option>
+            </select>
+          </label>
+          <Button className="self-end" type="submit" variant="ghost"><Search className="h-4 w-4" aria-hidden="true" />Search</Button>
+          <ButtonLink className="self-end" href="/admin/rave-wars" variant="ghost">Reset</ButtonLink>
+        </form>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1220px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[1360px] border-collapse text-left text-sm">
             <thead className="text-bc-muted">
               <tr>
                 <th className="px-4 py-3 font-semibold">Match</th>
                 <th className="px-4 py-3 font-semibold">Players</th>
                 <th className="px-4 py-3 font-semibold">Timeline</th>
+                <th className="px-4 py-3 font-semibold">Entry accounting</th>
                 <th className="px-4 py-3 font-semibold">Events</th>
                 <th className="px-4 py-3 font-semibold">Server timing</th>
                 <th className="px-4 py-3 font-semibold">Integrity</th>
@@ -127,6 +160,11 @@ export default async function AdminRaveWarsPage() {
                     <p className="mt-1"><span className="font-semibold text-white">Started:</span> {formatDate(match.startedAt)}</p>
                     <p className="mt-1"><span className="font-semibold text-white">Ended:</span> {formatDate(match.endedAt)}</p>
                   </td>
+                  <td className="px-4 py-4 text-xs text-bc-muted">
+                    <p><span className="font-semibold text-white">Charged:</span> {match.entryStars.toLocaleString("en-GB")}</p>
+                    <p className="mt-1"><span className="font-semibold text-white">Refund:</span> {match.entryStarsRefundedAt ? formatDate(match.entryStarsRefundedAt) : match.entryStars > 0 ? "Not refunded" : "Not applicable"}</p>
+                    <p className="mt-1"><span className="font-semibold text-white">End reason:</span> {match.terminationReason ?? "Not recorded"}</p>
+                  </td>
                   <td className="px-4 py-4">
                     <p className="font-semibold">{match.diagnostics.totalEventCount.toLocaleString("en-GB")} total</p>
                     <p className="mt-1 text-xs text-bc-muted">
@@ -152,7 +190,7 @@ export default async function AdminRaveWarsPage() {
               ))}
               {!data.matches.length ? (
                 <tr className="border-t border-bc-line">
-                  <td className="px-4 py-10 text-center text-bc-muted" colSpan={6}>No Rave War matches have been recorded yet.</td>
+                  <td className="px-4 py-10 text-center text-bc-muted" colSpan={7}>No Rave War matches match these filters.</td>
                 </tr>
               ) : null}
             </tbody>

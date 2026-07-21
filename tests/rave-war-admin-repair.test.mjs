@@ -13,6 +13,7 @@ test("Rave War admin repairs require exact match-scoped confirmations", () => {
 
   assert.equal(raveWarAdminRepairConfirmationText("resync", warId), "RESYNC cmwar123456");
   assert.equal(raveWarAdminRepairConfirmationText("force-end", warId), "FORCE END cmwar123456");
+  assert.equal(raveWarAdminRepairConfirmationText("refund-entry", warId), "REFUND cmwar123456");
   assert.doesNotThrow(() => assertRaveWarAdminRepairConfirmation("resync", warId, "RESYNC cmwar123456"));
   assert.throws(
     () => assertRaveWarAdminRepairConfirmation("force-end", warId, "FORCE END"),
@@ -55,5 +56,7 @@ test("Rave War admin repair actions are protected, guarded, audited, and realtim
   assert.match(controls, /Operational reason/);
   assert.match(controls, /Exact confirmation/);
   assert.match(controls, /Available only after 150 seconds without server activity/);
-  assert.match(page, /<RaveWarRepairControls stalled=\{match\.stalled\} status=\{match\.status\} warId=\{match\.id\} \/>/);
+  assert.match(page, /<RaveWarRepairControls[\s\S]*entryStars=\{match\.entryStars\}[\s\S]*entryStarsRefundedAt=\{match\.entryStarsRefundedAt\}[\s\S]*stalled=\{match\.stalled\}/);
+  assert.match(controls, /Refund entry stars/);
+  assert.match(action, /refundRaveWarEntryStarsByAdmin/);
 });

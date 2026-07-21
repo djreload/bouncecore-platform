@@ -489,3 +489,43 @@ export function squareWebhookPaymentFromPayload(payload: unknown) {
     squareOrderId: orderId
   };
 }
+
+export function squareWebhookRefundFromPayload(payload: unknown) {
+  const data = asRecord(asRecord(payload).data);
+  const refund = asRecord(asRecord(data.object).refund);
+  const amount = asRecord(refund.amount_money);
+  const refundId = refund.id;
+  const orderId = refund.order_id;
+  const paymentId = refund.payment_id;
+  const status = refund.status;
+
+  if (typeof refundId !== "string" || typeof paymentId !== "string" || typeof status !== "string") {
+    return null;
+  }
+
+  return {
+    amountPence: penceValue(amount.amount),
+    currency: typeof amount.currency === "string" ? amount.currency : null,
+    refundId,
+    squareOrderId: typeof orderId === "string" ? orderId : null,
+    squarePaymentId: paymentId,
+    status
+  };
+}
+
+export function squareWebhookEnvelopeFromPayload(payload: unknown) {
+  const record = asRecord(payload);
+  const eventId = record.event_id ?? record.id;
+  const eventType = record.type;
+
+  if (typeof eventId !== "string" || !eventId.trim() || typeof eventType !== "string" || !eventType.trim()) {
+    return null;
+  }
+
+  return {
+    eventId: eventId.trim(),
+    eventType: eventType.trim(),
+    payment: squareWebhookPaymentFromPayload(payload),
+    refund: squareWebhookRefundFromPayload(payload)
+  };
+}

@@ -8,6 +8,7 @@ import {
 } from "../src/lib/payments/square-checkout-errors.ts";
 import {
   squareApiBaseUrl,
+  squareWebhookEnvelopeFromPayload,
   squareWebhookPaymentFromPayload,
   verifySquareWebhookSignature
 } from "../src/lib/payments/square-service.ts";
@@ -28,6 +29,8 @@ test("Square service uses the correct API base URLs", () => {
 
 test("Square webhook signature and payment payload parsing are stable", () => {
   const rawBody = JSON.stringify({
+    event_id: "SQUARE_EVENT_ID",
+    type: "payment.updated",
     data: {
       object: {
         payment: {
@@ -70,6 +73,22 @@ test("Square webhook signature and payment payload parsing are stable", () => {
     squareOrderId: "SQUARE_ORDER_ID",
     status: "COMPLETED"
   });
+  assert.equal(squareWebhookEnvelopeFromPayload(JSON.parse(rawBody))?.eventId, "SQUARE_EVENT_ID");
+  assert.equal(squareWebhookEnvelopeFromPayload(JSON.parse(rawBody))?.eventType, "payment.updated");
+});
+
+test("Square webhook handling persists, deduplicates, and retries events", () => {
+  const route = readFileSync(join(process.cwd(), "src/app/api/payments/square/webhook/route.ts"), "utf8");
+  const service = readFileSync(join(process.cwd(), "src/lib/payments/square-webhook-service.ts"), "utf8");
+  const worker = readFileSync(join(process.cwd(), "src/workers/main.ts"), "utf8");
+
+  assert.match(route, /recordSquareWebhookEvent/);
+  assert.match(route, /processStoredSquareWebhookEvent/);
+  assert.match(service, /squareEventId/);
+  assert.match(service, /P2002/);
+  assert.match(service, /processingStatus: \{ in: \["received", "failed"\] \}/);
+  assert.match(service, /retryCount: \{ lt: squareWebhookMaxRetries \}/);
+  assert.match(worker, /square-webhook-retry/);
 });
 
 test("Square is wired only into stars and merch checkout, not producer music checkout", () => {

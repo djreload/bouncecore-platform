@@ -7,7 +7,7 @@ test("paid star purchases grant the Supporter/VIP role across checkout providers
   const helper = readFileSync(join(process.cwd(), "src/lib/rewards/supporter-role-service.ts"), "utf8");
   const checkout = readFileSync(join(process.cwd(), "src/lib/rewards/stars-checkout-service.ts"), "utf8");
   const paypalWebhook = readFileSync(join(process.cwd(), "src/lib/payments/paypal-webhook-service.ts"), "utf8");
-  const squareWebhook = readFileSync(join(process.cwd(), "src/app/api/payments/square/webhook/route.ts"), "utf8");
+  const squareWebhook = readFileSync(join(process.cwd(), "src/lib/payments/square-webhook-service.ts"), "utf8");
 
   assert.match(helper, /automaticSupporterRoleName = "supporter"/);
   assert.match(helper, /client\.role\.upsert/);
@@ -21,4 +21,5 @@ test("paid star purchases grant the Supporter/VIP role across checkout providers
   assert.match(paypalWebhook, /grantAutomaticSupporterRole\(purchase\.userId\)/);
 
   assert.match(squareWebhook, /completeSquareStarsCheckout\(starPurchase\.userId, starPurchase\.id\)/);
+  assert.match(squareWebhook, /processingStatus: \{ in: \["received", "failed"\] \}/);
 });
