@@ -2,8 +2,43 @@ server:
   assets:
     - "fs:/opt/core/assets/.index.source"
   cacheDirectory: "/var/cache/sour"
+  presets:
+    - name: "default"
+      default: true
+      config:
+        defaultMode: "ffa"
+        defaultMap: "complex"
+        maps:
+          - "turbine"
+          - "complex"
+          - "dust2"
+    - name: "ffa"
+      config:
+        defaultMode: "ffa"
+        defaultMap: "complex"
+        maps:
+          - "turbine"
+          - "complex"
+          - "dust2"
+    - name: "insta"
+      config:
+        defaultMode: "insta"
+        defaultMap: "complex"
+        maps:
+          - "turbine"
+          - "complex"
+          - "dust2"
+  spaces:
+    - preset: "ffa"
+      config:
+        alias: "lobby"
+    - preset: "insta"
+      config:
+        alias: "insta"
   ingress:
     desktop: []
     web:
       address: "0.0.0.0"
       port: 1337
+client:
+  menuOptions: "guibutton \"Play Bouncecore arena\" \"join lobby\""

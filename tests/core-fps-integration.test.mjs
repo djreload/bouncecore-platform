@@ -62,13 +62,15 @@ test("Core FPS public URLs require isolated HTTPS outside localhost", () => {
   const launch = new URL(buildCoreFpsLaunchUrl("https://core.example.com", "payload.signature", "Reload-a1b2c3"));
   assert.equal(launch.origin, "https://core.example.com");
   assert.equal(launch.searchParams.get("ticket"), "payload.signature");
-  assert.equal(launch.searchParams.get("cmd"), "name Reload-a1b2c3");
+  assert.equal(launch.searchParams.get("cmd"), "name Reload-a1b2c3; join lobby");
   assert.equal(createCoreFpsRuntimePlayerName("Reload User", "39c5137d-56d7-4ae6-8751-a1b2c3d4e5f6"), "ReloadUs-d4e5f6");
 });
 
 test("Core FPS gateway authenticates play surfaces and blocks the arbitrary proxy", async () => {
   const gateway = await readFile(new URL("../services/core-fps/gateway/default.conf.template", import.meta.url), "utf8");
+  const runtime = await readFile(new URL("../services/core-fps/runtime/core.yaml", import.meta.url), "utf8");
   const launcher = await readFile(new URL("../src/app/games/core/play/page.tsx", import.meta.url), "utf8");
+  const frame = await readFile(new URL("../src/app/games/core/play/core-fps-game-frame.tsx", import.meta.url), "utf8");
 
   assert.match(gateway, /location \^~ \/service\/proxy\//);
   assert.match(gateway, /auth_request \/_core_auth/);
@@ -82,7 +84,14 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(gateway, /Math\.min\(1e4,1e3\*\(r\+1\)\)/);
   assert.match(gateway, /sessionStorage\.removeItem\("coreWsRetry"\)/);
   assert.match(gateway, /s\.onclose=/);
-  assert.match(launcher, /sandbox="allow-downloads allow-fullscreen allow-pointer-lock allow-same-origin allow-scripts"/);
+  assert.match(gateway, /_bouncecoreInput/);
+  assert.match(gateway, /requestPointerLock/);
+  assert.match(frame, /sandbox="allow-downloads allow-fullscreen allow-pointer-lock allow-same-origin allow-scripts"/);
+  assert.match(frame, /frameRef\.current\?\.focus\(\)/);
+  assert.match(frame, /tabIndex=\{0\}/);
+  assert.match(runtime, /default: true/);
+  assert.match(runtime, /alias: "lobby"/);
+  assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
 });
 

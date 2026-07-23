@@ -108,6 +108,7 @@ server {
     sub_filter_once on;
     sub_filter 's.onopen=()=>{const{current:e}=l;' 's.onopen=()=>{sessionStorage.removeItem("coreWsRetry");const{current:e}=l;';
     sub_filter 'i.current=s;const c=' 'i.current=s,s.onclose=()=>{const e=Math.min(3e4,1500*Math.pow(2,Number(sessionStorage.getItem("coreWsRetry")||0)));sessionStorage.setItem("coreWsRetry",String(Number(sessionStorage.getItem("coreWsRetry")||0)+1));const t=()=>location.reload();"hidden"===document.visibilityState?document.addEventListener("visibilitychange",(()=>{"visible"===document.visibilityState&&t()}),{once:!0}):setTimeout(t,e)},s.onerror=()=>s.close();const c=';
+    sub_filter 'Module.canvas=e},onContextMenu:' 'Module.canvas=e,null!=e&&!e._bouncecoreInput&&(e._bouncecoreInput=!0,e.tabIndex=0,e.addEventListener("click",(()=>{e.focus(),document.pointerLockElement!==e&&e.requestPointerLock&&e.requestPointerLock()})))},onContextMenu:';
   }
 
   location = /worker.f7ebc54e.js {

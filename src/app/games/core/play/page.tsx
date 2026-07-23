@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Gamepad2, ShieldCheck } from "lucide-react";
+import { CoreFpsGameFrame } from "@/app/games/core/play/core-fps-game-frame";
 import { CoreFpsPresenceTracker } from "@/app/games/core/play/core-fps-presence-tracker";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
@@ -75,14 +76,7 @@ export default async function CoreFpsPlayPage() {
         {launch ? (
           <div className="relative min-h-0 flex-1 bg-black">
             <CoreFpsPresenceTracker sessionId={launch.sessionId} />
-            <iframe
-              allow="autoplay; clipboard-write; fullscreen; gamepad"
-              className="absolute inset-0 h-full w-full border-0 bg-black"
-              referrerPolicy="no-referrer"
-              sandbox="allow-downloads allow-fullscreen allow-pointer-lock allow-same-origin allow-scripts"
-              src={launch.launchUrl}
-              title="Core FPS game"
-            />
+            <CoreFpsGameFrame launchUrl={launch.launchUrl} />
           </div>
         ) : (
           <section className="m-auto w-[min(680px,calc(100%-2rem))] rounded-md border border-bc-pink/35 bg-bc-panel p-6">
@@ -99,7 +93,7 @@ export default async function CoreFpsPlayPage() {
         <div className="hidden items-center gap-4 border-t border-bc-line bg-bc-ink px-4 py-2 text-xs text-bc-muted lg:flex">
           <span className="inline-flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-bc-acid" aria-hidden="true" />
-            Separate origin, signed access, and verified score session
+            Shared arena connected. Click the game once to capture keyboard and mouse; press Esc to release them.
           </span>
         </div>
       </main>

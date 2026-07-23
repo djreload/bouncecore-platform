@@ -176,8 +176,9 @@ export function verifyCoreFpsTicket(ticket: string, secret: string, now = new Da
 
 export function buildCoreFpsLaunchUrl(publicUrl: string, ticket: string, playerName: string) {
   const launchUrl = new URL(`${normalizeCoreFpsPublicUrl(publicUrl)}/`);
+  const safePlayerName = normalizeClaimText(playerName, 15, "Player name");
   launchUrl.searchParams.set("ticket", ticket);
-  launchUrl.searchParams.set("cmd", `name ${normalizeClaimText(playerName, 15, "Player name")}`);
+  launchUrl.searchParams.set("cmd", `name ${safePlayerName}; join lobby`);
 
   return launchUrl.toString();
 }

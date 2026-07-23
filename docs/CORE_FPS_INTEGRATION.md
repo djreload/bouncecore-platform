@@ -118,6 +118,12 @@ should return `401`.
 6. Press `Start game`. Gameplay opens at `/games/core/play`; the hub remains
    the home for controls, personal history, and the verified leaderboard.
 
+Every launch runs `join lobby` after assigning the signed runtime player name,
+so `Start game` enters the persistent shared FFA arena instead of opening only
+the random-map menu. Click the game canvas once to capture keyboard and mouse
+input. Use `WASD` to move, the mouse to aim, left click to fire, and `Esc` to
+release the pointer.
+
 The launcher creates a two-hour signed ticket and opens the game in a
 cross-origin sandbox. The gateway moves the ticket into a Secure, HttpOnly
 same-site cookie and redirects to a clean game URL before loading. Core never
