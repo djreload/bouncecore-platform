@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Audited `djreload/core` at commit `2ed2b492`, covering its C++/WebAssembly engine, React launcher, Go/ENet multiplayer server, asset pipeline, licences, privacy surface, and production risks.
+- Added an opt-in Core FPS runtime and localhost-only Nginx gateway Compose profile.
+- Added signed, expiring player launch tickets and a private gateway validation endpoint.
+- Added the signed-in `/games/core` iframe/fullscreen launcher, public navigation item, and Admin -> Games -> Core FPS settings.
+- Isolated the imported engine from Bouncecore cookies and secrets, and blocked its original arbitrary external WebSocket proxy surface.
+- Added Core FPS DNS/TLS, operations, rollback, security, and mixed-asset-licensing documentation.
 - Added a hard-guarded local release drill covering two-player Rave War lifecycle, reconnect recovery, timeout handling, star accounting, Square duplicate refunds, PayPal merch/music refunds, stock restoration, download revocation, payout blocking, and Supporter assignment without permitting live payment modes.
 - Added non-mutating security smoke checks for protected admin/upload/Rave War routes, unsigned payment webhooks, upload traversal, HTTPS, and security headers.
 - Added a real dual-ingest continuity soak that verifies both publishers, stable primary/secondary assignment, advancing HLS media sequences, and final promotion after primary disconnect.

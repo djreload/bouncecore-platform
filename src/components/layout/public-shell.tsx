@@ -15,6 +15,7 @@ import { getPublicSiteSettings, type SiteSettings } from "@/lib/admin/site-setti
 import type { RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { getCurrentUser } from "@/lib/auth/session";
 import { accountDeletionHref, privacyRequestsHref } from "@/lib/privacy/privacy-config";
+import { getPublicCoreFpsSettings } from "@/lib/games/core-fps-settings-service";
 
 type PublicShellProps = {
   children: React.ReactNode;
@@ -24,8 +25,12 @@ type PublicShellProps = {
   siteSettings?: Pick<SiteSettings, "branding" | "footerSummary" | "legalPages" | "siteName" | "stagingTarget" | "supportEmail">;
 };
 
-function publicNavigationForAuth(items: NavigationItem[], signedIn: boolean) {
+function publicNavigationForAuth(items: NavigationItem[], signedIn: boolean, coreFpsEnabled: boolean) {
   return items.filter((item) => {
+    if (item.href === "/games/core" && !coreFpsEnabled) {
+      return false;
+    }
+
     if (!signedIn && item.href.startsWith("/account")) {
       return false;
     }
@@ -39,14 +44,15 @@ function publicNavigationForAuth(items: NavigationItem[], signedIn: boolean) {
 }
 
 export async function PublicShell({ children, hideFooterOnMobile = false, mobilePresenceUsers, roleDisplayLabels, siteSettings }: PublicShellProps) {
-  const [navigationItems, themeStyle, resolvedSiteSettings, user] = await Promise.all([
+  const [navigationItems, themeStyle, resolvedSiteSettings, user, coreFpsSettings] = await Promise.all([
     getPublicMenuNavigation(),
     getSiteThemeStyle(),
     siteSettings ? Promise.resolve(siteSettings) : getPublicSiteSettings(),
-    getCurrentUser()
+    getCurrentUser(),
+    getPublicCoreFpsSettings()
   ]);
   const signedIn = Boolean(user);
-  const visibleNavigationItems = publicNavigationForAuth(navigationItems, signedIn);
+  const visibleNavigationItems = publicNavigationForAuth(navigationItems, signedIn, coreFpsSettings.enabled);
   const siteName = resolvedSiteSettings.siteName ?? "Bouncecore";
   const logoUrl = resolvedSiteSettings.branding?.logoUrl ?? null;
   const footerSummary =

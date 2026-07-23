@@ -7,6 +7,7 @@ export type IconName =
   | "calendar"
   | "credit-card"
   | "download"
+  | "gamepad"
   | "gauge"
   | "gift"
   | "headphones"
@@ -47,6 +48,7 @@ export const publicNavigation: NavigationItem[] = [
   { label: "Home", href: "/", icon: "home" },
   { label: "Live", href: "/live", icon: "radio" },
   { label: "Chat", href: "/chat", icon: "message" },
+  { label: "Core FPS", href: "/games/core", icon: "gamepad" },
   { label: "DJs", href: "/djs", icon: "headphones" },
   { label: "Producers", href: "/producers", icon: "music" },
   { label: "Music", href: "/music", icon: "star" },
@@ -117,6 +119,7 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Chat assets", href: "/admin/chat-assets", icon: "sparkles", group: "Chat & Moderation", requiredRoles: ["owner", "admin"] },
   { label: "Reports", href: "/admin/reports", icon: "shield", group: "Chat & Moderation", requiredPermission: "moderation.use" },
   { label: "Bans", href: "/admin/bans", icon: "lock", group: "Chat & Moderation", requiredPermission: "moderation.use" },
+  { label: "Core FPS", href: "/admin/core-fps", icon: "gamepad", group: "Games", requiredPermission: "settings.manage" },
   { label: "Tracks", href: "/admin/tracks", icon: "music", group: "Music Marketplace", requiredRoles: ["owner", "admin"] },
   { label: "Producer approvals", href: "/admin/producer-approvals", icon: "shield", group: "Music Marketplace", requiredRoles: ["owner", "admin"] },
   { label: "Products", href: "/admin/products", icon: "shopping-bag", group: "Merch Shop", requiredRoles: ["owner", "admin"] },
@@ -162,6 +165,7 @@ export const navigationGroupDescriptions: Record<string, string> = {
   "Users & Access": "Accounts, roles, permissions, and VIP access.",
   "Live Streaming": "Ingest, stream keys, sessions, and schedules.",
   "Chat & Moderation": "Rooms, uploads, reports, and enforcement tools.",
+  Games: "Standalone game services, player access, and runtime configuration.",
   "Music Marketplace": "Producer submissions and public track catalogue.",
   "Merch Shop": "Products, customer orders, and fulfilment.",
   "Payments & Money": "Payment providers, stars, transactions, and payouts.",

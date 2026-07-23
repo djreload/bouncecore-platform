@@ -1,0 +1,9 @@
+server:
+  assets:
+    - "fs:/opt/core/assets/.index.source"
+  cacheDirectory: "/var/cache/sour"
+  ingress:
+    desktop: []
+    web:
+      address: "0.0.0.0"
+      port: 1337

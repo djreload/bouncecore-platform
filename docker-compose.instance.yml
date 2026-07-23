@@ -240,6 +240,60 @@ services:
           sleep 2
         done
 
+  core-fps:
+    profiles:
+      - core-fps
+    build:
+      context: ./services/core-fps/runtime
+      dockerfile: Dockerfile
+    image: ${CORE_FPS_IMAGE:-bouncecore-core-fps}:${CORE_FPS_IMAGE_TAG:-v0.2.5}
+    container_name: ${CORE_FPS_CONTAINER:-bouncecore-core-fps}
+    restart: unless-stopped
+    cpus: ${CORE_FPS_CPU_LIMIT:-2.0}
+    mem_limit: ${CORE_FPS_MEMORY_LIMIT:-2g}
+    pids_limit: ${CORE_FPS_PIDS_LIMIT:-256}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - core_fps_cache:/var/cache/sour
+
+  core-fps-gateway:
+    profiles:
+      - core-fps
+    image: nginx:1.27-alpine
+    container_name: ${CORE_FPS_GATEWAY_CONTAINER:-bouncecore-core-fps-gateway}
+    restart: unless-stopped
+    cpus: ${CORE_FPS_GATEWAY_CPU_LIMIT:-0.50}
+    mem_limit: ${CORE_FPS_GATEWAY_MEMORY_LIMIT:-256m}
+    pids_limit: ${CORE_FPS_GATEWAY_PIDS_LIMIT:-128}
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      app:
+        condition: service_started
+      core-fps:
+        condition: service_healthy
+    environment:
+      CORE_FPS_APP_UPSTREAM: app:3000
+      CORE_FPS_GATEWAY_SHARED_SECRET: ${CORE_FPS_GATEWAY_SHARED_SECRET:-not-configured}
+      CORE_FPS_PARENT_ORIGIN: ${CORE_FPS_PARENT_ORIGIN:-https://bouncecore.example.com}
+      CORE_FPS_RUNTIME_UPSTREAM: core-fps:1337
+    ports:
+      - "${CORE_FPS_GATEWAY_BIND_HOST:-127.0.0.1}:${CORE_FPS_GATEWAY_PORT:-18443}:8080"
+    volumes:
+      - ./services/core-fps/gateway/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    tmpfs:
+      - /var/cache/nginx:size=64m
+      - /var/run:size=8m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz | grep -q '^ok$'"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
   worker:
     profiles:
       - worker
@@ -271,3 +325,5 @@ volumes:
     name: ${STREAM_CORE_VOLUME:-bouncecore_stream_core_data}
   transcoder_hls_data:
     name: ${TRANSCODER_HLS_VOLUME:-bouncecore_transcoder_hls}
+  core_fps_cache:
+    name: ${CORE_FPS_CACHE_VOLUME:-bouncecore_core_fps_cache}

@@ -1,0 +1,88 @@
+map $arg_ticket $core_ticket {
+  default $arg_ticket;
+  "" $cookie_core_fps_ticket;
+}
+
+map $arg_ticket $core_ticket_cookie {
+  ~.+ "core_fps_ticket=$arg_ticket; Path=/; Max-Age=7200; HttpOnly; Secure; SameSite=Strict";
+  default "";
+}
+
+server {
+  listen 8080;
+  server_name _;
+
+  absolute_redirect off;
+  client_max_body_size 2m;
+
+  add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self' data:; frame-ancestors ${CORE_FPS_PARENT_ORIGIN}; img-src 'self' blob: data:; media-src 'self' blob:; object-src 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:" always;
+  add_header Cross-Origin-Resource-Policy "cross-origin" always;
+  add_header Permissions-Policy "camera=(), geolocation=(), microphone=(), payment=(), usb=()" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Set-Cookie $core_ticket_cookie always;
+
+  location = /healthz {
+    access_log off;
+    add_header Content-Type text/plain;
+    return 200 "ok\n";
+  }
+
+  location = /_core_auth {
+    internal;
+    proxy_pass http://${CORE_FPS_APP_UPSTREAM}/api/internal/games/core/auth;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header X-Core-Gateway-Secret "${CORE_FPS_GATEWAY_SHARED_SECRET}";
+    proxy_set_header X-Core-Ticket $core_ticket;
+  }
+
+  location ^~ /service/proxy/ {
+    return 404;
+  }
+
+  location = / {
+    access_log off;
+
+    if ($arg_ticket != "") {
+      return 302 /;
+    }
+
+    auth_request /_core_auth;
+    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location ^~ /ws/ {
+    auth_request /_core_auth;
+    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_read_timeout 24h;
+    proxy_send_timeout 30s;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location ^~ /api/ {
+    auth_request /_core_auth;
+    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location / {
+    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
