@@ -76,6 +76,8 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(gateway, /return 302 \$core_launch_redirect/);
   assert.match(gateway, /X-Core-Session-Id \$core_session_id/);
   assert.match(gateway, /frame-ancestors \$\{CORE_FPS_PARENT_ORIGIN\}/);
+  assert.match(gateway, /location \/ \{\s+auth_request \/_core_auth;/);
+  assert.match(gateway, /location \/ \{[\s\S]*?proxy_buffering off;/);
   assert.match(launcher, /sandbox="allow-downloads allow-fullscreen allow-pointer-lock allow-same-origin allow-scripts"/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
 });
