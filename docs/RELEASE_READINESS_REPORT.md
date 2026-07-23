@@ -9,6 +9,7 @@ Target: Bouncecore production deployment
 - The release drill refuses non-local app/database hosts, requires `RELEASE_DRILL_CONFIRM=LOCAL-ONLY`, and refuses PayPal or Square modes other than `sandbox`.
 - Production PayPal and Square settings were inspected read-only. Both are in `live` mode and have their required server credentials configured.
 - No production purchase, capture, refund, payout, or webhook replay was performed.
+- Production payment modes, setting fingerprints, and setting timestamps were unchanged after deployment.
 
 ## Results
 
@@ -27,8 +28,10 @@ Target: Bouncecore production deployment
 | Android validation | Passed | Debug and signed release version 1.0.14 (15) installed on API 35, consent flows and production WebView loaded, full Android lint passed, and no fatal/network errors were observed. |
 | Android release artifacts | Passed | Existing release key produced signed APK/AAB; package, version, signature, generated bundle manifest, and Play preflight verified. |
 | Backup restore | Passed | Full backup `20260721T031833Z` restored 57 tables and all four volume archives; temporary resources cleaned. |
+| Pre-deploy production backup | Passed | Full backup `20260723T075905Z` verified the database and all four volume archives with zero failures or warnings. |
 | Dual-ingest stream soak | Passed | Both HLS playlists advanced for 3,600 seconds, the secondary source promoted after the primary stopped, and both temporary stream keys were revoked. |
-| Production post-deploy smoke | Pending | Runs only after the release commit is deployed. |
+| Production post-deploy smoke | Passed | 17 public, 20 authenticated, and 8 security checks passed against `https://bouncecore.co.uk`. |
+| Production service isolation | Passed | App and worker moved to the new image; stream-core, gateway, transcoder, HLS origin, and restream container IDs and start times remained unchanged. |
 
 ## Remaining manual actions
 
@@ -39,4 +42,4 @@ Target: Bouncecore production deployment
 
 ## Release decision
 
-The local release gates pass. The release remains frozen only until the guarded production deployment and post-deploy checks complete.
+All automated release gates pass and commit `3a9c716` is deployed. Remaining items require operator or legal action and do not indicate an automated deployment failure.
