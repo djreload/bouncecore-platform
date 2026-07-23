@@ -1,5 +1,3 @@
-export const coreFpsInviteCooldownMs = 2 * 60 * 1000;
-
 export type CoreFpsInvitePresence = {
   id: string;
   status: "online" | "away";

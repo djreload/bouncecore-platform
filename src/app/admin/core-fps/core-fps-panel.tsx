@@ -1,12 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { ExternalLink, Gamepad2, Save, ShieldCheck } from "lucide-react";
+import { Clock3, ExternalLink, Gamepad2, Map, Save, ShieldCheck } from "lucide-react";
 import { adminCoreFpsAction } from "@/app/admin/core-fps/actions";
 import { initialAdminCoreFpsActionState, type AdminCoreFpsActionState } from "@/app/admin/core-fps/state";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import type { getAdminCoreFpsData } from "@/lib/games/core-fps-settings-service";
+import { coreFpsAvailableMaps } from "@/lib/games/core-fps-lobby-core";
 
 type AdminCoreFpsPanelProps = {
   data: Awaited<ReturnType<typeof getAdminCoreFpsData>>;
@@ -83,6 +84,52 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
             <p className="mt-1 text-xs text-bc-muted">
               Dedicated HTTPS origin routed to the Core gateway. Do not use the main Bouncecore hostname or a path below it.
             </p>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold" htmlFor="core-fps-lobby-wait">
+                <Clock3 className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+                Lobby wait time
+              </label>
+              <input
+                className="mt-2 min-h-11 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-white"
+                defaultValue={data.settings.lobbyWaitSeconds}
+                disabled={pending}
+                id="core-fps-lobby-wait"
+                max={180}
+                min={10}
+                name="lobbyWaitSeconds"
+                type="number"
+              />
+              <p className="mt-1 text-xs text-bc-muted">
+                Seconds before a solo player starts with the AI. A second player shortens this to an eight-second ready countdown.
+              </p>
+            </div>
+
+            <fieldset>
+              <legend className="flex items-center gap-2 text-sm font-semibold">
+                <Map className="h-4 w-4 text-bc-pink" aria-hidden="true" />
+                Random map pool
+              </legend>
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {coreFpsAvailableMaps.map((mapName) => (
+                  <label className="flex min-h-11 items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 py-2" key={mapName}>
+                    <input
+                      defaultChecked={data.settings.mapPool.includes(mapName)}
+                      disabled={pending}
+                      name="mapPool"
+                      type="checkbox"
+                      value={mapName}
+                    />
+                    <span className="text-sm font-semibold capitalize">{mapName}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-bc-muted">
+                One enabled map is chosen once when a new lobby is created. Late joiners never restart it.
+              </p>
+            </fieldset>
           </div>
 
           <label className="flex items-start gap-3 rounded-md border border-bc-line bg-bc-ink p-4">

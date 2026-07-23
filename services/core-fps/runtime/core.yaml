@@ -30,6 +30,7 @@ server:
           - "dust2"
   spaces:
     - preset: "ffa"
+      votingCreates: false
       config:
         alias: "lobby"
     - preset: "insta"

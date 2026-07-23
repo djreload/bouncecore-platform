@@ -16,12 +16,14 @@ RUN git clone "${CORE_FPS_SOURCE_REPOSITORY}" . \
   && git lfs pull
 
 COPY solo-bot.patch /tmp/solo-bot.patch
+COPY index.html /tmp/core-index.html
 
 RUN git apply --check /tmp/solo-bot.patch \
   && git apply /tmp/solo-bot.patch \
   && cd client \
   && yarn install --frozen-lockfile --non-interactive \
   && yarn parcel build --target package \
+  && cp /tmp/core-index.html /src/pkg/server/static/site/index.html \
   && cd /src \
   && CGO_ENABLED=1 go build -trimpath -o /out/sour ./cmd/sour
 

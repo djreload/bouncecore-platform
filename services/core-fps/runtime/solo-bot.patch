@@ -1,3 +1,42 @@
+diff --git a/client/src/index.tsx b/client/src/index.tsx
+index 16bf363..a4d0e02 100644
+--- a/client/src/index.tsx
++++ b/client/src/index.tsx
+@@ -538,6 +538,7 @@ function App() {
+     }
+ 
+     let remoteConnected: boolean = false
++    let pendingLobbyMap: string | null = null
+ 
+     let cachedServers: Maybe<any> = null
+     Module.onGameReady = () => {
+@@ -637,6 +638,11 @@ function App() {
+       }
+ 
+       const parsedParams = new URLSearchParams(params)
++      const requestedLobbyMap =
++        parsedParams.get('lobbyMap')?.trim().toLowerCase() ?? ''
++      if (/^[a-z0-9_-]+$/.test(requestedLobbyMap)) {
++        pendingLobbyMap = requestedLobbyMap
++      }
+ 
+       initializeDiscord(
+         parsedParams.has('code') ? parsedParams.get('code') : null
+@@ -665,7 +671,13 @@ function App() {
+       pushURLState(`#/server/${name}/${port}`)
+     }
+ 
+-    Module.onConnect = () => {}
++    Module.onConnect = () => {
++      if (pendingLobbyMap == null) return
++
++      const mapName = pendingLobbyMap
++      pendingLobbyMap = null
++      setTimeout(() => BananaBread.execute(`map ${mapName}`), 250)
++    }
+     Module.onDisconnect = () => {
+       remoteConnected = false
+       clearURLState()
 diff --git a/pkg/gameserver/client.go b/pkg/gameserver/client.go
 index 0d22889..3e317c1 100644
 --- a/pkg/gameserver/client.go
@@ -135,10 +174,19 @@ index ea46739..8bffcae 100644
  			Client:      int32(c.CN),
  			EntityState: c.ToWire(),
 diff --git a/pkg/gameserver/module.go b/pkg/gameserver/module.go
-index fe3bb5b..990a770 100644
+index fe3bb5b..d5ef96e 100644
 --- a/pkg/gameserver/module.go
 +++ b/pkg/gameserver/module.go
-@@ -117,8 +117,26 @@ func (s *Server) Poll(ctx context.Context) {
+@@ -55,6 +55,8 @@ type Server struct {
+ 
+ 	pendingMapChange *time.Timer
+ 	rng              *rand.Rand
++	lobbyMapName     string
++	lobbyMapVoteOpen bool
+ 
+ 	incoming chan ServerPacket
+ 	outgoing chan ServerPacket
+@@ -117,8 +119,26 @@ func (s *Server) Poll(ctx context.Context) {
  				continue
  			}
  
@@ -166,7 +214,7 @@ index fe3bb5b..990a770 100644
  			}
  		}
  	}
-@@ -285,6 +303,7 @@ func (s *Server) Join(c *Client) {
+@@ -285,6 +305,7 @@ func (s *Server) Join(c *Client) {
  		c.Send(flagMode.FlagsInitPacket())
  	}
  	s.Clients.InformOthersOfJoin(c)
@@ -174,7 +222,7 @@ index fe3bb5b..990a770 100644
  }
  
  func (s *Server) Message(message string) {
-@@ -318,7 +337,7 @@ func (s *Server) ConfirmSpawn(client *Client, lifeSequence, _weapon int32) {
+@@ -318,7 +339,7 @@ func (s *Server) ConfirmSpawn(client *Client, lifeSequence, _weapon int32) {
  		EntityState: client.ToWire(),
  	})
  
@@ -183,7 +231,7 @@ index fe3bb5b..990a770 100644
  		clock.Spawned(&client.Player)
  	}
  }
-@@ -333,6 +352,10 @@ func (s *Server) Leave(sessionId uint32) {
+@@ -333,6 +354,10 @@ func (s *Server) Leave(sessionId uint32) {
  }
  
  func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
@@ -194,7 +242,7 @@ index fe3bb5b..990a770 100644
  	s.GameMode.Leave(&client.Player)
  	s.Clock.Leave(&client.Player)
  	s.Clients.Disconnect(client, reason)
-@@ -346,6 +369,9 @@ func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
+@@ -346,6 +371,9 @@ func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
  	if s.Clients.GetNumClients() == 0 {
  		s.Empty()
  	}
@@ -205,7 +253,7 @@ index fe3bb5b..990a770 100644
  
  func (s *Server) Kick(client *Client, victim *Client, reason string) {
 diff --git a/pkg/gameserver/packet_handling.go b/pkg/gameserver/packet_handling.go
-index 68dff4e..8e0125d 100644
+index 68dff4e..58b5e25 100644
 --- a/pkg/gameserver/packet_handling.go
 +++ b/pkg/gameserver/packet_handling.go
 @@ -124,7 +124,7 @@ func (s *Server) HandlePacket(client *Client, channelID uint8, message P.Message
@@ -217,6 +265,46 @@ index 68dff4e..8e0125d 100644
  
  	// channel 1 traffic
  	case P.N_CONNECT:
+@@ -213,6 +213,10 @@ func (s *Server) HandlePacket(client *Client, channelID uint8, message P.Message
+ 		}
+ 
+ 		modeID := gamemode.ID(msg.Mode)
++		lobbyBootstrap, duplicateLobbyBootstrap := s.consumeLobbyMapBootstrap(mapname)
++		if duplicateLobbyBootstrap {
++			return
++		}
+ 
+ 		if !gamemode.Valid(modeID) {
+ 			client.Message(cubecode.Fail(fmt.Sprintf("%s is not implemented on this server", modeID)))
+@@ -220,19 +224,24 @@ func (s *Server) HandlePacket(client *Client, channelID uint8, message P.Message
+ 			return
+ 		}
+ 
+-		if s.MasterMode < mastermode.Veto {
++		if !lobbyBootstrap && s.MasterMode < mastermode.Veto {
+ 			client.Message(cubecode.Fail("this server does not support map voting"))
+ 			return
+ 		}
+ 
+-		if client.Role < role.Master {
++		if !lobbyBootstrap && client.Role < role.Master {
+ 			client.Message(cubecode.Fail("you can't do that"))
+ 			return
+ 		}
+ 
+ 		s.StartGame(s.StartMode(modeID), mapname)
+-		s.Message(fmt.Sprintf("%s forced %s on %s", s.Clients.UniqueName(client), modeID, mapname))
+-		log.Println(client, "forced", modeID, "on", mapname)
++		if lobbyBootstrap {
++			s.Message(fmt.Sprintf("Bouncecore selected %s for this lobby", mapname))
++			log.Println(client, "started lobby", modeID, "on", mapname)
++		} else {
++			s.Message(fmt.Sprintf("%s forced %s on %s", s.Clients.UniqueName(client), modeID, mapname))
++			log.Println(client, "forced", modeID, "on", mapname)
++		}
+ 
+ 	case P.N_PING:
+ 		msg := message.(P.Ping)
 diff --git a/pkg/gameserver/relay/relay.go b/pkg/gameserver/relay/relay.go
 index 17adc5f..aa4e7bd 100644
 --- a/pkg/gameserver/relay/relay.go
@@ -337,10 +425,10 @@ index 17adc5f..aa4e7bd 100644
  	// clear packets
 diff --git a/pkg/gameserver/solo_bot.go b/pkg/gameserver/solo_bot.go
 new file mode 100644
-index 0000000..f490222
+index 0000000..cb19aa6
 --- /dev/null
 +++ b/pkg/gameserver/solo_bot.go
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,131 @@
 +package gameserver
 +
 +import (
@@ -430,15 +518,42 @@ index 0000000..f490222
 +	}
 +}
 +
++func (s *Server) consumeLobbyMapBootstrap(mapName string) (bool, bool) {
++	if !s.lobbyMapVoteOpen {
++		return false, s.lobbyMapName != "" && s.lobbyMapName == mapName
++	}
++
++	allowed := mapName == s.DefaultMap
++	for _, candidate := range s.Maps {
++		if candidate == mapName {
++			allowed = true
++			break
++		}
++	}
++	if !allowed {
++		return false, false
++	}
++
++	s.lobbyMapName = mapName
++	s.lobbyMapVoteOpen = false
++	return true, false
++}
++
 +func (s *Server) reconcileSoloBot() {
 +	humans := s.humanClients()
 +	bots := s.botClients()
 +
 +	if len(humans) == 1 {
 +		if len(bots) == 0 {
++			s.lobbyMapVoteOpen = true
 +			s.addSoloBot(humans[0])
 +		}
 +		return
++	}
++
++	if len(humans) == 0 {
++		s.lobbyMapName = ""
++		s.lobbyMapVoteOpen = false
 +	}
 +
 +	for _, bot := range bots {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { secretsMatch, verifyCoreFpsTicket } from "@/lib/games/core-fps-core";
+import { authorizeCoreFpsLobbySession } from "@/lib/games/core-fps-lobby-service";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +35,18 @@ export async function GET(request: Request) {
 
   try {
     const claims = verifyCoreFpsTicket(ticket, ticketSecret);
+    const lobby = await authorizeCoreFpsLobbySession({
+      lobbyId: claims.lid,
+      sessionId: claims.sid,
+      userId: claims.sub
+    });
 
     return new NextResponse(null, {
       headers: {
         "Cache-Control": "no-store",
         "X-Core-Display-Name": encodeURIComponent(claims.name),
+        "X-Core-Lobby-Id": lobby.id,
+        "X-Core-Map-Name": lobby.mapName,
         "X-Core-Player-Name": claims.player,
         "X-Core-Session-Id": claims.sid,
         "X-Core-User-Id": claims.sub

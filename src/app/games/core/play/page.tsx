@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Gamepad2, ShieldCheck } from "lucide-react";
-import { CoreFpsGameFrame } from "@/app/games/core/play/core-fps-game-frame";
-import { CoreFpsPresenceTracker } from "@/app/games/core/play/core-fps-presence-tracker";
+import { CoreFpsLobbyStage } from "@/app/games/core/play/core-fps-lobby-stage";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { requireSignedInUser } from "@/lib/auth/guards";
+import { getCoreFpsLobbyState, joinCoreFpsLobby } from "@/lib/games/core-fps-lobby-service";
 import { createCoreFpsLaunch, getPublicCoreFpsSettings } from "@/lib/games/core-fps-settings-service";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,13 @@ export const metadata: Metadata = {
   title: "Play Core FPS"
 };
 
-export default async function CoreFpsPlayPage() {
+type CoreFpsPlayPageProps = {
+  searchParams: Promise<{
+    invite?: string | string[];
+  }>;
+};
+
+export default async function CoreFpsPlayPage({ searchParams }: CoreFpsPlayPageProps) {
   const settings = await getPublicCoreFpsSettings();
 
   if (!settings.enabled) {
@@ -42,10 +48,18 @@ export default async function CoreFpsPlayPage() {
 
   const user = await requireSignedInUser();
   let launch: Awaited<ReturnType<typeof createCoreFpsLaunch>> | null = null;
+  let initialLobby: Awaited<ReturnType<typeof getCoreFpsLobbyState>> | null = null;
   let launchError: string | null = null;
 
   try {
-    launch = await createCoreFpsLaunch(user);
+    const query = await searchParams;
+    const invite = Array.isArray(query.invite) ? query.invite[0] : query.invite;
+    const lobby = await joinCoreFpsLobby({
+      requestedLobbyId: invite,
+      user
+    });
+    launch = await createCoreFpsLaunch(user, lobby);
+    initialLobby = await getCoreFpsLobbyState(lobby.id, user.id);
   } catch (error) {
     launchError = error instanceof Error ? error.message : "Core FPS could not start.";
   }
@@ -73,10 +87,13 @@ export default async function CoreFpsPlayPage() {
           </div>
         </div>
 
-        {launch ? (
+        {launch && initialLobby ? (
           <div className="relative min-h-0 flex-1 bg-black">
-            <CoreFpsPresenceTracker sessionId={launch.sessionId} />
-            <CoreFpsGameFrame launchUrl={launch.launchUrl} />
+            <CoreFpsLobbyStage
+              initialLobby={initialLobby}
+              launchUrl={launch.launchUrl}
+              sessionId={launch.sessionId}
+            />
           </div>
         ) : (
           <section className="m-auto w-[min(680px,calc(100%-2rem))] rounded-md border border-bc-pink/35 bg-bc-panel p-6">

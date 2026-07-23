@@ -28,6 +28,8 @@ export async function adminCoreFpsAction(
     await updateCoreFpsSettings(
       {
         enabled: formData.get("enabled") === "on",
+        lobbyWaitSeconds: formString(formData, "lobbyWaitSeconds"),
+        mapPool: formData.getAll("mapPool").filter((value): value is string => typeof value === "string"),
         publicUrl: formString(formData, "publicUrl")
       },
       actor.id

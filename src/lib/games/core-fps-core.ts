@@ -9,15 +9,17 @@ export type CoreFpsTicketClaims = {
   aud: typeof coreFpsTicketAudience;
   exp: number;
   iat: number;
+  lid: string;
   name: string;
   player: string;
   sid: string;
   sub: string;
-  v: 2;
+  v: 3;
 };
 
 type CoreFpsTicketInput = {
   displayName: string;
+  lobbyId: string;
   now?: Date;
   playerName: string;
   secret: string;
@@ -112,6 +114,7 @@ export function assertIsolatedCoreFpsOrigin(publicUrl: string, appUrl: string | 
 
 export function createCoreFpsTicket({
   displayName,
+  lobbyId,
   now = new Date(),
   playerName,
   secret,
@@ -123,11 +126,12 @@ export function createCoreFpsTicket({
     aud: coreFpsTicketAudience,
     exp: issuedAt + coreFpsTicketLifetimeSeconds,
     iat: issuedAt,
+    lid: normalizeClaimText(lobbyId, 120, "Lobby ID"),
     name: normalizeClaimText(displayName, 60, "Display name"),
     player: normalizeClaimText(playerName, 15, "Player name"),
     sid: normalizeClaimText(sessionId, 120, "Session ID"),
     sub: normalizeClaimText(userId, 120, "User ID"),
-    v: 2
+    v: 3
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
 
@@ -153,9 +157,10 @@ export function verifyCoreFpsTicket(ticket: string, secret: string, now = new Da
     !claims ||
     typeof claims !== "object" ||
     (claims as CoreFpsTicketClaims).aud !== coreFpsTicketAudience ||
-    (claims as CoreFpsTicketClaims).v !== 2 ||
+    (claims as CoreFpsTicketClaims).v !== 3 ||
     typeof (claims as CoreFpsTicketClaims).sub !== "string" ||
     typeof (claims as CoreFpsTicketClaims).name !== "string" ||
+    typeof (claims as CoreFpsTicketClaims).lid !== "string" ||
     typeof (claims as CoreFpsTicketClaims).player !== "string" ||
     typeof (claims as CoreFpsTicketClaims).sid !== "string" ||
     typeof (claims as CoreFpsTicketClaims).iat !== "number" ||
@@ -174,11 +179,23 @@ export function verifyCoreFpsTicket(ticket: string, secret: string, now = new Da
   return typedClaims;
 }
 
-export function buildCoreFpsLaunchUrl(publicUrl: string, ticket: string, playerName: string) {
+export function buildCoreFpsLaunchUrl(
+  publicUrl: string,
+  ticket: string,
+  playerName: string,
+  bootstrapMapName?: string | null
+) {
   const launchUrl = new URL(`${normalizeCoreFpsPublicUrl(publicUrl)}/`);
   const safePlayerName = normalizeClaimText(playerName, 15, "Player name");
+  const safeMapName = bootstrapMapName?.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") ?? "";
   launchUrl.searchParams.set("ticket", ticket);
-  launchUrl.searchParams.set("cmd", `name ${safePlayerName}; join lobby`);
+  launchUrl.searchParams.set(
+    "cmd",
+    `name ${safePlayerName}; join lobby`
+  );
+  if (safeMapName) {
+    launchUrl.searchParams.set("lobbyMap", safeMapName);
+  }
 
   return launchUrl.toString();
 }

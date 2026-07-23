@@ -67,13 +67,12 @@ func TestRuntimeSharedLobby(t *testing.T) {
 	}
 
 	connectSent := false
-	sendGameJoin := func() {
-		data, encodeErr := protocol.Encode(protocol.Connect{
-			Name:  "SmokePlayer",
-			Model: 0,
-		})
+	mapVoteSent := false
+	botSeen := false
+	sendPacket := func(messages ...protocol.Message) {
+		data, encodeErr := protocol.Encode(messages...)
 		if encodeErr != nil {
-			t.Fatalf("encode game join: %v", encodeErr)
+			t.Fatalf("encode game packet: %v", encodeErr)
 		}
 		request, marshalErr := cbor.Marshal(smokePacketEnvelope{
 			Op:      11,
@@ -84,8 +83,14 @@ func TestRuntimeSharedLobby(t *testing.T) {
 			t.Fatalf("encode game packet: %v", marshalErr)
 		}
 		if err := connection.Write(ctx, websocket.MessageBinary, request); err != nil {
-			t.Fatalf("send game join: %v", err)
+			t.Fatalf("send game packet: %v", err)
 		}
+	}
+	sendGameJoin := func() {
+		sendPacket(protocol.Connect{
+			Name:  "SmokePlayer",
+			Model: 0,
+		})
 		connectSent = true
 	}
 
@@ -99,8 +104,8 @@ func TestRuntimeSharedLobby(t *testing.T) {
 		}
 		var response smokeResponseEnvelope
 		if err := cbor.Unmarshal(message, &response); err == nil && response.Op == 1 {
-			if response.Server != "lobby" {
-				t.Fatalf("connected to %q instead of lobby", response.Server)
+			if response.Server == "" {
+				t.Fatal("runtime returned an empty lobby server identifier")
 			}
 			if !connectSent {
 				sendGameJoin()
@@ -116,9 +121,30 @@ func TestRuntimeSharedLobby(t *testing.T) {
 			continue
 		}
 		for _, gameMessage := range messages {
+			if serverMessage, ok := gameMessage.(protocol.ServerMessage); ok {
+				if botSeen && serverMessage.Text == "Bouncecore selected dust2 for this lobby" {
+					return
+				}
+			}
 			if bot, ok := gameMessage.(protocol.InitAI); ok {
 				if bot.Name != "Bounce Bot" || bot.Aitype != 1 || bot.Aiskill < 1 {
 					t.Fatalf("invalid solo bot initialization: %#v", bot)
+				}
+				botSeen = true
+				if !mapVoteSent {
+					sendPacket(protocol.MapVote{
+						Map:  "dust2",
+						Mode: 0,
+					})
+					mapVoteSent = true
+				}
+			}
+			if mapChange, ok := gameMessage.(protocol.MapChange); ok && mapVoteSent {
+				if mapChange.Name != "dust2" {
+					t.Fatalf("runtime selected %q instead of lobby map dust2", mapChange.Name)
+				}
+				if !botSeen {
+					t.Fatal("map changed before the solo bot was initialized")
 				}
 				return
 			}

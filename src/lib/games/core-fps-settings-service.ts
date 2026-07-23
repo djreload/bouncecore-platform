@@ -9,17 +9,26 @@ import {
   createCoreFpsTicket,
   normalizeCoreFpsPublicUrl
 } from "@/lib/games/core-fps-core";
-import { createCoreFpsSession } from "@/lib/games/core-fps-score-service";
+import {
+  coreFpsDefaultLobbyWaitSeconds,
+  normalizeCoreFpsLobbyWaitSeconds,
+  normalizeCoreFpsMapPool
+} from "@/lib/games/core-fps-lobby-core";
+import { getOrCreateCoreFpsSession } from "@/lib/games/core-fps-score-service";
 
 const coreFpsSettingsKey = "games.core-fps";
 
 export type CoreFpsSettings = {
   enabled: boolean;
+  lobbyWaitSeconds: number;
+  mapPool: string[];
   publicUrl: string | null;
 };
 
 export type CoreFpsSettingsInput = {
   enabled: boolean;
+  lobbyWaitSeconds?: number | string;
+  mapPool?: string[];
   publicUrl?: string;
 };
 
@@ -35,6 +44,8 @@ function envEnabled() {
 function defaultSettings(): CoreFpsSettings {
   return {
     enabled: envEnabled(),
+    lobbyWaitSeconds: coreFpsDefaultLobbyWaitSeconds,
+    mapPool: normalizeCoreFpsMapPool(undefined),
     publicUrl: normalizeCoreFpsPublicUrl(process.env.CORE_FPS_PUBLIC_URL)
   };
 }
@@ -59,6 +70,8 @@ function mergeSettings(value: unknown): CoreFpsSettings {
 
   return {
     enabled: typeof stored.enabled === "boolean" ? stored.enabled : defaults.enabled,
+    lobbyWaitSeconds: normalizeCoreFpsLobbyWaitSeconds(stored.lobbyWaitSeconds),
+    mapPool: normalizeCoreFpsMapPool(stored.mapPool),
     publicUrl
   };
 }
@@ -128,6 +141,8 @@ export async function getAdminCoreFpsData() {
 export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId: string) {
   const settings: CoreFpsSettings = {
     enabled: input.enabled,
+    lobbyWaitSeconds: normalizeCoreFpsLobbyWaitSeconds(input.lobbyWaitSeconds),
+    mapPool: normalizeCoreFpsMapPool(input.mapPool),
     publicUrl: input.publicUrl
       ? assertIsolatedCoreFpsOrigin(input.publicUrl, process.env.NEXT_PUBLIC_APP_URL)
       : null
@@ -173,6 +188,8 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
     severity: settings.enabled ? "warning" : "info",
     metadata: {
       enabled: settings.enabled,
+      lobbyWaitSeconds: settings.lobbyWaitSeconds,
+      mapPool: settings.mapPool,
       publicUrl: settings.publicUrl
     }
   });
@@ -180,7 +197,14 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
   return settings;
 }
 
-export async function createCoreFpsLaunch(user: CoreFpsLaunchUser) {
+export async function createCoreFpsLaunch(
+  user: CoreFpsLaunchUser,
+  lobby: {
+    bootstrapMap: boolean;
+    id: string;
+    mapName: string;
+  }
+) {
   const settings = await getPublicCoreFpsSettings();
 
   if (!settings.enabled) {
@@ -194,9 +218,10 @@ export async function createCoreFpsLaunch(user: CoreFpsLaunchUser) {
   assertIsolatedCoreFpsOrigin(settings.publicUrl, process.env.NEXT_PUBLIC_APP_URL);
 
   const ticketSecret = process.env.CORE_FPS_TICKET_SECRET ?? "";
-  const session = await createCoreFpsSession(user);
+  const session = await getOrCreateCoreFpsSession(user, lobby.id);
   const ticket = createCoreFpsTicket({
     displayName: user.displayName,
+    lobbyId: lobby.id,
     playerName: session.runtimePlayerName,
     secret: ticketSecret,
     sessionId: session.id,
@@ -204,7 +229,14 @@ export async function createCoreFpsLaunch(user: CoreFpsLaunchUser) {
   });
 
   return {
-    launchUrl: buildCoreFpsLaunchUrl(settings.publicUrl, ticket, session.runtimePlayerName),
+    launchUrl: buildCoreFpsLaunchUrl(
+      settings.publicUrl,
+      ticket,
+      session.runtimePlayerName,
+      lobby.bootstrapMap ? lobby.mapName : null
+    ),
+    lobbyId: lobby.id,
+    mapName: lobby.mapName,
     publicUrl: settings.publicUrl,
     sessionId: session.id
   };

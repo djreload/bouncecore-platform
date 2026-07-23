@@ -51,7 +51,7 @@ export function calculateCoreFpsScore(stats: {
   return Math.max(0, stats.frags * 100 + stats.flags * 300 - stats.deaths * 25 - stats.teamKills * 100);
 }
 
-export async function createCoreFpsSession(user: CoreFpsSessionUser) {
+export async function createCoreFpsSession(user: CoreFpsSessionUser, lobbyId?: string | null) {
   const sessionId = randomUUID();
   const runtimePlayerName = createCoreFpsRuntimePlayerName(user.displayName, sessionId);
 
@@ -59,10 +59,29 @@ export async function createCoreFpsSession(user: CoreFpsSessionUser) {
     data: {
       displayNameSnapshot: user.displayName,
       id: sessionId,
+      lobbyId: lobbyId ?? null,
       runtimePlayerName,
       userId: user.id
     }
   });
+}
+
+export async function getOrCreateCoreFpsSession(user: CoreFpsSessionUser, lobbyId: string) {
+  const existing = await prisma.coreFpsSession.findFirst({
+    orderBy: {
+      createdAt: "desc"
+    },
+    where: {
+      endedAt: null,
+      lobbyId,
+      status: {
+        in: ["active", "launched"]
+      },
+      userId: user.id
+    }
+  });
+
+  return existing ?? createCoreFpsSession(user, lobbyId);
 }
 
 export async function recordCoreFpsPresence(sessionId: string, userId: string, active: boolean) {
