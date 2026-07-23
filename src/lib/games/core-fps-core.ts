@@ -10,14 +10,18 @@ export type CoreFpsTicketClaims = {
   exp: number;
   iat: number;
   name: string;
+  player: string;
+  sid: string;
   sub: string;
-  v: 1;
+  v: 2;
 };
 
 type CoreFpsTicketInput = {
   displayName: string;
   now?: Date;
+  playerName: string;
   secret: string;
+  sessionId: string;
   userId: string;
 };
 
@@ -109,7 +113,9 @@ export function assertIsolatedCoreFpsOrigin(publicUrl: string, appUrl: string | 
 export function createCoreFpsTicket({
   displayName,
   now = new Date(),
+  playerName,
   secret,
+  sessionId,
   userId
 }: CoreFpsTicketInput) {
   const issuedAt = Math.floor(now.getTime() / 1000);
@@ -118,8 +124,10 @@ export function createCoreFpsTicket({
     exp: issuedAt + coreFpsTicketLifetimeSeconds,
     iat: issuedAt,
     name: normalizeClaimText(displayName, 60, "Display name"),
+    player: normalizeClaimText(playerName, 15, "Player name"),
+    sid: normalizeClaimText(sessionId, 120, "Session ID"),
     sub: normalizeClaimText(userId, 120, "User ID"),
-    v: 1
+    v: 2
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
 
@@ -145,9 +153,11 @@ export function verifyCoreFpsTicket(ticket: string, secret: string, now = new Da
     !claims ||
     typeof claims !== "object" ||
     (claims as CoreFpsTicketClaims).aud !== coreFpsTicketAudience ||
-    (claims as CoreFpsTicketClaims).v !== 1 ||
+    (claims as CoreFpsTicketClaims).v !== 2 ||
     typeof (claims as CoreFpsTicketClaims).sub !== "string" ||
     typeof (claims as CoreFpsTicketClaims).name !== "string" ||
+    typeof (claims as CoreFpsTicketClaims).player !== "string" ||
+    typeof (claims as CoreFpsTicketClaims).sid !== "string" ||
     typeof (claims as CoreFpsTicketClaims).iat !== "number" ||
     typeof (claims as CoreFpsTicketClaims).exp !== "number"
   ) {
@@ -164,11 +174,19 @@ export function verifyCoreFpsTicket(ticket: string, secret: string, now = new Da
   return typedClaims;
 }
 
-export function buildCoreFpsLaunchUrl(publicUrl: string, ticket: string) {
+export function buildCoreFpsLaunchUrl(publicUrl: string, ticket: string, playerName: string) {
   const launchUrl = new URL(`${normalizeCoreFpsPublicUrl(publicUrl)}/`);
   launchUrl.searchParams.set("ticket", ticket);
+  launchUrl.searchParams.set("cmd", `name ${normalizeClaimText(playerName, 15, "Player name")}`);
 
   return launchUrl.toString();
+}
+
+export function createCoreFpsRuntimePlayerName(displayName: string, sessionId: string) {
+  const readable = displayName.replace(/[^a-z0-9]/gi, "").slice(0, 8) || "Player";
+  const suffix = sessionId.replace(/[^a-z0-9]/gi, "").slice(-6);
+
+  return `${readable}-${suffix}`.slice(0, 15);
 }
 
 export function secretsMatch(provided: string, expected: string) {

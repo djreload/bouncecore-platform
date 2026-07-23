@@ -27,5 +27,21 @@ The gateway:
 - prevents framing by origins other than the configured Bouncecore origin;
 - does not receive PayPal, Square, SMTP, or Bouncecore session secrets.
 
+The telemetry relay sits only between the authenticated gateway WebSocket and
+the original runtime WebSocket. It observes authoritative `ServerInfo`,
+`Resume`, `Damage`, `Died`, `ScoreFlag`, and map-change packets, associates
+them with the gateway-verified account session, and sends debounced snapshots
+to Bouncecore. It does not inspect chat text, accept public traffic, or decide
+scores in browser code.
+
+Bouncecore keeps the public game hub separate from gameplay:
+
+- `/games/core` contains the start action, controls, score rules, personal
+  history, and verified leaderboard;
+- `/games/core/play` creates the signed game session and hosts the isolated
+  iframe;
+- `/api/internal/games/core/telemetry` accepts score snapshots only with the
+  independent telemetry secret.
+
 See `docs/CORE_FPS_INTEGRATION.md` and
 `docs/CORE_FPS_SOURCE_AUDIT.md` for setup, licensing, and operations.

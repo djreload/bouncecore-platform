@@ -33,7 +33,7 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone={data.configured ? "acid" : "amber"}>Runtime</Badge>
           <p className="mt-4 text-3xl font-black">{data.configured ? "Ready" : "Setup"}</p>
-          <p className="mt-2 text-sm text-bc-muted">URL and both server secrets.</p>
+          <p className="mt-2 text-sm text-bc-muted">URL and three isolated server secrets.</p>
         </article>
         <article className="rounded-md border border-bc-line bg-bc-panel p-5">
           <Badge tone="cyan">Source</Badge>

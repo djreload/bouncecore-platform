@@ -55,6 +55,7 @@ model User {
   raveWarsTargeted            RaveWar[]                   @relation("RaveWarTarget")
   raveWarParticipants         RaveWarParticipant[]
   raveWarEvents               RaveWarEvent[]
+  coreFpsSessions             CoreFpsSession[]
   prizeClaims                 PrizeClaim[]                @relation("PrizeClaimUser")
   prizeClaimsResolved         PrizeClaim[]                @relation("PrizeClaimResolvedBy")
   invitesCreated              UserInvite[]                @relation("UserInviteCreatedBy")
@@ -561,6 +562,37 @@ model RaveWar {
   @@index([status, expiresAt])
   @@index([turnUserId])
   @@index([winnerUserId])
+}
+
+model CoreFpsSession {
+  id                  String   @id @default(cuid())
+  userId              String
+  displayNameSnapshot String
+  runtimePlayerName   String   @unique
+  status              String   @default("launched")
+  score               Int      @default(0)
+  frags               Int      @default(0)
+  deaths              Int      @default(0)
+  damage              Int      @default(0)
+  teamKills           Int      @default(0)
+  flags               Int      @default(0)
+  lastFrags           Int      @default(0)
+  lastDeaths          Int      @default(0)
+  lastDamage          Int      @default(0)
+  lastTeamKills       Int      @default(0)
+  lastFlags           Int      @default(0)
+  mapName             String?
+  modeName            String?
+  connectedAt         DateTime?
+  lastSeenAt          DateTime?
+  endedAt             DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, lastSeenAt])
+  @@index([score, createdAt])
 }
 
 model RaveWarParticipant {

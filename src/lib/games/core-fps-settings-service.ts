@@ -9,6 +9,7 @@ import {
   createCoreFpsTicket,
   normalizeCoreFpsPublicUrl
 } from "@/lib/games/core-fps-core";
+import { createCoreFpsSession } from "@/lib/games/core-fps-score-service";
 
 const coreFpsSettingsKey = "games.core-fps";
 
@@ -84,6 +85,7 @@ export async function getAdminCoreFpsData() {
   const { settings, source, updatedAt } = await readSettings();
   const ticketSecretReady = (process.env.CORE_FPS_TICKET_SECRET?.trim().length ?? 0) >= 32;
   const gatewaySecretReady = (process.env.CORE_FPS_GATEWAY_SHARED_SECRET?.trim().length ?? 0) >= 32;
+  const telemetrySecretReady = (process.env.CORE_FPS_TELEMETRY_SECRET?.trim().length ?? 0) >= 32;
 
   return {
     checks: [
@@ -105,9 +107,16 @@ export async function getAdminCoreFpsData() {
           : "Set CORE_FPS_GATEWAY_SHARED_SECRET to a different random value containing at least 32 characters.",
         label: "Gateway authentication",
         ready: gatewaySecretReady
+      },
+      {
+        detail: telemetrySecretReady
+          ? "Verified score telemetry can be accepted from the isolated game service."
+          : "Set CORE_FPS_TELEMETRY_SECRET to a third, independent random value containing at least 32 characters.",
+        label: "Score telemetry",
+        ready: telemetrySecretReady
       }
     ],
-    configured: Boolean(settings.publicUrl && ticketSecretReady && gatewaySecretReady),
+    configured: Boolean(settings.publicUrl && ticketSecretReady && gatewaySecretReady && telemetrySecretReady),
     settings,
     source,
     sourceRef: coreFpsSourceRef,
@@ -134,6 +143,10 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
 
   if (settings.enabled && (process.env.CORE_FPS_GATEWAY_SHARED_SECRET?.trim().length ?? 0) < 32) {
     throw new Error("Configure CORE_FPS_GATEWAY_SHARED_SECRET before enabling Core FPS.");
+  }
+
+  if (settings.enabled && (process.env.CORE_FPS_TELEMETRY_SECRET?.trim().length ?? 0) < 32) {
+    throw new Error("Configure CORE_FPS_TELEMETRY_SECRET before enabling Core FPS.");
   }
 
   await prisma.appSetting.upsert({
@@ -181,14 +194,18 @@ export async function createCoreFpsLaunch(user: CoreFpsLaunchUser) {
   assertIsolatedCoreFpsOrigin(settings.publicUrl, process.env.NEXT_PUBLIC_APP_URL);
 
   const ticketSecret = process.env.CORE_FPS_TICKET_SECRET ?? "";
+  const session = await createCoreFpsSession(user);
   const ticket = createCoreFpsTicket({
     displayName: user.displayName,
+    playerName: session.runtimePlayerName,
     secret: ticketSecret,
+    sessionId: session.id,
     userId: user.id
   });
 
   return {
-    launchUrl: buildCoreFpsLaunchUrl(settings.publicUrl, ticket),
-    publicUrl: settings.publicUrl
+    launchUrl: buildCoreFpsLaunchUrl(settings.publicUrl, ticket, session.runtimePlayerName),
+    publicUrl: settings.publicUrl,
+    sessionId: session.id
   };
 }

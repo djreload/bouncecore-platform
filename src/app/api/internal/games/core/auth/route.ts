@@ -39,6 +39,8 @@ export async function GET(request: Request) {
       headers: {
         "Cache-Control": "no-store",
         "X-Core-Display-Name": encodeURIComponent(claims.name),
+        "X-Core-Player-Name": claims.player,
+        "X-Core-Session-Id": claims.sid,
         "X-Core-User-Id": claims.sub
       },
       status: 204

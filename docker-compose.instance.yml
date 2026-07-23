@@ -260,6 +260,36 @@ services:
     volumes:
       - core_fps_cache:/var/cache/sour
 
+  core-fps-telemetry:
+    profiles:
+      - core-fps
+    build:
+      context: ./services/core-fps/telemetry
+      dockerfile: Dockerfile
+    image: ${CORE_FPS_TELEMETRY_IMAGE:-bouncecore-core-fps-telemetry}:${CORE_FPS_TELEMETRY_IMAGE_TAG:-v1}
+    container_name: ${CORE_FPS_TELEMETRY_CONTAINER:-bouncecore-core-fps-telemetry}
+    restart: unless-stopped
+    cpus: ${CORE_FPS_TELEMETRY_CPU_LIMIT:-0.50}
+    mem_limit: ${CORE_FPS_TELEMETRY_MEMORY_LIMIT:-128m}
+    pids_limit: ${CORE_FPS_TELEMETRY_PIDS_LIMIT:-128}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      app:
+        condition: service_started
+      core-fps:
+        condition: service_healthy
+    environment:
+      CORE_FPS_RUNTIME_WS_URL: ws://core-fps:1337/ws/
+      CORE_FPS_TELEMETRY_SECRET: ${CORE_FPS_TELEMETRY_SECRET:-not-configured}
+      CORE_FPS_TELEMETRY_URL: http://app:3000/api/internal/games/core/telemetry
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:1338/healthz | grep -q '^ok$'"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+
   core-fps-gateway:
     profiles:
       - core-fps
@@ -276,11 +306,14 @@ services:
         condition: service_started
       core-fps:
         condition: service_healthy
+      core-fps-telemetry:
+        condition: service_healthy
     environment:
       CORE_FPS_APP_UPSTREAM: app:3000
       CORE_FPS_GATEWAY_SHARED_SECRET: ${CORE_FPS_GATEWAY_SHARED_SECRET:-not-configured}
       CORE_FPS_PARENT_ORIGIN: ${CORE_FPS_PARENT_ORIGIN:-https://bouncecore.example.com}
       CORE_FPS_RUNTIME_UPSTREAM: core-fps:1337
+      CORE_FPS_WEBSOCKET_UPSTREAM: core-fps-telemetry:1338
     ports:
       - "${CORE_FPS_GATEWAY_BIND_HOST:-127.0.0.1}:${CORE_FPS_GATEWAY_PORT:-18443}:8080"
     volumes:

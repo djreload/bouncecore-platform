@@ -53,9 +53,10 @@ inner gateway disables logging for that request.
 
 ## 2. Generate Secrets
 
-Generate two different secrets:
+Generate three different secrets:
 
 ```bash
+openssl rand -base64 48
 openssl rand -base64 48
 openssl rand -base64 48
 ```
@@ -69,13 +70,16 @@ CORE_FPS_PUBLIC_URL=https://core.bouncecore.example.com
 CORE_FPS_PARENT_ORIGIN=https://bouncecore.example.com
 CORE_FPS_TICKET_SECRET=first-independent-random-secret
 CORE_FPS_GATEWAY_SHARED_SECRET=second-independent-random-secret
+CORE_FPS_TELEMETRY_SECRET=third-independent-random-secret
 CORE_FPS_GATEWAY_BIND_HOST=127.0.0.1
 CORE_FPS_GATEWAY_PORT=18443
 ```
 
 `CORE_FPS_TICKET_SECRET` signs player tickets.
 `CORE_FPS_GATEWAY_SHARED_SECRET` protects the private ticket-validation route.
-Neither value belongs in browser JavaScript or the admin database.
+`CORE_FPS_TELEMETRY_SECRET` authenticates score snapshots sent by the isolated
+game service. Browser requests are never trusted as score evidence.
+None of these values belongs in browser JavaScript or the admin database.
 
 ## 3. Build and Start
 
@@ -87,7 +91,7 @@ docker compose \
   -f docker-compose.instance.yml \
   --env-file .env.instance \
   --profile core-fps \
-  up -d --build core-fps core-fps-gateway
+  up -d --build core-fps core-fps-telemetry core-fps-gateway
 ```
 
 This does not recreate the app, database, stream, worker, PayPal, or Square
@@ -106,29 +110,45 @@ should return `401`.
 ## 4. Enable the Launcher
 
 1. Open `Admin -> Games -> Core FPS`.
-2. Confirm the URL and both secret checks show `Ready`.
+2. Confirm the URL and all three secret checks show `Ready`.
 3. Save the dedicated HTTPS game URL.
 4. Enable the launcher.
 5. Open `/games/core` while signed in, or select `Core FPS` from the chat tools
    menu.
+6. Press `Start game`. Gameplay opens at `/games/core/play`; the hub remains
+   the home for controls, personal history, and the verified leaderboard.
 
 The launcher creates a two-hour signed ticket and opens the game in a
 cross-origin sandbox. The gateway moves the ticket into a Secure, HttpOnly
 same-site cookie and redirects to a clean game URL before loading. Core never
 receives the Bouncecore session cookie.
 
+Each launch also creates an account-linked `CoreFpsSession`. The signed ticket
+contains that session ID and a unique, 15-character runtime player name. Score
+telemetry is posted server-to-server to:
+
+```text
+POST /api/internal/games/core/telemetry
+X-Core-Telemetry-Secret: <CORE_FPS_TELEMETRY_SECRET>
+```
+
+The payload carries the signed session and user IDs plus the current
+authoritative frags, deaths, damage, team kills, flags, map, and mode. Bouncecore
+turns counter changes into durable totals and calculates leaderboard points.
+The endpoint must never be called from browser code.
+
 ## 5. Operations
 
 View service logs:
 
 ```bash
-docker compose -f docker-compose.instance.yml --env-file .env.instance logs -f core-fps core-fps-gateway
+docker compose -f docker-compose.instance.yml --env-file .env.instance logs -f core-fps core-fps-telemetry core-fps-gateway
 ```
 
 Stop the game without affecting Bouncecore:
 
 ```bash
-docker compose -f docker-compose.instance.yml --env-file .env.instance --profile core-fps stop core-fps-gateway core-fps
+docker compose -f docker-compose.instance.yml --env-file .env.instance --profile core-fps stop core-fps-gateway core-fps-telemetry core-fps
 ```
 
 Disable the admin launcher before maintenance so users see the controlled
@@ -141,5 +161,5 @@ offline state.
 - Never expose `/service/proxy/`.
 - Never reuse payment, session, database, SMTP, or stream secrets as Core
   secrets.
-- Rotate both Core secrets if a launch URL or server environment is disclosed.
+- Rotate all three Core secrets if a launch URL or server environment is disclosed.
 - Review `docs/CORE_FPS_SOURCE_AUDIT.md` before public commercial distribution.
