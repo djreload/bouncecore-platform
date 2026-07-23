@@ -107,6 +107,12 @@ function uploadErrorMessage(error: unknown) {
 
 export async function POST(request: Request) {
   try {
+    const adminUser = await getApiUserWithPermission("admin.access");
+
+    if (!adminUser) {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const kind = uploadKind(formData.get("kind"));
     const file = formFile(formData, "file");

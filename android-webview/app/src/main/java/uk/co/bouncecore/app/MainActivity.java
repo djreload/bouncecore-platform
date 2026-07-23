@@ -1,6 +1,7 @@
 package uk.co.bouncecore.app;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.SharedPreferences;
@@ -229,7 +230,7 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        backButtonParams.gravity = Gravity.TOP | Gravity.LEFT;
+        backButtonParams.gravity = Gravity.TOP | Gravity.START;
         backButtonParams.setMargins(dp(6), dp(62), 0, 0);
         overlay.addView(backButton, backButtonParams);
 
@@ -248,7 +249,7 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        leftToolbarParams.gravity = Gravity.BOTTOM | Gravity.LEFT;
+        leftToolbarParams.gravity = Gravity.BOTTOM | Gravity.START;
         leftToolbarParams.setMargins(dp(6), 0, 0, dp(6));
         overlay.addView(leftToolbar, leftToolbarParams);
 
@@ -261,7 +262,7 @@ public class MainActivity extends Activity {
 
         raveWarStatusText = new TextView(this);
         raveWarStatusText.setGravity(Gravity.CENTER);
-        raveWarStatusText.setText("WAIT");
+        raveWarStatusText.setText(R.string.rave_war_wait);
         raveWarStatusText.setTextColor(Color.WHITE);
         raveWarStatusText.setTextSize(8f);
         raveWarStatusText.setTypeface(Typeface.DEFAULT_BOLD);
@@ -282,7 +283,7 @@ public class MainActivity extends Activity {
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         );
-        rightToolbarParams.gravity = Gravity.BOTTOM | Gravity.RIGHT;
+        rightToolbarParams.gravity = Gravity.BOTTOM | Gravity.END;
         rightToolbarParams.setMargins(0, 0, dp(6), dp(6));
         overlay.addView(rightToolbar, rightToolbarParams);
 
@@ -308,6 +309,7 @@ public class MainActivity extends Activity {
 
             if (event.getAction() == MotionEvent.ACTION_UP) {
                 view.setPressed(false);
+                view.performClick();
                 dispatchRaveWarControl(control, holdControl ? "up" : "press");
                 return true;
             }
@@ -336,7 +338,7 @@ public class MainActivity extends Activity {
             String safeStatus = TextUtils.isEmpty(status) ? "Waiting for match state..." : status;
             String weaponStatus = canControl && !TextUtils.isEmpty(weaponLabel)
                 ? weaponLabel + "\nx" + Math.max(0, ammo)
-                : "WAIT";
+                : getString(R.string.rave_war_wait);
             raveWarStatusText.setText(weaponStatus);
             raveWarStatusText.setContentDescription(
                 safeStatus + (canControl ? ". " + weaponLabel + ", " + Math.max(0, ammo) + " remaining." : "")
@@ -509,6 +511,7 @@ public class MainActivity extends Activity {
         }
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     private void configureWebView() {
         WebSettings settings = webView.getSettings();
         settings.setDomStorageEnabled(true);

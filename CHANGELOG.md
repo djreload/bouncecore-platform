@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added a hard-guarded local release drill covering two-player Rave War lifecycle, reconnect recovery, timeout handling, star accounting, Square duplicate refunds, PayPal merch/music refunds, stock restoration, download revocation, payout blocking, and Supporter assignment without permitting live payment modes.
+- Added non-mutating security smoke checks for protected admin/upload/Rave War routes, unsigned payment webhooks, upload traversal, HTTPS, and security headers.
+- Added a real dual-ingest continuity soak that verifies both publishers, stable primary/secondary assignment, advancing HLS media sequences, and final promotion after primary disconnect.
+- Hardened global responses with HSTS, clickjacking, MIME-sniffing, and referrer headers, and moved admin upload authentication ahead of multipart parsing.
+- Added a repeatable release freeze checklist and evidence-based release readiness report covering payments, streaming, Android, security, backups, rollback, and post-deploy checks.
+- Strengthened Play Store preflight so AAB package and version metadata must match the generated release bundle manifest and stale artifacts are rejected.
+- Fixed Android API 23-26 style compatibility, native Rave War control accessibility/RTL behavior, and documented the required JavaScript WebView use so full Android lint passes.
+- Added shared Redis-backed request throttling with hashed client identifiers and a bounded local fallback across web/mobile login, registration, and password-reset entry points.
 - Added idempotent Rave War entry-fee refunds for declined, cancelled, expired, force-ended, and manually repaired matches, including admin-visible refund state and audit history.
 - Added Rave War reconnect recovery on browser focus, page visibility, network restoration, page cache restore, Android app resume, and realtime transport reconnection.
 - Added automated Rave War accounting, lifecycle, timeout, reconnect, mobile-layout, private-flow, and admin-repair coverage.

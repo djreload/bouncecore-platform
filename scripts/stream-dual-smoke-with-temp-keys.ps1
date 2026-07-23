@@ -8,6 +8,7 @@ param(
   [string]$AppPort = $env:STREAM_SMOKE_APP_PORT,
   [int]$DurationSeconds = 90,
   [int]$HlsTimeoutSeconds = 70,
+  [int]$SoakSeconds = 0,
   [switch]$CreateMissingUser,
   [switch]$UseTranscoder,
   [switch]$SkipAppStart
@@ -192,7 +193,8 @@ try {
     "-EnvFile", $EnvFile,
     "-DockerNetwork", $DockerNetwork,
     "-DurationSeconds", $DurationSeconds,
-    "-HlsTimeoutSeconds", $HlsTimeoutSeconds
+    "-HlsTimeoutSeconds", $HlsTimeoutSeconds,
+    "-SoakSeconds", $SoakSeconds
   )
 
   if ($UseTranscoder) {

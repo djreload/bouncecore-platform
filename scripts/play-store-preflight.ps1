@@ -117,15 +117,50 @@ function First-RegexGroup {
 }
 
 function Get-ArtifactMetadata {
-    param([string]$Path)
+    param(
+        [string]$Path,
+        [string]$AndroidDir
+    )
 
     $artifactDir = Split-Path -Parent $Path
     $metadataPath = Join-Path $artifactDir "output-metadata.json"
-    if (-not (Test-Path $metadataPath)) {
+    if (Test-Path $metadataPath) {
+        return Get-Content -Path $metadataPath -Raw | ConvertFrom-Json
+    }
+
+    if ([System.IO.Path]::GetExtension($Path).ToLowerInvariant() -ne ".aab") {
         return $null
     }
 
-    Get-Content -Path $metadataPath -Raw | ConvertFrom-Json
+    $manifestPath = Join-Path $AndroidDir "app\build\intermediates\bundle_manifest\release\processApplicationManifestReleaseForBundle\AndroidManifest.xml"
+    if (-not (Test-Path $manifestPath)) {
+        return $null
+    }
+
+    $artifact = Get-Item $Path
+    $manifest = Get-Item $manifestPath
+    if ($artifact.LastWriteTimeUtc -lt $manifest.LastWriteTimeUtc) {
+        throw "Release bundle is older than its generated manifest. Rebuild the AAB before preflight."
+    }
+
+    $manifestText = Get-Content -Path $manifestPath -Raw
+    $applicationId = First-RegexGroup -Text $manifestText -Pattern 'package="([^"]+)"'
+    $versionCode = First-RegexGroup -Text $manifestText -Pattern 'android:versionCode="(\d+)"'
+    $versionName = First-RegexGroup -Text $manifestText -Pattern 'android:versionName="([^"]+)"'
+
+    if (-not $applicationId -or -not $versionCode -or -not $versionName) {
+        throw "Generated release bundle manifest does not contain package and version metadata."
+    }
+
+    return [pscustomobject]@{
+        applicationId = $applicationId
+        elements = @(
+            [pscustomobject]@{
+                versionCode = [int]$versionCode
+                versionName = $versionName
+            }
+        )
+    }
 }
 
 function Invoke-JsonGet {
@@ -312,7 +347,7 @@ if (-not $SkipArtifact) {
             throw "Artifact is unexpectedly small: $([math]::Round($artifact.Length / 1KB, 1)) KB."
         }
 
-        $metadata = Get-ArtifactMetadata -Path $ArtifactPath
+        $metadata = Get-ArtifactMetadata -Path $ArtifactPath -AndroidDir $androidDir
         if ($metadata) {
             $metadataPackage = [string]$metadata.applicationId
             $element = $metadata.elements | Select-Object -First 1

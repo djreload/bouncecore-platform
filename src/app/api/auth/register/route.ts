@@ -3,8 +3,14 @@ import { setSessionCookie } from "@/lib/auth/cookies";
 import { registerUser } from "@/lib/auth/auth-service";
 import { formValue, registerSchema } from "@/lib/auth/validation";
 import { appOrigin, appUrl } from "@/lib/http/app-url";
+import { applyRateLimitHeaders, consumeRequestRateLimit } from "@/lib/security/request-rate-limit";
 
 export async function POST(request: Request) {
+  const rateLimit = await consumeRequestRateLimit(request, { limit: 6, scope: "auth:register", windowSeconds: 3600 });
+  if (!rateLimit.allowed) {
+    return applyRateLimitHeaders(NextResponse.redirect(appUrl(request, "/auth/register", { error: "rate-limited" }), 303), rateLimit);
+  }
+
   const formData = await request.formData();
   const parsed = registerSchema.safeParse({
     displayName: formValue(formData, "displayName"),
@@ -34,5 +40,5 @@ export async function POST(request: Request) {
     setSessionCookie(response, result.token);
   }
 
-  return response;
+  return applyRateLimitHeaders(response, rateLimit);
 }

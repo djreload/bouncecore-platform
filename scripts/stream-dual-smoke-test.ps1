@@ -8,6 +8,7 @@ param(
   [string]$RtmpBaseUrl = "rtmp://media-gateway:1935/live",
   [int]$DurationSeconds = 90,
   [int]$HlsTimeoutSeconds = 70,
+  [int]$SoakSeconds = 0,
   [switch]$UseTranscoder
 )
 
@@ -227,6 +228,107 @@ function Wait-ForHls([string]$Url, [string]$Label, [switch]$RequireVariants) {
   Fail "$Label HLS playlist did not become available at $Url within $HlsTimeoutSeconds seconds."
 }
 
+function Get-HlsMediaSequence([string]$Url) {
+  $response = Invoke-WebRequest -Uri $Url -Method GET -TimeoutSec 5
+  $playlist = Decode-ResponseContent $response.Content
+
+  if ($playlist.Contains("#EXT-X-STREAM-INF")) {
+    $variant = ($playlist -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith("#") } | Select-Object -First 1)
+
+    if (-not $variant) {
+      throw "HLS master playlist has no playable variant."
+    }
+
+    $variantUrl = [System.Uri]::new([System.Uri]$Url, $variant).AbsoluteUri
+    $response = Invoke-WebRequest -Uri $variantUrl -Method GET -TimeoutSec 5
+    $playlist = Decode-ResponseContent $response.Content
+  }
+
+  $match = [regex]::Match($playlist, "#EXT-X-MEDIA-SEQUENCE:(\d+)")
+
+  if (-not $match.Success) {
+    throw "HLS media playlist has no media sequence."
+  }
+
+  return [long]$match.Groups[1].Value
+}
+
+function Invoke-DualIngestSoak(
+  [string]$PrimaryFingerprint,
+  [string]$SecondaryFingerprint,
+  [string]$PrimaryHlsUrl,
+  [string]$SecondaryHlsUrl,
+  [string]$PrimaryContainer,
+  [string]$SecondaryContainer
+) {
+  if ($SoakSeconds -le 0) {
+    return
+  }
+
+  if ($DurationSeconds -lt ($SoakSeconds + 60)) {
+    Fail "DurationSeconds must be at least SoakSeconds plus 60 seconds."
+  }
+
+  Write-Host "Starting dual-ingest continuity soak for $SoakSeconds seconds..."
+  $deadline = (Get-Date).AddSeconds($SoakSeconds)
+  $lastReport = Get-Date
+  $lastPrimarySequence = Get-HlsMediaSequence $PrimaryHlsUrl
+  $lastSecondarySequence = Get-HlsMediaSequence $SecondaryHlsUrl
+  $primaryAdvanced = $false
+  $secondaryAdvanced = $false
+  $consecutiveFailures = 0
+
+  while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Seconds 10
+
+    try {
+      foreach ($container in @($PrimaryContainer, $SecondaryContainer)) {
+        $running = & docker inspect -f '{{.State.Running}}' $container 2>$null
+
+        if ($running -ne "true") {
+          throw "$container stopped during the continuity soak."
+        }
+      }
+
+      $status = Get-StreamCoreStatus
+      $ingests = ActiveIngestsFromStatus $status
+      $primary = $ingests | Where-Object { $_.role -eq "primary" } | Select-Object -First 1
+      $secondary = $ingests | Where-Object { $_.role -eq "secondary" } | Select-Object -First 1
+
+      if ($primary.streamKeyFingerprint -ne $PrimaryFingerprint -or $secondary.streamKeyFingerprint -ne $SecondaryFingerprint) {
+        throw "Stream-core lost the expected primary/secondary assignment: $(IngestSummary $ingests)"
+      }
+
+      $primarySequence = Get-HlsMediaSequence $PrimaryHlsUrl
+      $secondarySequence = Get-HlsMediaSequence $SecondaryHlsUrl
+      $primaryAdvanced = $primaryAdvanced -or $primarySequence -gt $lastPrimarySequence
+      $secondaryAdvanced = $secondaryAdvanced -or $secondarySequence -gt $lastSecondarySequence
+      $lastPrimarySequence = $primarySequence
+      $lastSecondarySequence = $secondarySequence
+      $consecutiveFailures = 0
+
+      if (((Get-Date) - $lastReport).TotalSeconds -ge 60) {
+        $remaining = [Math]::Max(0, [Math]::Ceiling(($deadline - (Get-Date)).TotalSeconds))
+        Write-Host "Dual-ingest soak healthy; ${remaining}s remain (primary sequence $primarySequence, secondary sequence $secondarySequence)."
+        $lastReport = Get-Date
+      }
+    } catch {
+      $consecutiveFailures += 1
+      Write-Warning "Dual-ingest soak probe failed ($consecutiveFailures/3): $($_.Exception.Message)"
+
+      if ($consecutiveFailures -ge 3) {
+        Fail "Dual-ingest continuity failed three consecutive probes."
+      }
+    }
+  }
+
+  if (-not $primaryAdvanced -or -not $secondaryAdvanced) {
+    Fail "One or both HLS media playlists did not advance during the continuity soak."
+  }
+
+  Write-Host "Dual-ingest continuity soak passed with advancing primary and secondary HLS playlists."
+}
+
 if (-not $PrimaryStreamKey -or -not $SecondaryStreamKey) {
   Fail "Set STREAM_TEST_KEY and STREAM_TEST_KEY_2, or pass -PrimaryStreamKey and -SecondaryStreamKey."
 }
@@ -274,6 +376,7 @@ try {
   Wait-ForDualIngests $primaryFingerprint $secondaryFingerprint | Out-Null
   Wait-ForHls $primaryHlsUrl "Primary" -RequireVariants:$UseTranscoder
   Wait-ForHls $secondaryHlsUrl "Secondary"
+  Invoke-DualIngestSoak $primaryFingerprint $secondaryFingerprint $primaryHlsUrl $secondaryHlsUrl $primaryContainer $secondaryContainer
 
   Stop-Publisher $primaryContainer
   Wait-ForPromotedSecondary $secondaryFingerprint | Out-Null
