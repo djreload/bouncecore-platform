@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fixed Core FPS startup stalls by streaming large mod-data assets through the signed gateway instead of buffering them into its bounded temporary filesystem.
+- Fixed Core FPS startup stalls by streaming large mod-data assets through the signed gateway, retrying interrupted downloads, and automatically recovering closed game sockets with capped reconnect backoff.
 - Split Core FPS into an account-facing `/games/core` hub and dedicated `/games/core/play` arena, with controls, score rules, live player presence, personal session history, and an all-time top-20 leaderboard.
 - Added account-linked Core FPS sessions, signed runtime player identities, a secret-only telemetry API, and a transparent WebSocket relay that records authoritative frags, deaths, damage, team kills, flags, maps, and modes without trusting browser-submitted scores.
 - Audited `djreload/core` at commit `2ed2b492`, covering its C++/WebAssembly engine, React launcher, Go/ENet multiplayer server, asset pipeline, licences, privacy surface, and production risks.
