@@ -1,3 +1,30 @@
+FROM golang:1.22-bookworm AS builder
+
+ARG CORE_FPS_SOURCE_REPOSITORY=https://github.com/djreload/core
+ARG CORE_FPS_SOURCE_REF=2ed2b492d5491dfaf41fb883e6646c666e0f6035
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends build-essential ca-certificates git git-lfs libenet-dev nodejs npm swig zlib1g-dev \
+  && npm install --global yarn@1.22.22 \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+RUN git clone "${CORE_FPS_SOURCE_REPOSITORY}" . \
+  && git checkout --detach "${CORE_FPS_SOURCE_REF}" \
+  && git lfs install --local \
+  && git lfs pull
+
+COPY solo-bot.patch /tmp/solo-bot.patch
+
+RUN git apply --check /tmp/solo-bot.patch \
+  && git apply /tmp/solo-bot.patch \
+  && cd client \
+  && yarn install --frozen-lockfile --non-interactive \
+  && yarn parcel build --target package \
+  && cd /src \
+  && CGO_ENABLED=1 go build -trimpath -o /out/sour ./cmd/sour
+
 FROM debian:bookworm-slim
 
 ARG CORE_FPS_RUNTIME_URL=https://github.com/cfoust/sour/releases/download/v0.2.5/sour_0.2.5_linux_amd64.tar.gz
@@ -10,7 +37,7 @@ LABEL org.opencontainers.image.revision="${CORE_FPS_SOURCE_REF}"
 LABEL uk.co.bouncecore.component="core-fps-runtime"
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ca-certificates curl \
+  && apt-get install -y --no-install-recommends ca-certificates curl libenet7 \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/core
@@ -21,6 +48,7 @@ RUN curl --fail --location --retry 4 --retry-delay 2 "${CORE_FPS_RUNTIME_URL}" -
   && rm /tmp/core-runtime.tar.gz \
   && chmod 0755 /opt/core/sour
 
+COPY --from=builder /out/sour /opt/core/sour
 COPY core.yaml /opt/core/core.yaml
 
 RUN groupadd --system --gid 10001 corefps \

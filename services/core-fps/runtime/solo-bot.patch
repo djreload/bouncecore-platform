@@ -1,0 +1,447 @@
+diff --git a/pkg/gameserver/client.go b/pkg/gameserver/client.go
+index 0d22889..3e317c1 100644
+--- a/pkg/gameserver/client.go
++++ b/pkg/gameserver/client.go
+@@ -31,6 +31,9 @@ type Client struct {
+ 	Positions           *relay.Publisher
+ 	Packets             *relay.Publisher
+ 	Authentications     map[string]*Authentication
++	IsBot               bool
++	OwnerCN             uint32
++	Skill               int32
+ 
+ 	connected chan bool
+ 	outgoing  Outgoing
+@@ -64,6 +67,10 @@ func (c *Client) Message(text string) {
+ }
+ 
+ func (c *Client) Send(messages ...protocol.Message) {
++	if c.IsBot || c.outgoing == nil {
++		return
++	}
++
+ 	c.outgoing <- ServerPacket{
+ 		Session:  c.SessionID,
+ 		Channel:  1,
+diff --git a/pkg/gameserver/clients.go b/pkg/gameserver/clients.go
+index ea46739..8bffcae 100644
+--- a/pkg/gameserver/clients.go
++++ b/pkg/gameserver/clients.go
+@@ -45,15 +45,43 @@ func (cm *ClientManager) Add(sessionId uint32, outgoing Outgoing) *Client {
+ 	return c
+ }
+ 
++func (cm *ClientManager) AddBot(ownerCN uint32) *Client {
++	cm.mutex.Lock()
++	defer cm.mutex.Unlock()
++
++	taken := make(map[uint32]struct{})
++	for _, client := range cm.clients {
++		taken[client.CN] = struct{}{}
++	}
++
++	var cn uint32 = 128
++	for {
++		if _, ok := taken[cn]; !ok {
++			break
++		}
++		cn++
++	}
++
++	bot := NewClient(cn, 0, nil)
++	bot.IsBot = true
++	bot.Joined = true
++	bot.OwnerCN = ownerCN
++	bot.Skill = 72
++	cm.clients = append(cm.clients, bot)
++	return bot
++}
++
+ func (cm *ClientManager) GetClientByCN(cn uint32) *Client {
+ 	cm.mutex.RLock()
+ 	defer cm.mutex.RUnlock()
+ 
+-	if int(cn) < 0 || int(cn) >= len(cm.clients) {
+-		return nil
++	for _, client := range cm.clients {
++		if client.CN == cn {
++			return client
++		}
+ 	}
+ 
+-	return cm.clients[cn]
++	return nil
+ }
+ 
+ func (cm *ClientManager) GetClientByID(sessionId uint32) *Client {
+@@ -61,7 +89,7 @@ func (cm *ClientManager) GetClientByID(sessionId uint32) *Client {
+ 	defer cm.mutex.RUnlock()
+ 
+ 	for _, client := range cm.clients {
+-		if client.SessionID == sessionId {
++		if !client.IsBot && client.SessionID == sessionId {
+ 			return client
+ 		}
+ 	}
+@@ -106,6 +134,10 @@ func (cm *ClientManager) broadcast(exclude func(*Client) bool, messages ...P.Mes
+ 	cm.broadcasts.Publish(messages)
+ 
+ 	for _, c := range cm.clients {
++		if c.IsBot {
++			continue
++		}
++
+ 		if exclude != nil && exclude(c) {
+ 			continue
+ 		}
+@@ -207,9 +239,21 @@ func (s *Server) SendWelcome(c *Client) {
+ 	// send other client's state (name, team, playermodel)
+ 	for _, client := range s.Clients.clients {
+ 		if client != c {
+-			messages = append(messages, P.InitClient{
+-				int32(client.CN), client.Name, client.Team.Name, int32(client.Model),
+-			})
++			if client.IsBot {
++				messages = append(messages, P.InitAI{
++					Aiclientnum:    int32(client.CN),
++					Ownerclientnum: int32(client.OwnerCN),
++					Aitype:         1,
++					Aiskill:        client.Skill,
++					Playermodel:    int32(client.Model),
++					Name:           client.Name,
++					Team:           client.Team.Name,
++				})
++			} else {
++				messages = append(messages, P.InitClient{
++					int32(client.CN), client.Name, client.Team.Name, int32(client.Model),
++				})
++			}
+ 		}
+ 	}
+ 
+@@ -260,6 +304,14 @@ func (s *Server) MapChange() {
+ 			return
+ 		}
+ 		s.Spawn(c)
++		if c.IsBot {
++			c.State = playerstate.Alive
++			s.Broadcast(P.SpawnState{
++				Client:      int32(c.CN),
++				EntityState: c.ToWire(),
++			})
++			return
++		}
+ 		c.Send(P.SpawnState{
+ 			Client:      int32(c.CN),
+ 			EntityState: c.ToWire(),
+diff --git a/pkg/gameserver/module.go b/pkg/gameserver/module.go
+index fe3bb5b..990a770 100644
+--- a/pkg/gameserver/module.go
++++ b/pkg/gameserver/module.go
+@@ -117,8 +117,26 @@ func (s *Server) Poll(ctx context.Context) {
+ 				continue
+ 			}
+ 
++			activeClient := client
+ 			for _, message := range msg.Messages {
+-				s.HandlePacket(client, msg.Channel, message)
++				if fromAI, ok := message.(P.FromAI); ok {
++					activeClient = s.resolvePacketClient(client, fromAI.Qcn)
++					continue
++				}
++
++				packetClient := activeClient
++				switch typed := message.(type) {
++				case P.Pos:
++					packetClient = s.resolvePacketClient(client, typed.Client)
++				case P.JumpPad:
++					packetClient = s.resolvePacketClient(client, typed.Client)
++				case P.Teleport:
++					packetClient = s.resolvePacketClient(client, typed.Client)
++				}
++
++				if packetClient != nil {
++					s.HandlePacket(packetClient, msg.Channel, message)
++				}
+ 			}
+ 		}
+ 	}
+@@ -285,6 +303,7 @@ func (s *Server) Join(c *Client) {
+ 		c.Send(flagMode.FlagsInitPacket())
+ 	}
+ 	s.Clients.InformOthersOfJoin(c)
++	s.reconcileSoloBot()
+ }
+ 
+ func (s *Server) Message(message string) {
+@@ -318,7 +337,7 @@ func (s *Server) ConfirmSpawn(client *Client, lifeSequence, _weapon int32) {
+ 		EntityState: client.ToWire(),
+ 	})
+ 
+-	if clock, competitive := s.GameMode.(game.Competitive); competitive {
++	if clock, competitive := s.Clock.(game.Competitive); competitive {
+ 		clock.Spawned(&client.Player)
+ 	}
+ }
+@@ -333,6 +352,10 @@ func (s *Server) Leave(sessionId uint32) {
+ }
+ 
+ func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
++	if !client.IsBot {
++		s.removeBotsOwnedBy(client.CN)
++	}
++
+ 	s.GameMode.Leave(&client.Player)
+ 	s.Clock.Leave(&client.Player)
+ 	s.Clients.Disconnect(client, reason)
+@@ -346,6 +369,9 @@ func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
+ 	if s.Clients.GetNumClients() == 0 {
+ 		s.Empty()
+ 	}
++	if !client.IsBot {
++		s.reconcileSoloBot()
++	}
+ }
+ 
+ func (s *Server) Kick(client *Client, victim *Client, reason string) {
+diff --git a/pkg/gameserver/packet_handling.go b/pkg/gameserver/packet_handling.go
+index 68dff4e..8e0125d 100644
+--- a/pkg/gameserver/packet_handling.go
++++ b/pkg/gameserver/packet_handling.go
+@@ -124,7 +124,7 @@ func (s *Server) HandlePacket(client *Client, channelID uint8, message P.Message
+ 		}
+ 
+ 	case P.N_ADDBOT, P.N_DELBOT:
+-		client.Message("bots currently not supported")
++		s.reconcileSoloBot()
+ 
+ 	// channel 1 traffic
+ 	case P.N_CONNECT:
+diff --git a/pkg/gameserver/relay/relay.go b/pkg/gameserver/relay/relay.go
+index 17adc5f..aa4e7bd 100644
+--- a/pkg/gameserver/relay/relay.go
++++ b/pkg/gameserver/relay/relay.go
+@@ -23,7 +23,8 @@ type Relay struct {
+ 	incClientPackets       map[uint32]<-chan []protocol.Message
+ 	clientPackets          map[uint32][]protocol.Message
+ 
+-	send map[uint32]sendFunc
++	send   map[uint32]sendFunc
++	owners map[uint32]uint32
+ }
+ 
+ func New() *Relay {
+@@ -36,7 +37,8 @@ func New() *Relay {
+ 		incClientPackets:       map[uint32]<-chan []protocol.Message{},
+ 		clientPackets:          map[uint32][]protocol.Message{},
+ 
+-		send: map[uint32]sendFunc{},
++		send:   map[uint32]sendFunc{},
++		owners: map[uint32]uint32{},
+ 	}
+ 
+ 	go r.loop()
+@@ -86,6 +88,14 @@ func (r *Relay) loop() {
+ }
+ 
+ func (r *Relay) AddClient(cn uint32, sf sendFunc) (positions *Publisher, packets *Publisher) {
++	return r.addClient(cn, cn, sf)
++}
++
++func (r *Relay) AddOwnedClient(cn uint32, ownerCN uint32, sf sendFunc) (positions *Publisher, packets *Publisher) {
++	return r.addClient(cn, ownerCN, sf)
++}
++
++func (r *Relay) addClient(cn uint32, ownerCN uint32, sf sendFunc) (positions *Publisher, packets *Publisher) {
+ 	r.mutex.Lock()
+ 	defer r.mutex.Unlock()
+ 
+@@ -95,6 +105,7 @@ func (r *Relay) AddClient(cn uint32, sf sendFunc) (positions *Publisher, packets
+ 	}
+ 
+ 	r.send[cn] = sf
++	r.owners[cn] = ownerCN
+ 
+ 	positions, posCh := newPublisher(cn, r.incPositionsNotifs)
+ 	r.incPositions[cn] = posCh
+@@ -118,6 +129,7 @@ func (r *Relay) RemoveClient(cn uint32) error {
+ 	delete(r.incClientPackets, cn)
+ 	delete(r.clientPackets, cn)
+ 	delete(r.send, cn)
++	delete(r.owners, cn)
+ 
+ 	return nil
+ }
+@@ -128,7 +140,7 @@ func (r *Relay) FlushPositionAndSend(cn uint32, p protocol.Message) {
+ 
+ 	if pos := r.positions[cn]; pos != nil {
+ 		for _cn, send := range r.send {
+-			if _cn == cn {
++			if _cn == cn || _cn == r.owners[cn] {
+ 				continue
+ 			}
+ 			send(0, pos)
+@@ -137,7 +149,7 @@ func (r *Relay) FlushPositionAndSend(cn uint32, p protocol.Message) {
+ 	}
+ 
+ 	for _cn, send := range r.send {
+-		if _cn == cn {
++		if _cn == cn || _cn == r.owners[cn] {
+ 			continue
+ 		}
+ 		send(0, []protocol.Message{p})
+@@ -168,33 +180,20 @@ func (r *Relay) flush(packets map[uint32][]protocol.Message, prefix func(uint32,
+ 		return
+ 	}
+ 
+-	order := make([]uint32, 0, len(r.send))
+-	lengths := map[uint32]int{}
+-	combined := make([]protocol.Message, 0, 2*len(packets)*40)
++	for recipientCN, send := range r.send {
++		outgoing := make([]protocol.Message, 0, len(packets)*4)
++		for sourceCN, packet := range packets {
++			if packet == nil || sourceCN == recipientCN || r.owners[sourceCN] == recipientCN {
++				continue
++			}
+ 
+-	for cn := range r.send {
+-		order = append(order, cn)
+-		pkt := packets[cn]
+-		if pkt == nil {
+-			continue
++			outgoing = append(outgoing, prefix(sourceCN, packet)...)
++			outgoing = append(outgoing, packet...)
+ 		}
+-		pkt = append(prefix(cn, pkt), pkt...)
+-		lengths[cn] = len(pkt)
+-		combined = append(combined, pkt...)
+-	}
+-
+-	if len(combined) == 0 {
+-		return
+-	}
+-
+-	combined = append(combined, combined...)
+ 
+-	offset := 0
+-	for _, cn := range order {
+-		l := lengths[cn]
+-		offset += l
+-		p := combined[offset : (len(combined)/2)-l+offset]
+-		r.send[cn](channel, p)
++		if len(outgoing) > 0 {
++			send(channel, outgoing)
++		}
+ 	}
+ 
+ 	// clear packets
+diff --git a/pkg/gameserver/solo_bot.go b/pkg/gameserver/solo_bot.go
+new file mode 100644
+index 0000000..f490222
+--- /dev/null
++++ b/pkg/gameserver/solo_bot.go
+@@ -0,0 +1,104 @@
++package gameserver
++
++import (
++	P "github.com/cfoust/sour/pkg/game/protocol"
++	"github.com/cfoust/sour/pkg/gameserver/game"
++	"github.com/cfoust/sour/pkg/gameserver/protocol/disconnectreason"
++	"github.com/cfoust/sour/pkg/gameserver/protocol/playerstate"
++)
++
++func (s *Server) resolvePacketClient(sender *Client, requestedCN int32) *Client {
++	if requestedCN < 0 || uint32(requestedCN) == sender.CN {
++		return sender
++	}
++
++	requested := s.Clients.GetClientByCN(uint32(requestedCN))
++	if requested == nil || !requested.IsBot || requested.OwnerCN != sender.CN {
++		return nil
++	}
++
++	return requested
++}
++
++func (s *Server) humanClients() []*Client {
++	humans := make([]*Client, 0, 2)
++	s.Clients.ForEach(func(client *Client) {
++		if client.Joined && !client.IsBot {
++			humans = append(humans, client)
++		}
++	})
++	return humans
++}
++
++func (s *Server) botClients() []*Client {
++	bots := make([]*Client, 0, 1)
++	s.Clients.ForEach(func(client *Client) {
++		if client.IsBot {
++			bots = append(bots, client)
++		}
++	})
++	return bots
++}
++
++func (s *Server) addSoloBot(owner *Client) {
++	bot := s.Clients.AddBot(owner.CN)
++	bot.server = s
++	bot.Name = "Bounce Bot"
++	bot.Model = int32(s.rng.Intn(6))
++	bot.State = playerstate.Dead
++
++	if teamedMode, ok := s.GameMode.(game.TeamMode); ok {
++		teamedMode.Join(&bot.Player)
++	}
++
++	s.Spawn(bot)
++	bot.State = playerstate.Alive
++	bot.Positions, bot.Packets = s.relay.AddOwnedClient(bot.CN, owner.CN, func(uint8, []P.Message) {})
++	s.Broadcast(
++		P.InitAI{
++			Aiclientnum:    int32(bot.CN),
++			Ownerclientnum: int32(owner.CN),
++			Aitype:         1,
++			Aiskill:        bot.Skill,
++			Playermodel:    int32(bot.Model),
++			Name:           bot.Name,
++			Team:           bot.Team.Name,
++		},
++		P.SpawnState{
++			Client:      int32(bot.CN),
++			EntityState: bot.ToWire(),
++		},
++		P.ServerMessage{Text: "Bounce Bot joined while you wait for another player."},
++	)
++}
++
++func (s *Server) removeBot(bot *Client) {
++	s.GameMode.Leave(&bot.Player)
++	s.Clock.Leave(&bot.Player)
++	s.Clients.Disconnect(bot, disconnectreason.None)
++	_ = s.relay.RemoveClient(bot.CN)
++}
++
++func (s *Server) removeBotsOwnedBy(ownerCN uint32) {
++	for _, bot := range s.botClients() {
++		if bot.OwnerCN == ownerCN {
++			s.removeBot(bot)
++		}
++	}
++}
++
++func (s *Server) reconcileSoloBot() {
++	humans := s.humanClients()
++	bots := s.botClients()
++
++	if len(humans) == 1 {
++		if len(bots) == 0 {
++			s.addSoloBot(humans[0])
++		}
++		return
++	}
++
++	for _, bot := range bots {
++		s.removeBot(bot)
++	}
++}

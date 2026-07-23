@@ -111,7 +111,7 @@ server {
     sub_filter 'Module.canvas=e},onContextMenu:' 'Module.canvas=e,null!=e&&!e._bouncecoreInput&&(e._bouncecoreInput=!0,e.tabIndex=0,e.addEventListener("click",(()=>{e.focus(),document.pointerLockElement!==e&&e.requestPointerLock&&e.requestPointerLock()})))},onContextMenu:';
   }
 
-  location = /worker.f7ebc54e.js {
+  location ~ ^/worker\.[a-f0-9]+\.js$ {
     auth_request /_core_auth;
     proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
     proxy_buffering off;

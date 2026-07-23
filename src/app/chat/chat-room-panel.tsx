@@ -940,6 +940,14 @@ export function ChatRoomPanel({
   ]);
 
   useEffect(() => {
+    if (state.status !== "success" || state.intent !== "core-fps" || !state.actionUrl) {
+      return;
+    }
+
+    window.location.assign(state.actionUrl);
+  }, [state.actionUrl, state.intent, state.revision, state.status]);
+
+  useEffect(() => {
     scrollToLatestMessage();
   }, [latestMessageId, scrollToLatestMessage]);
 
@@ -1456,25 +1464,46 @@ export function ChatRoomPanel({
                 Boolean(reaction.option)
               );
 
-            if (message.kind === "sheep" || message.kind === "rave-war") {
+            if (message.kind === "sheep" || message.kind === "rave-war" || message.kind === "core-fps") {
               const isRaveWarToast = message.kind === "rave-war";
-              const ToastIcon = isRaveWarToast ? Swords : Sparkles;
+              const isCoreFpsToast = message.kind === "core-fps";
+              const ToastIcon = isCoreFpsToast ? Gamepad2 : isRaveWarToast ? Swords : Sparkles;
 
               return (
                 <article
                   className={cn(
                     "mx-auto max-w-[92%] scroll-mt-24 rounded-full border px-3 py-2 text-center text-xs font-black text-white",
-                    isRaveWarToast
-                      ? "border-bc-electric/35 bg-bc-electric/10 shadow-[0_0_22px_rgba(0,213,255,0.12)]"
-                      : "border-bc-amber/35 bg-bc-amber/10 shadow-[0_0_22px_rgba(255,176,32,0.12)]",
+                    isCoreFpsToast
+                      ? "border-bc-acid/35 bg-bc-acid/10 shadow-[0_0_22px_rgba(166,255,0,0.12)]"
+                      : isRaveWarToast
+                        ? "border-bc-electric/35 bg-bc-electric/10 shadow-[0_0_22px_rgba(0,213,255,0.12)]"
+                        : "border-bc-amber/35 bg-bc-amber/10 shadow-[0_0_22px_rgba(255,176,32,0.12)]",
                     mobileLiveMode && "max-w-full bg-black/35 px-2 py-1.5 backdrop-blur-sm"
                   )}
                   id={`chat-message-${message.id}`}
                   key={message.id}
                 >
                   <div className="flex min-w-0 items-center justify-center gap-2">
-                    <ToastIcon className={cn("h-3.5 w-3.5 shrink-0", isRaveWarToast ? "text-bc-electric" : "text-bc-amber")} aria-hidden="true" />
+                    <ToastIcon
+                      className={cn(
+                        "h-3.5 w-3.5 shrink-0",
+                        isCoreFpsToast ? "text-bc-acid" : isRaveWarToast ? "text-bc-electric" : "text-bc-amber"
+                      )}
+                      aria-hidden="true"
+                    />
                     <span className="min-w-0 break-words">{message.body}</span>
+                    {isCoreFpsToast ? (
+                      <Link
+                        className="bc-focus-ring shrink-0 rounded-md border border-bc-acid/50 bg-bc-acid/15 px-2 py-1 text-[10px] text-bc-acid hover:border-bc-acid"
+                        href={
+                          message.mediaSourceId
+                            ? `/games/core/play?invite=${encodeURIComponent(message.mediaSourceId)}`
+                            : "/games/core/play"
+                        }
+                      >
+                        Join
+                      </Link>
+                    ) : null}
                     <span className="shrink-0 text-[10px] font-semibold text-bc-muted">{formatTime(message.createdAt)}</span>
                   </div>
                 </article>
@@ -2164,17 +2193,21 @@ export function ChatRoomPanel({
                     Stickers
                   </Button>
                   {coreFpsEnabled ? (
-                    <ButtonLink
-                      className="min-h-8 px-2 text-xs"
-                      href="/games/core"
-                      onClick={closeComposerPanels}
-                      size="sm"
-                      title="Join the shared Core FPS game lobby"
-                      variant="ghost"
-                    >
-                      <Gamepad2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      Core FPS
-                    </ButtonLink>
+                    <form action={formAction}>
+                      <input name="intent" type="hidden" value="core-fps" />
+                      <input name="roomId" type="hidden" value={selectedRoom.id} />
+                      <Button
+                        className="w-full min-h-8 px-2 text-xs"
+                        disabled={pending || roomLockedForUser}
+                        size="sm"
+                        title="Start the shared Core FPS game and invite every online chatter"
+                        type="submit"
+                        variant="ghost"
+                      >
+                        <Gamepad2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        Start Core
+                      </Button>
+                    </form>
                   ) : null}
                   {currentUserCanClearChat ? (
                     <form action={formAction}>

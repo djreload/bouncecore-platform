@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cfoust/sour/pkg/game/protocol"
 	"github.com/fxamacker/cbor/v2"
 	"nhooyr.io/websocket"
 )
@@ -19,6 +20,12 @@ type smokeConnectMessage struct {
 type smokeResponseEnvelope struct {
 	Op     int
 	Server string
+}
+
+type smokePacketEnvelope struct {
+	Op      int
+	Channel int
+	Data    []byte
 }
 
 func TestRuntimeSharedLobby(t *testing.T) {
@@ -59,6 +66,29 @@ func TestRuntimeSharedLobby(t *testing.T) {
 		t.Fatalf("send lobby join: %v", err)
 	}
 
+	connectSent := false
+	sendGameJoin := func() {
+		data, encodeErr := protocol.Encode(protocol.Connect{
+			Name:  "SmokePlayer",
+			Model: 0,
+		})
+		if encodeErr != nil {
+			t.Fatalf("encode game join: %v", encodeErr)
+		}
+		request, marshalErr := cbor.Marshal(smokePacketEnvelope{
+			Op:      11,
+			Channel: 1,
+			Data:    data,
+		})
+		if marshalErr != nil {
+			t.Fatalf("encode game packet: %v", marshalErr)
+		}
+		if err := connection.Write(ctx, websocket.MessageBinary, request); err != nil {
+			t.Fatalf("send game join: %v", err)
+		}
+		connectSent = true
+	}
+
 	for {
 		messageType, message, err := connection.Read(ctx)
 		if err != nil {
@@ -68,14 +98,30 @@ func TestRuntimeSharedLobby(t *testing.T) {
 			continue
 		}
 		var response smokeResponseEnvelope
-		if err := cbor.Unmarshal(message, &response); err != nil {
-			continue
-		}
-		if response.Op == 1 {
+		if err := cbor.Unmarshal(message, &response); err == nil && response.Op == 1 {
 			if response.Server != "lobby" {
 				t.Fatalf("connected to %q instead of lobby", response.Server)
 			}
-			return
+			if !connectSent {
+				sendGameJoin()
+			}
+		}
+
+		var packet smokePacketEnvelope
+		if err := cbor.Unmarshal(message, &packet); err != nil || packet.Op != 11 {
+			continue
+		}
+		messages, err := protocol.Decode(packet.Data, false)
+		if err != nil {
+			continue
+		}
+		for _, gameMessage := range messages {
+			if bot, ok := gameMessage.(protocol.InitAI); ok {
+				if bot.Name != "Bounce Bot" || bot.Aitype != 1 || bot.Aiskill < 1 {
+					t.Fatalf("invalid solo bot initialization: %#v", bot)
+				}
+				return
+			}
 		}
 	}
 }

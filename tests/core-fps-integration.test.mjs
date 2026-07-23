@@ -11,9 +11,29 @@ import {
   verifyCoreFpsTicket
 } from "../src/lib/games/core-fps-core.ts";
 import { calculateCoreFpsScore } from "../src/lib/games/core-fps-score-service.ts";
+import {
+  coreFpsInviteActionUrl,
+  getCoreFpsInviteRecipientIds
+} from "../src/lib/games/core-fps-invite-core.ts";
 
 const secret = "core-fps-test-secret-that-is-longer-than-thirty-two-characters";
 const now = new Date("2026-07-23T12:00:00.000Z");
+
+test("Core FPS chat activations invite online chatters once and preserve the launch action", () => {
+  assert.deepEqual(
+    getCoreFpsInviteRecipientIds(
+      [
+        { id: "starter", status: "online" },
+        { id: "online", status: "online" },
+        { id: "online", status: "online" },
+        { id: "away", status: "away" }
+      ],
+      "starter"
+    ),
+    ["online"]
+  );
+  assert.equal(coreFpsInviteActionUrl("activation/id"), "/games/core/play?invite=activation%2Fid");
+});
 
 test("Core FPS tickets preserve signed account identity and timing", () => {
   const ticket = createCoreFpsTicket({
@@ -71,6 +91,7 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   const runtime = await readFile(new URL("../services/core-fps/runtime/core.yaml", import.meta.url), "utf8");
   const launcher = await readFile(new URL("../src/app/games/core/play/page.tsx", import.meta.url), "utf8");
   const frame = await readFile(new URL("../src/app/games/core/play/core-fps-game-frame.tsx", import.meta.url), "utf8");
+  const pip = await readFile(new URL("../src/app/games/core/play/core-fps-live-pip.tsx", import.meta.url), "utf8");
 
   assert.match(gateway, /location \^~ \/service\/proxy\//);
   assert.match(gateway, /auth_request \/_core_auth/);
@@ -80,7 +101,7 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(gateway, /frame-ancestors \$\{CORE_FPS_PARENT_ORIGIN\}/);
   assert.match(gateway, /location \/ \{\s+auth_request \/_core_auth;/);
   assert.match(gateway, /location \/ \{[\s\S]*?proxy_buffering off;/);
-  assert.match(gateway, /location = \/worker\.f7ebc54e\.js/);
+  assert.match(gateway, /location ~ \^\/worker\\\.\[a-f0-9\]\+\\\.js\$/);
   assert.match(gateway, /Math\.min\(1e4,1e3\*\(r\+1\)\)/);
   assert.match(gateway, /sessionStorage\.removeItem\("coreWsRetry"\)/);
   assert.match(gateway, /s\.onclose=/);
@@ -89,6 +110,9 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(frame, /sandbox="allow-downloads allow-fullscreen allow-pointer-lock allow-same-origin allow-scripts"/);
   assert.match(frame, /frameRef\.current\?\.focus\(\)/);
   assert.match(frame, /tabIndex=\{0\}/);
+  assert.match(frame, /CoreFpsLivePip/);
+  assert.match(pip, /data-live-primary-video-slot="true"/);
+  assert.match(pip, /subscribeToLiveStatus/);
   assert.match(runtime, /default: true/);
   assert.match(runtime, /alias: "lobby"/);
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
@@ -103,8 +127,9 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
 
   assert.match(chatPage, /getPublicCoreFpsSettings/);
   assert.match(chatPage, /coreFpsEnabled=\{coreFpsSettings\.enabled\}/);
-  assert.match(chatPanel, /href="\/games\/core"/);
-  assert.match(chatPanel, /Join the shared Core FPS game lobby/);
+  assert.match(chatPanel, /Start the shared Core FPS game and invite every online chatter/);
+  assert.match(chatPanel, /name="intent" type="hidden" value="core-fps"/);
+  assert.match(chatPanel, /window\.location\.assign\(state\.actionUrl\)/);
   assert.match(chatPanel, /\{coreFpsEnabled \? \(/);
   assert.match(coreHub, /href="\/games\/core\/play"/);
   assert.match(coreHub, /All-time leaderboard/);
