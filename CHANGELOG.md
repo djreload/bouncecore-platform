@@ -6,6 +6,7 @@
 - Added an opt-in Core FPS runtime and localhost-only Nginx gateway Compose profile.
 - Added signed, expiring player launch tickets and a private gateway validation endpoint.
 - Added the signed-in `/games/core` iframe/fullscreen launcher, public navigation item, and Admin -> Games -> Core FPS settings.
+- Added Core FPS to the chat tools as a distinct second game for every signed-in chat user, with a shared lobby and no changes to Rave Wars.
 - Isolated the imported engine from Bouncecore cookies and secrets, and blocked its original arbitrary external WebSocket proxy surface.
 - Added Core FPS DNS/TLS, operations, rollback, security, and mixed-asset-licensing documentation.
 - Added a hard-guarded local release drill covering two-player Rave War lifecycle, reconnect recovery, timeout handling, star accounting, Square duplicate refunds, PayPal merch/music refunds, stock restoration, download revocation, payout blocking, and Supporter assignment without permitting live payment modes.

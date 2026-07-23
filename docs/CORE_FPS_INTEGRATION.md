@@ -3,6 +3,12 @@
 Core FPS runs as an optional isolated service. Keep it on a different origin
 from the main Bouncecore application.
 
+It is Bouncecore's second chat game, not a replacement for Rave Wars. When
+enabled, every signed-in chat user gets a `Core FPS` action in the chat tools
+menu. That action opens `/games/core`, where all players enter Core's shared
+default lobby. Core has its own runtime, controls, route, and operational
+lifecycle; enabling or stopping it does not alter active Rave War matches.
+
 ## 1. Create DNS and TLS
 
 Create a dedicated hostname, for example:
@@ -103,7 +109,8 @@ should return `401`.
 2. Confirm the URL and both secret checks show `Ready`.
 3. Save the dedicated HTTPS game URL.
 4. Enable the launcher.
-5. Open `/games/core` while signed in.
+5. Open `/games/core` while signed in, or select `Core FPS` from the chat tools
+   menu.
 
 The launcher creates a two-hour signed ticket and opens the game in a
 cross-origin sandbox. The gateway moves the ticket into a Secure, HttpOnly

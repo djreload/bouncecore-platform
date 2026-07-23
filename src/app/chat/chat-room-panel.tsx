@@ -21,6 +21,7 @@ import {
   Download,
   FileArchive,
   Flag,
+  Gamepad2,
   ImageIcon,
   LoaderCircle,
   Lock,
@@ -78,6 +79,7 @@ import { reconnectDelayMs } from "@/lib/realtime/reconnect";
 
 type ChatRoomPanelProps = {
   assets: PublicChatAssetRow[];
+  coreFpsEnabled?: boolean;
   rooms: PublicChatRoomRow[];
   selectedRoom: PublicChatRoomRow | null;
   messages: PublicChatMessageRow[];
@@ -449,6 +451,7 @@ function ChatPresenceRail({
 
 export function ChatRoomPanel({
   assets,
+  coreFpsEnabled = false,
   rooms,
   selectedRoom,
   messages,
@@ -2160,6 +2163,19 @@ export function ChatRoomPanel({
                     <Smile className="h-3.5 w-3.5" aria-hidden="true" />
                     Stickers
                   </Button>
+                  {coreFpsEnabled ? (
+                    <ButtonLink
+                      className="min-h-8 px-2 text-xs"
+                      href="/games/core"
+                      onClick={closeComposerPanels}
+                      size="sm"
+                      title="Join the shared Core FPS game lobby"
+                      variant="ghost"
+                    >
+                      <Gamepad2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Core FPS
+                    </ButtonLink>
+                  ) : null}
                   {currentUserCanClearChat ? (
                     <form action={formAction}>
                       <input name="intent" type="hidden" value="clear-room" />

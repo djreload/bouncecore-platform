@@ -68,3 +68,17 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(launcher, /sandbox="allow-downloads allow-fullscreen allow-pointer-lock allow-same-origin allow-scripts"/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
 });
+
+test("Core FPS is exposed as a separate shared game to signed-in chat users", async () => {
+  const chatPage = await readFile(new URL("../src/app/chat/page.tsx", import.meta.url), "utf8");
+  const chatPanel = await readFile(new URL("../src/app/chat/chat-room-panel.tsx", import.meta.url), "utf8");
+  const coreLauncher = await readFile(new URL("../src/app/games/core/page.tsx", import.meta.url), "utf8");
+
+  assert.match(chatPage, /getPublicCoreFpsSettings/);
+  assert.match(chatPage, /coreFpsEnabled=\{coreFpsSettings\.enabled\}/);
+  assert.match(chatPanel, /href="\/games\/core"/);
+  assert.match(chatPanel, /Join the shared Core FPS game lobby/);
+  assert.match(chatPanel, /\{coreFpsEnabled \? \(/);
+  assert.match(coreLauncher, /requireSignedInUser\(\)/);
+  assert.doesNotMatch(coreLauncher, /rave-war|RaveWar/);
+});
