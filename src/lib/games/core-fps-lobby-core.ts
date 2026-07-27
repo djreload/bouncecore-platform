@@ -89,6 +89,7 @@ export function coreFpsLobbyIsReusable(
 
   return (
     lobby.status === "waiting" &&
+    lobby.activeParticipantCount > 0 &&
     lobby.createdAt.getTime() >= now.getTime() - coreFpsLobbyMaximumAgeMs
   );
 }

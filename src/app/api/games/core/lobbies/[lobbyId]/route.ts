@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
-import { getCoreFpsLobbyState } from "@/lib/games/core-fps-lobby-service";
+import {
+  getCoreFpsLobbyState,
+  leaveCoreFpsLobby
+} from "@/lib/games/core-fps-lobby-service";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,6 +40,35 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : "The Core FPS lobby could not be loaded."
+      },
+      {
+        status: 400
+      }
+    );
+  }
+}
+
+export async function POST(_request: Request, context: RouteContext) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Sign in to leave the Core FPS lobby." }, { status: 401 });
+  }
+
+  const { lobbyId } = await context.params;
+
+  try {
+    const result = await leaveCoreFpsLobby(lobbyId, user.id);
+
+    return NextResponse.json(result, {
+      headers: {
+        "Cache-Control": "no-store"
+      }
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "The Core FPS lobby could not be left."
       },
       {
         status: 400

@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Clock3, Map, RefreshCw, Send, UserRoundPlus, Users, X } from "lucide-react";
+import { Clock3, LogOut, Map, RefreshCw, Send, UserRoundPlus, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoreFpsGameFrame } from "@/app/games/core/play/core-fps-game-frame";
 import { CoreFpsPresenceTracker } from "@/app/games/core/play/core-fps-presence-tracker";
@@ -47,6 +47,7 @@ export function CoreFpsLobbyStage({
   const [seconds, setSeconds] = useState(() => remainingSeconds(initialLobby.joinDeadline));
   const [invitePanelOpen, setInvitePanelOpen] = useState(initialLobby.status === "waiting");
   const [invitePending, setInvitePending] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const lobbyEndpoint = `/api/games/core/lobbies/${encodeURIComponent(initialLobby.id)}`;
@@ -88,6 +89,24 @@ export function CoreFpsLobbyStage({
   }, [refreshLobby]);
 
   useEffect(() => {
+    const leave = () => {
+      navigator.sendBeacon(
+        lobbyEndpoint,
+        new Blob([], {
+          type: "application/json"
+        })
+      );
+    };
+
+    window.addEventListener("pagehide", leave);
+
+    return () => {
+      window.removeEventListener("pagehide", leave);
+      leave();
+    };
+  }, [lobbyEndpoint]);
+
+  useEffect(() => {
     if (!feedback) {
       return;
     }
@@ -100,9 +119,24 @@ export function CoreFpsLobbyStage({
     () =>
       lobby.availableInvitees.length
         ? `Invite all ${lobby.availableInvitees.length}`
-        : "Everyone online joined",
+        : "No online players",
     [lobby.availableInvitees.length]
   );
+
+  const leaveLobby = useCallback(async () => {
+    setLeaving(true);
+
+    try {
+      await fetch(lobbyEndpoint, {
+        cache: "no-store",
+        credentials: "same-origin",
+        keepalive: true,
+        method: "POST"
+      });
+    } finally {
+      window.location.assign("/games/core");
+    }
+  }, [lobbyEndpoint]);
 
   const invite = useCallback(
     async (targetUserId?: string) => {
@@ -138,7 +172,7 @@ export function CoreFpsLobbyStage({
         } else if (payload.repeatedUserCount) {
           setFeedback("That invitation was already sent moments ago.");
         } else {
-          setFeedback("Everyone online is already in the lobby.");
+          setFeedback("No other online players are available to invite.");
         }
         await refreshLobby();
       } catch (error) {
@@ -164,15 +198,28 @@ export function CoreFpsLobbyStage({
           <div className="mx-auto grid min-h-full w-full max-w-5xl place-items-center">
             <section className="w-full border-y border-bc-line bg-bc-panel/95 px-4 py-6 md:px-8">
               <div className="flex flex-wrap items-start justify-between gap-5">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge tone="acid">Lobby open</Badge>
-                    <Badge tone="cyan">{lobby.participants.length} joined</Badge>
+                <div className="flex flex-wrap items-start gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone="acid">Lobby open</Badge>
+                      <Badge tone="cyan">{lobby.participants.length} joined</Badge>
+                    </div>
+                    <h2 className="mt-4 text-3xl font-black">Players are joining</h2>
+                    <p className="mt-2 max-w-2xl text-sm text-bc-muted">
+                      The game starts when the countdown ends. If only one player arrives, Bounce Bot fills the opponent slot.
+                    </p>
                   </div>
-                  <h2 className="mt-4 text-3xl font-black">Players are joining</h2>
-                  <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-                    The game starts when the countdown ends. If only one player arrives, Bounce Bot fills the opponent slot.
-                  </p>
+                  <Button
+                    className="min-h-8 px-2"
+                    disabled={leaving}
+                    onClick={() => void leaveLobby()}
+                    size="sm"
+                    type="button"
+                    variant="ghost"
+                  >
+                    <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                    Leave lobby
+                  </Button>
                 </div>
                 <div className="grid min-w-32 place-items-center rounded-md border border-bc-amber/40 bg-bc-amber/10 p-4 text-center">
                   <Clock3 className="h-5 w-5 text-bc-amber" aria-hidden="true" />
@@ -224,16 +271,29 @@ export function CoreFpsLobbyStage({
 
       {active ? (
         <div className="absolute left-3 top-3 z-40">
-          <Button
-            className="min-h-8 bg-black/90 px-2 text-xs backdrop-blur-sm"
-            onClick={() => setInvitePanelOpen((current) => !current)}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            {invitePanelOpen ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <UserRoundPlus className="h-3.5 w-3.5" aria-hidden="true" />}
-            {invitePanelOpen ? "Close" : "Invite"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              className="min-h-8 bg-black/90 px-2 text-xs backdrop-blur-sm"
+              onClick={() => setInvitePanelOpen((current) => !current)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              {invitePanelOpen ? <X className="h-3.5 w-3.5" aria-hidden="true" /> : <UserRoundPlus className="h-3.5 w-3.5" aria-hidden="true" />}
+              {invitePanelOpen ? "Close" : "Invite"}
+            </Button>
+            <Button
+              className="min-h-8 bg-black/90 px-2 text-xs backdrop-blur-sm"
+              disabled={leaving}
+              onClick={() => void leaveLobby()}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              Leave
+            </Button>
+          </div>
           {invitePanelOpen ? (
             <div className="mt-2 w-[min(21rem,calc(100vw-1.5rem))] rounded-md border border-bc-line bg-bc-panel/95 p-3 shadow-2xl backdrop-blur-md">
               <InvitePanel
@@ -304,7 +364,7 @@ function InvitePanel({
           </div>
         ))}
         {!lobby.availableInvitees.length ? (
-          <p className="py-3 text-center text-xs text-bc-muted">No other active chatters are waiting outside this lobby.</p>
+          <p className="py-3 text-center text-xs text-bc-muted">No other online chatters are available to invite.</p>
         ) : null}
       </div>
       {feedback ? (

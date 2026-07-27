@@ -69,6 +69,9 @@ func TestRuntimeSharedLobby(t *testing.T) {
 	connectSent := false
 	mapVoteSent := false
 	botSeen := false
+	botClient := int32(-1)
+	mapChanged := false
+	botRespawned := false
 	sendPacket := func(messages ...protocol.Message) {
 		data, encodeErr := protocol.Encode(messages...)
 		if encodeErr != nil {
@@ -122,7 +125,7 @@ func TestRuntimeSharedLobby(t *testing.T) {
 		}
 		for _, gameMessage := range messages {
 			if serverMessage, ok := gameMessage.(protocol.ServerMessage); ok {
-				if botSeen && serverMessage.Text == "Bouncecore selected dust2 for this lobby" {
+				if mapChanged && botRespawned && serverMessage.Text == "Bouncecore selected dust2 for this lobby" {
 					return
 				}
 			}
@@ -131,6 +134,7 @@ func TestRuntimeSharedLobby(t *testing.T) {
 					t.Fatalf("invalid solo bot initialization: %#v", bot)
 				}
 				botSeen = true
+				botClient = bot.Aiclientnum
 				if !mapVoteSent {
 					sendPacket(protocol.MapVote{
 						Map:  "dust2",
@@ -146,6 +150,12 @@ func TestRuntimeSharedLobby(t *testing.T) {
 				if !botSeen {
 					t.Fatal("map changed before the solo bot was initialized")
 				}
+				mapChanged = true
+			}
+			if spawn, ok := gameMessage.(protocol.SpawnState); ok && mapChanged && spawn.Client == botClient {
+				botRespawned = true
+			}
+			if mapChanged && botRespawned {
 				return
 			}
 		}

@@ -1,5 +1,5 @@
 diff --git a/client/src/index.tsx b/client/src/index.tsx
-index 16bf363..a4d0e02 100644
+index 16bf363..6b0961b 100644
 --- a/client/src/index.tsx
 +++ b/client/src/index.tsx
 @@ -538,6 +538,7 @@ function App() {
@@ -22,21 +22,25 @@ index 16bf363..a4d0e02 100644
  
        initializeDiscord(
          parsedParams.has('code') ? parsedParams.get('code') : null
-@@ -665,7 +671,13 @@ function App() {
-       pushURLState(`#/server/${name}/${port}`)
-     }
+@@ -867,6 +873,18 @@ function App() {
+         const packet = cube.newPacket(serverMessage.Data)
+         const msgType = cube.getInt(packet)
  
--    Module.onConnect = () => {}
-+    Module.onConnect = () => {
-+      if (pendingLobbyMap == null) return
++        if (
++          msgType === CubeMessageType.N_WELCOME &&
++          pendingLobbyMap != null
++        ) {
++          const mapName = pendingLobbyMap
++          pendingLobbyMap = null
++          const retryDelays = [500, 1500, 3000]
++          retryDelays.forEach((delay) => {
++            setTimeout(() => BananaBread.execute(`map ${mapName}`), delay)
++          })
++        }
 +
-+      const mapName = pendingLobbyMap
-+      pendingLobbyMap = null
-+      setTimeout(() => BananaBread.execute(`map ${mapName}`), 250)
-+    }
-     Module.onDisconnect = () => {
-       remoteConnected = false
-       clearURLState()
+         if (msgType === CubeMessageType.N_MAPCHANGE) {
+           loadingWorld = true
+           serverEvents.push(serverMessage)
 diff --git a/pkg/gameserver/client.go b/pkg/gameserver/client.go
 index 0d22889..3e317c1 100644
 --- a/pkg/gameserver/client.go

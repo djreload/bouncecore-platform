@@ -9,8 +9,8 @@ map $arg_ticket $core_ticket_cookie {
 }
 
 map $arg_cmd $core_launch_redirect {
-  default "/?cmd=$arg_cmd";
-  "" "/";
+  default "/?cmd=$arg_cmd&lobbyMap=$arg_lobbyMap";
+  "" "/?lobbyMap=$arg_lobbyMap";
 }
 
 server {

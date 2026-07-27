@@ -91,6 +91,7 @@ async function reusableLobby(
           lastSeenAt: true
         },
         where: {
+          leftAt: null,
           lastSeenAt: {
             gte: participantCutoff(now)
           }
@@ -150,6 +151,7 @@ async function reconcileLobby(
 ) {
   const participantCount = await transaction.coreFpsLobbyParticipant.count({
     where: {
+      leftAt: null,
       lastSeenAt: {
         gte: participantCutoff(now)
       },
@@ -161,6 +163,18 @@ async function reconcileLobby(
       id: lobbyId
     }
   });
+
+  if (participantCount === 0 && lobby.status !== "completed") {
+    lobby = await transaction.coreFpsLobby.update({
+      data: {
+        endedAt: now,
+        status: "completed"
+      },
+      where: {
+        id: lobby.id
+      }
+    });
+  }
 
   if (lobby.status === "waiting" && participantCount >= 2) {
     const shortenedDeadline = shortenedCoreFpsLobbyDeadline(lobby.joinDeadline, now);
@@ -225,7 +239,6 @@ export async function joinCoreFpsLobby(input: JoinCoreFpsLobbyInput) {
       });
     }
 
-    const wasActive = lobby.status === "active";
     const participant = await transaction.coreFpsLobbyParticipant.upsert({
       create: {
         lastSeenAt: now,
@@ -246,7 +259,6 @@ export async function joinCoreFpsLobby(input: JoinCoreFpsLobbyInput) {
     const reconciled = await reconcileLobby(transaction, lobby.id, now);
 
     return {
-      bootstrapMap: !wasActive,
       id: reconciled.lobby.id,
       joinDeadline: reconciled.lobby.joinDeadline,
       mapName: reconciled.lobby.mapName,
@@ -269,6 +281,7 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
       },
       where: {
         lobbyId,
+        leftAt: null,
         userId
       }
     });
@@ -298,6 +311,7 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
         }
       },
       where: {
+        leftAt: null,
         lastSeenAt: {
           gte: participantCutoff(now)
         },
@@ -337,6 +351,38 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
   };
 }
 
+export async function leaveCoreFpsLobby(lobbyId: string, userId: string) {
+  const now = new Date();
+
+  return prisma.$transaction(async (transaction) => {
+    const participant = await transaction.coreFpsLobbyParticipant.updateMany({
+      data: {
+        lastSeenAt: now,
+        leftAt: now
+      },
+      where: {
+        leftAt: null,
+        lobbyId,
+        userId
+      }
+    });
+
+    if (!participant.count) {
+      return {
+        left: false,
+        status: null
+      };
+    }
+
+    const reconciled = await reconcileLobby(transaction, lobbyId, now);
+
+    return {
+      left: true,
+      status: reconciled.lobby.status as "active" | "completed" | "waiting"
+    };
+  });
+}
+
 export async function authorizeCoreFpsLobbySession(input: {
   lobbyId: string;
   sessionId: string;
@@ -355,11 +401,23 @@ export async function authorizeCoreFpsLobbySession(input: {
     where: {
       id: input.sessionId,
       lobbyId: input.lobbyId,
+      lobby: {
+        participants: {
+          some: {
+            lastSeenAt: {
+              gte: participantCutoff(new Date())
+            },
+            leftAt: null,
+            userId: input.userId
+          }
+        },
+        status: "active"
+      },
       userId: input.userId
     }
   });
 
-  if (!session?.lobby || session.lobby.status !== "active") {
+  if (!session?.lobby) {
     throw new Error("That Core FPS lobby has not started.");
   }
 

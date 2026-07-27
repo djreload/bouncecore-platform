@@ -10,6 +10,7 @@ import {
   coreFpsInviteActionUrl,
   getCoreFpsInviteRecipientIds
 } from "@/lib/games/core-fps-invite-core";
+import { coreFpsLobbyPresenceWindowMs } from "@/lib/games/core-fps-lobby-core";
 import { joinCoreFpsLobby } from "@/lib/games/core-fps-lobby-service";
 import { queueMobilePushForNotification } from "@/lib/mobile/account-notification-push-service";
 
@@ -66,11 +67,18 @@ async function queueInvitePushes(notifications: NotificationDelivery[]) {
 }
 
 export async function sendCoreFpsLobbyInvites(input: SendCoreFpsLobbyInvitesInput) {
+  const participantCutoff = new Date(Date.now() - coreFpsLobbyPresenceWindowMs);
   const lobby = await prisma.coreFpsLobby.findFirst({
     include: {
       participants: {
         select: {
           userId: true
+        },
+        where: {
+          lastSeenAt: {
+            gte: participantCutoff
+          },
+          leftAt: null
         }
       },
       room: {

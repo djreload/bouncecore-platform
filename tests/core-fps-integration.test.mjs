@@ -146,6 +146,17 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
     ),
     false
   );
+  assert.equal(
+    coreFpsLobbyIsReusable(
+      {
+        activeParticipantCount: 0,
+        createdAt: now,
+        status: "waiting"
+      },
+      now
+    ),
+    false
+  );
 });
 
 test("Core FPS gateway authenticates play surfaces and blocks the arbitrary proxy", async () => {
@@ -162,6 +173,7 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(gateway, /auth_request \/_core_auth/);
   assert.match(gateway, /X-Core-Gateway-Secret/);
   assert.match(gateway, /return 302 \$core_launch_redirect/);
+  assert.match(gateway, /cmd=\$arg_cmd&lobbyMap=\$arg_lobbyMap/);
   assert.match(gateway, /X-Core-Session-Id \$core_session_id/);
   assert.match(gateway, /frame-ancestors \$\{CORE_FPS_PARENT_ORIGIN\}/);
   assert.match(gateway, /location \/ \{\s+auth_request \/_core_auth;/);
@@ -188,6 +200,8 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimeIndex, /<script src="\/index\.js"><\/script>/);
   assert.doesNotMatch(runtimeIndex, /<pre>/);
   assert.match(runtimePatch, /pendingLobbyMap/);
+  assert.match(runtimePatch, /CubeMessageType\.N_WELCOME/);
+  assert.match(runtimePatch, /\[500, 1500, 3000\]/);
   assert.match(runtimePatch, /duplicateLobbyBootstrap/);
   assert.match(runtimePatch, /diff --git a\/pkg\/gameserver\/solo_bot\.go/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
@@ -210,6 +224,14 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
     new URL("../src/app/api/games/core/lobbies/[lobbyId]/invite/route.ts", import.meta.url),
     "utf8"
   );
+  const lobbyService = await readFile(
+    new URL("../src/lib/games/core-fps-lobby-service.ts", import.meta.url),
+    "utf8"
+  );
+  const inviteService = await readFile(
+    new URL("../src/lib/games/core-fps-invite-service.ts", import.meta.url),
+    "utf8"
+  );
 
   assert.match(chatPage, /getPublicCoreFpsSettings/);
   assert.match(chatPage, /coreFpsEnabled=\{coreFpsSettings\.enabled\}/);
@@ -228,8 +250,16 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
   assert.match(lobbyStage, /Invite all/);
   assert.match(lobbyStage, /CoreFpsGameFrame/);
   assert.match(lobbyStage, /setInterval/);
+  assert.match(lobbyStage, /navigator\.sendBeacon/);
+  assert.match(lobbyStage, /Leave lobby/);
   assert.match(lobbyRoute, /getCoreFpsLobbyState/);
+  assert.match(lobbyRoute, /leaveCoreFpsLobby/);
+  assert.match(lobbyRoute, /export async function POST/);
   assert.match(inviteRoute, /sendCoreFpsLobbyInvites/);
+  assert.match(lobbyService, /export async function leaveCoreFpsLobby/);
+  assert.match(lobbyService, /leftAt: null/);
+  assert.match(inviteService, /coreFpsLobbyPresenceWindowMs/);
+  assert.match(inviteService, /leftAt: null/);
   assert.doesNotMatch(coreLauncher, /rave-war|RaveWar/);
 });
 

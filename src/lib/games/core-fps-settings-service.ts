@@ -200,7 +200,6 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
 export async function createCoreFpsLaunch(
   user: CoreFpsLaunchUser,
   lobby: {
-    bootstrapMap: boolean;
     id: string;
     mapName: string;
   }
@@ -233,7 +232,7 @@ export async function createCoreFpsLaunch(
       settings.publicUrl,
       ticket,
       session.runtimePlayerName,
-      lobby.bootstrapMap ? lobby.mapName : null
+      lobby.mapName
     ),
     lobbyId: lobby.id,
     mapName: lobby.mapName,
