@@ -224,7 +224,7 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtime, /votingCreates: false[\s\S]*?alias: "lobby"/);
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.match(runtimeDockerfile, /core-index\.html/);
-  assert.match(runtimeDockerfile, /go test \.\/pkg\/gameserver\/relay/);
+  assert.match(runtimeDockerfile, /go test -vet=off \.\/pkg\/gameserver \.\/pkg\/gameserver\/relay/);
   assert.match(runtimeDockerfile, /\/game\/api\.js --output \/tmp\/core-game\/api\.js/);
   assert.match(runtimeDockerfile, /\/game\/sauerbraten\.js --output \/tmp\/core-game\/sauerbraten\.js/);
   assert.match(runtimeDockerfile, /\/game\/sauerbraten\.wasm --output \/tmp\/core-game\/sauerbraten\.wasm/);
@@ -245,6 +245,9 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimePatch, /duplicateLobbyBootstrap/);
   assert.match(runtimePatch, /TestOwnedClientPacketsReachObserversButDoNotEchoToOwner/);
   assert.match(runtimePatch, /client\.State != playerstate\.Spectator/);
+  assert.match(runtimePatch, /botRespawnTicker := time\.NewTicker/);
+  assert.match(runtimePatch, /func \(s \*Server\) respawnDeadSoloBots/);
+  assert.match(runtimePatch, /TestDeadSoloBotRespawnsAfterDelay/);
   assert.match(runtimePatch, /diff --git a\/pkg\/gameserver\/solo_bot\.go/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
 });

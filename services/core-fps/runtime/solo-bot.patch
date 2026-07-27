@@ -178,7 +178,7 @@ index ea46739..8bffcae 100644
  			Client:      int32(c.CN),
  			EntityState: c.ToWire(),
 diff --git a/pkg/gameserver/module.go b/pkg/gameserver/module.go
-index fe3bb5b..d5ef96e 100644
+index fe3bb5b..627f763 100644
 --- a/pkg/gameserver/module.go
 +++ b/pkg/gameserver/module.go
 @@ -55,6 +55,8 @@ type Server struct {
@@ -190,7 +190,24 @@ index fe3bb5b..d5ef96e 100644
  
  	incoming chan ServerPacket
  	outgoing chan ServerPacket
-@@ -117,8 +119,26 @@ func (s *Server) Poll(ctx context.Context) {
+@@ -104,6 +106,8 @@ func New(ctx context.Context, conf *Config) *Server {
+ func (s *Server) Poll(ctx context.Context) {
+ 	chanLock := chanlock.New()
+ 	health := chanLock.Poll(s.Ctx())
++	botRespawnTicker := time.NewTicker(250 * time.Millisecond)
++	defer botRespawnTicker.Stop()
+ 
+ 	for {
+ 		select {
+@@ -111,14 +115,34 @@ func (s *Server) Poll(ctx context.Context) {
+ 			return
+ 		case <-health:
+ 			continue
++		case now := <-botRespawnTicker.C:
++			s.respawnDeadSoloBots(now)
+ 		case msg := <-s.incoming:
+ 			client := s.Clients.GetClientByID(msg.Session)
+ 			if client == nil {
  				continue
  			}
  
@@ -218,7 +235,7 @@ index fe3bb5b..d5ef96e 100644
  			}
  		}
  	}
-@@ -285,6 +305,7 @@ func (s *Server) Join(c *Client) {
+@@ -285,6 +309,7 @@ func (s *Server) Join(c *Client) {
  		c.Send(flagMode.FlagsInitPacket())
  	}
  	s.Clients.InformOthersOfJoin(c)
@@ -226,7 +243,7 @@ index fe3bb5b..d5ef96e 100644
  }
  
  func (s *Server) Message(message string) {
-@@ -318,7 +339,7 @@ func (s *Server) ConfirmSpawn(client *Client, lifeSequence, _weapon int32) {
+@@ -318,7 +343,7 @@ func (s *Server) ConfirmSpawn(client *Client, lifeSequence, _weapon int32) {
  		EntityState: client.ToWire(),
  	})
  
@@ -235,7 +252,7 @@ index fe3bb5b..d5ef96e 100644
  		clock.Spawned(&client.Player)
  	}
  }
-@@ -333,6 +354,10 @@ func (s *Server) Leave(sessionId uint32) {
+@@ -333,6 +358,10 @@ func (s *Server) Leave(sessionId uint32) {
  }
  
  func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
@@ -246,7 +263,7 @@ index fe3bb5b..d5ef96e 100644
  	s.GameMode.Leave(&client.Player)
  	s.Clock.Leave(&client.Player)
  	s.Clients.Disconnect(client, reason)
-@@ -346,6 +371,9 @@ func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
+@@ -346,6 +375,9 @@ func (s *Server) Disconnect(client *Client, reason disconnectreason.ID) {
  	if s.Clients.GetNumClients() == 0 {
  		s.Empty()
  	}
@@ -516,18 +533,22 @@ index 0000000..601f6fa
 +}
 diff --git a/pkg/gameserver/solo_bot.go b/pkg/gameserver/solo_bot.go
 new file mode 100644
-index 0000000..7efdd7e
+index 0000000..fde102c
 --- /dev/null
 +++ b/pkg/gameserver/solo_bot.go
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,155 @@
 +package gameserver
 +
 +import (
++	"time"
++
 +	P "github.com/cfoust/sour/pkg/game/protocol"
 +	"github.com/cfoust/sour/pkg/gameserver/game"
 +	"github.com/cfoust/sour/pkg/gameserver/protocol/disconnectreason"
 +	"github.com/cfoust/sour/pkg/gameserver/protocol/playerstate"
 +)
++
++const soloBotRespawnDelay = 1500 * time.Millisecond
 +
 +func (s *Server) resolvePacketClient(sender *Client, requestedCN int32) *Client {
 +	if requestedCN < 0 || uint32(requestedCN) == sender.CN {
@@ -575,6 +596,7 @@ index 0000000..7efdd7e
 +
 +	s.Spawn(bot)
 +	bot.State = playerstate.Alive
++	bot.LastSpawnAttempt = time.Time{}
 +	bot.Positions, bot.Packets = s.relay.AddOwnedClient(bot.CN, owner.CN, func(uint8, []P.Message) {})
 +	s.Broadcast(
 +		P.InitAI{
@@ -592,6 +614,25 @@ index 0000000..7efdd7e
 +		},
 +		P.ServerMessage{Text: "Bounce Bot joined while you wait for another player."},
 +	)
++}
++
++func (s *Server) respawnDeadSoloBots(now time.Time) {
++	for _, bot := range s.botClients() {
++		if bot.State != playerstate.Dead ||
++			bot.LastDeath.IsZero() ||
++			now.Sub(bot.LastDeath) < soloBotRespawnDelay ||
++			!s.GameMode.CanSpawn(&bot.Player) {
++			continue
++		}
++
++		s.Spawn(bot)
++		bot.State = playerstate.Alive
++		bot.LastSpawnAttempt = time.Time{}
++		s.Broadcast(P.SpawnState{
++			Client:      int32(bot.CN),
++			EntityState: bot.ToWire(),
++		})
++	}
 +}
 +
 +func (s *Server) removeBot(bot *Client) {
@@ -649,5 +690,51 @@ index 0000000..7efdd7e
 +
 +	for _, bot := range bots {
 +		s.removeBot(bot)
++	}
++}
+diff --git a/pkg/gameserver/solo_bot_test.go b/pkg/gameserver/solo_bot_test.go
+new file mode 100644
+index 0000000..1d779fb
+--- /dev/null
++++ b/pkg/gameserver/solo_bot_test.go
+@@ -0,0 +1,40 @@
++package gameserver
++
++import (
++	"context"
++	"testing"
++	"time"
++
++	"github.com/cfoust/sour/pkg/gameserver/game"
++	"github.com/cfoust/sour/pkg/gameserver/protocol/playerstate"
++)
++
++func TestDeadSoloBotRespawnsAfterDelay(t *testing.T) {
++	server := New(context.Background(), &Config{})
++	server.GameMode = game.NewFFA(server)
++
++	bot := server.Clients.AddBot(0)
++	bot.server = server
++	bot.State = playerstate.Dead
++	bot.LastDeath = time.Now()
++	originalLifeSequence := bot.LifeSequence
++
++	server.respawnDeadSoloBots(bot.LastDeath.Add(soloBotRespawnDelay - time.Millisecond))
++	if bot.State != playerstate.Dead {
++		t.Fatal("bot respawned before the delay elapsed")
++	}
++
++	server.respawnDeadSoloBots(bot.LastDeath.Add(soloBotRespawnDelay + time.Millisecond))
++	if bot.State != playerstate.Alive {
++		t.Fatal("bot did not respawn after the delay elapsed")
++	}
++	if bot.LifeSequence == originalLifeSequence {
++		t.Fatal("bot respawn did not advance its life sequence")
++	}
++	if bot.Health != bot.MaxHealth {
++		t.Fatalf("bot respawn health = %d, want %d", bot.Health, bot.MaxHealth)
++	}
++	if !bot.LastSpawnAttempt.IsZero() {
++		t.Fatal("server-authoritative bot respawn left a spawn confirmation pending")
 +	}
 +}

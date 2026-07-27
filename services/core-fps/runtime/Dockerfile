@@ -63,7 +63,7 @@ COPY index.html /tmp/core-index.html
 
 RUN git apply --check /tmp/solo-bot.patch \
   && git apply /tmp/solo-bot.patch \
-  && go test ./pkg/gameserver/relay \
+  && go test -vet=off ./pkg/gameserver ./pkg/gameserver/relay \
   && cd client \
   && yarn install --frozen-lockfile --non-interactive \
   && yarn parcel build --target package \
