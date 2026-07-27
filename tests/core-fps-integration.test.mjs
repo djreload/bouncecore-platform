@@ -24,6 +24,12 @@ import {
   pickRandomCoreFpsMap,
   shortenedCoreFpsLobbyDeadline
 } from "../src/lib/games/core-fps-lobby-core.ts";
+import {
+  buildCoreFpsResultBody,
+  coreFpsLifecycleCutoffs,
+  coreFpsSessionLaunchGraceWindowMs,
+  coreFpsSessionPresenceWindowMs
+} from "../src/lib/games/core-fps-reconciliation-core.ts";
 
 const secret = "core-fps-test-secret-that-is-longer-than-thirty-two-characters";
 const now = new Date("2026-07-23T12:00:00.000Z");
@@ -159,6 +165,29 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
   );
 });
 
+test("Core FPS lifecycle cutoffs and result messages remain deterministic", () => {
+  const cutoffs = coreFpsLifecycleCutoffs(now);
+
+  assert.equal(cutoffs.activeSession.getTime(), now.getTime() - coreFpsSessionPresenceWindowMs);
+  assert.equal(cutoffs.launchedSession.getTime(), now.getTime() - coreFpsSessionLaunchGraceWindowMs);
+  assert.equal(
+    buildCoreFpsResultBody({
+      leader: {
+        damage: 900,
+        deaths: 2,
+        displayName: "Reload",
+        flags: 1,
+        frags: 7,
+        score: 975,
+        userId: "user-123"
+      },
+      mapName: "dust2",
+      playerCount: 2
+    }),
+    "Core FPS on dust2 finished with 2 players. Reload led the match with 975 points and 7 frags."
+  );
+});
+
 test("Core FPS gateway authenticates play surfaces and blocks the arbitrary proxy", async () => {
   const gateway = await readFile(new URL("../services/core-fps/gateway/default.conf.template", import.meta.url), "utf8");
   const runtime = await readFile(new URL("../services/core-fps/runtime/core.yaml", import.meta.url), "utf8");
@@ -195,6 +224,7 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtime, /votingCreates: false[\s\S]*?alias: "lobby"/);
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.match(runtimeDockerfile, /core-index\.html/);
+  assert.match(runtimeDockerfile, /go test \.\/pkg\/gameserver\/relay/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
   assert.match(runtimeIndex, /<div id="root"><\/div>/);
   assert.match(runtimeIndex, /<script src="\/index\.js"><\/script>/);
@@ -203,6 +233,8 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimePatch, /CubeMessageType\.N_WELCOME/);
   assert.match(runtimePatch, /\[500, 1500, 3000\]/);
   assert.match(runtimePatch, /duplicateLobbyBootstrap/);
+  assert.match(runtimePatch, /TestOwnedClientPacketsReachObserversButDoNotEchoToOwner/);
+  assert.match(runtimePatch, /client\.State != playerstate\.Spectator/);
   assert.match(runtimePatch, /diff --git a\/pkg\/gameserver\/solo_bot\.go/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
 });
@@ -274,6 +306,11 @@ test("Core FPS scores use server counters and the telemetry route is secret-only
   );
   const relay = await readFile(new URL("../services/core-fps/telemetry/main.go", import.meta.url), "utf8");
   const compose = await readFile(new URL("../docker-compose.staging.yml", import.meta.url), "utf8");
+  const lifecycleService = await readFile(
+    new URL("../src/lib/games/core-fps-reconciliation-service.ts", import.meta.url),
+    "utf8"
+  );
+  const worker = await readFile(new URL("../src/workers/main.ts", import.meta.url), "utf8");
 
   assert.equal(
     calculateCoreFpsScore({
@@ -295,4 +332,9 @@ test("Core FPS scores use server counters and the telemetry route is secret-only
   assert.match(relay, /X-Core-Telemetry-Secret/);
   assert.match(compose, /core-fps-telemetry:/);
   assert.match(compose, /CORE_FPS_WEBSOCKET_UPSTREAM: core-fps-telemetry:1338/);
+  assert.match(lifecycleService, /core-fps-result/);
+  assert.match(lifecycleService, /status: "disconnected"/);
+  assert.match(lifecycleService, /publishChatRoomChanged/);
+  assert.match(worker, /core-fps-lifecycle-reconcile/);
+  assert.match(worker, /WORKER_CORE_FPS_RECONCILE_INTERVAL_SECONDS/);
 });

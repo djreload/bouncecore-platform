@@ -310,7 +310,7 @@ index 68dff4e..58b5e25 100644
  	case P.N_PING:
  		msg := message.(P.Ping)
 diff --git a/pkg/gameserver/relay/relay.go b/pkg/gameserver/relay/relay.go
-index 17adc5f..aa4e7bd 100644
+index 17adc5f..e10dd22 100644
 --- a/pkg/gameserver/relay/relay.go
 +++ b/pkg/gameserver/relay/relay.go
 @@ -23,7 +23,8 @@ type Relay struct {
@@ -333,6 +333,21 @@ index 17adc5f..aa4e7bd 100644
  	}
  
  	go r.loop()
+@@ -59,11 +61,11 @@ func (r *Relay) loop() {
+ 			// publish client packets
+ 			r.flush(
+ 				r.clientPackets,
+-				func(cn uint32, pkt []protocol.Message) []protocol.Message {
+-					return append([]protocol.Message{protocol.ClientPacket{
++				func(cn uint32, _ []protocol.Message) []protocol.Message {
++					return []protocol.Message{protocol.ClientPacket{
+ 						Client: int32(cn),
+ 						// Length is handled by cluster
+-					}}, pkt...)
++					}}
+ 				},
+ 				1,
+ 			)
 @@ -86,6 +88,14 @@ func (r *Relay) loop() {
  }
  
@@ -427,9 +442,81 @@ index 17adc5f..aa4e7bd 100644
  	}
  
  	// clear packets
+diff --git a/pkg/gameserver/relay/relay_test.go b/pkg/gameserver/relay/relay_test.go
+new file mode 100644
+index 0000000..601f6fa
+--- /dev/null
++++ b/pkg/gameserver/relay/relay_test.go
+@@ -0,0 +1,66 @@
++package relay
++
++import (
++	"testing"
++	"time"
++
++	"github.com/cfoust/sour/pkg/game/protocol"
++)
++
++type deliveredPacket struct {
++	channel uint8
++	payload []protocol.Message
++}
++
++func receivePacket(t *testing.T, packets <-chan deliveredPacket) deliveredPacket {
++	t.Helper()
++
++	select {
++	case packet := <-packets:
++		return packet
++	case <-time.After(500 * time.Millisecond):
++		t.Fatal("timed out waiting for relayed bot packet")
++		return deliveredPacket{}
++	}
++}
++
++func TestOwnedClientPacketsReachObserversButDoNotEchoToOwner(t *testing.T) {
++	relay := New()
++	ownerPackets := make(chan deliveredPacket, 4)
++	observerPackets := make(chan deliveredPacket, 4)
++	sendTo := func(destination chan<- deliveredPacket) sendFunc {
++		return func(channel uint8, payload []protocol.Message) {
++			destination <- deliveredPacket{channel: channel, payload: payload}
++		}
++	}
++
++	relay.AddClient(1, sendTo(ownerPackets))
++	relay.AddClient(2, sendTo(observerPackets))
++	botPositions, botPackets := relay.AddOwnedClient(128, 1, func(uint8, []protocol.Message) {})
++
++	botPositions.Publish(protocol.Pos{Client: 128})
++	position := receivePacket(t, observerPackets)
++	if position.channel != 0 || len(position.payload) != 1 {
++		t.Fatalf("unexpected bot position relay: %#v", position)
++	}
++	if message, ok := position.payload[0].(protocol.Pos); !ok || message.Client != 128 {
++		t.Fatalf("observer did not receive the owned bot position: %#v", position.payload)
++	}
++
++	botPackets.Publish(protocol.Text{Text: "bot combat packet"})
++	combat := receivePacket(t, observerPackets)
++	if combat.channel != 1 || len(combat.payload) != 2 {
++		t.Fatalf("unexpected bot combat relay: %#v", combat)
++	}
++	prefix, prefixOK := combat.payload[0].(protocol.ClientPacket)
++	message, messageOK := combat.payload[1].(protocol.Text)
++	if !prefixOK || prefix.Client != 128 || !messageOK || message.Text != "bot combat packet" {
++		t.Fatalf("observer did not receive the owned bot combat packet: %#v", combat.payload)
++	}
++
++	select {
++	case packet := <-ownerPackets:
++		t.Fatalf("owned bot packet was echoed to its controlling client: %#v", packet)
++	case <-time.After(40 * time.Millisecond):
++	}
++}
 diff --git a/pkg/gameserver/solo_bot.go b/pkg/gameserver/solo_bot.go
 new file mode 100644
-index 0000000..cb19aa6
+index 0000000..7efdd7e
 --- /dev/null
 +++ b/pkg/gameserver/solo_bot.go
 @@ -0,0 +1,131 @@
@@ -458,7 +545,7 @@ index 0000000..cb19aa6
 +func (s *Server) humanClients() []*Client {
 +	humans := make([]*Client, 0, 2)
 +	s.Clients.ForEach(func(client *Client) {
-+		if client.Joined && !client.IsBot {
++		if client.Joined && !client.IsBot && client.State != playerstate.Spectator {
 +			humans = append(humans, client)
 +		}
 +	})

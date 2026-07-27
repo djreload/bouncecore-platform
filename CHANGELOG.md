@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Hardened Core FPS solo play so spectators no longer displace the bot, AI-owned movement/combat packets reach observers exactly once, and the runtime image runs the bot relay regression test during every build.
+- Added worker-driven Core FPS lifecycle reconciliation for stale participants, abandoned launches, disconnected sessions, completed lobbies, persisted results, and realtime result announcements in chat.
+- Improved Core FPS reconnect handling by clearing stale session end timestamps, keeping lobby presence alive from verified game telemetry, and preventing completed sessions from being resurrected by delayed packets.
+- Added a dedicated completed-match screen that links to scores and chat before returning players to the Core FPS hub automatically.
 - Restored Core FPS multiplayer presets and persistent shared arenas, auto-joined players to `lobby`, and added reliable iframe/canvas keyboard focus plus click-to-capture mouse input.
 - Fixed Core FPS startup stalls by streaming large mod-data assets through the signed gateway, retrying interrupted downloads, and automatically recovering closed game sockets with capped reconnect backoff.
 - Split Core FPS into an account-facing `/games/core` hub and dedicated `/games/core/play` arena, with controls, score rules, live player presence, personal session history, and an all-time top-20 leaderboard.

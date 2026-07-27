@@ -8,6 +8,7 @@ import { monitorStalledRaveWars } from "../lib/rave-wars/rave-war-operator-alert
 import { reconcileRaveWarDeadlines } from "../lib/rave-wars/rave-war-service";
 import { retryPendingSquareWebhookEvents } from "../lib/payments/square-webhook-service";
 import { recordWorkerHeartbeat, type WorkerHeartbeatTask } from "../lib/workers/worker-heartbeat";
+import { reconcileCoreFpsLifecycle } from "../lib/games/core-fps-reconciliation-service";
 
 type WorkerTask = {
   enabled: boolean;
@@ -136,6 +137,12 @@ const tasks: WorkerTask[] = [
     intervalMs: envNumber("WORKER_STREAM_SYNC_INTERVAL_SECONDS", 15) * 1000,
     name: "stream-provider-sync",
     run: syncStreamProviderSnapshot
+  },
+  {
+    enabled: envBoolean("WORKER_CORE_FPS_RECONCILE_ENABLED", true),
+    intervalMs: envNumber("WORKER_CORE_FPS_RECONCILE_INTERVAL_SECONDS", 30) * 1000,
+    name: "core-fps-lifecycle-reconcile",
+    run: reconcileCoreFpsLifecycle
   },
   {
     enabled: envBoolean("WORKER_RAVE_WAR_RECONCILE_ENABLED", true),

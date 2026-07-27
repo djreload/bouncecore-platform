@@ -89,6 +89,7 @@ export async function recordCoreFpsPresence(sessionId: string, userId: string, a
   const result = await prisma.coreFpsSession.updateMany({
     data: active
       ? {
+          endedAt: null,
           lastSeenAt: now,
           status: "active"
         }
@@ -137,6 +138,10 @@ export async function recordCoreFpsTelemetry(input: CoreFpsTelemetryInput) {
       throw new Error("Core FPS session was not found.");
     }
 
+    if (session.status === "completed") {
+      return session;
+    }
+
     const totals = {
       damage: session.damage + counterDelta(snapshot.damage, session.lastDamage),
       deaths: session.deaths + counterDelta(snapshot.deaths, session.lastDeaths),
@@ -147,7 +152,7 @@ export async function recordCoreFpsTelemetry(input: CoreFpsTelemetryInput) {
     const status = input.status === "connected" ? "active" : input.status;
     const isTerminal = terminalStatuses.has(status);
 
-    return transaction.coreFpsSession.update({
+    const updatedSession = await transaction.coreFpsSession.updateMany({
       data: {
         ...totals,
         connectedAt: session.connectedAt ?? observedAt,
@@ -163,6 +168,28 @@ export async function recordCoreFpsTelemetry(input: CoreFpsTelemetryInput) {
         score: calculateCoreFpsScore(totals),
         status
       },
+      where: {
+        id: session.id,
+        status: {
+          not: "completed"
+        }
+      }
+    });
+
+    if (updatedSession.count && !isTerminal && session.lobbyId) {
+      await transaction.coreFpsLobbyParticipant.updateMany({
+        data: {
+          lastSeenAt: new Date()
+        },
+        where: {
+          leftAt: null,
+          lobbyId: session.lobbyId,
+          userId: session.userId
+        }
+      });
+    }
+
+    return transaction.coreFpsSession.findUniqueOrThrow({
       where: {
         id: session.id
       }

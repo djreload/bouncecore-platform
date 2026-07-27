@@ -1,12 +1,12 @@
 "use client";
 
 import Image from "next/image";
-import { Clock3, LogOut, Map, RefreshCw, Send, UserRoundPlus, Users, X } from "lucide-react";
+import { Clock3, Gamepad2, LogOut, Map, MessageCircle, RefreshCw, Send, Trophy, UserRoundPlus, Users, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoreFpsGameFrame } from "@/app/games/core/play/core-fps-game-frame";
 import { CoreFpsPresenceTracker } from "@/app/games/core/play/core-fps-presence-tracker";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import type { CoreFpsLobbyPublicState } from "@/lib/games/core-fps-lobby-core";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +115,18 @@ export function CoreFpsLobbyStage({
     return () => window.clearTimeout(timer);
   }, [feedback]);
 
+  useEffect(() => {
+    if (lobby.status !== "completed") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      window.location.assign("/games/core");
+    }, 6_000);
+
+    return () => window.clearTimeout(timer);
+  }, [lobby.status]);
+
   const inviteAllLabel = useMemo(
     () =>
       lobby.availableInvitees.length
@@ -193,6 +205,27 @@ export function CoreFpsLobbyStage({
           <CoreFpsPresenceTracker sessionId={sessionId} />
           <CoreFpsGameFrame launchUrl={launchUrl} />
         </>
+      ) : lobby.status === "completed" ? (
+        <div className="absolute inset-0 grid place-items-center overflow-y-auto bg-[radial-gradient(circle_at_50%_35%,rgba(166,255,0,0.12),transparent_40%),#03040a] px-4 py-6">
+          <section className="w-full max-w-xl border-y border-bc-line bg-bc-panel/95 px-5 py-8 text-center md:px-8">
+            <Trophy className="mx-auto h-11 w-11 text-bc-acid" aria-hidden="true" />
+            <Badge className="mt-4" tone="acid">Match complete</Badge>
+            <h2 className="mt-4 text-3xl font-black">Scores saved</h2>
+            <p className="mt-3 text-sm text-bc-muted">
+              The final result is being posted to chat. You will return to the Core FPS hub automatically.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-2">
+              <ButtonLink href="/games/core" size="sm">
+                <Gamepad2 className="h-4 w-4" aria-hidden="true" />
+                View scores
+              </ButtonLink>
+              <ButtonLink href="/chat" size="sm" variant="ghost">
+                <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                Open chat
+              </ButtonLink>
+            </div>
+          </section>
+        </div>
       ) : (
         <div className="absolute inset-0 overflow-y-auto bg-[radial-gradient(circle_at_50%_28%,rgba(0,213,255,0.13),transparent_42%),#03040a] px-4 py-6">
           <div className="mx-auto grid min-h-full w-full max-w-5xl place-items-center">
