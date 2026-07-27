@@ -22,6 +22,21 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Emscripten's generated engine scripts require these globals before
+      // the React client starts importing the game runtime.
+      var Module = typeof Module !== "undefined" ? Module : {};
+      Module.preInit = [];
+      Module.preRun = [];
+      Module.noInitialRun = true;
+      Module.postRun = [];
+      var WASM_PROMISE_RESOLVE = null;
+      var WASM_PROMISE = new Promise((resolve) => {
+        WASM_PROMISE_RESOLVE = resolve;
+      });
+    </script>
     <script src="/index.js"></script>
+    <script async src="/game/api.js"></script>
+    <script async src="/game/sauerbraten.js"></script>
   </body>
 </html>

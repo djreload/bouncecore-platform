@@ -227,7 +227,12 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimeDockerfile, /go test \.\/pkg\/gameserver\/relay/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
   assert.match(runtimeIndex, /<div id="root"><\/div>/);
+  assert.match(runtimeIndex, /var Module = typeof Module !== "undefined" \? Module : \{\}/);
+  assert.match(runtimeIndex, /Module\.noInitialRun = true/);
+  assert.match(runtimeIndex, /var WASM_PROMISE = new Promise/);
   assert.match(runtimeIndex, /<script src="\/index\.js"><\/script>/);
+  assert.match(runtimeIndex, /<script async src="\/game\/api\.js"><\/script>/);
+  assert.match(runtimeIndex, /<script async src="\/game\/sauerbraten\.js"><\/script>/);
   assert.doesNotMatch(runtimeIndex, /<pre>/);
   assert.match(runtimePatch, /pendingLobbyMap/);
   assert.match(runtimePatch, /CubeMessageType\.N_WELCOME/);
