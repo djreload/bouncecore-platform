@@ -1,8 +1,393 @@
+diff --git a/client/src/GameHud.tsx b/client/src/GameHud.tsx
+new file mode 100644
+index 0000000..19e6433
+--- /dev/null
++++ b/client/src/GameHud.tsx
+@@ -0,0 +1,269 @@
++import styled from '@emotion/styled'
++import * as React from 'react'
++
++import SAW_ICON from 'url:./static/saw.png'
++import SHOTGUN_ICON from 'url:./static/shotgun.png'
++import CHAINGUN_ICON from 'url:./static/machinegun.png'
++import ROCKET_ICON from 'url:./static/rocket.png'
++import RIFLE_ICON from 'url:./static/rifle.png'
++import GRENADE_ICON from 'url:./static/grenade.png'
++import PISTOL_ICON from 'url:./static/pistol.png'
++
++import type { PlayerState } from './types'
++import { WeaponType } from './types'
++
++const WEAPONS = [
++  { type: WeaponType.Saw, icon: SAW_ICON, name: 'Saw' },
++  { type: WeaponType.Shotgun, icon: SHOTGUN_ICON, name: 'Shotgun' },
++  { type: WeaponType.Chaingun, icon: CHAINGUN_ICON, name: 'Chaingun' },
++  { type: WeaponType.Rocket, icon: ROCKET_ICON, name: 'Rocket' },
++  { type: WeaponType.Rifle, icon: RIFLE_ICON, name: 'Rifle' },
++  { type: WeaponType.Grenade, icon: GRENADE_ICON, name: 'Grenade' },
++  { type: WeaponType.Pistol, icon: PISTOL_ICON, name: 'Pistol' },
++]
++
++const HudShell = styled.div<{ compact: boolean }>`
++  position: absolute;
++  z-index: 3;
++  left: 50%;
++  bottom: max(12px, env(safe-area-inset-bottom));
++  width: min(760px, calc(100% - 24px));
++  min-height: 64px;
++  transform: translateX(-50%);
++  display: grid;
++  grid-template-columns: minmax(150px, 0.85fr) minmax(160px, 0.7fr) minmax(
++      280px,
++      1.4fr
++    );
++  gap: 8px;
++  align-items: stretch;
++  color: #f7fbff;
++  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
++    sans-serif;
++  pointer-events: none;
++  user-select: none;
++  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.55));
++
++  ${(props) =>
++    props.compact
++      ? `
++    top: max(8px, env(safe-area-inset-top));
++    bottom: auto;
++    width: min(390px, calc(100% - 120px));
++    min-height: 44px;
++    grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr);
++    gap: 6px;
++  `
++      : ''}
++
++  @media (prefers-reduced-motion: reduce) {
++    * {
++      transition: none !important;
++    }
++  }
++`
++
++const Panel = styled.div`
++  min-width: 0;
++  border: 1px solid rgba(135, 156, 194, 0.38);
++  border-radius: 6px;
++  background: rgba(4, 7, 14, 0.86);
++  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
++  backdrop-filter: blur(10px);
++`
++
++const HealthPanel = styled(Panel)`
++  padding: 9px 11px;
++`
++
++const StatRow = styled.div`
++  display: flex;
++  align-items: baseline;
++  justify-content: space-between;
++  gap: 8px;
++`
++
++const Label = styled.span`
++  overflow: hidden;
++  color: #aebbd1;
++  font-size: 9px;
++  font-weight: 800;
++  letter-spacing: 0;
++  line-height: 1;
++  text-overflow: ellipsis;
++  text-transform: uppercase;
++  white-space: nowrap;
++`
++
++const Value = styled.strong`
++  color: #ffffff;
++  font-size: 20px;
++  font-variant-numeric: tabular-nums;
++  line-height: 1;
++`
++
++const HealthTrack = styled.div`
++  height: 8px;
++  margin-top: 8px;
++  overflow: hidden;
++  border: 1px solid rgba(255, 255, 255, 0.16);
++  border-radius: 3px;
++  background: #151923;
++`
++
++const HealthFill = styled.div<{ critical: boolean }>`
++  height: 100%;
++  border-radius: 2px;
++  background: ${(props) => (props.critical ? '#ff3d8f' : '#a6ff00')};
++  box-shadow: 0 0 12px
++    ${(props) =>
++      props.critical ? 'rgba(255, 61, 143, 0.55)' : 'rgba(166, 255, 0, 0.45)'};
++  transition: width 180ms ease-out, background-color 180ms ease-out;
++`
++
++const WeaponPanel = styled(Panel)`
++  display: grid;
++  grid-template-columns: 38px minmax(0, 1fr) auto;
++  gap: 8px;
++  align-items: center;
++  padding: 7px 10px;
++`
++
++const WeaponImage = styled.img`
++  width: 34px;
++  height: 34px;
++  object-fit: contain;
++  filter: drop-shadow(0 5px 8px rgba(0, 0, 0, 0.65));
++`
++
++const WeaponName = styled.strong`
++  display: block;
++  overflow: hidden;
++  margin-top: 3px;
++  color: #ffffff;
++  font-size: 12px;
++  line-height: 1;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++`
++
++const AmmoValue = styled.strong`
++  color: #00d5ff;
++  font-size: 24px;
++  font-variant-numeric: tabular-nums;
++  line-height: 1;
++  text-shadow: 0 0 12px rgba(0, 213, 255, 0.45);
++`
++
++const WeaponRail = styled(Panel)`
++  display: grid;
++  grid-template-columns: repeat(7, minmax(34px, 1fr));
++  gap: 4px;
++  align-items: center;
++  padding: 6px;
++`
++
++const WeaponSlot = styled.div<{ disabled: boolean; selected: boolean }>`
++  position: relative;
++  display: grid;
++  min-width: 0;
++  height: 48px;
++  place-items: center;
++  border: 1px solid
++    ${(props) =>
++      props.selected ? 'rgba(255, 61, 143, 0.9)' : 'rgba(135, 156, 194, 0.2)'};
++  border-radius: 5px;
++  background: ${(props) =>
++    props.selected ? 'rgba(255, 61, 143, 0.14)' : 'rgba(255, 255, 255, 0.03)'};
++  opacity: ${(props) => (props.disabled ? 0.38 : 1)};
++  box-shadow: ${(props) =>
++    props.selected ? 'inset 0 -2px 0 #ff3d8f' : 'none'};
++
++  img {
++    width: 25px;
++    height: 25px;
++    object-fit: contain;
++  }
++
++  span {
++    position: absolute;
++    right: 3px;
++    bottom: 2px;
++    color: #ffffff;
++    font-size: 8px;
++    font-weight: 900;
++    font-variant-numeric: tabular-nums;
++    line-height: 1;
++  }
++`
++
++export default function GameHud(props: {
++  compact: boolean
++  isRunning: boolean
++  playerState: PlayerState
++}) {
++  const { compact, isRunning, playerState } = props
++
++  if (!isRunning) {
++    return null
++  }
++
++  const maxHealth = Math.max(1, playerState.maxHealth)
++  const health = Math.max(0, playerState.health)
++  const healthPercent = Math.min(100, Math.round((health / maxHealth) * 100))
++  const currentWeapon =
++    WEAPONS.find((weapon) => weapon.type === playerState.weapon) ??
++    WEAPONS[WEAPONS.length - 1]
++  const currentAmmo = playerState.ammo[currentWeapon.type] ?? 0
++
++  return (
++    <HudShell
++      aria-label="Player status"
++      compact={compact}
++      role="status"
++    >
++      <HealthPanel>
++        <StatRow>
++          <Label>{health > 0 ? 'Health' : 'Respawning'}</Label>
++          <Value>{health}</Value>
++        </StatRow>
++        <HealthTrack aria-hidden="true">
++          <HealthFill
++            critical={healthPercent <= 30}
++            style={{ width: `${healthPercent}%` }}
++          />
++        </HealthTrack>
++      </HealthPanel>
++
++      <WeaponPanel>
++        <WeaponImage alt="" aria-hidden="true" src={currentWeapon.icon} />
++        <span>
++          <Label>Equipped</Label>
++          <WeaponName>{currentWeapon.name}</WeaponName>
++        </span>
++        <AmmoValue aria-label={`${currentAmmo} ammunition`}>
++          {currentAmmo}
++        </AmmoValue>
++      </WeaponPanel>
++
++      {!compact ? (
++        <WeaponRail aria-label="Weapon ammunition">
++          {WEAPONS.map((weapon) => {
++            const ammo = playerState.ammo[weapon.type] ?? 0
++            return (
++              <WeaponSlot
++                disabled={ammo <= 0}
++                key={weapon.type}
++                selected={weapon.type === playerState.weapon}
++                title={`${weapon.name}: ${ammo}`}
++              >
++                <img alt="" aria-hidden="true" src={weapon.icon} />
++                <span>{ammo}</span>
++              </WeaponSlot>
++            )
++          })}
++        </WeaponRail>
++      ) : null}
++    </HudShell>
++  )
++}
 diff --git a/client/src/index.tsx b/client/src/index.tsx
-index 16bf363..6b0961b 100644
+index 16bf363..3c576ed 100644
 --- a/client/src/index.tsx
 +++ b/client/src/index.tsx
-@@ -538,6 +538,7 @@ function App() {
+@@ -40,6 +40,7 @@ import useAuth, {
+ import { CubeMessageType } from './game'
+ import * as cube from './game'
+ import MobileControls from './MobileControls'
++import GameHud from './GameHud'
+ import FileDropper from './FileDropper'
+ 
+ import type { PromiseSet } from './utils'
+@@ -132,6 +133,10 @@ const DELAY_AFTER_LOAD: CubeMessageType[] = [
+ const SERVER_URL_REGEX = /#\/server\/([\w.]+)\/?(\d+)?/
+ const MAP_URL_REGEX = /#\/map\/(\w+)/
+ const DEMO_URL_REGEX = /#\/demo\/(\w+)/
++const MAX_MOBILE_RENDER_PIXELS = 1920 * 1080
++const MAX_DESKTOP_RENDER_PIXELS = 2560 * 1440
++const MAX_MOBILE_PIXEL_RATIO = 1.35
++const MAX_DESKTOP_PIXEL_RATIO = 1.5
+ 
+ let loadedMods: string[] = []
+ let failedMods: string[] = []
+@@ -164,6 +169,7 @@ function App() {
+   const { width, height, ref: containerRef } = useResizeDetector()
+ 
+   const canvasRef = React.useRef<HTMLCanvasElement>(null)
++  const resolutionRef = React.useRef<string>('')
+   const wsRef = React.useRef<WebSocket>()
+   const wsQueue = React.useRef<ArrayBuffer[]>([])
+ 
+@@ -335,42 +341,54 @@ function App() {
+ 
+   const setResolution = React.useCallback(
+     (width: Maybe<number>, height: Maybe<number>) => {
+-      if (BROWSER.isMobile) {
+-        const ratio = window.devicePixelRatio || 1
+-        const {
+-          documentElement: { clientWidth, clientHeight },
+-        } = document
+-        const width = clientWidth * ratio
+-        const height = clientHeight * ratio
+-        const { canvas } = Module
+-        if (canvas == null) return
+-
+-        if (Module.running) {
+-          if (BananaBread == null || BananaBread.execute == null) return
+-          BananaBread.execute(`screenres ${width * 2} ${height * 2}`)
+-        }
+-
+-        canvas.style.setProperty('width', clientWidth + 'px', 'important')
+-        canvas.style.setProperty('height', clientHeight + 'px', 'important')
+-        canvas.width = width * 2
+-        canvas.height = height * 2
++      const fallbackWidth = document.documentElement.clientWidth
++      const fallbackHeight = document.documentElement.clientHeight
++      const cssWidth = Math.max(1, Math.floor(width ?? fallbackWidth))
++      const cssHeight = Math.max(1, Math.floor(height ?? fallbackHeight))
++      const maxPixelRatio = BROWSER.isMobile
++        ? MAX_MOBILE_PIXEL_RATIO
++        : MAX_DESKTOP_PIXEL_RATIO
++      const maxRenderPixels = BROWSER.isMobile
++        ? MAX_MOBILE_RENDER_PIXELS
++        : MAX_DESKTOP_RENDER_PIXELS
++      const requestedPixelRatio = Math.min(
++        Math.max(1, window.devicePixelRatio || 1),
++        maxPixelRatio
++      )
++      const pixelBudgetRatio = Math.sqrt(
++        maxRenderPixels / (cssWidth * cssHeight)
++      )
++      const renderScale = Math.min(requestedPixelRatio, pixelBudgetRatio)
++      const renderWidth = Math.max(1, Math.floor(cssWidth * renderScale))
++      const renderHeight = Math.max(1, Math.floor(cssHeight * renderScale))
++      const resolutionKey = `${cssWidth}x${cssHeight}:${renderWidth}x${renderHeight}`
++      const { canvas } = Module
++
++      if (canvas == null) return
++      canvas.style.setProperty('width', `${cssWidth}px`, 'important')
++      canvas.style.setProperty('height', `${cssHeight}px`, 'important')
++      Module.desiredWidth = renderWidth
++      Module.desiredHeight = renderHeight
++      if (Module.setCanvasSize == null) {
++        canvas.width = renderWidth
++        canvas.height = renderHeight
+         return
+       }
+-
+-      if (width == null || height == null) return
+-      Module.desiredWidth = width
+-      Module.desiredHeight = height
+-      if (Module.setCanvasSize == null) return
+-      Module.setCanvasSize(width, height)
++      if (resolutionRef.current === resolutionKey) return
++      resolutionRef.current = resolutionKey
++      Module.setCanvasSize(renderWidth, renderHeight)
+       if (BananaBread == null || BananaBread.execute == null) return
+-      BananaBread.execute(`screenres ${width} ${height}`)
++      BananaBread.execute(`screenres ${renderWidth} ${renderHeight}`)
+     },
+     []
+   )
+ 
+   React.useEffect(() => {
+-    setResolution(width, height)
+-  }, [width, height])
++    const frame = window.requestAnimationFrame(() => {
++      setResolution(width, height)
++    })
++    return () => window.cancelAnimationFrame(frame)
++  }, [width, height, state.type])
+ 
+   React.useEffect(() => {
+     if (state.type !== GameStateType.Ready) return
+@@ -538,6 +556,7 @@ function App() {
      }
  
      let remoteConnected: boolean = false
@@ -10,7 +395,7 @@ index 16bf363..6b0961b 100644
  
      let cachedServers: Maybe<any> = null
      Module.onGameReady = () => {
-@@ -637,6 +638,11 @@ function App() {
+@@ -637,6 +656,11 @@ function App() {
        }
  
        const parsedParams = new URLSearchParams(params)
@@ -22,7 +407,7 @@ index 16bf363..6b0961b 100644
  
        initializeDiscord(
          parsedParams.has('code') ? parsedParams.get('code') : null
-@@ -867,6 +873,18 @@ function App() {
+@@ -867,6 +891,18 @@ function App() {
          const packet = cube.newPacket(serverMessage.Data)
          const msgType = cube.getInt(packet)
  
@@ -41,6 +426,59 @@ index 16bf363..6b0961b 100644
          if (msgType === CubeMessageType.N_MAPCHANGE) {
            loadingWorld = true
            serverEvents.push(serverMessage)
+@@ -914,24 +950,24 @@ function App() {
+     const { canvas } = Module
+     if (canvas == null) return
+ 
+-    // As a default initial behavior, pop up an alert when webgl context is lost. To make your
+-    // application robust, you may want to override this behavior before shipping!
+-    // See http://www.khronos.org/registry/webgl/specs/latest/1.0/#5.15.2
+-    canvas.addEventListener(
+-      'webglcontextlost',
+-      function (e) {
+-        alert('WebGL context lost. You will need to reload the page.')
+-        e.preventDefault()
+-      },
+-      false
+-    )
++    const onContextLost = (event: Event) => {
++      event.preventDefault()
++      resolutionRef.current = ''
++      log.error('WebGL context lost; waiting for the browser to restore it.')
++    }
++    const onContextRestored = () => {
++      resolutionRef.current = ''
++      window.requestAnimationFrame(() => setResolution(width, height))
++    }
+ 
+-    //canvas.addEventListener('click', function () {
+-    //canvas.requestPointerLock()
+-    //})
++    canvas.addEventListener('webglcontextlost', onContextLost, false)
++    canvas.addEventListener('webglcontextrestored', onContextRestored, false)
+ 
+-    return
+-  }, [])
++    return () => {
++      canvas.removeEventListener('webglcontextlost', onContextLost, false)
++      canvas.removeEventListener('webglcontextrestored', onContextRestored, false)
++    }
++  }, [height, setResolution, width])
+ 
+   return (
+     <OuterContainer ref={containerRef}>
+@@ -953,6 +989,11 @@ function App() {
+           }}
+           onContextMenu={(event) => event.preventDefault()}
+         ></canvas>
++        <GameHud
++          compact={BROWSER.isMobile}
++          playerState={playerState}
++          isRunning={state.type === GameStateType.Ready}
++        />
+         {BROWSER.isMobile && (
+           <MobileControls
+             playerState={playerState}
 diff --git a/pkg/gameserver/client.go b/pkg/gameserver/client.go
 index 0d22889..3e317c1 100644
 --- a/pkg/gameserver/client.go

@@ -248,6 +248,12 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimePatch, /botRespawnTicker := time\.NewTicker/);
   assert.match(runtimePatch, /func \(s \*Server\) respawnDeadSoloBots/);
   assert.match(runtimePatch, /TestDeadSoloBotRespawnsAfterDelay/);
+  assert.match(runtimePatch, /MAX_MOBILE_RENDER_PIXELS = 1920 \* 1080/);
+  assert.match(runtimePatch, /MAX_MOBILE_PIXEL_RATIO = 1\.35/);
+  assert.match(runtimePatch, /const renderScale = Math\.min\(requestedPixelRatio, pixelBudgetRatio\)/);
+  assert.match(runtimePatch, /webglcontextrestored/);
+  assert.match(runtimePatch, /diff --git a\/client\/src\/GameHud\.tsx/);
+  assert.match(runtimePatch, /aria-label="Player status"/);
   assert.match(runtimePatch, /diff --git a\/pkg\/gameserver\/solo_bot\.go/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
 });
