@@ -225,6 +225,11 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.match(runtimeDockerfile, /core-index\.html/);
   assert.match(runtimeDockerfile, /go test \.\/pkg\/gameserver\/relay/);
+  assert.match(runtimeDockerfile, /\/game\/api\.js --output \/tmp\/core-game\/api\.js/);
+  assert.match(runtimeDockerfile, /\/game\/sauerbraten\.js --output \/tmp\/core-game\/sauerbraten\.js/);
+  assert.match(runtimeDockerfile, /\/game\/sauerbraten\.wasm --output \/tmp\/core-game\/sauerbraten\.wasm/);
+  assert.match(runtimeDockerfile, /COPY --from=runtime-release \/tmp\/core-game \/src\/pkg\/server\/static\/site\/game/);
+  assert.match(runtimeDockerfile, /test -s \/tmp\/core-game\/sauerbraten\.wasm/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
   assert.match(runtimeIndex, /<div id="root"><\/div>/);
   assert.match(runtimeIndex, /var Module = typeof Module !== "undefined" \? Module : \{\}/);
