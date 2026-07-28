@@ -15,31 +15,25 @@ RUN curl --fail --location --retry 4 --retry-delay 2 "${CORE_FPS_RUNTIME_URL}" -
   && rm /tmp/core-runtime.tar.gz \
   && chmod 0755 /opt/core/sour
 
-RUN set -eux; \
-  mkdir -p /tmp/core-game; \
-  ./sour serve --address 127.0.0.1 --port 1337 >/tmp/sour-release.log 2>&1 & \
-  release_pid=$!; \
-  trap 'kill "${release_pid}" 2>/dev/null || true' EXIT; \
-  ready=0; \
-  for attempt in $(seq 1 60); do \
-    if curl --fail --silent --show-error http://127.0.0.1:1337/game/api.js --output /tmp/core-game/api.js; then \
-      ready=1; \
-      break; \
-    fi; \
-    sleep 1; \
-  done; \
-  if [ "${ready}" -ne 1 ]; then \
-    cat /tmp/sour-release.log; \
-    exit 1; \
-  fi; \
-  curl --fail --silent --show-error http://127.0.0.1:1337/game/sauerbraten.js --output /tmp/core-game/sauerbraten.js; \
-  curl --fail --silent --show-error http://127.0.0.1:1337/game/sauerbraten.wasm --output /tmp/core-game/sauerbraten.wasm; \
-  test -s /tmp/core-game/api.js; \
-  test -s /tmp/core-game/sauerbraten.js; \
-  test -s /tmp/core-game/sauerbraten.wasm; \
-  kill "${release_pid}"; \
-  wait "${release_pid}" || true; \
-  trap - EXIT
+FROM emscripten/emsdk:2.0.34 AS game-builder
+
+ARG CORE_FPS_SOURCE_REPOSITORY=https://github.com/djreload/core
+ARG CORE_FPS_SOURCE_REF=2ed2b492d5491dfaf41fb883e6646c666e0f6035
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git patch \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+RUN git clone "${CORE_FPS_SOURCE_REPOSITORY}" . \
+  && git checkout --detach "${CORE_FPS_SOURCE_REF}"
+
+COPY solo-bot.patch /tmp/solo-bot.patch
+
+RUN git apply --check --include=game/src/fpsgame/ai.cpp /tmp/solo-bot.patch \
+  && git apply --include=game/src/fpsgame/ai.cpp /tmp/solo-bot.patch \
+  && GAME_OUTPUT_DIR=/out/game bash game/build
 
 FROM golang:1.22-bookworm AS builder
 
@@ -69,7 +63,7 @@ RUN git apply --check /tmp/solo-bot.patch \
   && yarn parcel build --target package \
   && cp /tmp/core-index.html /src/pkg/server/static/site/index.html
 
-COPY --from=runtime-release /tmp/core-game /src/pkg/server/static/site/game
+COPY --from=game-builder /out/game /src/pkg/server/static/site/game
 
 RUN CGO_ENABLED=1 go build -trimpath -o /out/sour ./cmd/sour
 

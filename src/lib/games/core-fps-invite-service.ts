@@ -168,7 +168,7 @@ export async function sendCoreFpsLobbyInvites(input: SendCoreFpsLobbyInvitesInpu
             actionUrl,
             body:
               lobby.status === "waiting"
-                ? `Join ${actor.displayName}, then vote for the map and game mode before the countdown ends.`
+                ? `Join ${actor.displayName}, then choose one of the two match options before the countdown ends.`
                 : `Join ${actor.displayName} in ${modeDisplayName} on ${lobby.mapName}.`,
             dedupeKey: `chat.core_fps.invite:${invitationBatchId}:user:${userId}`,
             title: `${actor.displayName} invited you to Core FPS`,
@@ -188,7 +188,7 @@ export async function sendCoreFpsLobbyInvites(input: SendCoreFpsLobbyInvitesInpu
             data: {
               body:
                 lobby.status === "waiting"
-                  ? `${actor.displayName} opened a Core FPS lobby. Join and vote for the map and game mode before the countdown ends.`
+                  ? `${actor.displayName} opened a Core FPS lobby. Join and choose the next match before the countdown ends.`
                   : `${actor.displayName} invited online chatters to ${modeDisplayName} on ${lobby.mapName}.`,
               kind: "core-fps",
               mediaSource: "core-fps-invite",

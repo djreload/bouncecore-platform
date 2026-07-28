@@ -51,10 +51,14 @@ export const coreFpsLobbyMaximumAgeMs = 2 * 60 * 60 * 1000;
 export type CoreFpsLobbyStatus = "active" | "completed" | "waiting";
 export type CoreFpsGameMode = (typeof coreFpsGameModes)[number]["id"];
 
-export type CoreFpsVoteOption = {
-  description?: string;
-  displayName: string;
+export type CoreFpsMatchVoteOption = {
+  description: string;
   id: string;
+  mapDisplayName: string;
+  mapName: string;
+  modeDisplayName: string;
+  modeName: CoreFpsGameMode;
+  previewImageUrl: string;
   selected: boolean;
   votes: number;
 };
@@ -70,9 +74,8 @@ export type CoreFpsLobbyPublicState = {
   id: string;
   joinDeadline: string;
   mapName: string;
-  mapVotes: CoreFpsVoteOption[];
+  matchVotes: CoreFpsMatchVoteOption[];
   modeName: CoreFpsGameMode;
-  modeVotes: CoreFpsVoteOption[];
   participants: Array<
     CoreFpsLobbyPerson & {
       joinedAt: string;
@@ -158,65 +161,144 @@ export function coreFpsMapsForMode(mapPool: readonly string[], modeName: unknown
   return supported.length ? supported : maps;
 }
 
-export function resolveCoreFpsVote(
-  votes: Array<string | null | undefined>,
-  options: readonly string[],
-  fallback: string
+function stableCoreFpsChoiceScore(seed: string, value: string) {
+  let hash = 2166136261;
+
+  for (const character of `${seed}:${value}`) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
+export function coreFpsMatchChoiceId(mapName: string, modeName: CoreFpsGameMode) {
+  return `${mapName}:${modeName}`;
+}
+
+export function buildCoreFpsMatchChoices(
+  seed: string,
+  mapPool: readonly string[],
+  modePool: readonly string[]
 ) {
-  const allowed = new Set(options);
+  const maps = normalizeCoreFpsMapPool(mapPool);
+  const modes = normalizeCoreFpsModePool(modePool);
+  const candidates = maps
+    .flatMap((mapName) =>
+      modes
+        .filter((modeName) => coreFpsMapSupportsMode(mapName, modeName))
+        .map((modeName) => ({
+          id: coreFpsMatchChoiceId(mapName, modeName),
+          mapName,
+          modeName
+        }))
+    )
+    .sort((left, right) => {
+      const scoreDifference =
+        stableCoreFpsChoiceScore(seed, left.id) - stableCoreFpsChoiceScore(seed, right.id);
+      return scoreDifference || left.id.localeCompare(right.id);
+    });
+  const first = candidates[0];
+
+  if (!first) {
+    return [];
+  }
+
+  const second =
+    candidates.find(
+      (candidate) =>
+        candidate.mapName !== first.mapName && candidate.modeName !== first.modeName
+    ) ?? candidates.find((candidate) => candidate.id !== first.id);
+
+  return second ? [first, second] : [first];
+}
+
+export function buildCoreFpsMatchVoteOptions(
+  choices: ReturnType<typeof buildCoreFpsMatchChoices>,
+  votes: Array<{
+    mapVote: string | null | undefined;
+    modeVote: string | null | undefined;
+  }>,
+  selectedVote: {
+    mapVote: string | null | undefined;
+    modeVote: string | null | undefined;
+  } | null
+): CoreFpsMatchVoteOption[] {
+  const allowed = new Set(choices.map((choice) => choice.id));
   const counts = new Map<string, number>();
 
   for (const vote of votes) {
-    if (vote && allowed.has(vote)) {
-      counts.set(vote, (counts.get(vote) ?? 0) + 1);
+    const modeName = normalizeCoreFpsMode(vote.modeVote);
+    const choiceId =
+      vote.mapVote && modeName ? coreFpsMatchChoiceId(vote.mapVote, modeName) : null;
+
+    if (choiceId && allowed.has(choiceId)) {
+      counts.set(choiceId, (counts.get(choiceId) ?? 0) + 1);
+    }
+  }
+
+  const selectedMode = normalizeCoreFpsMode(selectedVote?.modeVote);
+  const selectedId =
+    selectedVote?.mapVote && selectedMode
+      ? coreFpsMatchChoiceId(selectedVote.mapVote, selectedMode)
+      : null;
+
+  return choices.map((choice) => {
+    const mode = coreFpsModeDefinition(choice.modeName);
+    const map = coreFpsMapDefinition(choice.mapName);
+
+    return {
+      description: mode.description,
+      id: choice.id,
+      mapDisplayName: map?.displayName ?? choice.mapName,
+      mapName: choice.mapName,
+      modeDisplayName: mode.displayName,
+      modeName: mode.id,
+      previewImageUrl: `/games/core/maps/${choice.mapName}.webp`,
+      selected: choice.id === selectedId,
+      votes: counts.get(choice.id) ?? 0
+    };
+  });
+}
+
+export function resolveCoreFpsMatchVote(
+  choices: ReturnType<typeof buildCoreFpsMatchChoices>,
+  votes: Array<{
+    mapVote: string | null | undefined;
+    modeVote: string | null | undefined;
+  }>,
+  fallback: {
+    mapName: string;
+    modeName: unknown;
+  }
+) {
+  if (!choices.length) {
+    throw new Error("No compatible Core FPS match choices are available.");
+  }
+
+  const counts = new Map<string, number>();
+  const allowed = new Set(choices.map((choice) => choice.id));
+
+  for (const vote of votes) {
+    const modeName = normalizeCoreFpsMode(vote.modeVote);
+    const choiceId =
+      vote.mapVote && modeName ? coreFpsMatchChoiceId(vote.mapVote, modeName) : null;
+
+    if (choiceId && allowed.has(choiceId)) {
+      counts.set(choiceId, (counts.get(choiceId) ?? 0) + 1);
     }
   }
 
   const highest = Math.max(0, ...counts.values());
+  const fallbackMode = normalizeCoreFpsMode(fallback.modeName);
+  const fallbackId =
+    fallbackMode && coreFpsMatchChoiceId(fallback.mapName, fallbackMode);
+  const tied =
+    highest > 0
+      ? choices.filter((choice) => counts.get(choice.id) === highest)
+      : choices;
 
-  if (highest === 0) {
-    return allowed.has(fallback) ? fallback : options[0];
-  }
-
-  const tied = options.filter((option) => counts.get(option) === highest);
-  return tied.includes(fallback) ? fallback : tied[0];
-}
-
-export function buildCoreFpsVoteOptions(
-  options: readonly string[],
-  votes: Array<string | null | undefined>,
-  selectedVote: string | null | undefined,
-  kind: "map" | "mode"
-): CoreFpsVoteOption[] {
-  const counts = new Map<string, number>();
-
-  for (const vote of votes) {
-    if (vote && options.includes(vote)) {
-      counts.set(vote, (counts.get(vote) ?? 0) + 1);
-    }
-  }
-
-  return options.map((id) => {
-    const mode = kind === "mode" ? coreFpsModeDefinition(id) : null;
-    const map = kind === "map" ? coreFpsMapDefinition(id) : null;
-    const supportsCtf = map?.supportedModes.some((supportedMode) => supportedMode === "ctf");
-
-    return {
-      ...(mode
-        ? { description: mode.description }
-        : map
-          ? {
-              description: supportsCtf
-                ? "Supports all three game modes."
-                : "Supports Free For All and Team Deathmatch."
-            }
-          : {}),
-      displayName: mode?.displayName ?? map?.displayName ?? id.replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
-      id,
-      selected: id === selectedVote,
-      votes: counts.get(id) ?? 0
-    };
-  });
+  return tied.find((choice) => choice.id === fallbackId) ?? tied[0];
 }
 
 export function pickRandomCoreFpsMap(mapPool: readonly string[], randomValue = Math.random()) {

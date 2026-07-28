@@ -22,6 +22,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     const input = (await request.json()) as {
+      choiceId?: unknown;
       mapName?: unknown;
       modeName?: unknown;
     };

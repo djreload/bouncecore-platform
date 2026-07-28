@@ -2,15 +2,16 @@ import { Prisma } from "@prisma/client";
 import { getPublicChatPresence } from "@/lib/chat/chat-service";
 import { prisma } from "@/lib/db/prisma";
 import {
-  buildCoreFpsVoteOptions,
+  buildCoreFpsMatchChoices,
+  buildCoreFpsMatchVoteOptions,
   coreFpsModeDefinition,
   coreFpsLobbyIsReusable,
   coreFpsLobbyPresenceWindowMs,
   coreFpsLobbyShouldStart,
-  coreFpsMapsForMode,
+  coreFpsMatchChoiceId,
   normalizeCoreFpsMode,
   pickRandomCoreFpsMap,
-  resolveCoreFpsVote,
+  resolveCoreFpsMatchVote,
   shortenedCoreFpsLobbyDeadline
 } from "@/lib/games/core-fps-lobby-core";
 import {
@@ -32,6 +33,7 @@ type JoinCoreFpsLobbyInput = {
 };
 
 type CoreFpsLobbyVoteInput = {
+  choiceId?: unknown;
   mapName?: unknown;
   modeName?: unknown;
 };
@@ -220,22 +222,19 @@ async function reconcileLobby(
         lobbyId
       }
     });
-    const modeName = resolveCoreFpsVote(
-      votes.map((vote) => vote.modeVote),
-      settings.modePool,
-      lobby.modeName
-    );
-    const compatibleMaps = coreFpsMapsForMode(settings.mapPool, modeName);
-    const mapName = resolveCoreFpsVote(
-      votes.map((vote) => vote.mapVote),
-      compatibleMaps,
-      lobby.mapName
+    const winningChoice = resolveCoreFpsMatchVote(
+      buildCoreFpsMatchChoices(lobby.id, settings.mapPool, settings.modePool),
+      votes,
+      {
+        mapName: lobby.mapName,
+        modeName: lobby.modeName
+      }
     );
 
     lobby = await transaction.coreFpsLobby.update({
       data: {
-        mapName,
-        modeName,
+        mapName: winningChoice.mapName,
+        modeName: winningChoice.modeName,
         startedAt: now,
         status: "active"
       },
@@ -376,8 +375,11 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
   const presenceUsers = await getPublicChatPresence(reconciled.lobby.roomId, userId);
   const participantIds = new Set(reconciled.participants.map((participant) => participant.user.id));
   const currentParticipant = reconciled.participants.find((participant) => participant.user.id === userId);
-  const mapVotes = reconciled.participants.map((participant) => participant.mapVote);
-  const modeVotes = reconciled.participants.map((participant) => participant.modeVote);
+  const matchChoices = buildCoreFpsMatchChoices(
+    reconciled.lobby.id,
+    settings.mapPool,
+    settings.modePool
+  );
 
   return {
     availableInvitees: presenceUsers
@@ -390,19 +392,12 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
     id: reconciled.lobby.id,
     joinDeadline: reconciled.lobby.joinDeadline.toISOString(),
     mapName: reconciled.lobby.mapName,
-    mapVotes: buildCoreFpsVoteOptions(
-      settings.mapPool,
-      mapVotes,
-      currentParticipant?.mapVote,
-      "map"
+    matchVotes: buildCoreFpsMatchVoteOptions(
+      matchChoices,
+      reconciled.participants,
+      currentParticipant ?? null
     ),
     modeName: coreFpsModeDefinition(reconciled.lobby.modeName).id,
-    modeVotes: buildCoreFpsVoteOptions(
-      settings.modePool,
-      modeVotes,
-      currentParticipant?.modeVote,
-      "mode"
-    ),
     participants: reconciled.participants.map((participant) => ({
       avatarUrl: participant.user.profile?.avatarUrl ?? null,
       displayName: participant.user.displayName,
@@ -423,25 +418,11 @@ export async function castCoreFpsLobbyVote(
   input: CoreFpsLobbyVoteInput
 ) {
   const settings = await getPublicCoreFpsSettings();
-  const hasMapVote = Object.prototype.hasOwnProperty.call(input, "mapName");
-  const hasModeVote = Object.prototype.hasOwnProperty.call(input, "modeName");
-
-  if (!hasMapVote && !hasModeVote) {
-    throw new Error("Choose a map or game mode to vote.");
-  }
-
-  const mapName = hasMapVote && typeof input.mapName === "string"
-    ? input.mapName.trim().toLowerCase()
-    : null;
-  const modeName = hasModeVote ? normalizeCoreFpsMode(input.modeName) : null;
-
-  if (hasMapVote && (!mapName || !settings.mapPool.includes(mapName))) {
-    throw new Error("That map is not available in this lobby.");
-  }
-
-  if (hasModeVote && (!modeName || !settings.modePool.includes(modeName))) {
-    throw new Error("That game mode is not available in this lobby.");
-  }
+  const requestedChoiceId =
+    typeof input.choiceId === "string" ? input.choiceId.trim().toLowerCase() : "";
+  const legacyMapName =
+    typeof input.mapName === "string" ? input.mapName.trim().toLowerCase() : "";
+  const legacyModeName = normalizeCoreFpsMode(input.modeName);
 
   const now = new Date();
   await prisma.$transaction(async (transaction) => {
@@ -449,6 +430,7 @@ export async function castCoreFpsLobbyVote(
 
     const lobby = await transaction.coreFpsLobby.findUnique({
       select: {
+        id: true,
         status: true
       },
       where: {
@@ -459,11 +441,26 @@ export async function castCoreFpsLobbyVote(
     if (!lobby || lobby.status !== "waiting") {
       throw new Error("Voting has closed for this match.");
     }
+    const choices = buildCoreFpsMatchChoices(
+      lobby.id,
+      settings.mapPool,
+      settings.modePool
+    );
+    const choiceId =
+      requestedChoiceId ||
+      (legacyMapName && legacyModeName
+        ? coreFpsMatchChoiceId(legacyMapName, legacyModeName)
+        : "");
+    const choice = choices.find((candidate) => candidate.id === choiceId);
+
+    if (!choice) {
+      throw new Error("Choose one of the two match options shown in this lobby.");
+    }
 
     const updated = await transaction.coreFpsLobbyParticipant.updateMany({
       data: {
-        ...(hasMapVote ? { mapVote: mapName } : {}),
-        ...(hasModeVote ? { modeVote: modeName } : {}),
+        mapVote: choice.mapName,
+        modeVote: choice.modeName,
         lastSeenAt: now
       },
       where: {

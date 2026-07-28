@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Check, Clock3, Flag, Gamepad2, LoaderCircle, LogOut, Map, MessageCircle, RefreshCw, Send, Swords, Trophy, UserRoundPlus, Users, Vote, X } from "lucide-react";
+import { Check, Clock3, Gamepad2, LoaderCircle, LogOut, MessageCircle, RefreshCw, Send, Swords, Trophy, UserRoundPlus, Users, Vote, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoreFpsGameFrame } from "@/app/games/core/play/core-fps-game-frame";
 import { CoreFpsPresenceTracker } from "@/app/games/core/play/core-fps-presence-tracker";
@@ -241,14 +241,13 @@ export function CoreFpsLobbyStage({
   );
 
   const castVote = useCallback(
-    async (kind: "map" | "mode", value: string) => {
-      const pendingKey = `${kind}:${value}`;
-      setVotePending(pendingKey);
+    async (choiceId: string) => {
+      setVotePending(choiceId);
       setFeedback(null);
 
       try {
         const response = await fetch(`${lobbyEndpoint}/vote`, {
-          body: JSON.stringify(kind === "map" ? { mapName: value } : { modeName: value }),
+          body: JSON.stringify({ choiceId }),
           cache: "no-store",
           credentials: "same-origin",
           headers: {
@@ -291,8 +290,14 @@ export function CoreFpsLobbyStage({
             <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-bc-electric" aria-hidden="true" />
             <Badge className="mt-4" tone="cyan">Vote locked</Badge>
             <h2 className="mt-4 text-2xl font-black">
-              {lobby.modeVotes.find((option) => option.id === lobby.modeName)?.displayName ?? "Arena"} on{" "}
-              <span className="capitalize">{lobby.mapName}</span>
+              {lobby.matchVotes.find(
+                (option) =>
+                  option.modeName === lobby.modeName && option.mapName === lobby.mapName
+              )?.modeDisplayName ?? "Arena"} on{" "}
+              <span className="capitalize">
+                {lobby.matchVotes.find((option) => option.mapName === lobby.mapName)
+                  ?.mapDisplayName ?? lobby.mapName}
+              </span>
             </h2>
             <p className="mt-2 text-sm text-bc-muted">
               Preparing the signed match connection for every player.
@@ -455,7 +460,7 @@ function LobbyVotePanel({
   votePending
 }: {
   lobby: CoreFpsLobbyPublicState;
-  onVote: (kind: "map" | "mode", value: string) => Promise<void>;
+  onVote: (choiceId: string) => Promise<void>;
   votePending: string | null;
 }) {
   return (
@@ -463,97 +468,63 @@ function LobbyVotePanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Vote className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-          <h3 className="font-black" id="core-fps-vote-title">Vote for the match</h3>
+          <h3 className="font-black" id="core-fps-vote-title">Choose the next match</h3>
         </div>
-        <span className="text-xs font-semibold text-bc-muted">One map vote and one mode vote per player</span>
+        <span className="text-xs font-semibold text-bc-muted">One choice per player</span>
       </div>
 
-      <div className="mt-4 grid gap-5 lg:grid-cols-2">
-        <fieldset>
-          <legend className="flex items-center gap-2 text-xs font-black uppercase text-bc-muted">
-            <Swords className="h-4 w-4 text-bc-electric" aria-hidden="true" />
-            Game mode
-          </legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
-            {lobby.modeVotes.map((option) => {
-              const pending = votePending === `mode:${option.id}`;
-              const Icon = option.id === "ctf" ? Flag : Swords;
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {lobby.matchVotes.map((option) => {
+          const pending = votePending === option.id;
 
-              return (
-                <button
-                  aria-pressed={option.selected}
-                  className={cn(
-                    "bc-focus-ring relative min-h-24 rounded-md border px-3 py-3 text-left transition-colors",
-                    option.selected
-                      ? "border-bc-acid bg-bc-acid/10 text-white"
-                      : "border-bc-line bg-bc-ink text-white hover:border-bc-electric/60 hover:bg-bc-electric/5"
-                  )}
-                  disabled={!lobby.votingOpen || Boolean(votePending)}
-                  key={option.id}
-                  onClick={() => void onVote("mode", option.id)}
-                  type="button"
-                >
-                  <span className="flex items-start justify-between gap-2">
-                    <Icon className={cn("h-4 w-4", option.id === "ctf" ? "text-bc-pink" : "text-bc-electric")} aria-hidden="true" />
-                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black/35 px-1.5 py-0.5 text-[10px] font-black tabular-nums">
-                      {option.votes}
-                    </span>
-                  </span>
-                  <span className="mt-2 block text-xs font-black">{option.displayName}</span>
-                  <span className="mt-1 block text-[10px] leading-4 text-bc-muted">{option.description}</span>
-                  {option.selected ? (
-                    <Check className="absolute bottom-2 right-2 h-3.5 w-3.5 text-bc-acid" aria-label="Your vote" />
-                  ) : pending ? (
-                    <LoaderCircle className="absolute bottom-2 right-2 h-3.5 w-3.5 animate-spin text-bc-electric" aria-hidden="true" />
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend className="flex items-center gap-2 text-xs font-black uppercase text-bc-muted">
-            <Map className="h-4 w-4 text-bc-pink" aria-hidden="true" />
-            Arena map
-          </legend>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
-            {lobby.mapVotes.map((option) => {
-              const pending = votePending === `map:${option.id}`;
-
-              return (
-                <button
-                  aria-pressed={option.selected}
-                  className={cn(
-                    "bc-focus-ring relative min-h-20 rounded-md border px-3 py-3 text-left transition-colors",
-                    option.selected
-                      ? "border-bc-pink bg-bc-pink/10 text-white"
-                      : "border-bc-line bg-bc-ink text-white hover:border-bc-pink/60 hover:bg-bc-pink/5"
-                  )}
-                  disabled={!lobby.votingOpen || Boolean(votePending)}
-                  key={option.id}
-                  onClick={() => void onVote("map", option.id)}
-                  type="button"
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-black">{option.displayName}</span>
-                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black/35 px-1.5 py-0.5 text-[10px] font-black tabular-nums">
-                      {option.votes}
-                    </span>
-                  </span>
-                  <span className="mt-1 block pr-5 text-[10px] leading-4 text-bc-muted">
-                    {option.description}
-                  </span>
-                  {option.selected ? (
-                    <Check className="absolute bottom-2 right-2 h-3.5 w-3.5 text-bc-pink" aria-label="Your vote" />
-                  ) : pending ? (
-                    <LoaderCircle className="absolute bottom-2 right-2 h-3.5 w-3.5 animate-spin text-bc-pink" aria-hidden="true" />
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+          return (
+            <button
+              aria-pressed={option.selected}
+              className={cn(
+                "bc-focus-ring group relative aspect-video min-w-0 overflow-hidden rounded-md border bg-bc-ink text-left shadow-lg transition-[border-color,transform,box-shadow]",
+                option.selected
+                  ? "border-bc-acid shadow-[0_0_0_1px_rgba(166,255,0,0.35),0_14px_36px_rgba(0,0,0,0.35)]"
+                  : "border-bc-line hover:-translate-y-0.5 hover:border-bc-electric/70 hover:shadow-[0_14px_36px_rgba(0,0,0,0.4)]"
+              )}
+              disabled={!lobby.votingOpen || Boolean(votePending)}
+              key={option.id}
+              onClick={() => void onVote(option.id)}
+              type="button"
+            >
+              <Image
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                fill
+                sizes="(min-width: 768px) 40vw, 92vw"
+                src={option.previewImageUrl}
+                unoptimized
+              />
+              <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.08)_25%,rgba(3,4,10,0.88)_100%)]" />
+              <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-sm border border-bc-electric/60 bg-black/80 px-2 py-1 text-[10px] font-black uppercase text-bc-electric backdrop-blur-sm">
+                <Swords className="h-3 w-3" aria-hidden="true" />
+                {option.modeDisplayName}
+              </span>
+              <span className="absolute right-3 top-3 inline-flex min-w-7 items-center justify-center rounded-full bg-black/75 px-2 py-1 text-[10px] font-black tabular-nums">
+                {option.votes}
+              </span>
+              <span className="absolute inset-x-3 bottom-3">
+                <span className="block text-lg font-black text-white">{option.mapDisplayName}</span>
+                <span className="mt-0.5 line-clamp-1 block pr-10 text-[11px] font-semibold text-white/75">
+                  {option.description}
+                </span>
+              </span>
+              {option.selected ? (
+                <span className="absolute bottom-3 right-3 grid h-7 w-7 place-items-center rounded-full bg-bc-acid text-black">
+                  <Check className="h-4 w-4" aria-label="Your vote" />
+                </span>
+              ) : pending ? (
+                <span className="absolute bottom-3 right-3 grid h-7 w-7 place-items-center rounded-full bg-black/75 text-bc-electric">
+                  <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
       </div>
     </section>
   );

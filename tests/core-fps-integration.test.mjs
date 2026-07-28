@@ -16,7 +16,8 @@ import {
   getCoreFpsInviteRecipientIds
 } from "../src/lib/games/core-fps-invite-core.ts";
 import {
-  buildCoreFpsVoteOptions,
+  buildCoreFpsMatchChoices,
+  buildCoreFpsMatchVoteOptions,
   coreFpsModeDefinition,
   coreFpsReadyCountdownSeconds,
   coreFpsLobbyIsReusable,
@@ -26,7 +27,7 @@ import {
   normalizeCoreFpsMapPool,
   normalizeCoreFpsModePool,
   pickRandomCoreFpsMap,
-  resolveCoreFpsVote,
+  resolveCoreFpsMatchVote,
   shortenedCoreFpsLobbyDeadline
 } from "../src/lib/games/core-fps-lobby-core.ts";
 import {
@@ -206,31 +207,49 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
     coreFpsMapsForMode(["complex", "dust2", "turbine", "xmwhub"], "ctf"),
     ["dust2", "xmwhub"]
   );
-
-  assert.equal(
-    resolveCoreFpsVote(["dust2", "complex", "dust2", "not-enabled"], ["complex", "dust2"], "complex"),
-    "dust2"
-  );
-  assert.equal(
-    resolveCoreFpsVote(["dust2", "complex"], ["complex", "dust2"], "complex"),
-    "complex"
-  );
-  assert.equal(
-    resolveCoreFpsVote(["ctf", "teamplay", "ctf"], ["ffa", "teamplay", "ctf"], "ffa"),
-    "ctf"
+  const choices = buildCoreFpsMatchChoices(
+    "lobby-vote-test",
+    ["complex", "dust2", "turbine", "xmwhub"],
+    ["ffa", "teamplay", "ctf"]
   );
 
+  assert.equal(choices.length, 2);
   assert.deepEqual(
-    buildCoreFpsVoteOptions(
-      ["ffa", "teamplay", "ctf"],
-      ["ctf", "ctf", "teamplay", "invalid"],
-      "ctf",
-      "mode"
-    ).map(({ id, selected, votes }) => ({ id, selected, votes })),
+    choices,
+    buildCoreFpsMatchChoices(
+      "lobby-vote-test",
+      ["complex", "dust2", "turbine", "xmwhub"],
+      ["ffa", "teamplay", "ctf"]
+    )
+  );
+  assert.notEqual(choices[0].mapName, choices[1].mapName);
+  assert.notEqual(choices[0].modeName, choices[1].modeName);
+  assert.ok(
+    choices.every((choice) =>
+      coreFpsMapsForMode(
+        ["complex", "dust2", "turbine", "xmwhub"],
+        choice.modeName
+      ).includes(choice.mapName)
+    )
+  );
+
+  const votes = [
+    { mapVote: choices[1].mapName, modeVote: choices[1].modeName },
+    { mapVote: choices[1].mapName, modeVote: choices[1].modeName },
+    { mapVote: choices[0].mapName, modeVote: choices[0].modeName },
+    { mapVote: "invalid", modeVote: "ctf" }
+  ];
+  assert.equal(
+    resolveCoreFpsMatchVote(choices, votes, choices[0]).id,
+    choices[1].id
+  );
+  assert.deepEqual(
+    buildCoreFpsMatchVoteOptions(choices, votes, votes[1]).map(
+      ({ id, selected, votes: voteCount }) => ({ id, selected, votes: voteCount })
+    ),
     [
-      { id: "ffa", selected: false, votes: 0 },
-      { id: "teamplay", selected: false, votes: 1 },
-      { id: "ctf", selected: true, votes: 2 }
+      { id: choices[0].id, selected: false, votes: 1 },
+      { id: choices[1].id, selected: true, votes: 2 }
     ]
   );
 });
@@ -308,11 +327,10 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.match(runtimeDockerfile, /core-index\.html/);
   assert.match(runtimeDockerfile, /go test -vet=off \.\/pkg\/gameserver \.\/pkg\/gameserver\/relay/);
-  assert.match(runtimeDockerfile, /\/game\/api\.js --output \/tmp\/core-game\/api\.js/);
-  assert.match(runtimeDockerfile, /\/game\/sauerbraten\.js --output \/tmp\/core-game\/sauerbraten\.js/);
-  assert.match(runtimeDockerfile, /\/game\/sauerbraten\.wasm --output \/tmp\/core-game\/sauerbraten\.wasm/);
-  assert.match(runtimeDockerfile, /COPY --from=runtime-release \/tmp\/core-game \/src\/pkg\/server\/static\/site\/game/);
-  assert.match(runtimeDockerfile, /test -s \/tmp\/core-game\/sauerbraten\.wasm/);
+  assert.match(runtimeDockerfile, /FROM emscripten\/emsdk:2\.0\.34 AS game-builder/);
+  assert.match(runtimeDockerfile, /--include=game\/src\/fpsgame\/ai\.cpp/);
+  assert.match(runtimeDockerfile, /GAME_OUTPUT_DIR=\/out\/game bash game\/build/);
+  assert.match(runtimeDockerfile, /COPY --from=game-builder \/out\/game \/src\/pkg\/server\/static\/site\/game/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
   assert.match(runtimeDockerfile, /brand_flags\.py/);
   assert.match(runtimeDockerfile, /python3 \/tmp\/brand_flags\.py/);
@@ -351,6 +369,10 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimePatch, /MAX_MOBILE_PIXEL_RATIO = 1\.35/);
   assert.match(runtimePatch, /const renderScale = Math\.min\(requestedPixelRatio, pixelBudgetRatio\)/);
   assert.match(runtimePatch, /webglcontextrestored/);
+  assert.match(runtimePatch, /b\.type == AI_S_PURSUE && b\.targtype == AI_T_PLAYER/);
+  assert.match(runtimePatch, /d->ai->spot = pursuit->feetpos\(\)/);
+  assert.match(runtimePatch, /bool recoverpursuit\(fpsent \*d, aistate &b\)/);
+  assert.match(runtimePatch, /if\(recoverpursuit\(d, b\)\) return/);
   assert.match(runtimePatch, /diff --git a\/client\/src\/GameHud\.tsx/);
   assert.match(runtimePatch, /aria-label="Player status"/);
   assert.match(runtimePatch, /diff --git a\/pkg\/gameserver\/solo_bot\.go/);
@@ -409,9 +431,9 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
   assert.match(coreLauncher, /joinCoreFpsLobby/);
   assert.match(coreLauncher, /CoreFpsLobbyStage/);
   assert.match(lobbyStage, /Players are joining/);
-  assert.match(lobbyStage, /Vote for the match/);
-  assert.match(lobbyStage, /Game mode/);
-  assert.match(lobbyStage, /Arena map/);
+  assert.match(lobbyStage, /Choose the next match/);
+  assert.match(lobbyStage, /One choice per player/);
+  assert.match(lobbyStage, /previewImageUrl/);
   assert.match(lobbyStage, /\/vote/);
   assert.match(lobbyStage, /\/launch/);
   assert.match(lobbyStage, /Invite all/);
@@ -427,9 +449,10 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
   assert.match(launchRoute, /getCoreFpsLobbyForLaunch/);
   assert.match(launchRoute, /createCoreFpsLaunch/);
   assert.match(lobbyService, /export async function leaveCoreFpsLobby/);
-  assert.match(lobbyService, /settings\.mapPool\.includes\(mapName\)/);
-  assert.match(lobbyService, /settings\.modePool\.includes\(modeName\)/);
-  assert.match(lobbyService, /coreFpsMapsForMode/);
+  assert.match(lobbyService, /buildCoreFpsMatchChoices/);
+  assert.match(lobbyService, /coreFpsMatchChoiceId/);
+  assert.match(lobbyService, /mapVote: choice\.mapName/);
+  assert.match(lobbyService, /modeVote: choice\.modeName/);
   assert.match(lobbyService, /leftAt: null/);
   assert.match(lobbyMigration, /"mapVote"/);
   assert.match(lobbyMigration, /"modeVote"/);
