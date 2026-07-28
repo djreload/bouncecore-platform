@@ -49,5 +49,16 @@ PostgreSQL before launch, and the browser receives only the corresponding
 signed join command. CTF uses bundled red/blue flag models with flag cloth
 branded during the reproducible runtime image build.
 
+The browser asset database is release-versioned because Bouncecore replaces
+selected content-addressed art during the image build. Engine boot files are
+served with `no-store`, while downloaded map bundles remain persistent. A
+bundle that cannot be unpacked is evicted and downloaded again automatically.
+Capture-the-flag clients provide map flag positions before the server sends
+initial flag state, avoiding an empty flag packet during first-map startup.
+The server then echoes the initialized two-flag state so the first player can
+finish loading just like every later player. Lobby map selection waits for the
+welcome map to finish and yield a render frame before requesting a different
+map, while a vote for the already active map does not reset the world.
+
 See `docs/CORE_FPS_INTEGRATION.md` and
 `docs/CORE_FPS_SOURCE_AUDIT.md` for setup, licensing, and operations.

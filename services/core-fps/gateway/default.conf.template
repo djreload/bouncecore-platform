@@ -48,6 +48,8 @@ server {
 
   location = / {
     access_log off;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    add_header Expires "0" always;
 
     if ($arg_ticket != "") {
       return 302 $core_launch_redirect;
@@ -109,6 +111,21 @@ server {
     sub_filter 's.onopen=()=>{const{current:e}=l;' 's.onopen=()=>{sessionStorage.removeItem("coreWsRetry");const{current:e}=l;';
     sub_filter 'i.current=s;const c=' 'i.current=s,s.onclose=()=>{const e=Math.min(3e4,1500*Math.pow(2,Number(sessionStorage.getItem("coreWsRetry")||0)));sessionStorage.setItem("coreWsRetry",String(Number(sessionStorage.getItem("coreWsRetry")||0)+1));const t=()=>location.reload();"hidden"===document.visibilityState?document.addEventListener("visibilitychange",(()=>{"visible"===document.visibilityState&&t()}),{once:!0}):setTimeout(t,e)},s.onerror=()=>s.close();const c=';
     sub_filter 'Module.canvas=e},onContextMenu:' 'Module.canvas=e,null!=e&&!e._bouncecoreInput&&(e._bouncecoreInput=!0,e.tabIndex=0,e.addEventListener("click",(()=>{e.focus(),document.pointerLockElement!==e&&e.requestPointerLock&&e.requestPointerLock()})))},onContextMenu:';
+  }
+
+  # Keep the Emscripten loader and WASM binary in the same release. Mixing a
+  # cached engine file with a newer React client can leave the canvas on its
+  # loading frame even though the WebSocket has joined successfully.
+  location ^~ /game/ {
+    auth_request /_core_auth;
+    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_buffering off;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    add_header Expires "0" always;
   }
 
   location ~ ^/worker\.[a-f0-9]+\.js$ {

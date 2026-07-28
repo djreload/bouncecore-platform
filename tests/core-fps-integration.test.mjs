@@ -283,6 +283,8 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(gateway, /location \/ \{\s+auth_request \/_core_auth;/);
   assert.match(gateway, /location \/ \{[\s\S]*?proxy_buffering off;/);
   assert.match(gateway, /location ~ \^\/worker\\\.\[a-f0-9\]\+\\\.js\$/);
+  assert.match(gateway, /location \^~ \/game\/ \{[\s\S]*?Cache-Control "no-cache, no-store, must-revalidate"/);
+  assert.match(gateway, /location = \/ \{[\s\S]*?Cache-Control "no-cache, no-store, must-revalidate"/);
   assert.match(gateway, /Math\.min\(1e4,1e3\*\(r\+1\)\)/);
   assert.match(gateway, /sessionStorage\.removeItem\("coreWsRetry"\)/);
   assert.match(gateway, /s\.onclose=/);
@@ -324,8 +326,19 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.doesNotMatch(runtimeIndex, /<pre>/);
   assert.match(runtimePatch, /pendingLobbyMap/);
   assert.match(runtimePatch, /CubeMessageType\.N_WELCOME/);
-  assert.match(runtimePatch, /\[500, 1500, 3000\]/);
+  assert.match(runtimePatch, /Module\.postLoadWorld[\s\S]*?\[750, 1750, 3250\]/);
+  assert.match(runtimePatch, /lobbyWelcomeReceived = true/);
   assert.match(runtimePatch, /duplicateLobbyBootstrap/);
+  assert.match(runtimePatch, /lobbyBootstrap && mapname == s\.Map && modeID == s\.GameMode\.ID\(\)/);
+  assert.match(runtimePatch, /bouncecore-sour-blobs-v2/);
+  assert.match(runtimePatch, /await deleteBlob\(id\)/);
+  assert.match(runtimePatch, /ok && !flagMode\.NeedsMapInfo\(\)/);
+  assert.match(runtimePatch, /m\.s\.Broadcast\(m\.FlagsInitPacket\(\)\)/);
+  assert.match(runtimePatch, /func handlingFlags\(s Server, fm flagMode\)/);
+  assert.match(
+    runtimePatch,
+    /DELAY_AFTER_LOAD[\s\S]*?CubeMessageType\.N_ITEMLIST,[\s\S]*?CubeMessageType\.N_SPAWN,[\s\S]*?CubeMessageType\.N_INITFLAGS/
+  );
   assert.match(runtimePatch, /TestOwnedClientPacketsReachObserversButDoNotEchoToOwner/);
   assert.match(runtimePatch, /client\.State != playerstate\.Spectator/);
   assert.match(runtimePatch, /botRespawnTicker := time\.NewTicker/);

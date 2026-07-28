@@ -285,6 +285,13 @@ index 16bf363..3c576ed 100644
  import FileDropper from './FileDropper'
  
  import type { PromiseSet } from './utils'
+@@ -127,5 +128,6 @@ const DEBUG = false
+ const DELAY_AFTER_LOAD: CubeMessageType[] = [
+   CubeMessageType.N_ITEMLIST,
+   CubeMessageType.N_SPAWN,
++  CubeMessageType.N_INITFLAGS,
+ ]
+ 
 @@ -132,6 +133,10 @@ const DELAY_AFTER_LOAD: CubeMessageType[] = [
  const SERVER_URL_REGEX = /#\/server\/([\w.]+)\/?(\d+)?/
  const MAP_URL_REGEX = /#\/map\/(\w+)/
@@ -387,11 +394,29 @@ index 16bf363..3c576ed 100644
  
    React.useEffect(() => {
      if (state.type !== GameStateType.Ready) return
-@@ -538,6 +556,7 @@ function App() {
+@@ -514,7 +533,16 @@ function App() {
+     Module.running = false
+     Module.postLoadWorld = function () {
+       loadingWorld = false
+       serverEvents = [...serverEvents, ...queuedEvents]
++      if (lobbyWelcomeReceived && pendingLobbyMap != null) {
++        const mapName = pendingLobbyMap
++        pendingLobbyMap = null
++        lobbyWelcomeReceived = false
++        const retryDelays = [750, 1750, 3250]
++        retryDelays.forEach((delay) => {
++          setTimeout(() => BananaBread.execute(`map ${mapName}`), delay)
++        })
++      }
+     }
+     Module.addRunDependency = (file) => {
+       console.log(`add ${file}`)
+@@ -538,6 +566,8 @@ function App() {
      }
  
      let remoteConnected: boolean = false
 +    let pendingLobbyMap: string | null = null
++    let lobbyWelcomeReceived = false
  
      let cachedServers: Maybe<any> = null
      Module.onGameReady = () => {
@@ -407,7 +432,7 @@ index 16bf363..3c576ed 100644
  
        initializeDiscord(
          parsedParams.has('code') ? parsedParams.get('code') : null
-@@ -867,6 +891,18 @@ function App() {
+@@ -867,6 +897,13 @@ function App() {
          const packet = cube.newPacket(serverMessage.Data)
          const msgType = cube.getInt(packet)
  
@@ -415,12 +440,7 @@ index 16bf363..3c576ed 100644
 +          msgType === CubeMessageType.N_WELCOME &&
 +          pendingLobbyMap != null
 +        ) {
-+          const mapName = pendingLobbyMap
-+          pendingLobbyMap = null
-+          const retryDelays = [500, 1500, 3000]
-+          retryDelays.forEach((delay) => {
-+            setTimeout(() => BananaBread.execute(`map ${mapName}`), delay)
-+          })
++          lobbyWelcomeReceived = true
 +        }
 +
          if (msgType === CubeMessageType.N_MAPCHANGE) {
@@ -673,7 +693,9 @@ index fe3bb5b..627f763 100644
  			}
  		}
  	}
-@@ -285,6 +309,7 @@ func (s *Server) Join(c *Client) {
+@@ -284,7 +308,8 @@ func (s *Server) Join(c *Client) {
+-	if flagMode, ok := s.GameMode.(game.FlagMode); ok {
++	if flagMode, ok := s.GameMode.(game.FlagMode); ok && !flagMode.NeedsMapInfo() {
  		c.Send(flagMode.FlagsInitPacket())
  	}
  	s.Clients.InformOthersOfJoin(c)
@@ -735,10 +757,15 @@ index 68dff4e..58b5e25 100644
  
  		if !gamemode.Valid(modeID) {
  			client.Message(cubecode.Fail(fmt.Sprintf("%s is not implemented on this server", modeID)))
-@@ -220,19 +224,24 @@ func (s *Server) HandlePacket(client *Client, channelID uint8, message P.Message
+@@ -220,19 +224,29 @@ func (s *Server) HandlePacket(client *Client, channelID uint8, message P.Message
  			return
  		}
  
++		if lobbyBootstrap && mapname == s.Map && modeID == s.GameMode.ID() {
++			log.Println(client, "kept lobby", modeID, "on", mapname)
++			return
++		}
++
 -		if s.MasterMode < mastermode.Veto {
 +		if !lobbyBootstrap && s.MasterMode < mastermode.Veto {
  			client.Message(cubecode.Fail("this server does not support map voting"))
@@ -1189,3 +1216,111 @@ index da9f76b..ca033f2 100644
  	defaultMap:       string | *"complex"
  	maps: [...string] | *[]
  }
+diff --git a/client/src/assets/storage.ts b/client/src/assets/storage.ts
+index ef220b7..085f437 100644
+--- a/client/src/assets/storage.ts
++++ b/client/src/assets/storage.ts
+@@ -8,8 +8,13 @@ interface BundleDB extends DBSchema {
+   }
+ }
+ 
++// Asset identifiers are content-addressed upstream, but Bouncecore also
++// brands selected runtime assets. Version the database when that contract
++// changes so an older browser cannot pair stale bytes with a newer index.
++const CACHE_DATABASE_NAME = 'bouncecore-sour-blobs-v2'
++
+ async function initDB(): Promise<IDBPDatabase<BundleDB>> {
+-  return await openDB<BundleDB>('sour-blobs', 1, {
++  return await openDB<BundleDB>(CACHE_DATABASE_NAME, 1, {
+     upgrade(db) {
+       db.createObjectStore('blobs')
+     },
+@@ -33,6 +38,11 @@ export async function getBlob(
+   return bundle
+ }
+ 
++export async function deleteBlob(target: string) {
++  const db = await initDB()
++  await db.delete('blobs', target)
++}
++
+ export async function saveBlob(
+   target: string,
+   buffer: ArrayBuffer
+diff --git a/client/src/assets/worker.ts b/client/src/assets/worker.ts
+index 00bb6d1..2b4353a 100644
+--- a/client/src/assets/worker.ts
++++ b/client/src/assets/worker.ts
+@@ -37,7 +37,12 @@ import type { DownloadState } from '../types'
+ 
+ import { BROWSER } from '../utils'
+ 
+-import { getBlob as getSavedBlob, saveBlob, haveBlob } from './storage'
++import {
++  deleteBlob,
++  getBlob as getSavedBlob,
++  saveBlob,
++  haveBlob,
++} from './storage'
+ 
+ class PullError extends Error {}
+ 
+@@ -250,8 +255,19 @@ async function loadBundle(
+     throw new PullError(`bundle not found: ${id}`)
+   }
+   const { source } = assetIndex.sources[bundle[0]]
+-  const buffer = await loadBlob(source, id, `${id}.sour`, progress)
+-  const data = unpackBundle(buffer)
++  let buffer = await loadBlob(source, id, `${id}.sour`, progress)
++  let data: BundleData
++
++  try {
++    data = unpackBundle(buffer)
++  } catch {
++    // A browser or network interruption can leave an unusable persisted
++    // bundle. Evict it and retry from the authenticated source once.
++    await deleteBlob(id)
++    buffer = await loadBlob(source, id, `${id}.sour`, progress)
++    data = unpackBundle(buffer)
++  }
++
+   progress(load.ok(buffer.byteLength))
+ 
+   return {
+diff --git a/pkg/gameserver/game/ctf.go b/pkg/gameserver/game/ctf.go
+index fcda318..4a63352 100644
+--- a/pkg/gameserver/game/ctf.go
++++ b/pkg/gameserver/game/ctf.go
+@@ -14,6 +14,7 @@ type ctfMode = handlesFlags
+ func newCTFMode(s Server, keepTeams bool) *ctfMode {
+ 	good, evil := NewTeam("good"), NewTeam("evil")
+ 	return handlingFlags(
++		s,
+ 		newCTF(
+ 			s,
+ 			withTeams(s, false, keepTeams, good, evil),
+diff --git a/pkg/gameserver/game/flags.go b/pkg/gameserver/game/flags.go
+index 69259a3..221e0bd 100644
+--- a/pkg/gameserver/game/flags.go
++++ b/pkg/gameserver/game/flags.go
+@@ -48,8 +48,9 @@ var (
+ 	_ HasTimers = &handlesFlags{}
+ )
+ 
+-func handlingFlags(fm flagMode) *handlesFlags {
++func handlingFlags(s Server, fm flagMode) *handlesFlags {
+ 	return &handlesFlags{
++		s:        s,
+ 		flagMode: fm,
+ 	}
+ }
+@@ -105,6 +106,9 @@ func (m *handlesFlags) initFlags(message protocol.ClientInitFlags) {
+ 	ok := m.InitFlags(flags)
+ 	if ok {
+ 		m.flags = flags
++		// The first CTF client owns map discovery. Echo the initialized state
++		// back so it can finish the same map transition as later joiners.
++		m.s.Broadcast(m.FlagsInitPacket())
+ 	}
+ }
+ 
