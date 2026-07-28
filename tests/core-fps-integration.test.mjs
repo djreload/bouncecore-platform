@@ -283,8 +283,11 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(gateway, /location \/ \{\s+auth_request \/_core_auth;/);
   assert.match(gateway, /location \/ \{[\s\S]*?proxy_buffering off;/);
   assert.match(gateway, /location ~ \^\/worker\\\.\[a-f0-9\]\+\\\.js\$/);
-  assert.match(gateway, /location \^~ \/game\/ \{[\s\S]*?Cache-Control "no-cache, no-store, must-revalidate"/);
-  assert.match(gateway, /location = \/ \{[\s\S]*?Cache-Control "no-cache, no-store, must-revalidate"/);
+  assert.match(gateway, /map \$uri \$core_cache_control \{[\s\S]*?"\/" "no-cache, no-store, must-revalidate"/);
+  assert.match(gateway, /map \$uri \$core_cache_control \{[\s\S]*?~\^\/game\/ "no-cache, no-store, must-revalidate"/);
+  assert.match(gateway, /add_header Set-Cookie \$core_ticket_cookie always;\s+add_header Cache-Control \$core_cache_control always;/);
+  assert.match(gateway, /add_header Expires \$core_expires always;/);
+  assert.doesNotMatch(gateway, /location = \/ \{\s+access_log off;\s+add_header/);
   assert.match(gateway, /Math\.min\(1e4,1e3\*\(r\+1\)\)/);
   assert.match(gateway, /sessionStorage\.removeItem\("coreWsRetry"\)/);
   assert.match(gateway, /s\.onclose=/);

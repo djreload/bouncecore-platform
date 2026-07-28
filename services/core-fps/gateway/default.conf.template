@@ -13,6 +13,20 @@ map $arg_cmd $core_launch_redirect {
   "" "/?lobbyMap=$arg_lobbyMap";
 }
 
+map $uri $core_cache_control {
+  default "";
+  "/" "no-cache, no-store, must-revalidate";
+  "/index.js" "no-cache, no-store, must-revalidate";
+  ~^/game/ "no-cache, no-store, must-revalidate";
+  ~^/worker\.[a-f0-9]+\.js$ "no-cache, no-store, must-revalidate";
+}
+
+map $uri $core_expires {
+  default "";
+  "/" "0";
+  ~^/game/ "0";
+}
+
 server {
   listen 8080;
   server_name _;
@@ -26,6 +40,8 @@ server {
   add_header Referrer-Policy "no-referrer" always;
   add_header X-Content-Type-Options "nosniff" always;
   add_header Set-Cookie $core_ticket_cookie always;
+  add_header Cache-Control $core_cache_control always;
+  add_header Expires $core_expires always;
 
   location = /healthz {
     access_log off;
@@ -48,8 +64,6 @@ server {
 
   location = / {
     access_log off;
-    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
-    add_header Expires "0" always;
 
     if ($arg_ticket != "") {
       return 302 $core_launch_redirect;
@@ -105,7 +119,6 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
-    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
     sub_filter_types application/javascript text/javascript;
     sub_filter_once on;
     sub_filter 's.onopen=()=>{const{current:e}=l;' 's.onopen=()=>{sessionStorage.removeItem("coreWsRetry");const{current:e}=l;';
@@ -124,8 +137,6 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
-    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
-    add_header Expires "0" always;
   }
 
   location ~ ^/worker\.[a-f0-9]+\.js$ {
@@ -137,7 +148,6 @@ server {
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
     proxy_set_header X-Forwarded-Proto $scheme;
-    add_header Cache-Control "no-cache, no-store, must-revalidate" always;
     sub_filter_types application/javascript text/javascript;
     sub_filter_once on;
     sub_filter 'async function fn(t,n){const e=new XMLHttpRequest;return e.open("GET",t,!0),e.responseType="arraybuffer",e.onprogress=t=>{t.lengthComputable&&n(Q.downloading({downloadedBytes:t.loaded,totalBytes:t.total}))},e.onerror=function(n){throw new un("NetworkError for: "+t)},new Promise(((t,n)=>{e.onload=function(n){if(!(200==e.status||304==e.status||206==e.status||0==e.status&&e.response))throw new un(e.statusText+" : "+e.responseURL);t(e.response)},e.send(null)}))}' 'async function fn(t,n){for(let r=0;;r++)try{return await new Promise(((r,o)=>{const e=new XMLHttpRequest,i=()=>o(new un("NetworkError for: "+t));e.open("GET",t,!0),e.responseType="arraybuffer",e.onprogress=t=>{t.lengthComputable&&n(Q.downloading({downloadedBytes:t.loaded,totalBytes:t.total}))},e.onerror=i,e.onabort=i,e.onload=()=>{200==e.status||304==e.status||206==e.status||0==e.status&&e.response?r(e.response):o(new un(e.statusText+" : "+e.responseURL))},e.send(null)}))}catch(e){await new Promise((t=>setTimeout(t,Math.min(1e4,1e3*(r+1)))))} }';
