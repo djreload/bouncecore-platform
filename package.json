@@ -33,19 +33,19 @@
     "stream:smoke:dual-temp-keys": "powershell -ExecutionPolicy Bypass -File scripts/stream-dual-smoke-with-temp-keys.ps1"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "7.8.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "7.9.1",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "dotenv": "17.2.3",
     "hls.js": "^1.6.16",
     "lucide-react": "1.17.0",
-    "next": "16.2.9",
+    "next": "16.2.12",
     "pg": "^8.21.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "redis": "^6.0.0",
-    "sharp": "0.34.5",
+    "sharp": "0.35.3",
     "tailwind-merge": "3.6.0",
     "zod": "4.4.3"
   },
@@ -56,16 +56,17 @@
     "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
-    "prisma": "7.8.0",
+    "eslint-config-next": "16.2.12",
+    "prisma": "7.9.1",
     "tailwindcss": "4.3.0",
     "tsx": "^4.22.3",
     "typescript": "6.0.3"
   },
   "overrides": {
-    "@hono/node-server": "1.19.13",
+    "@hono/node-server": "2.0.12",
     "hono": "4.12.27",
-    "postcss": "8.5.16"
+    "postcss": "8.5.24",
+    "sharp": "0.35.3"
   },
   "engines": {
     "node": ">=24.0.0",
