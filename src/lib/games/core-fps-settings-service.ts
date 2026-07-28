@@ -12,7 +12,8 @@ import {
 import {
   coreFpsDefaultLobbyWaitSeconds,
   normalizeCoreFpsLobbyWaitSeconds,
-  normalizeCoreFpsMapPool
+  normalizeCoreFpsMapPool,
+  normalizeCoreFpsModePool
 } from "@/lib/games/core-fps-lobby-core";
 import { getOrCreateCoreFpsSession } from "@/lib/games/core-fps-score-service";
 
@@ -22,6 +23,7 @@ export type CoreFpsSettings = {
   enabled: boolean;
   lobbyWaitSeconds: number;
   mapPool: string[];
+  modePool: string[];
   publicUrl: string | null;
 };
 
@@ -29,6 +31,7 @@ export type CoreFpsSettingsInput = {
   enabled: boolean;
   lobbyWaitSeconds?: number | string;
   mapPool?: string[];
+  modePool?: string[];
   publicUrl?: string;
 };
 
@@ -46,6 +49,7 @@ function defaultSettings(): CoreFpsSettings {
     enabled: envEnabled(),
     lobbyWaitSeconds: coreFpsDefaultLobbyWaitSeconds,
     mapPool: normalizeCoreFpsMapPool(undefined),
+    modePool: normalizeCoreFpsModePool(undefined),
     publicUrl: normalizeCoreFpsPublicUrl(process.env.CORE_FPS_PUBLIC_URL)
   };
 }
@@ -72,6 +76,7 @@ function mergeSettings(value: unknown): CoreFpsSettings {
     enabled: typeof stored.enabled === "boolean" ? stored.enabled : defaults.enabled,
     lobbyWaitSeconds: normalizeCoreFpsLobbyWaitSeconds(stored.lobbyWaitSeconds),
     mapPool: normalizeCoreFpsMapPool(stored.mapPool),
+    modePool: normalizeCoreFpsModePool(stored.modePool),
     publicUrl
   };
 }
@@ -143,6 +148,7 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
     enabled: input.enabled,
     lobbyWaitSeconds: normalizeCoreFpsLobbyWaitSeconds(input.lobbyWaitSeconds),
     mapPool: normalizeCoreFpsMapPool(input.mapPool),
+    modePool: normalizeCoreFpsModePool(input.modePool),
     publicUrl: input.publicUrl
       ? assertIsolatedCoreFpsOrigin(input.publicUrl, process.env.NEXT_PUBLIC_APP_URL)
       : null
@@ -190,6 +196,7 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
       enabled: settings.enabled,
       lobbyWaitSeconds: settings.lobbyWaitSeconds,
       mapPool: settings.mapPool,
+      modePool: settings.modePool,
       publicUrl: settings.publicUrl
     }
   });
@@ -202,6 +209,7 @@ export async function createCoreFpsLaunch(
   lobby: {
     id: string;
     mapName: string;
+    modeName: string;
   }
 ) {
   const settings = await getPublicCoreFpsSettings();
@@ -232,10 +240,12 @@ export async function createCoreFpsLaunch(
       settings.publicUrl,
       ticket,
       session.runtimePlayerName,
-      lobby.mapName
+      lobby.mapName,
+      lobby.modeName
     ),
     lobbyId: lobby.id,
     mapName: lobby.mapName,
+    modeName: lobby.modeName,
     publicUrl: settings.publicUrl,
     sessionId: session.id
   };

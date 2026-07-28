@@ -84,6 +84,13 @@ LABEL uk.co.bouncecore.component="core-fps-runtime"
 
 COPY --from=builder /out/sour /opt/core/sour
 COPY core.yaml /opt/core/core.yaml
+COPY brand_flags.py /tmp/brand_flags.py
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends fonts-dejavu-core python3-cbor2 python3-pil \
+  && python3 /tmp/brand_flags.py \
+  && apt-get purge -y --auto-remove fonts-dejavu-core python3-cbor2 python3-pil \
+  && rm -rf /var/lib/apt/lists/* /tmp/brand_flags.py
 
 RUN groupadd --system --gid 10001 corefps \
   && useradd --system --uid 10001 --gid corefps --home-dir /var/cache/sour --shell /usr/sbin/nologin corefps \

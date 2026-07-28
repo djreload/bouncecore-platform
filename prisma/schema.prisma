@@ -607,6 +607,7 @@ model CoreFpsLobby {
   createdById   String
   status        String                    @default("waiting")
   mapName       String
+  modeName      String                    @default("ffa")
   joinDeadline  DateTime
   startedAt     DateTime?
   endedAt       DateTime?
@@ -629,11 +630,15 @@ model CoreFpsLobbyParticipant {
   joinedAt   DateTime     @default(now())
   lastSeenAt DateTime     @default(now())
   leftAt     DateTime?
+  mapVote    String?
+  modeVote   String?
   lobby      CoreFpsLobby @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
   user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([lobbyId, userId])
   @@index([lobbyId, leftAt, lastSeenAt])
+  @@index([lobbyId, mapVote])
+  @@index([lobbyId, modeVote])
   @@index([userId, lastSeenAt])
 }
 

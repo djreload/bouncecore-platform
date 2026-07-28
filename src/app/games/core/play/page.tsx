@@ -58,8 +58,14 @@ export default async function CoreFpsPlayPage({ searchParams }: CoreFpsPlayPageP
       requestedLobbyId: invite,
       user
     });
-    launch = await createCoreFpsLaunch(user, lobby);
     initialLobby = await getCoreFpsLobbyState(lobby.id, user.id);
+    if (initialLobby.status === "active") {
+      launch = await createCoreFpsLaunch(user, {
+        id: initialLobby.id,
+        mapName: initialLobby.mapName,
+        modeName: initialLobby.modeName
+      });
+    }
   } catch (error) {
     launchError = error instanceof Error ? error.message : "Core FPS could not start.";
   }
@@ -87,12 +93,11 @@ export default async function CoreFpsPlayPage({ searchParams }: CoreFpsPlayPageP
           </div>
         </div>
 
-        {launch && initialLobby ? (
+        {initialLobby ? (
           <div className="relative min-h-0 flex-1 bg-black">
             <CoreFpsLobbyStage
               initialLobby={initialLobby}
-              launchUrl={launch.launchUrl}
-              sessionId={launch.sessionId}
+              initialLaunch={launch}
             />
           </div>
         ) : (

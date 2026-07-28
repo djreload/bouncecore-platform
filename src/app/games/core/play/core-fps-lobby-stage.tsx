@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Clock3, Gamepad2, LogOut, Map, MessageCircle, RefreshCw, Send, Trophy, UserRoundPlus, Users, X } from "lucide-react";
+import { Check, Clock3, Flag, Gamepad2, LoaderCircle, LogOut, Map, MessageCircle, RefreshCw, Send, Swords, Trophy, UserRoundPlus, Users, Vote, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CoreFpsGameFrame } from "@/app/games/core/play/core-fps-game-frame";
 import { CoreFpsPresenceTracker } from "@/app/games/core/play/core-fps-presence-tracker";
@@ -12,8 +12,10 @@ import { cn } from "@/lib/utils";
 
 type CoreFpsLobbyStageProps = {
   initialLobby: CoreFpsLobbyPublicState;
-  launchUrl: string;
-  sessionId: string;
+  initialLaunch: {
+    launchUrl: string;
+    sessionId: string;
+  } | null;
 };
 
 function remainingSeconds(deadline: string) {
@@ -40,16 +42,18 @@ function PersonAvatar({
 
 export function CoreFpsLobbyStage({
   initialLobby,
-  launchUrl,
-  sessionId
+  initialLaunch
 }: CoreFpsLobbyStageProps) {
   const [lobby, setLobby] = useState(initialLobby);
+  const [launch, setLaunch] = useState(initialLaunch);
+  const [launchError, setLaunchError] = useState<string | null>(null);
   const [seconds, setSeconds] = useState(() => remainingSeconds(initialLobby.joinDeadline));
   const [invitePanelOpen, setInvitePanelOpen] = useState(initialLobby.status === "waiting");
   const [invitePending, setInvitePending] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [votePending, setVotePending] = useState<string | null>(null);
   const lobbyEndpoint = `/api/games/core/lobbies/${encodeURIComponent(initialLobby.id)}`;
 
   const refreshLobby = useCallback(async () => {
@@ -87,6 +91,46 @@ export function CoreFpsLobbyStage({
 
     return () => window.clearInterval(poll);
   }, [refreshLobby]);
+
+  useEffect(() => {
+    if (lobby.status !== "active" || launch || launchError) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void fetch(`${lobbyEndpoint}/launch`, {
+      cache: "no-store",
+      credentials: "same-origin",
+      method: "POST"
+    })
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          error?: string;
+          launch?: {
+            launchUrl: string;
+            sessionId: string;
+          };
+        };
+
+        if (!response.ok || !payload.launch) {
+          throw new Error(payload.error ?? "The winning arena could not launch.");
+        }
+
+        if (!cancelled) {
+          setLaunch(payload.launch);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setLaunchError(error instanceof Error ? error.message : "The winning arena could not launch.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [launch, launchError, lobby.status, lobbyEndpoint]);
 
   useEffect(() => {
     const leave = () => {
@@ -196,15 +240,74 @@ export function CoreFpsLobbyStage({
     [lobbyEndpoint, refreshLobby]
   );
 
+  const castVote = useCallback(
+    async (kind: "map" | "mode", value: string) => {
+      const pendingKey = `${kind}:${value}`;
+      setVotePending(pendingKey);
+      setFeedback(null);
+
+      try {
+        const response = await fetch(`${lobbyEndpoint}/vote`, {
+          body: JSON.stringify(kind === "map" ? { mapName: value } : { modeName: value }),
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          method: "POST"
+        });
+        const payload = (await response.json()) as {
+          error?: string;
+          lobby?: CoreFpsLobbyPublicState;
+        };
+
+        if (!response.ok || !payload.lobby) {
+          throw new Error(payload.error ?? "Your vote could not be saved.");
+        }
+
+        setLobby(payload.lobby);
+        setFeedback("Vote saved.");
+      } catch (error) {
+        setFeedback(error instanceof Error ? error.message : "Your vote could not be saved.");
+      } finally {
+        setVotePending(null);
+      }
+    },
+    [lobbyEndpoint]
+  );
+
   const active = lobby.status === "active";
 
   return (
     <div className="absolute inset-0 overflow-hidden bg-black">
-      {active ? (
+      {active && launch ? (
         <>
-          <CoreFpsPresenceTracker sessionId={sessionId} />
-          <CoreFpsGameFrame launchUrl={launchUrl} />
+          <CoreFpsPresenceTracker sessionId={launch.sessionId} />
+          <CoreFpsGameFrame launchUrl={launch.launchUrl} />
         </>
+      ) : active ? (
+        <div className="absolute inset-0 grid place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(0,213,255,0.12),transparent_42%),#03040a] px-4">
+          <section className="w-full max-w-lg border-y border-bc-line bg-bc-panel/95 px-5 py-8 text-center">
+            <LoaderCircle className="mx-auto h-10 w-10 animate-spin text-bc-electric" aria-hidden="true" />
+            <Badge className="mt-4" tone="cyan">Vote locked</Badge>
+            <h2 className="mt-4 text-2xl font-black">
+              {lobby.modeVotes.find((option) => option.id === lobby.modeName)?.displayName ?? "Arena"} on{" "}
+              <span className="capitalize">{lobby.mapName}</span>
+            </h2>
+            <p className="mt-2 text-sm text-bc-muted">
+              Preparing the signed match connection for every player.
+            </p>
+            {launchError ? (
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-bc-amber">{launchError}</p>
+                <Button className="mt-3" onClick={() => setLaunchError(null)} size="sm" type="button" variant="ghost">
+                  <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                  Retry launch
+                </Button>
+              </div>
+            ) : null}
+          </section>
+        </div>
       ) : lobby.status === "completed" ? (
         <div className="absolute inset-0 grid place-items-center overflow-y-auto bg-[radial-gradient(circle_at_50%_35%,rgba(166,255,0,0.12),transparent_40%),#03040a] px-4 py-6">
           <section className="w-full max-w-xl border-y border-bc-line bg-bc-panel/95 px-5 py-8 text-center md:px-8">
@@ -261,6 +364,12 @@ export function CoreFpsLobbyStage({
                 </div>
               </div>
 
+              <LobbyVotePanel
+                lobby={lobby}
+                onVote={castVote}
+                votePending={votePending}
+              />
+
               <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,360px)]">
                 <div>
                   <div className="flex items-center gap-2">
@@ -275,11 +384,6 @@ export function CoreFpsLobbyStage({
                         <span className="ml-auto h-2.5 w-2.5 rounded-full bg-bc-acid shadow-[0_0_10px_rgba(166,255,0,0.7)]" title="Ready" />
                       </article>
                     ))}
-                  </div>
-                  <div className="mt-4 flex items-center gap-2 rounded-md border border-bc-line bg-bc-ink p-3 text-sm">
-                    <Map className="h-4 w-4 text-bc-pink" aria-hidden="true" />
-                    <span className="text-bc-muted">Random map:</span>
-                    <strong className="capitalize">{lobby.mapName}</strong>
                   </div>
                 </div>
 
@@ -342,6 +446,116 @@ export function CoreFpsLobbyStage({
         </div>
       ) : null}
     </div>
+  );
+}
+
+function LobbyVotePanel({
+  lobby,
+  onVote,
+  votePending
+}: {
+  lobby: CoreFpsLobbyPublicState;
+  onVote: (kind: "map" | "mode", value: string) => Promise<void>;
+  votePending: string | null;
+}) {
+  return (
+    <section className="mt-6 border-y border-bc-line py-5" aria-labelledby="core-fps-vote-title">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Vote className="h-5 w-5 text-bc-acid" aria-hidden="true" />
+          <h3 className="font-black" id="core-fps-vote-title">Vote for the match</h3>
+        </div>
+        <span className="text-xs font-semibold text-bc-muted">One map vote and one mode vote per player</span>
+      </div>
+
+      <div className="mt-4 grid gap-5 lg:grid-cols-2">
+        <fieldset>
+          <legend className="flex items-center gap-2 text-xs font-black uppercase text-bc-muted">
+            <Swords className="h-4 w-4 text-bc-electric" aria-hidden="true" />
+            Game mode
+          </legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {lobby.modeVotes.map((option) => {
+              const pending = votePending === `mode:${option.id}`;
+              const Icon = option.id === "ctf" ? Flag : Swords;
+
+              return (
+                <button
+                  aria-pressed={option.selected}
+                  className={cn(
+                    "bc-focus-ring relative min-h-24 rounded-md border px-3 py-3 text-left transition-colors",
+                    option.selected
+                      ? "border-bc-acid bg-bc-acid/10 text-white"
+                      : "border-bc-line bg-bc-ink text-white hover:border-bc-electric/60 hover:bg-bc-electric/5"
+                  )}
+                  disabled={!lobby.votingOpen || Boolean(votePending)}
+                  key={option.id}
+                  onClick={() => void onVote("mode", option.id)}
+                  type="button"
+                >
+                  <span className="flex items-start justify-between gap-2">
+                    <Icon className={cn("h-4 w-4", option.id === "ctf" ? "text-bc-pink" : "text-bc-electric")} aria-hidden="true" />
+                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black/35 px-1.5 py-0.5 text-[10px] font-black tabular-nums">
+                      {option.votes}
+                    </span>
+                  </span>
+                  <span className="mt-2 block text-xs font-black">{option.displayName}</span>
+                  <span className="mt-1 block text-[10px] leading-4 text-bc-muted">{option.description}</span>
+                  {option.selected ? (
+                    <Check className="absolute bottom-2 right-2 h-3.5 w-3.5 text-bc-acid" aria-label="Your vote" />
+                  ) : pending ? (
+                    <LoaderCircle className="absolute bottom-2 right-2 h-3.5 w-3.5 animate-spin text-bc-electric" aria-hidden="true" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="flex items-center gap-2 text-xs font-black uppercase text-bc-muted">
+            <Map className="h-4 w-4 text-bc-pink" aria-hidden="true" />
+            Arena map
+          </legend>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {lobby.mapVotes.map((option) => {
+              const pending = votePending === `map:${option.id}`;
+
+              return (
+                <button
+                  aria-pressed={option.selected}
+                  className={cn(
+                    "bc-focus-ring relative min-h-20 rounded-md border px-3 py-3 text-left transition-colors",
+                    option.selected
+                      ? "border-bc-pink bg-bc-pink/10 text-white"
+                      : "border-bc-line bg-bc-ink text-white hover:border-bc-pink/60 hover:bg-bc-pink/5"
+                  )}
+                  disabled={!lobby.votingOpen || Boolean(votePending)}
+                  key={option.id}
+                  onClick={() => void onVote("map", option.id)}
+                  type="button"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black">{option.displayName}</span>
+                    <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-black/35 px-1.5 py-0.5 text-[10px] font-black tabular-nums">
+                      {option.votes}
+                    </span>
+                  </span>
+                  <span className="mt-1 block pr-5 text-[10px] leading-4 text-bc-muted">
+                    {option.description}
+                  </span>
+                  {option.selected ? (
+                    <Check className="absolute bottom-2 right-2 h-3.5 w-3.5 text-bc-pink" aria-label="Your vote" />
+                  ) : pending ? (
+                    <LoaderCircle className="absolute bottom-2 right-2 h-3.5 w-3.5 animate-spin text-bc-pink" aria-hidden="true" />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      </div>
+    </section>
   );
 }
 

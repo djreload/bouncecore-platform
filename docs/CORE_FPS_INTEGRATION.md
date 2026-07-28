@@ -5,8 +5,8 @@ from the main Bouncecore application.
 
 It is Bouncecore's second chat game, not a replacement for Rave Wars. When
 enabled, every signed-in chat user gets a `Core FPS` action in the chat tools
-menu. That action opens `/games/core`, where all players enter Core's shared
-default lobby. Core has its own runtime, controls, route, and operational
+menu. That action opens `/games/core`, where players join a shared countdown
+lobby and vote for the next map and game mode. Core has its own runtime, controls, route, and operational
 lifecycle; enabling or stopping it does not alter active Rave War matches.
 
 ## 1. Create DNS and TLS
@@ -115,14 +115,23 @@ should return `401`.
 4. Enable the launcher.
 5. Open `/games/core` while signed in, or select `Core FPS` from the chat tools
    menu.
-6. Press `Start game`. Gameplay opens at `/games/core/play`; the hub remains
+6. Select the maps and modes available to lobby voters.
+7. Press `Start game`. Gameplay opens at `/games/core/play`; the hub remains
    the home for controls, personal history, and the verified leaderboard.
 
-Every launch runs `join lobby` after assigning the signed runtime player name,
-so `Start game` enters the persistent shared FFA arena instead of opening only
-the random-map menu. Click the game canvas once to capture keyboard and mouse
-input. Use `WASD` to move, the mouse to aim, left click to fire, and `Esc` to
-release the pointer.
+The lobby supports `Free For All`, `Team Deathmatch`, and `Capture the Flag`.
+Each signed-in participant gets one live map vote and one live mode vote.
+Votes lock authoritatively at the end of the countdown; plurality wins and a
+tie retains the lobby's seeded choice. CTF is limited to maps with valid red
+and blue flag bases (`dust2` and `xmwhub` in the bundled runtime), so an
+incompatible map vote cannot launch a broken CTF match.
+
+The launch command joins the isolated runtime space for the winning mode after
+assigning the signed runtime player name. CTF uses branded red and blue
+Bouncecore flag cloth while retaining the engine's original models and UV
+layout. Click the game canvas once to capture keyboard and mouse input. Use
+`WASD` to move, the mouse to aim, left click to fire, and `Esc` to release the
+pointer.
 
 The launcher creates a two-hour signed ticket and opens the game in a
 cross-origin sandbox. The gateway moves the ticket into a Secure, HttpOnly

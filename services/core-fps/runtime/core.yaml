@@ -12,6 +12,7 @@ server:
           - "turbine"
           - "complex"
           - "dust2"
+          - "xmwhub"
     - name: "ffa"
       config:
         defaultMode: "ffa"
@@ -20,6 +21,7 @@ server:
           - "turbine"
           - "complex"
           - "dust2"
+          - "xmwhub"
     - name: "insta"
       config:
         defaultMode: "insta"
@@ -28,6 +30,23 @@ server:
           - "turbine"
           - "complex"
           - "dust2"
+          - "xmwhub"
+    - name: "team-deathmatch"
+      config:
+        defaultMode: "teamplay"
+        defaultMap: "complex"
+        maps:
+          - "turbine"
+          - "complex"
+          - "dust2"
+          - "xmwhub"
+    - name: "capture-the-flag"
+      config:
+        defaultMode: "ctf"
+        defaultMap: "dust2"
+        maps:
+          - "dust2"
+          - "xmwhub"
   spaces:
     - preset: "ffa"
       votingCreates: false
@@ -36,6 +55,14 @@ server:
     - preset: "insta"
       config:
         alias: "insta"
+    - preset: "team-deathmatch"
+      votingCreates: false
+      config:
+        alias: "lobby-tdm"
+    - preset: "capture-the-flag"
+      votingCreates: false
+      config:
+        alias: "lobby-ctf"
   ingress:
     desktop: []
     web:

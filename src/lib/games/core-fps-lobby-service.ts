@@ -2,13 +2,21 @@ import { Prisma } from "@prisma/client";
 import { getPublicChatPresence } from "@/lib/chat/chat-service";
 import { prisma } from "@/lib/db/prisma";
 import {
+  buildCoreFpsVoteOptions,
+  coreFpsModeDefinition,
   coreFpsLobbyIsReusable,
   coreFpsLobbyPresenceWindowMs,
   coreFpsLobbyShouldStart,
+  coreFpsMapsForMode,
+  normalizeCoreFpsMode,
   pickRandomCoreFpsMap,
+  resolveCoreFpsVote,
   shortenedCoreFpsLobbyDeadline
 } from "@/lib/games/core-fps-lobby-core";
-import { getPublicCoreFpsSettings } from "@/lib/games/core-fps-settings-service";
+import {
+  getPublicCoreFpsSettings,
+  type CoreFpsSettings
+} from "@/lib/games/core-fps-settings-service";
 
 const reusableStatuses = ["active", "waiting"];
 
@@ -21,6 +29,11 @@ type JoinCoreFpsLobbyInput = {
   requestedLobbyId?: string | null;
   roomId?: string | null;
   user: CoreFpsLobbyUser;
+};
+
+type CoreFpsLobbyVoteInput = {
+  mapName?: unknown;
+  modeName?: unknown;
 };
 
 function participantCutoff(now: Date) {
@@ -123,6 +136,7 @@ async function reusableLobby(
         id: candidate.id,
         joinDeadline: candidate.joinDeadline,
         mapName: candidate.mapName,
+        modeName: candidate.modeName,
         roomId: candidate.roomId,
         startedAt: candidate.startedAt,
         status: candidate.status,
@@ -147,6 +161,7 @@ async function reusableLobby(
 async function reconcileLobby(
   transaction: Prisma.TransactionClient,
   lobbyId: string,
+  settings: Pick<CoreFpsSettings, "mapPool" | "modePool">,
   now: Date
 ) {
   const participantCount = await transaction.coreFpsLobbyParticipant.count({
@@ -192,8 +207,35 @@ async function reconcileLobby(
   }
 
   if (participantCount > 0 && coreFpsLobbyShouldStart(lobby.status, lobby.joinDeadline, now)) {
+    const votes = await transaction.coreFpsLobbyParticipant.findMany({
+      select: {
+        mapVote: true,
+        modeVote: true
+      },
+      where: {
+        leftAt: null,
+        lastSeenAt: {
+          gte: participantCutoff(now)
+        },
+        lobbyId
+      }
+    });
+    const modeName = resolveCoreFpsVote(
+      votes.map((vote) => vote.modeVote),
+      settings.modePool,
+      lobby.modeName
+    );
+    const compatibleMaps = coreFpsMapsForMode(settings.mapPool, modeName);
+    const mapName = resolveCoreFpsVote(
+      votes.map((vote) => vote.mapVote),
+      compatibleMaps,
+      lobby.mapName
+    );
+
     lobby = await transaction.coreFpsLobby.update({
       data: {
+        mapName,
+        modeName,
         startedAt: now,
         status: "active"
       },
@@ -234,6 +276,7 @@ export async function joinCoreFpsLobby(input: JoinCoreFpsLobbyInput) {
           createdById: input.user.id,
           joinDeadline: new Date(now.getTime() + settings.lobbyWaitSeconds * 1000),
           mapName: pickRandomCoreFpsMap(settings.mapPool),
+          modeName: coreFpsModeDefinition(settings.modePool[0]).id,
           roomId
         }
       });
@@ -256,12 +299,13 @@ export async function joinCoreFpsLobby(input: JoinCoreFpsLobbyInput) {
         }
       }
     });
-    const reconciled = await reconcileLobby(transaction, lobby.id, now);
+    const reconciled = await reconcileLobby(transaction, lobby.id, settings, now);
 
     return {
       id: reconciled.lobby.id,
       joinDeadline: reconciled.lobby.joinDeadline,
       mapName: reconciled.lobby.mapName,
+      modeName: coreFpsModeDefinition(reconciled.lobby.modeName).id,
       participantCount: reconciled.participantCount,
       participantJoinedAt: participant.joinedAt,
       roomId: reconciled.lobby.roomId,
@@ -273,7 +317,10 @@ export async function joinCoreFpsLobby(input: JoinCoreFpsLobbyInput) {
 
 export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
   const now = new Date();
+  const settings = await getPublicCoreFpsSettings();
   const reconciled = await prisma.$transaction(async (transaction) => {
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bouncecore-core-fps-lobby:${lobbyId}`}))`;
+
     const participant = await transaction.coreFpsLobbyParticipant.updateMany({
       data: {
         lastSeenAt: now,
@@ -290,7 +337,7 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
       throw new Error("Join this Core FPS lobby before viewing its status.");
     }
 
-    const result = await reconcileLobby(transaction, lobbyId, now);
+    const result = await reconcileLobby(transaction, lobbyId, settings, now);
     const participants = await transaction.coreFpsLobbyParticipant.findMany({
       orderBy: {
         joinedAt: "asc"
@@ -298,6 +345,8 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
       select: {
         joinedAt: true,
         lastSeenAt: true,
+        mapVote: true,
+        modeVote: true,
         user: {
           select: {
             displayName: true,
@@ -326,6 +375,9 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
   });
   const presenceUsers = await getPublicChatPresence(reconciled.lobby.roomId, userId);
   const participantIds = new Set(reconciled.participants.map((participant) => participant.user.id));
+  const currentParticipant = reconciled.participants.find((participant) => participant.user.id === userId);
+  const mapVotes = reconciled.participants.map((participant) => participant.mapVote);
+  const modeVotes = reconciled.participants.map((participant) => participant.modeVote);
 
   return {
     availableInvitees: presenceUsers
@@ -338,6 +390,19 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
     id: reconciled.lobby.id,
     joinDeadline: reconciled.lobby.joinDeadline.toISOString(),
     mapName: reconciled.lobby.mapName,
+    mapVotes: buildCoreFpsVoteOptions(
+      settings.mapPool,
+      mapVotes,
+      currentParticipant?.mapVote,
+      "map"
+    ),
+    modeName: coreFpsModeDefinition(reconciled.lobby.modeName).id,
+    modeVotes: buildCoreFpsVoteOptions(
+      settings.modePool,
+      modeVotes,
+      currentParticipant?.modeVote,
+      "mode"
+    ),
     participants: reconciled.participants.map((participant) => ({
       avatarUrl: participant.user.profile?.avatarUrl ?? null,
       displayName: participant.user.displayName,
@@ -347,14 +412,81 @@ export async function getCoreFpsLobbyState(lobbyId: string, userId: string) {
     })),
     roomId: reconciled.lobby.roomId,
     startedAt: reconciled.lobby.startedAt?.toISOString() ?? null,
-    status: reconciled.lobby.status as "active" | "completed" | "waiting"
+    status: reconciled.lobby.status as "active" | "completed" | "waiting",
+    votingOpen: reconciled.lobby.status === "waiting"
   };
+}
+
+export async function castCoreFpsLobbyVote(
+  lobbyId: string,
+  userId: string,
+  input: CoreFpsLobbyVoteInput
+) {
+  const settings = await getPublicCoreFpsSettings();
+  const hasMapVote = Object.prototype.hasOwnProperty.call(input, "mapName");
+  const hasModeVote = Object.prototype.hasOwnProperty.call(input, "modeName");
+
+  if (!hasMapVote && !hasModeVote) {
+    throw new Error("Choose a map or game mode to vote.");
+  }
+
+  const mapName = hasMapVote && typeof input.mapName === "string"
+    ? input.mapName.trim().toLowerCase()
+    : null;
+  const modeName = hasModeVote ? normalizeCoreFpsMode(input.modeName) : null;
+
+  if (hasMapVote && (!mapName || !settings.mapPool.includes(mapName))) {
+    throw new Error("That map is not available in this lobby.");
+  }
+
+  if (hasModeVote && (!modeName || !settings.modePool.includes(modeName))) {
+    throw new Error("That game mode is not available in this lobby.");
+  }
+
+  const now = new Date();
+  await prisma.$transaction(async (transaction) => {
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bouncecore-core-fps-lobby:${lobbyId}`}))`;
+
+    const lobby = await transaction.coreFpsLobby.findUnique({
+      select: {
+        status: true
+      },
+      where: {
+        id: lobbyId
+      }
+    });
+
+    if (!lobby || lobby.status !== "waiting") {
+      throw new Error("Voting has closed for this match.");
+    }
+
+    const updated = await transaction.coreFpsLobbyParticipant.updateMany({
+      data: {
+        ...(hasMapVote ? { mapVote: mapName } : {}),
+        ...(hasModeVote ? { modeVote: modeName } : {}),
+        lastSeenAt: now
+      },
+      where: {
+        leftAt: null,
+        lobbyId,
+        userId
+      }
+    });
+
+    if (!updated.count) {
+      throw new Error("Join this lobby before voting.");
+    }
+  });
+
+  return getCoreFpsLobbyState(lobbyId, userId);
 }
 
 export async function leaveCoreFpsLobby(lobbyId: string, userId: string) {
   const now = new Date();
+  const settings = await getPublicCoreFpsSettings();
 
   return prisma.$transaction(async (transaction) => {
+    await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bouncecore-core-fps-lobby:${lobbyId}`}))`;
     const participant = await transaction.coreFpsLobbyParticipant.updateMany({
       data: {
         lastSeenAt: now,
@@ -374,7 +506,7 @@ export async function leaveCoreFpsLobby(lobbyId: string, userId: string) {
       };
     }
 
-    const reconciled = await reconcileLobby(transaction, lobbyId, now);
+    const reconciled = await reconcileLobby(transaction, lobbyId, settings, now);
 
     return {
       left: true,
@@ -394,6 +526,7 @@ export async function authorizeCoreFpsLobbySession(input: {
         select: {
           id: true,
           mapName: true,
+          modeName: true,
           status: true
         }
       }
@@ -422,4 +555,33 @@ export async function authorizeCoreFpsLobbySession(input: {
   }
 
   return session.lobby;
+}
+
+export async function getCoreFpsLobbyForLaunch(lobbyId: string, userId: string) {
+  const lobby = await prisma.coreFpsLobby.findFirst({
+    select: {
+      id: true,
+      mapName: true,
+      modeName: true
+    },
+    where: {
+      id: lobbyId,
+      participants: {
+        some: {
+          lastSeenAt: {
+            gte: participantCutoff(new Date())
+          },
+          leftAt: null,
+          userId
+        }
+      },
+      status: "active"
+    }
+  });
+
+  if (!lobby) {
+    throw new Error("This Core FPS match has not started or your lobby presence expired.");
+  }
+
+  return lobby;
 }

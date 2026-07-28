@@ -10,7 +10,10 @@ import {
   coreFpsInviteActionUrl,
   getCoreFpsInviteRecipientIds
 } from "@/lib/games/core-fps-invite-core";
-import { coreFpsLobbyPresenceWindowMs } from "@/lib/games/core-fps-lobby-core";
+import {
+  coreFpsLobbyPresenceWindowMs,
+  coreFpsModeDefinition
+} from "@/lib/games/core-fps-lobby-core";
 import { joinCoreFpsLobby } from "@/lib/games/core-fps-lobby-service";
 import { queueMobilePushForNotification } from "@/lib/mobile/account-notification-push-service";
 
@@ -156,13 +159,17 @@ export async function sendCoreFpsLobbyInvites(input: SendCoreFpsLobbyInvitesInpu
   const recentIds = new Set(recentlyInvited.map((notification) => notification.userId));
   const freshRecipientIds = recipientIds.filter((userId) => !recentIds.has(userId));
   const invitationBatchId = randomUUID();
+  const modeDisplayName = coreFpsModeDefinition(lobby.modeName).displayName;
   const result = await prisma.$transaction(async (transaction) => {
     const notifications = await Promise.all(
       freshRecipientIds.map((userId) =>
         transaction.notification.create({
           data: {
             actionUrl,
-            body: `Join ${actor.displayName} and the other players on ${lobby.mapName}.`,
+            body:
+              lobby.status === "waiting"
+                ? `Join ${actor.displayName}, then vote for the map and game mode before the countdown ends.`
+                : `Join ${actor.displayName} in ${modeDisplayName} on ${lobby.mapName}.`,
             dedupeKey: `chat.core_fps.invite:${invitationBatchId}:user:${userId}`,
             title: `${actor.displayName} invited you to Core FPS`,
             type: "chat.core_fps.invite",
@@ -181,8 +188,8 @@ export async function sendCoreFpsLobbyInvites(input: SendCoreFpsLobbyInvitesInpu
             data: {
               body:
                 lobby.status === "waiting"
-                  ? `${actor.displayName} opened a Core FPS lobby on ${lobby.mapName}. Join before the countdown ends.`
-                  : `${actor.displayName} invited online chatters to the active Core FPS game on ${lobby.mapName}.`,
+                  ? `${actor.displayName} opened a Core FPS lobby. Join and vote for the map and game mode before the countdown ends.`
+                  : `${actor.displayName} invited online chatters to ${modeDisplayName} on ${lobby.mapName}.`,
               kind: "core-fps",
               mediaSource: "core-fps-invite",
               mediaSourceId: lobby.id,
@@ -209,6 +216,7 @@ export async function sendCoreFpsLobbyInvites(input: SendCoreFpsLobbyInvitesInpu
       freshInviteCount: freshRecipientIds.length,
       lobbyId: lobby.id,
       mapName: lobby.mapName,
+      modeName: lobby.modeName,
       pushSummary,
       repeatInviteCount: recipientIds.length - freshRecipientIds.length,
       roomSlug: lobby.room.slug,

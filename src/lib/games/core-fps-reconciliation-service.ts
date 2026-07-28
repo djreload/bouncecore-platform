@@ -222,6 +222,7 @@ export async function reconcileCoreFpsLifecycle(now = new Date()) {
           body: buildCoreFpsResultBody({
             leader,
             mapName: lobby.mapName,
+            modeName: lobby.modeName,
             playerCount: leaders.length
           }),
           kind: "core-fps",

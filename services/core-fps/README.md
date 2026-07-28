@@ -43,5 +43,11 @@ Bouncecore keeps the public game hub separate from gameplay:
 - `/api/internal/games/core/telemetry` accepts score snapshots only with the
   independent telemetry secret.
 
+The Bouncecore lobby votes into three fixed runtime spaces: Free For All,
+Team Deathmatch, and Capture the Flag. The selected map and mode are locked in
+PostgreSQL before launch, and the browser receives only the corresponding
+signed join command. CTF uses bundled red/blue flag models with flag cloth
+branded during the reproducible runtime image build.
+
 See `docs/CORE_FPS_INTEGRATION.md` and
 `docs/CORE_FPS_SOURCE_AUDIT.md` for setup, licensing, and operations.

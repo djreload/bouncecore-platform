@@ -16,12 +16,17 @@ import {
   getCoreFpsInviteRecipientIds
 } from "../src/lib/games/core-fps-invite-core.ts";
 import {
+  buildCoreFpsVoteOptions,
+  coreFpsModeDefinition,
   coreFpsReadyCountdownSeconds,
   coreFpsLobbyIsReusable,
   coreFpsLobbyShouldStart,
+  coreFpsMapsForMode,
   normalizeCoreFpsLobbyWaitSeconds,
   normalizeCoreFpsMapPool,
+  normalizeCoreFpsModePool,
   pickRandomCoreFpsMap,
+  resolveCoreFpsVote,
   shortenedCoreFpsLobbyDeadline
 } from "../src/lib/games/core-fps-lobby-core.ts";
 import {
@@ -109,6 +114,30 @@ test("Core FPS public URLs require isolated HTTPS outside localhost", () => {
   assert.equal(launch.searchParams.get("ticket"), "payload.signature");
   assert.equal(launch.searchParams.get("cmd"), "name Reload-a1b2c3; join lobby");
   assert.equal(launch.searchParams.get("lobbyMap"), "dust2");
+  assert.equal(
+    new URL(
+      buildCoreFpsLaunchUrl(
+        "https://core.example.com",
+        "payload.signature",
+        "Reload-a1b2c3",
+        "complex",
+        "teamplay"
+      )
+    ).searchParams.get("cmd"),
+    "name Reload-a1b2c3; join lobby-tdm"
+  );
+  assert.equal(
+    new URL(
+      buildCoreFpsLaunchUrl(
+        "https://core.example.com",
+        "payload.signature",
+        "Reload-a1b2c3",
+        "turbine",
+        "ctf"
+      )
+    ).searchParams.get("cmd"),
+    "name Reload-a1b2c3; join lobby-ctf"
+  );
   assert.equal(createCoreFpsRuntimePlayerName("Reload User", "39c5137d-56d7-4ae6-8751-a1b2c3d4e5f6"), "ReloadUs-d4e5f6");
 });
 
@@ -165,6 +194,47 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
   );
 });
 
+test("Core FPS lobby voting resolves configured maps and modes deterministically", () => {
+  assert.deepEqual(normalizeCoreFpsModePool(["CTF", "ffa", "ctf", "not-a-mode"]), [
+    "ffa",
+    "ctf"
+  ]);
+  assert.deepEqual(normalizeCoreFpsModePool([]), ["ffa", "teamplay", "ctf"]);
+  assert.equal(coreFpsModeDefinition("teamplay").displayName, "Team Deathmatch");
+  assert.equal(coreFpsModeDefinition("ctf").runtimeAlias, "lobby-ctf");
+  assert.deepEqual(
+    coreFpsMapsForMode(["complex", "dust2", "turbine", "xmwhub"], "ctf"),
+    ["dust2", "xmwhub"]
+  );
+
+  assert.equal(
+    resolveCoreFpsVote(["dust2", "complex", "dust2", "not-enabled"], ["complex", "dust2"], "complex"),
+    "dust2"
+  );
+  assert.equal(
+    resolveCoreFpsVote(["dust2", "complex"], ["complex", "dust2"], "complex"),
+    "complex"
+  );
+  assert.equal(
+    resolveCoreFpsVote(["ctf", "teamplay", "ctf"], ["ffa", "teamplay", "ctf"], "ffa"),
+    "ctf"
+  );
+
+  assert.deepEqual(
+    buildCoreFpsVoteOptions(
+      ["ffa", "teamplay", "ctf"],
+      ["ctf", "ctf", "teamplay", "invalid"],
+      "ctf",
+      "mode"
+    ).map(({ id, selected, votes }) => ({ id, selected, votes })),
+    [
+      { id: "ffa", selected: false, votes: 0 },
+      { id: "teamplay", selected: false, votes: 1 },
+      { id: "ctf", selected: true, votes: 2 }
+    ]
+  );
+});
+
 test("Core FPS lifecycle cutoffs and result messages remain deterministic", () => {
   const cutoffs = coreFpsLifecycleCutoffs(now);
 
@@ -182,9 +252,10 @@ test("Core FPS lifecycle cutoffs and result messages remain deterministic", () =
         userId: "user-123"
       },
       mapName: "dust2",
+      modeName: "ctf",
       playerCount: 2
     }),
-    "Core FPS on dust2 finished with 2 players. Reload led the match with 975 points and 7 frags."
+    "Core FPS Capture the Flag on dust2 finished with 2 players. Reload led the match with 975 points and 7 frags."
   );
 });
 
@@ -194,6 +265,10 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   const runtimeDockerfile = await readFile(new URL("../services/core-fps/runtime/Dockerfile", import.meta.url), "utf8");
   const runtimeIndex = await readFile(new URL("../services/core-fps/runtime/index.html", import.meta.url), "utf8");
   const runtimePatch = await readFile(new URL("../services/core-fps/runtime/solo-bot.patch", import.meta.url), "utf8");
+  const flagBranding = await readFile(
+    new URL("../services/core-fps/runtime/brand_flags.py", import.meta.url),
+    "utf8"
+  );
   const launcher = await readFile(new URL("../src/app/games/core/play/page.tsx", import.meta.url), "utf8");
   const frame = await readFile(new URL("../src/app/games/core/play/core-fps-game-frame.tsx", import.meta.url), "utf8");
   const pip = await readFile(new URL("../src/app/games/core/play/core-fps-live-pip.tsx", import.meta.url), "utf8");
@@ -221,6 +296,9 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(pip, /subscribeToLiveStatus/);
   assert.match(runtime, /default: true/);
   assert.match(runtime, /alias: "lobby"/);
+  assert.match(runtime, /defaultMode: "teamplay"[\s\S]*?alias: "lobby-tdm"/);
+  assert.match(runtime, /defaultMode: "ctf"[\s\S]*?alias: "lobby-ctf"/);
+  assert.match(runtime, /defaultMode: "ctf"[\s\S]*?maps:\s+- "dust2"\s+- "xmwhub"/);
   assert.match(runtime, /votingCreates: false[\s\S]*?alias: "lobby"/);
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.match(runtimeDockerfile, /core-index\.html/);
@@ -231,6 +309,11 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimeDockerfile, /COPY --from=runtime-release \/tmp\/core-game \/src\/pkg\/server\/static\/site\/game/);
   assert.match(runtimeDockerfile, /test -s \/tmp\/core-game\/sauerbraten\.wasm/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
+  assert.match(runtimeDockerfile, /brand_flags\.py/);
+  assert.match(runtimeDockerfile, /python3 \/tmp\/brand_flags\.py/);
+  assert.match(flagBranding, /models\/flags\/red\/skin\.jpg/);
+  assert.match(flagBranding, /models\/flags\/blue\/skin\.jpg/);
+  assert.match(flagBranding, /BOUNCECORE/);
   assert.match(runtimeIndex, /<div id="root"><\/div>/);
   assert.match(runtimeIndex, /var Module = typeof Module !== "undefined" \? Module : \{\}/);
   assert.match(runtimeIndex, /Module\.noInitialRun = true/);
@@ -275,8 +358,20 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
     new URL("../src/app/api/games/core/lobbies/[lobbyId]/invite/route.ts", import.meta.url),
     "utf8"
   );
+  const voteRoute = await readFile(
+    new URL("../src/app/api/games/core/lobbies/[lobbyId]/vote/route.ts", import.meta.url),
+    "utf8"
+  );
+  const launchRoute = await readFile(
+    new URL("../src/app/api/games/core/lobbies/[lobbyId]/launch/route.ts", import.meta.url),
+    "utf8"
+  );
   const lobbyService = await readFile(
     new URL("../src/lib/games/core-fps-lobby-service.ts", import.meta.url),
+    "utf8"
+  );
+  const lobbyMigration = await readFile(
+    new URL("../prisma/migrations/0046_add_core_fps_lobby_voting/migration.sql", import.meta.url),
     "utf8"
   );
   const inviteService = await readFile(
@@ -298,6 +393,11 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
   assert.match(coreLauncher, /joinCoreFpsLobby/);
   assert.match(coreLauncher, /CoreFpsLobbyStage/);
   assert.match(lobbyStage, /Players are joining/);
+  assert.match(lobbyStage, /Vote for the match/);
+  assert.match(lobbyStage, /Game mode/);
+  assert.match(lobbyStage, /Arena map/);
+  assert.match(lobbyStage, /\/vote/);
+  assert.match(lobbyStage, /\/launch/);
   assert.match(lobbyStage, /Invite all/);
   assert.match(lobbyStage, /CoreFpsGameFrame/);
   assert.match(lobbyStage, /setInterval/);
@@ -307,8 +407,16 @@ test("Core FPS is exposed as a separate shared game to signed-in chat users", as
   assert.match(lobbyRoute, /leaveCoreFpsLobby/);
   assert.match(lobbyRoute, /export async function POST/);
   assert.match(inviteRoute, /sendCoreFpsLobbyInvites/);
+  assert.match(voteRoute, /castCoreFpsLobbyVote/);
+  assert.match(launchRoute, /getCoreFpsLobbyForLaunch/);
+  assert.match(launchRoute, /createCoreFpsLaunch/);
   assert.match(lobbyService, /export async function leaveCoreFpsLobby/);
+  assert.match(lobbyService, /settings\.mapPool\.includes\(mapName\)/);
+  assert.match(lobbyService, /settings\.modePool\.includes\(modeName\)/);
+  assert.match(lobbyService, /coreFpsMapsForMode/);
   assert.match(lobbyService, /leftAt: null/);
+  assert.match(lobbyMigration, /"mapVote"/);
+  assert.match(lobbyMigration, /"modeVote"/);
   assert.match(inviteService, /coreFpsLobbyPresenceWindowMs/);
   assert.match(inviteService, /leftAt: null/);
   assert.doesNotMatch(coreLauncher, /rave-war|RaveWar/);

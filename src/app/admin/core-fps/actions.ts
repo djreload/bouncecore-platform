@@ -30,6 +30,7 @@ export async function adminCoreFpsAction(
         enabled: formData.get("enabled") === "on",
         lobbyWaitSeconds: formString(formData, "lobbyWaitSeconds"),
         mapPool: formData.getAll("mapPool").filter((value): value is string => typeof value === "string"),
+        modePool: formData.getAll("modePool").filter((value): value is string => typeof value === "string"),
         publicUrl: formString(formData, "publicUrl")
       },
       actor.id

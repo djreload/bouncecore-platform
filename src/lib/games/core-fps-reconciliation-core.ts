@@ -23,11 +23,16 @@ export function coreFpsLifecycleCutoffs(now = new Date()) {
 export function buildCoreFpsResultBody(input: {
   leader: CoreFpsResultLeader;
   mapName: string;
+  modeName?: string;
   playerCount: number;
 }) {
   const mapName = input.mapName.trim() || "the selected map";
+  const modeName = input.modeName
+    ? `${coreFpsModeDefinition(input.modeName).displayName} `
+    : "";
   const playerLabel = input.playerCount === 1 ? "player" : "players";
   const fragLabel = input.leader.frags === 1 ? "frag" : "frags";
 
-  return `Core FPS on ${mapName} finished with ${input.playerCount} ${playerLabel}. ${input.leader.displayName} led the match with ${input.leader.score.toLocaleString("en-GB")} points and ${input.leader.frags.toLocaleString("en-GB")} ${fragLabel}.`;
+  return `Core FPS ${modeName}on ${mapName} finished with ${input.playerCount} ${playerLabel}. ${input.leader.displayName} led the match with ${input.leader.score.toLocaleString("en-GB")} points and ${input.leader.frags.toLocaleString("en-GB")} ${fragLabel}.`;
 }
+import { coreFpsModeDefinition } from "@/lib/games/core-fps-lobby-core";

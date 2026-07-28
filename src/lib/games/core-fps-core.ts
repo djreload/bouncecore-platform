@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { coreFpsModeDefinition } from "@/lib/games/core-fps-lobby-core";
 
 export const coreFpsSourceRepository = "https://github.com/djreload/core";
 export const coreFpsSourceRef = "2ed2b492d5491dfaf41fb883e6646c666e0f6035";
@@ -183,15 +184,17 @@ export function buildCoreFpsLaunchUrl(
   publicUrl: string,
   ticket: string,
   playerName: string,
-  bootstrapMapName?: string | null
+  bootstrapMapName?: string | null,
+  gameMode?: string | null
 ) {
   const launchUrl = new URL(`${normalizeCoreFpsPublicUrl(publicUrl)}/`);
   const safePlayerName = normalizeClaimText(playerName, 15, "Player name");
   const safeMapName = bootstrapMapName?.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") ?? "";
+  const runtimeAlias = coreFpsModeDefinition(gameMode).runtimeAlias;
   launchUrl.searchParams.set("ticket", ticket);
   launchUrl.searchParams.set(
     "cmd",
-    `name ${safePlayerName}; join lobby`
+    `name ${safePlayerName}; join ${runtimeAlias}`
   );
   if (safeMapName) {
     launchUrl.searchParams.set("lobbyMap", safeMapName);

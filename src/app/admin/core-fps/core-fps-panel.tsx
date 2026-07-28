@@ -7,7 +7,10 @@ import { initialAdminCoreFpsActionState, type AdminCoreFpsActionState } from "@/
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import type { getAdminCoreFpsData } from "@/lib/games/core-fps-settings-service";
-import { coreFpsAvailableMaps } from "@/lib/games/core-fps-lobby-core";
+import {
+  coreFpsGameModes,
+  coreFpsMapDefinitions
+} from "@/lib/games/core-fps-lobby-core";
 
 type AdminCoreFpsPanelProps = {
   data: Awaited<ReturnType<typeof getAdminCoreFpsData>>;
@@ -86,7 +89,7 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
             </p>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="grid gap-5 lg:grid-cols-3">
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold" htmlFor="core-fps-lobby-wait">
                 <Clock3 className="h-4 w-4 text-bc-electric" aria-hidden="true" />
@@ -110,24 +113,60 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
             <fieldset>
               <legend className="flex items-center gap-2 text-sm font-semibold">
                 <Map className="h-4 w-4 text-bc-pink" aria-hidden="true" />
-                Random map pool
+                Map vote pool
               </legend>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {coreFpsAvailableMaps.map((mapName) => (
-                  <label className="flex min-h-11 items-center gap-2 rounded-md border border-bc-line bg-bc-ink px-3 py-2" key={mapName}>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {coreFpsMapDefinitions.map((map) => (
+                  <label className="flex min-h-14 items-start gap-2 rounded-md border border-bc-line bg-bc-ink px-3 py-2" key={map.id}>
                     <input
-                      defaultChecked={data.settings.mapPool.includes(mapName)}
+                      className="mt-1"
+                      defaultChecked={data.settings.mapPool.includes(map.id)}
                       disabled={pending}
                       name="mapPool"
                       type="checkbox"
-                      value={mapName}
+                      value={map.id}
                     />
-                    <span className="text-sm font-semibold capitalize">{mapName}</span>
+                    <span>
+                      <span className="block text-sm font-semibold">{map.displayName}</span>
+                      <span className="mt-0.5 block text-xs text-bc-muted">
+                        {map.supportedModes.some((mode) => mode === "ctf")
+                          ? "Free For All, Team Deathmatch, and Capture the Flag."
+                          : "Free For All and Team Deathmatch."}
+                      </span>
+                    </span>
                   </label>
                 ))}
               </div>
               <p className="mt-1 text-xs text-bc-muted">
-                One enabled map is chosen once when a new lobby is created. Late joiners never restart it.
+                Players vote between these maps while the lobby countdown is open.
+              </p>
+            </fieldset>
+
+            <fieldset>
+              <legend className="flex items-center gap-2 text-sm font-semibold">
+                <Gamepad2 className="h-4 w-4 text-bc-acid" aria-hidden="true" />
+                Game-mode vote pool
+              </legend>
+              <div className="mt-2 grid gap-2">
+                {coreFpsGameModes.map((mode) => (
+                  <label className="flex min-h-11 items-start gap-2 rounded-md border border-bc-line bg-bc-ink px-3 py-2" key={mode.id}>
+                    <input
+                      className="mt-1"
+                      defaultChecked={data.settings.modePool.includes(mode.id)}
+                      disabled={pending}
+                      name="modePool"
+                      type="checkbox"
+                      value={mode.id}
+                    />
+                    <span>
+                      <span className="block text-sm font-semibold">{mode.displayName}</span>
+                      <span className="mt-0.5 block text-xs text-bc-muted">{mode.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <p className="mt-1 text-xs text-bc-muted">
+                At least one mode remains enabled. Lobby voting locks when the match begins.
               </p>
             </fieldset>
           </div>

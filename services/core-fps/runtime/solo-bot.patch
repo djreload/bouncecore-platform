@@ -1176,3 +1176,16 @@ index 0000000..1d779fb
 +		t.Fatal("server-authoritative bot respawn left a spawn confirmation pending")
 +	}
 +}
+diff --git a/pkg/config/schema.cue b/pkg/config/schema.cue
+index da9f76b..ca033f2 100644
+--- a/pkg/config/schema.cue
++++ b/pkg/config/schema.cue
+@@ -35,7 +35,7 @@
+ 	// Length of game in seconds
+ 	matchLength:      uint | *600
+ 	defaultGameSpeed: uint8 | *100
+-	defaultMode:      "ffa" | "coop" | "insta" | "instateam" | "effic" | "efficteam" | "tac" | "tacteam" | "ctf" | "instactf" | "efficctf" | *"ffa"
++	defaultMode:      "ffa" | "coop" | "teamplay" | "insta" | "instateam" | "effic" | "efficteam" | "tac" | "tacteam" | "ctf" | "instactf" | "efficctf" | *"ffa"
+ 	defaultMap:       string | *"complex"
+ 	maps: [...string] | *[]
+ }
