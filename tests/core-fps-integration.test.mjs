@@ -329,6 +329,7 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimeDockerfile, /go test -vet=off \.\/pkg\/gameserver \.\/pkg\/gameserver\/relay/);
   assert.match(runtimeDockerfile, /FROM emscripten\/emsdk:2\.0\.34 AS game-builder/);
   assert.match(runtimeDockerfile, /--include=game\/src\/fpsgame\/ai\.cpp/);
+  assert.match(runtimeDockerfile, /--include=game\/src\/engine\/rendergl\.cpp/);
   assert.match(runtimeDockerfile, /GAME_OUTPUT_DIR=\/out\/game bash game\/build/);
   assert.match(runtimeDockerfile, /COPY --from=game-builder \/out\/game \/src\/pkg\/server\/static\/site\/game/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
@@ -369,6 +370,12 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimePatch, /MAX_MOBILE_PIXEL_RATIO = 1\.35/);
   assert.match(runtimePatch, /const renderScale = Math\.min\(requestedPixelRatio, pixelBudgetRatio\)/);
   assert.match(runtimePatch, /webglcontextrestored/);
+  assert.match(runtimePatch, /const MOTION_FACTOR = 2/);
+  assert.match(runtimePatch, /if\(dx < -128 \|\| dx > 128 \|\| dy < -128 \|\| dy > 128\) return/);
+  assert.match(runtimePatch, /dx = clamp\(dx, -64, 64\)/);
+  assert.match(runtimePatch, /FVARP\(sensitivity, 1e-3f, 5, 1000\)/);
+  assert.match(runtimePatch, /BananaBread\.execute\('maxfps 60'\)/);
+  assert.match(runtimePatch, /BananaBread\.execute\('sensitivity 5'\)/);
   assert.match(runtimePatch, /b\.type == AI_S_PURSUE && b\.targtype == AI_T_PLAYER/);
   assert.match(runtimePatch, /d->ai->spot = pursuit->feetpos\(\)/);
   assert.match(runtimePatch, /bool recoverpursuit\(fpsent \*d, aistate &b\)/);

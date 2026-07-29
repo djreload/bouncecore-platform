@@ -31,8 +31,14 @@ RUN git clone "${CORE_FPS_SOURCE_REPOSITORY}" . \
 
 COPY solo-bot.patch /tmp/solo-bot.patch
 
-RUN git apply --check --include=game/src/fpsgame/ai.cpp /tmp/solo-bot.patch \
-  && git apply --include=game/src/fpsgame/ai.cpp /tmp/solo-bot.patch \
+RUN git apply --check \
+      --include=game/src/fpsgame/ai.cpp \
+      --include=game/src/engine/rendergl.cpp \
+      /tmp/solo-bot.patch \
+  && git apply \
+      --include=game/src/fpsgame/ai.cpp \
+      --include=game/src/engine/rendergl.cpp \
+      /tmp/solo-bot.patch \
   && GAME_OUTPUT_DIR=/out/game bash game/build
 
 FROM golang:1.22-bookworm AS builder

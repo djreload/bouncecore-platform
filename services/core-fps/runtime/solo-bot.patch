@@ -517,7 +517,7 @@ index 16bf363..3c576ed 100644
      }
      Module.addRunDependency = (file) => {
        console.log(`add ${file}`)
-@@ -538,6 +566,8 @@ function App() {
+@@ -538,8 +566,14 @@ function App() {
      }
  
      let remoteConnected: boolean = false
@@ -526,7 +526,13 @@ index 16bf363..3c576ed 100644
  
      let cachedServers: Maybe<any> = null
      Module.onGameReady = () => {
-@@ -637,6 +656,11 @@ function App() {
++      BananaBread.execute('maxfps 60')
++      BananaBread.execute('menufps 60')
++      BananaBread.execute('mouseaccel 0')
++      BananaBread.execute('sensitivity 5')
+       onReadyAssets()
+       Module.FS_createPath(`/`, 'packages', true, true)
+@@ -637,6 +660,11 @@ function App() {
        }
  
        const parsedParams = new URLSearchParams(params)
@@ -538,7 +544,7 @@ index 16bf363..3c576ed 100644
  
        initializeDiscord(
          parsedParams.has('code') ? parsedParams.get('code') : null
-@@ -867,6 +897,13 @@ function App() {
+@@ -867,6 +901,13 @@ function App() {
          const packet = cube.newPacket(serverMessage.Data)
          const msgType = cube.getInt(packet)
  
@@ -552,7 +558,7 @@ index 16bf363..3c576ed 100644
          if (msgType === CubeMessageType.N_MAPCHANGE) {
            loadingWorld = true
            serverEvents.push(serverMessage)
-@@ -914,24 +950,24 @@ function App() {
+@@ -914,24 +954,24 @@ function App() {
      const { canvas } = Module
      if (canvas == null) return
  
@@ -593,7 +599,7 @@ index 16bf363..3c576ed 100644
  
    return (
      <OuterContainer ref={containerRef}>
-@@ -953,6 +989,11 @@ function App() {
+@@ -953,6 +993,11 @@ function App() {
            }}
            onContextMenu={(event) => event.preventDefault()}
          ></canvas>
@@ -1420,7 +1426,7 @@ index 69259a3..221e0bd 100644
  		flagMode: fm,
  	}
  }
-@@ -105,6 +106,9 @@ func (m *handlesFlags) initFlags(message protocol.ClientInitFlags) {
+@@ -105,5 +106,8 @@ func (m *handlesFlags) initFlags(message protocol.ClientInitFlags) {
  	ok := m.InitFlags(flags)
  	if ok {
  		m.flags = flags
@@ -1429,4 +1435,45 @@ index 69259a3..221e0bd 100644
 +		m.s.Broadcast(m.FlagsInitPacket())
  	}
  }
+diff --git a/client/src/MobileControls.tsx b/client/src/MobileControls.tsx
+index 902af9c..8350087 100644
+--- a/client/src/MobileControls.tsx
++++ b/client/src/MobileControls.tsx
+@@ -164,7 +164,7 @@ const DIRECTIONS: Array<[nipplejs.JoystickEventTypes, string]> = [
+   ['dir:left', 'left'],
+ ]
+ 
+-const MOTION_FACTOR = 5
++const MOTION_FACTOR = 2
+ 
+ type TouchAction = () => void
+ type TrackedTouch = {
+diff --git a/game/src/engine/rendergl.cpp b/game/src/engine/rendergl.cpp
+index a0f79ac..e0bdd43 100644
+--- a/game/src/engine/rendergl.cpp
++++ b/game/src/engine/rendergl.cpp
+@@ -780,7 +780,7 @@ void computezoom()
+ FVARP(zoomsens, 1e-3f, 1, 1000);
+ FVARP(zoomaccel, 0, 0, 1000);
+ VARP(zoomautosens, 0, 1, 1);
+-FVARP(sensitivity, 1e-3f, 10, 1000); // XXX EMSCRIPTEN
++FVARP(sensitivity, 1e-3f, 5, 1000); // XXX EMSCRIPTEN
+ FVARP(sensitivityscale, 1e-3f, 1, 1000);
+ VARP(invmouse, 0, 0, 1);
+ FVARP(mouseaccel, 0, 0, 1000);
+@@ -804,6 +804,14 @@ void fixcamerarange()
+ 
+ void mousemove(int dx, int dy)
+ {
++#ifdef __EMSCRIPTEN__
++    // Pointer-lock and resumed touch events can contain a one-frame delta
++    // large enough to turn the camera away from the player's actual input.
++    if(dx < -128 || dx > 128 || dy < -128 || dy > 128) return;
++    dx = clamp(dx, -64, 64);
++    dy = clamp(dy, -64, 64);
++#endif
++
+     if(!game::allowmouselook()) return;
+     float cursens = sensitivity, curaccel = mouseaccel;
+     if(zoom)
  
