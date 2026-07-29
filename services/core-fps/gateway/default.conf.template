@@ -33,6 +33,13 @@ server {
 
   absolute_redirect off;
   client_max_body_size 2m;
+  resolver 127.0.0.11 valid=10s ipv6=off;
+
+  # Docker service IPs change when a container is recreated. Resolve through
+  # Docker DNS on each validity window so app-only deploys cannot strand games.
+  set $core_app_upstream "http://${CORE_FPS_APP_UPSTREAM}";
+  set $core_runtime_upstream "http://${CORE_FPS_RUNTIME_UPSTREAM}";
+  set $core_websocket_upstream "http://${CORE_FPS_WEBSOCKET_UPSTREAM}";
 
   add_header Content-Security-Policy "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self' data:; frame-ancestors ${CORE_FPS_PARENT_ORIGIN}; img-src 'self' blob: data:; media-src 'self' blob:; object-src 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:" always;
   add_header Cross-Origin-Resource-Policy "cross-origin" always;
@@ -51,7 +58,7 @@ server {
 
   location = /_core_auth {
     internal;
-    proxy_pass http://${CORE_FPS_APP_UPSTREAM}/api/internal/games/core/auth;
+    proxy_pass $core_app_upstream/api/internal/games/core/auth;
     proxy_pass_request_body off;
     proxy_set_header Content-Length "";
     proxy_set_header X-Core-Gateway-Secret "${CORE_FPS_GATEWAY_SHARED_SECRET}";
@@ -70,7 +77,7 @@ server {
     }
 
     auth_request /_core_auth;
-    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_pass $core_runtime_upstream;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -83,7 +90,7 @@ server {
     auth_request_set $core_player_name $upstream_http_x_core_player_name;
     auth_request_set $core_session_id $upstream_http_x_core_session_id;
     auth_request_set $core_user_id $upstream_http_x_core_user_id;
-    proxy_pass http://${CORE_FPS_WEBSOCKET_UPSTREAM};
+    proxy_pass $core_websocket_upstream;
     proxy_http_version 1.1;
     proxy_read_timeout 24h;
     proxy_send_timeout 30s;
@@ -100,7 +107,7 @@ server {
 
   location ^~ /api/ {
     auth_request /_core_auth;
-    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_pass $core_runtime_upstream;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Forwarded-For $remote_addr;
@@ -112,7 +119,7 @@ server {
   # behavior until the fixes are included in a published runtime.
   location = /index.js {
     auth_request /_core_auth;
-    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_pass $core_runtime_upstream;
     proxy_buffering off;
     proxy_http_version 1.1;
     proxy_set_header Accept-Encoding "";
@@ -131,7 +138,7 @@ server {
   # loading frame even though the WebSocket has joined successfully.
   location ^~ /game/ {
     auth_request /_core_auth;
-    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_pass $core_runtime_upstream;
     proxy_buffering off;
     proxy_http_version 1.1;
     proxy_set_header Host $host;
@@ -141,7 +148,7 @@ server {
 
   location ~ ^/worker\.[a-f0-9]+\.js$ {
     auth_request /_core_auth;
-    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_pass $core_runtime_upstream;
     proxy_buffering off;
     proxy_http_version 1.1;
     proxy_set_header Accept-Encoding "";
@@ -155,7 +162,7 @@ server {
 
   location / {
     auth_request /_core_auth;
-    proxy_pass http://${CORE_FPS_RUNTIME_UPSTREAM};
+    proxy_pass $core_runtime_upstream;
     proxy_buffering off;
     proxy_http_version 1.1;
     proxy_set_header Host $host;

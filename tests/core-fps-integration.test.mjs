@@ -377,6 +377,11 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimePatch, /aria-label="Player status"/);
   assert.match(runtimePatch, /diff --git a\/pkg\/gameserver\/solo_bot\.go/);
   assert.doesNotMatch(launcher, /CORE_FPS_TICKET_SECRET/);
+  assert.match(gateway, /resolver 127\.0\.0\.11 valid=10s ipv6=off/);
+  assert.match(gateway, /set \$core_app_upstream "http:\/\/\$\{CORE_FPS_APP_UPSTREAM\}"/);
+  assert.match(gateway, /proxy_pass \$core_app_upstream\/api\/internal\/games\/core\/auth/);
+  assert.match(gateway, /proxy_pass \$core_runtime_upstream/);
+  assert.match(gateway, /proxy_pass \$core_websocket_upstream/);
 });
 
 test("Core FPS is exposed as a separate shared game to signed-in chat users", async () => {
