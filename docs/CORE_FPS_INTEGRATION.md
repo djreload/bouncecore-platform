@@ -129,10 +129,12 @@ CTF map, with `dust2` and `xmwhub` retained as alternatives.
 ## Neon Vault arena
 
 `neonvault` is generated during the Core FPS image build rather than copied
-from an upstream game package. It includes symmetrical team bases, red and
-blue flags, team and free-for-all spawns, weapon and health routes, a central
-dancefloor, an upper catwalk, side routes, and original Bouncecore rave
-textures.
+from an upstream game package. It is laid out as a complete symmetrical
+nightclub venue: a raised branded DJ stage and console, a polished central
+dance floor, physical speaker towers, a lighting-gallery balcony, arched side
+club rooms, venue bars, backstage doors, and a front entrance vestibule. The
+geometry retains balanced red and blue flag bases, team and free-for-all
+spawns, weapon routes, health routes, and original Bouncecore materials.
 
 The geometry generator lives in
 `services/core-fps/runtime/neon_vault_map.go`.

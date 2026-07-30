@@ -361,6 +361,17 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(arenaPatch, /p\.Put\(-int32\(numVSlots\)\)/);
   assert.match(arenaGenerator, /func verifyNeonVault/);
   assert.match(arenaGenerator, /playerStarts != 14 \|\| flags != 2/);
+  assert.match(arenaGenerator, /func addNightclubArchX/);
+  assert.match(arenaGenerator, /func addNightclubArchY/);
+  assert.match(arenaGenerator, /func addSpeakerStack/);
+  assert.match(arenaGenerator, /textureDoor/);
+  assert.match(arenaGenerator, /textureBooth/);
+  assert.match(arenaInstaller, /make_door\(\)/);
+  assert.match(arenaInstaller, /make_speaker\(\)/);
+  assert.match(arenaInstaller, /make_booth\(\)/);
+  assert.match(arenaInstaller, /make_arch\(\)/);
+  assert.match(arenaInstaller, /make_ceiling\(\)/);
+  assert.match(arenaInstaller, /make_stage\(\)/);
   assert.match(arenaInstaller, /"desktop": False/);
   assert.match(arenaInstaller, /"web": False/);
   assert.match(runtime, /votingCreates: false[\s\S]*?alias: "lobby"/);

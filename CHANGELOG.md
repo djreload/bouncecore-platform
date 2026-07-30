@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rebuilt the Neon Vault Core FPS arena as a complete nightclub venue with a raised DJ stage and console, physical speaker stacks, arched side clubs, backstage and entrance doors, bars, a dance floor, balcony routes, lighting trusses, and a dedicated high-detail material set.
 - Added server-authoritative Core FPS lobby voting for maps and Free For All, Team Deathmatch, or Capture the Flag, with live vote totals, deterministic tie handling, CTF-safe map selection, a second bundled CTF arena, and branded red/blue Bouncecore flags.
 - Hardened Core FPS solo play so spectators no longer displace the bot, AI-owned movement/combat packets reach observers exactly once, and the runtime image runs the bot relay regression test during every build.
 - Added worker-driven Core FPS lifecycle reconciliation for stale participants, abandoned launches, disconnected sessions, completed lobbies, persisted results, and realtime result announcements in chat.
