@@ -59,17 +59,17 @@ RUN git clone "${CORE_FPS_SOURCE_REPOSITORY}" . \
   && git lfs pull
 
 COPY solo-bot.patch /tmp/solo-bot.patch
-COPY neon-vault-map.patch /tmp/neon-vault-map.patch
+COPY generated-map.patch /tmp/generated-map.patch
 COPY index.html /tmp/core-index.html
-COPY neon_vault_map.go /src/pkg/maps/neon_vault.go
-COPY neon_vault_main.go /src/cmd/neonvault/main.go
+COPY blocklands_map.go /src/pkg/maps/blocklands.go
+COPY blocklands_main.go /src/cmd/blocklands/main.go
 
 RUN git apply --check /tmp/solo-bot.patch \
   && git apply /tmp/solo-bot.patch \
-  && git apply --check /tmp/neon-vault-map.patch \
-  && git apply /tmp/neon-vault-map.patch \
+  && git apply --check /tmp/generated-map.patch \
+  && git apply /tmp/generated-map.patch \
   && mkdir -p /out \
-  && go run ./cmd/neonvault --output /out/neonvault.ogz \
+  && go run ./cmd/blocklands --output /out/blocklands.ogz \
   && go test -vet=off ./pkg/gameserver ./pkg/gameserver/relay \
   && cd client \
   && yarn install --frozen-lockfile --non-interactive \
@@ -90,17 +90,17 @@ LABEL org.opencontainers.image.revision="${CORE_FPS_SOURCE_REF}"
 LABEL uk.co.bouncecore.component="core-fps-runtime"
 
 COPY --from=builder /out/sour /opt/core/sour
-COPY --from=builder /out/neonvault.ogz /tmp/neonvault.ogz
+COPY --from=builder /out/blocklands.ogz /tmp/blocklands.ogz
 COPY core.yaml /opt/core/core.yaml
 COPY brand_flags.py /tmp/brand_flags.py
-COPY install_neon_vault.py /tmp/install_neon_vault.py
+COPY install_blocklands.py /tmp/install_blocklands.py
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends fonts-dejavu-core python3-cbor2 python3-pil \
   && python3 /tmp/brand_flags.py \
-  && python3 /tmp/install_neon_vault.py \
+  && python3 /tmp/install_blocklands.py \
   && apt-get purge -y --auto-remove fonts-dejavu-core python3-cbor2 python3-pil \
-  && rm -rf /var/lib/apt/lists/* /tmp/brand_flags.py /tmp/install_neon_vault.py /tmp/neonvault.ogz
+  && rm -rf /var/lib/apt/lists/* /tmp/brand_flags.py /tmp/install_blocklands.py /tmp/blocklands.ogz
 
 RUN groupadd --system --gid 10001 corefps \
   && useradd --system --uid 10001 --gid corefps --home-dir /var/cache/sour --shell /usr/sbin/nologin corefps \

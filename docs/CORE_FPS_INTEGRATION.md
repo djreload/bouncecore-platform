@@ -123,25 +123,26 @@ The lobby supports `Free For All`, `Team Deathmatch`, and `Capture the Flag`.
 Each signed-in participant gets one live map vote and one live mode vote.
 Votes lock authoritatively at the end of the countdown; plurality wins and a
 tie retains the lobby's seeded choice. CTF is limited to maps with valid red
-and blue flag bases. Bouncecore's generated `neonvault` arena is the default
+and blue flag bases. Bouncecore's generated `blocklands` arena is the default
 CTF map, with `dust2` and `xmwhub` retained as alternatives.
 
-## Neon Vault arena
+## Bouncecore Blocklands arena
 
-`neonvault` is generated during the Core FPS image build rather than copied
-from an upstream game package. It is an original symmetrical voxel block-party
-world with layered grass, dirt and stone terrain; cobblestone paths; timber
-club buildings with wooden doors, glass windows and roofs; block-built trees;
-a central DJ stage and console; speaker stacks; a footbridge; and venue bars.
-The largest blackstone wall carries a physical `BOUNCE CORE` mural assembled
-from coloured block geometry, so branding spans the wall without repeating
-text on individual materials. The geometry retains balanced red and blue flag
-bases, team and free-for-all spawns, weapon routes, health routes, and original
-Bouncecore pixel-art materials.
+`blocklands` is generated during the Core FPS image build rather than copied
+from another game package. It is a completely new outdoor voxel world with
+stepped grass-and-dirt terrain, stone cliffs, a river with sand banks, a timber
+bridge, framed oak village houses, a forest, crop farm, village well, mine and
+stone castle. Materials are applied by construction purpose: logs form frames
+and trees, planks form floors and walls, cobblestone forms foundations, glass
+forms windows, farmland and wheat form crop rows, and coal ore appears inside
+the mine. A physical `BOUNCECORE` mural made from coloured blocks spans the
+largest castle wall. The arena retains balanced red and blue flag bases, team
+and free-for-all spawns, weapon routes, health routes, and original Bouncecore
+pixel-art textures.
 
 The geometry generator lives in
-`services/core-fps/runtime/neon_vault_map.go`.
-`services/core-fps/runtime/install_neon_vault.py` creates the visual assets and
+`services/core-fps/runtime/blocklands_map.go`.
+`services/core-fps/runtime/install_blocklands.py` creates the visual assets and
 registers the content-addressed map bundle in Core's asset index. This keeps
 local, staging, and production builds reproducible.
 

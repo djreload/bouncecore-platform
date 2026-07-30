@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Rebuilt the Neon Vault Core FPS arena as an original voxel block-party world with layered grass, dirt and stone terrain, timber club buildings, wooden doors, glass windows, trees, paths, a DJ stage, speaker stacks, team routes, and a physical `BOUNCE CORE` block mural spanning the largest wall without repeated text textures.
+- Replaced the former Neon Vault arena with Bouncecore Blocklands, a completely new outdoor voxel world featuring stepped grass-and-dirt terrain, a river and timber bridge, oak-and-stone village houses, forest, crop farm, mine, castle, balanced team routes, and a physical `BOUNCECORE` block mural spanning the castle wall.
 - Added server-authoritative Core FPS lobby voting for maps and Free For All, Team Deathmatch, or Capture the Flag, with live vote totals, deterministic tie handling, CTF-safe map selection, a second bundled CTF arena, and branded red/blue Bouncecore flags.
 - Hardened Core FPS solo play so spectators no longer displace the bot, AI-owned movement/combat packets reach observers exactly once, and the runtime image runs the bot relay regression test during every build.
 - Added worker-driven Core FPS lifecycle reconciliation for stale participants, abandoned launches, disconnected sessions, completed lobbies, persisted results, and realtime result announcements in chat.

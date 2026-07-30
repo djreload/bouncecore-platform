@@ -152,13 +152,14 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
     "dust2",
     "complex"
   ]);
-  assert.deepEqual(migrateCoreFpsMapPool(["complex", "dust2", "turbine"], undefined), [
-    "neonvault",
+  assert.deepEqual(migrateCoreFpsMapPool(["neonvault", "complex", "dust2", "turbine"], 2), [
+    "blocklands",
     "complex",
     "dust2",
     "turbine"
   ]);
-  assert.deepEqual(migrateCoreFpsMapPool(["complex", "dust2", "turbine"], 2), [
+  assert.deepEqual(migrateCoreFpsMapPool(["neonvault"], 2), ["blocklands"]);
+  assert.deepEqual(migrateCoreFpsMapPool(["complex", "dust2", "turbine"], 3), [
     "complex",
     "dust2",
     "turbine"
@@ -217,17 +218,17 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
   assert.equal(coreFpsModeDefinition("teamplay").displayName, "Team Deathmatch");
   assert.equal(coreFpsModeDefinition("ctf").runtimeAlias, "lobby-ctf");
   assert.deepEqual(
-    coreFpsMapsForMode(["complex", "dust2", "neonvault", "turbine", "xmwhub"], "ctf"),
-    ["dust2", "neonvault", "xmwhub"]
+    coreFpsMapsForMode(["blocklands", "complex", "dust2", "turbine", "xmwhub"], "ctf"),
+    ["blocklands", "dust2", "xmwhub"]
   );
-  assert.deepEqual(coreFpsMapDefinition("neonvault"), {
-    displayName: "Neon Vault",
-    id: "neonvault",
+  assert.deepEqual(coreFpsMapDefinition("blocklands"), {
+    displayName: "Bouncecore Blocklands",
+    id: "blocklands",
     supportedModes: ["ffa", "teamplay", "ctf"]
   });
   const choices = buildCoreFpsMatchChoices(
     "lobby-vote-test",
-    ["complex", "dust2", "neonvault", "turbine", "xmwhub"],
+    ["blocklands", "complex", "dust2", "turbine", "xmwhub"],
     ["ffa", "teamplay", "ctf"]
   );
 
@@ -236,7 +237,7 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
     choices,
     buildCoreFpsMatchChoices(
       "lobby-vote-test",
-      ["complex", "dust2", "neonvault", "turbine", "xmwhub"],
+      ["blocklands", "complex", "dust2", "turbine", "xmwhub"],
       ["ffa", "teamplay", "ctf"]
     )
   );
@@ -245,7 +246,7 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
   assert.ok(
     choices.every((choice) =>
       coreFpsMapsForMode(
-        ["complex", "dust2", "neonvault", "turbine", "xmwhub"],
+        ["blocklands", "complex", "dust2", "turbine", "xmwhub"],
         choice.modeName
       ).includes(choice.mapName)
     )
@@ -303,15 +304,15 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   const runtimeIndex = await readFile(new URL("../services/core-fps/runtime/index.html", import.meta.url), "utf8");
   const runtimePatch = await readFile(new URL("../services/core-fps/runtime/solo-bot.patch", import.meta.url), "utf8");
   const arenaPatch = await readFile(
-    new URL("../services/core-fps/runtime/neon-vault-map.patch", import.meta.url),
+    new URL("../services/core-fps/runtime/generated-map.patch", import.meta.url),
     "utf8"
   );
   const arenaGenerator = await readFile(
-    new URL("../services/core-fps/runtime/neon_vault_map.go", import.meta.url),
+    new URL("../services/core-fps/runtime/blocklands_map.go", import.meta.url),
     "utf8"
   );
   const arenaInstaller = await readFile(
-    new URL("../services/core-fps/runtime/install_neon_vault.py", import.meta.url),
+    new URL("../services/core-fps/runtime/install_blocklands.py", import.meta.url),
     "utf8"
   );
   const flagBranding = await readFile(
@@ -354,34 +355,43 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtime, /defaultMode: "ctf"[\s\S]*?alias: "lobby-ctf"/);
   assert.match(
     runtime,
-    /defaultMode: "ctf"[\s\S]*?maps:\s+- "neonvault"\s+- "dust2"\s+- "xmwhub"/
+    /defaultMode: "ctf"[\s\S]*?maps:\s+- "blocklands"\s+- "dust2"\s+- "xmwhub"/
   );
-  assert.match(runtimeDockerfile, /neon-vault-map\.patch/);
-  assert.match(runtimeDockerfile, /go run \.\/cmd\/neonvault --output \/out\/neonvault\.ogz/);
+  assert.match(runtimeDockerfile, /generated-map\.patch/);
+  assert.match(runtimeDockerfile, /go run \.\/cmd\/blocklands --output \/out\/blocklands\.ogz/);
   assert.match(arenaPatch, /p\.Put\(-int32\(numVSlots\)\)/);
-  assert.match(arenaGenerator, /func verifyNeonVault/);
+  assert.match(arenaGenerator, /func verifyBlocklands/);
   assert.match(arenaGenerator, /playerStarts != 14 \|\| flags != 2/);
-  assert.match(arenaGenerator, /func addBouncecoreWallMural/);
-  assert.match(arenaGenerator, /func addBlockWord/);
-  assert.match(arenaGenerator, /func addBlockTree/);
-  assert.match(arenaGenerator, /func addWestClubHouse/);
-  assert.match(arenaGenerator, /func addEastClubHouse/);
+  assert.match(arenaGenerator, /func addBlocklandsMural/);
+  assert.match(arenaGenerator, /func addBlocklandsWord/);
+  assert.match(arenaGenerator, /func addBlocklandsTree/);
+  assert.match(arenaGenerator, /func addWestVillageHouse/);
+  assert.match(arenaGenerator, /func addEastVillageHouse/);
+  assert.match(arenaGenerator, /func addBlocklandsCastle/);
+  assert.match(arenaGenerator, /func addBlocklandsBridge/);
+  assert.match(arenaGenerator, /func addBlocklandsFarm/);
+  assert.match(arenaGenerator, /func addBlocklandsMine/);
   assert.match(arenaGenerator, /textureGrass/);
-  assert.match(arenaGenerator, /textureWood/);
+  assert.match(arenaGenerator, /textureOakLog/);
+  assert.match(arenaGenerator, /textureOakPlanks/);
   assert.match(arenaGenerator, /textureLeaves/);
+  assert.match(arenaGenerator, /textureCobblestone/);
+  assert.match(arenaGenerator, /textureFarmland/);
+  assert.match(arenaGenerator, /textureCoalOre/);
   assert.match(arenaGenerator, /textureDoor/);
-  assert.match(arenaGenerator, /textureBooth/);
-  assert.match(arenaGenerator, /"BOUNCE"/);
-  assert.match(arenaGenerator, /"CORE"/);
+  assert.match(arenaGenerator, /"BOUNCECORE"/);
   assert.match(arenaInstaller, /make_grass\(\)/);
   assert.match(arenaInstaller, /make_dirt\(\)/);
   assert.match(arenaInstaller, /make_stone\(\)/);
-  assert.match(arenaInstaller, /make_wood\(\)/);
+  assert.match(arenaInstaller, /make_cobblestone\(\)/);
+  assert.match(arenaInstaller, /make_oak_log\(\)/);
+  assert.match(arenaInstaller, /make_oak_planks\(\)/);
   assert.match(arenaInstaller, /make_leaves\(\)/);
   assert.match(arenaInstaller, /make_door\(\)/);
-  assert.match(arenaInstaller, /make_speaker\(\)/);
-  assert.match(arenaInstaller, /make_booth\(\)/);
-  assert.doesNotMatch(arenaInstaller, /DANCEFLOOR|CYAN CLUB|PINK CLUB/);
+  assert.match(arenaInstaller, /make_farmland\(\)/);
+  assert.match(arenaInstaller, /make_wheat\(\)/);
+  assert.match(arenaInstaller, /make_coal_ore\(\)/);
+  assert.doesNotMatch(arenaInstaller, /DANCEFLOOR|CYAN CLUB|PINK CLUB|Neon Vault/);
   assert.match(arenaInstaller, /"desktop": False/);
   assert.match(arenaInstaller, /"web": False/);
   assert.match(runtime, /votingCreates: false[\s\S]*?alias: "lobby"/);

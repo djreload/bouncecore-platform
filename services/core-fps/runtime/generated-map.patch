@@ -22,8 +22,8 @@ index 9bb3dcc..05f7762 100644
  
 -	err = SavePartial(&p, m.Header, m.C)
 +	if m.WorldRoot != nil {
-+		// Default texture slots have no custom properties, so Cube 2 stores
-+		// them as one negative run before the octree geometry.
++		// Generated maps use default texture slots without custom properties,
++		// so Cube 2 stores them as one negative run before the octree geometry.
 +		numVSlots := worldio.Getnumvslots(m.C)
 +		if numVSlots > 0 {
 +			if err = p.Put(-int32(numVSlots)); err != nil {

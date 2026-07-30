@@ -20,8 +20,8 @@ export const coreFpsGameModes = [
 ] as const;
 export const coreFpsMapDefinitions = [
   {
-    displayName: "Neon Vault",
-    id: "neonvault",
+    displayName: "Bouncecore Blocklands",
+    id: "blocklands",
     supportedModes: ["ffa", "teamplay", "ctf"]
   },
   {
@@ -46,7 +46,7 @@ export const coreFpsMapDefinitions = [
   }
 ] as const;
 export const coreFpsAvailableMaps = coreFpsMapDefinitions.map((map) => map.id);
-export const coreFpsMapCatalogVersion = 2;
+export const coreFpsMapCatalogVersion = 3;
 export const coreFpsDefaultLobbyWaitSeconds = 30;
 export const coreFpsMinimumLobbyWaitSeconds = 10;
 export const coreFpsMaximumLobbyWaitSeconds = 180;
@@ -123,15 +123,28 @@ export function normalizeCoreFpsMapPool(value: unknown) {
 }
 
 export function migrateCoreFpsMapPool(value: unknown, storedCatalogVersion: unknown) {
+  const requestedMaps = Array.isArray(value)
+    ? value
+        .filter((map): map is string => typeof map === "string")
+        .map((map) => map.trim().toLowerCase())
+    : [];
   const mapPool = normalizeCoreFpsMapPool(value);
   const parsedVersion = Number(storedCatalogVersion);
   const catalogVersion = Number.isInteger(parsedVersion) && parsedVersion > 0 ? parsedVersion : 1;
 
-  if (catalogVersion >= coreFpsMapCatalogVersion || mapPool.includes("neonvault")) {
+  if (catalogVersion >= coreFpsMapCatalogVersion) {
     return mapPool;
   }
 
-  const enabledMaps = new Set([...mapPool, "neonvault"]);
+  if (!requestedMaps.includes("neonvault")) {
+    return mapPool;
+  }
+
+  const allowedMaps = new Set<string>(coreFpsAvailableMaps);
+  const enabledMaps = new Set([
+    ...requestedMaps.filter((mapName) => allowedMaps.has(mapName)),
+    "blocklands"
+  ]);
   return coreFpsAvailableMaps.filter((mapName) => enabledMaps.has(mapName));
 }
 

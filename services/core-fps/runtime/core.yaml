@@ -7,9 +7,9 @@ server:
       default: true
       config:
         defaultMode: "ffa"
-        defaultMap: "neonvault"
+        defaultMap: "blocklands"
         maps:
-          - "neonvault"
+          - "blocklands"
           - "turbine"
           - "complex"
           - "dust2"
@@ -17,9 +17,9 @@ server:
     - name: "ffa"
       config:
         defaultMode: "ffa"
-        defaultMap: "neonvault"
+        defaultMap: "blocklands"
         maps:
-          - "neonvault"
+          - "blocklands"
           - "turbine"
           - "complex"
           - "dust2"
@@ -27,9 +27,9 @@ server:
     - name: "insta"
       config:
         defaultMode: "insta"
-        defaultMap: "neonvault"
+        defaultMap: "blocklands"
         maps:
-          - "neonvault"
+          - "blocklands"
           - "turbine"
           - "complex"
           - "dust2"
@@ -37,9 +37,9 @@ server:
     - name: "team-deathmatch"
       config:
         defaultMode: "teamplay"
-        defaultMap: "neonvault"
+        defaultMap: "blocklands"
         maps:
-          - "neonvault"
+          - "blocklands"
           - "turbine"
           - "complex"
           - "dust2"
@@ -47,9 +47,9 @@ server:
     - name: "capture-the-flag"
       config:
         defaultMode: "ctf"
-        defaultMap: "neonvault"
+        defaultMap: "blocklands"
         maps:
-          - "neonvault"
+          - "blocklands"
           - "dust2"
           - "xmwhub"
   spaces:
