@@ -10,19 +10,22 @@ const (
 	neonVaultWorldSize = 1024
 	neonVaultGridSize  = 16
 
-	textureFloor uint16 = 2 + iota
-	textureWall
-	textureTrim
+	textureGrass uint16 = 2 + iota
+	textureDirt
+	textureStone
+	textureWood
+	textureLeaves
+	textureGlass
+	texturePath
 	textureCyan
 	textureMagenta
 	textureLime
-	textureBrand
-	textureDoor
 	textureSpeaker
 	textureBooth
-	textureArch
-	textureCeiling
-	textureStage
+	textureDoor
+	textureRoof
+	textureSky
+	textureBlackstone
 )
 
 type arenaBox struct {
@@ -160,150 +163,208 @@ func addArenaEntity(gameMap *GameMap, entityType C.EntityType, x, y, z float32, 
 	gameMap.Entities = append(gameMap.Entities, entity)
 }
 
-func addNightclubArchX(
-	root *Cube,
-	frameTexture uint16,
-	accentTexture uint16,
-	minX, maxX, openingMinY, openingMaxY int,
-) {
-	addArenaBox(root, frameTexture, minX, openingMinY-16, 192, maxX, openingMinY, 304)
-	addArenaBox(root, frameTexture, minX, openingMaxY, 192, maxX, openingMaxY+16, 304)
-	addArenaBox(root, frameTexture, minX, openingMinY-32, 288, maxX, openingMinY, 320)
-	addArenaBox(root, frameTexture, minX, openingMaxY, 288, maxX, openingMaxY+32, 320)
-	addArenaBox(root, frameTexture, minX, openingMinY-32, 304, maxX, openingMaxY+32, 336)
-	addArenaBox(root, accentTexture, minX, openingMinY, 304, maxX, openingMaxY, 320)
+var blockGlyphs = map[rune][]string{
+	'B': {"11110", "10001", "11110", "10001", "11110"},
+	'C': {"01111", "10000", "10000", "10000", "01111"},
+	'E': {"11111", "10000", "11110", "10000", "11111"},
+	'N': {"10001", "11001", "10101", "10011", "10001"},
+	'O': {"01110", "10001", "10001", "10001", "01110"},
+	'R': {"11110", "10001", "11110", "10100", "10010"},
+	'U': {"10001", "10001", "10001", "10001", "01110"},
 }
 
-func addNightclubArchY(
+func addBlockWord(
 	root *Cube,
-	frameTexture uint16,
-	accentTexture uint16,
-	minY, maxY, openingMinX, openingMaxX int,
+	word string,
+	startX, wallY, baseZ int,
+	textures []uint16,
 ) {
-	addArenaBox(root, frameTexture, openingMinX-16, minY, 192, openingMinX, maxY, 304)
-	addArenaBox(root, frameTexture, openingMaxX, minY, 192, openingMaxX+16, maxY, 304)
-	addArenaBox(root, frameTexture, openingMinX-32, minY, 288, openingMinX, maxY, 320)
-	addArenaBox(root, frameTexture, openingMaxX, minY, 288, openingMaxX+32, maxY, 320)
-	addArenaBox(root, frameTexture, openingMinX-32, minY, 304, openingMaxX+32, maxY, 336)
-	addArenaBox(root, accentTexture, openingMinX, minY, 304, openingMaxX, maxY, 320)
+	for letterIndex, character := range word {
+		glyph, ok := blockGlyphs[character]
+		if !ok {
+			continue
+		}
+		texture := textures[letterIndex%len(textures)]
+		letterX := startX + letterIndex*96
+		for row, pixels := range glyph {
+			for column, pixel := range pixels {
+				if pixel != '1' {
+					continue
+				}
+				x := letterX + column*16
+				z := baseZ + (len(glyph)-1-row)*16
+				addArenaBox(root, texture, x, wallY, z, x+16, wallY+16, z+16)
+			}
+		}
+	}
 }
 
-func addSpeakerStack(root *Cube, minX, minY, maxX, maxY, maxZ int) {
-	addArenaBox(root, textureTrim, minX-8, minY-8, 192, maxX+8, maxY+8, 208)
-	addArenaBox(root, textureSpeaker, minX, minY, 208, maxX, maxY, maxZ-16)
-	addArenaBox(root, textureTrim, minX-8, minY-8, maxZ-16, maxX+8, maxY+8, maxZ)
+func addBouncecoreWallMural(root *Cube) {
+	// The words are physical voxel lettering rather than a repeating texture.
+	addBlockWord(
+		root,
+		"BOUNCE",
+		232,
+		176,
+		336,
+		[]uint16{textureCyan, textureLime, textureMagenta},
+	)
+	addBlockWord(
+		root,
+		"CORE",
+		328,
+		176,
+		240,
+		[]uint16{textureMagenta, textureCyan, textureLime},
+	)
+
+	// A block-built neon frame anchors the mural to the largest venue wall.
+	addArenaBox(root, textureLime, 208, 176, 208, 816, 192, 224)
+	addArenaBox(root, textureLime, 208, 176, 416, 816, 192, 432)
+	addArenaBox(root, textureCyan, 208, 176, 224, 224, 192, 416)
+	addArenaBox(root, textureMagenta, 800, 176, 224, 816, 192, 416)
+}
+
+func addBlockTree(root *Cube, x, y int) {
+	addArenaBox(root, textureDirt, x-16, y-16, 192, x+48, y+48, 208)
+	addArenaBox(root, textureWood, x, y, 208, x+32, y+32, 288)
+	addArenaBox(root, textureLeaves, x-32, y-32, 272, x+64, y+64, 304)
+	addArenaBox(root, textureLeaves, x-16, y-48, 288, x+48, y+80, 320)
+	addArenaBox(root, textureLeaves, x-16, y-16, 304, x+48, y+48, 336)
+}
+
+func addBlockSpeaker(root *Cube, minX, minY, maxX, maxY, maxZ int) {
+	addArenaBox(root, textureStone, minX, minY, 192, maxX, maxY, 208)
+	addArenaBox(root, textureSpeaker, minX, minY, 208, maxX, maxY, maxZ)
+	addArenaBox(root, textureBlackstone, minX, minY, maxZ, maxX, maxY, maxZ+16)
+}
+
+func addWestClubHouse(root *Cube) {
+	addArenaBox(root, textureStone, 144, 320, 192, 320, 704, 208)
+	addArenaBox(root, textureWood, 152, 336, 208, 176, 688, 320)
+	addArenaBox(root, textureWood, 176, 336, 208, 304, 360, 320)
+	addArenaBox(root, textureWood, 176, 664, 208, 304, 688, 320)
+	addArenaBox(root, textureWood, 288, 336, 208, 304, 400, 320)
+	addArenaBox(root, textureWood, 288, 464, 208, 304, 560, 320)
+	addArenaBox(root, textureWood, 288, 624, 208, 304, 688, 320)
+	addArenaBox(root, textureGlass, 152, 384, 240, 176, 448, 288)
+	addArenaBox(root, textureGlass, 152, 576, 240, 176, 640, 288)
+	addArenaBox(root, textureDoor, 152, 480, 208, 176, 544, 304)
+	addArenaBox(root, textureCyan, 288, 400, 304, 304, 464, 320)
+	addArenaBox(root, textureCyan, 288, 560, 304, 304, 624, 320)
+	addArenaBox(root, textureRoof, 144, 320, 320, 320, 704, 336)
+	addArenaBox(root, textureRoof, 160, 336, 336, 304, 688, 352)
+}
+
+func addEastClubHouse(root *Cube) {
+	addArenaBox(root, textureStone, 704, 320, 192, 880, 704, 208)
+	addArenaBox(root, textureWood, 848, 336, 208, 872, 688, 320)
+	addArenaBox(root, textureWood, 720, 336, 208, 848, 360, 320)
+	addArenaBox(root, textureWood, 720, 664, 208, 848, 688, 320)
+	addArenaBox(root, textureWood, 720, 336, 208, 736, 400, 320)
+	addArenaBox(root, textureWood, 720, 464, 208, 736, 560, 320)
+	addArenaBox(root, textureWood, 720, 624, 208, 736, 688, 320)
+	addArenaBox(root, textureGlass, 848, 384, 240, 872, 448, 288)
+	addArenaBox(root, textureGlass, 848, 576, 240, 872, 640, 288)
+	addArenaBox(root, textureDoor, 848, 480, 208, 872, 544, 304)
+	addArenaBox(root, textureMagenta, 720, 400, 304, 736, 464, 320)
+	addArenaBox(root, textureMagenta, 720, 560, 304, 736, 624, 320)
+	addArenaBox(root, textureRoof, 704, 320, 320, 880, 704, 336)
+	addArenaBox(root, textureRoof, 720, 336, 336, 864, 688, 352)
 }
 
 func addNeonVaultGeometry(root *Cube) {
-	// A complete enclosed venue shell: polished club floor, acoustic walls and
-	// a lighting-grid ceiling.
-	addArenaBox(root, textureFloor, 128, 128, 144, 896, 896, 192)
-	addArenaBox(root, textureWall, 128, 128, 192, 152, 896, 456)
-	addArenaBox(root, textureWall, 872, 128, 192, 896, 896, 456)
-	addArenaBox(root, textureWall, 152, 128, 192, 872, 152, 456)
-	addArenaBox(root, textureWall, 152, 872, 192, 872, 896, 456)
-	addArenaBox(root, textureCeiling, 128, 128, 440, 896, 896, 464)
+	// Material-correct voxel terrain: dirt supports grass, with stone boundary
+	// walls and a block-cloud ceiling that reads as an open night sky.
+	addArenaBox(root, textureDirt, 128, 128, 144, 896, 896, 176)
+	addArenaBox(root, textureGrass, 128, 128, 176, 896, 896, 192)
+	addArenaBox(root, textureStone, 128, 128, 192, 152, 896, 320)
+	addArenaBox(root, textureStone, 872, 128, 192, 896, 896, 320)
+	addArenaBox(root, textureStone, 152, 128, 192, 872, 152, 320)
+	addArenaBox(root, textureStone, 152, 872, 192, 872, 896, 320)
+	addArenaBox(root, textureSky, 128, 128, 440, 896, 896, 464)
 
-	// Mirrored cyan and magenta club rooms make the team bases feel like
-	// genuine side lounges. Each room has two playable arched entrances and
-	// a locked backstage door on its rear wall.
-	addArenaBox(root, textureCyan, 152, 304, 320, 304, 720, 344)
-	addArenaBox(root, textureWall, 280, 304, 192, 304, 352, 320)
-	addArenaBox(root, textureWall, 280, 464, 192, 304, 560, 320)
-	addArenaBox(root, textureWall, 280, 672, 192, 304, 720, 320)
-	addArenaBox(root, textureCyan, 152, 304, 192, 168, 720, 336)
-	addArenaBox(root, textureDoor, 152, 472, 192, 168, 552, 304)
-	addNightclubArchX(root, textureArch, textureCyan, 272, 312, 368, 448)
-	addNightclubArchX(root, textureArch, textureCyan, 272, 312, 576, 656)
-
-	addArenaBox(root, textureMagenta, 720, 304, 320, 872, 720, 344)
-	addArenaBox(root, textureWall, 720, 304, 192, 744, 352, 320)
-	addArenaBox(root, textureWall, 720, 464, 192, 744, 560, 320)
-	addArenaBox(root, textureWall, 720, 672, 192, 744, 720, 320)
-	addArenaBox(root, textureMagenta, 856, 304, 192, 872, 720, 336)
-	addArenaBox(root, textureDoor, 856, 472, 192, 872, 552, 304)
-	addNightclubArchX(root, textureArch, textureMagenta, 712, 752, 368, 448)
-	addNightclubArchX(root, textureArch, textureMagenta, 712, 752, 576, 656)
-
-	// Branded flag plinths, low lounge dividers and venue speakers protect each
-	// base without turning either one into a dead end.
-	addArenaBox(root, textureBrand, 192, 472, 192, 256, 552, 208)
-	addArenaBox(root, textureBrand, 768, 472, 192, 832, 552, 208)
-	addArenaBox(root, textureBooth, 184, 336, 192, 256, 368, 240)
-	addArenaBox(root, textureBooth, 184, 656, 192, 256, 688, 240)
-	addArenaBox(root, textureBooth, 768, 336, 192, 840, 368, 240)
-	addArenaBox(root, textureBooth, 768, 656, 192, 840, 688, 240)
-
-	// The central illuminated dance floor is the primary combat space. Four
-	// real speaker stacks mark its corners and provide readable cover.
-	addArenaBox(root, textureLime, 336, 336, 192, 688, 688, 208)
-	addArenaBox(root, textureTrim, 320, 320, 192, 704, 336, 208)
-	addArenaBox(root, textureTrim, 320, 688, 192, 704, 704, 208)
-	addArenaBox(root, textureTrim, 320, 336, 192, 336, 688, 208)
-	addArenaBox(root, textureTrim, 688, 336, 192, 704, 688, 208)
-	addSpeakerStack(root, 304, 304, 344, 352, 304)
-	addSpeakerStack(root, 680, 304, 720, 352, 304)
-	addSpeakerStack(root, 304, 672, 344, 720, 304)
-	addSpeakerStack(root, 680, 672, 720, 720, 304)
-
-	// A raised, branded DJ stage is the visual anchor of the venue. The booth,
-	// twin sound systems, backstage doors and broad stairs are all physical.
-	addArenaBox(root, textureStage, 336, 168, 192, 688, 288, 224)
-	addArenaBox(root, textureBrand, 368, 168, 224, 656, 184, 368)
-	addArenaBox(root, textureDoor, 240, 152, 192, 320, 168, 304)
-	addArenaBox(root, textureDoor, 704, 152, 192, 784, 168, 304)
-	addArenaBox(root, textureBooth, 416, 232, 224, 608, 272, 280)
-	addSpeakerStack(root, 304, 176, 360, 240, 352)
-	addSpeakerStack(root, 664, 176, 720, 240, 352)
-	addNightclubArchY(root, textureArch, textureLime, 200, 232, 384, 640)
-	addArenaBox(root, textureTrim, 384, 200, 352, 640, 216, 368)
-	for step := 0; step < 2; step++ {
-		minY := 288 + step*16
-		top := 224 - step*16
-		addArenaBox(root, textureStage, 352, minY, 192, 416, minY+16, top)
-		addArenaBox(root, textureStage, 608, minY, 192, 672, minY+16, top)
+	// Cobblestone paths join every venue zone. The central plaza uses solid
+	// neon blocks in a checker pattern with no repeated wording.
+	addArenaBox(root, texturePath, 480, 192, 192, 544, 832, 208)
+	addArenaBox(root, texturePath, 304, 480, 192, 720, 544, 208)
+	addArenaBox(root, texturePath, 336, 336, 192, 688, 688, 208)
+	for row := 0; row < 5; row++ {
+		for column := 0; column < 5; column++ {
+			texture := []uint16{textureCyan, textureMagenta, textureLime}[(row+column)%3]
+			minX := 352 + column*64
+			minY := 352 + row*64
+			addArenaBox(root, texture, minX, minY, 192, minX+48, minY+48, 208)
+		}
 	}
 
-	// A balcony crosses the room like a nightclub lighting gallery. The wide
-	// arch below keeps the dance-floor sight line open.
-	addArenaBox(root, textureStage, 304, 480, 288, 720, 544, 304)
-	addArenaBox(root, textureCyan, 304, 480, 304, 720, 496, 328)
-	addArenaBox(root, textureMagenta, 304, 528, 304, 720, 544, 328)
-	addNightclubArchY(root, textureArch, textureLime, 480, 496, 368, 656)
-	addNightclubArchY(root, textureArch, textureLime, 528, 544, 368, 656)
+	addWestClubHouse(root)
+	addEastClubHouse(root)
 
-	// Walkable stairs onto the balcony from both team lounges.
+	// Team flags sit on stone-and-neon plinths inside timber club houses.
+	addArenaBox(root, textureStone, 192, 472, 208, 256, 552, 224)
+	addArenaBox(root, textureCyan, 208, 488, 224, 240, 536, 240)
+	addArenaBox(root, textureStone, 768, 472, 208, 832, 552, 224)
+	addArenaBox(root, textureMagenta, 784, 488, 224, 816, 536, 240)
+
+	// The main nightclub is a block-built stone stage and blackstone facade.
+	// Its physical BOUNCE / CORE mural spans the largest wall.
+	addArenaBox(root, textureBlackstone, 208, 152, 192, 816, 176, 440)
+	addArenaBox(root, textureRoof, 192, 144, 432, 832, 192, 448)
+	addArenaBox(root, textureStone, 288, 176, 192, 736, 304, 224)
+	addArenaBox(root, textureWood, 288, 176, 224, 304, 304, 352)
+	addArenaBox(root, textureWood, 720, 176, 224, 736, 304, 352)
+	addArenaBox(root, textureDoor, 224, 176, 192, 288, 192, 304)
+	addArenaBox(root, textureDoor, 736, 176, 192, 800, 192, 304)
+	addArenaBox(root, textureBooth, 400, 240, 224, 624, 288, 288)
+	addBlockSpeaker(root, 304, 192, 368, 256, 336)
+	addBlockSpeaker(root, 656, 192, 720, 256, 336)
+	addBouncecoreWallMural(root)
+
+	// Broad block stairs make the DJ stage playable.
+	addArenaBox(root, textureStone, 352, 304, 192, 416, 320, 224)
+	addArenaBox(root, textureStone, 352, 320, 192, 416, 336, 208)
+	addArenaBox(root, textureStone, 608, 304, 192, 672, 320, 224)
+	addArenaBox(root, textureStone, 608, 320, 192, 672, 336, 208)
+
+	// A timber footbridge joins both houses, with stone supports and wooden
+	// stairs. It supplies the upper combat route without floating blocks.
+	addArenaBox(root, textureWood, 304, 480, 288, 720, 544, 304)
+	addArenaBox(root, textureWood, 304, 480, 304, 720, 496, 320)
+	addArenaBox(root, textureWood, 304, 528, 304, 720, 544, 320)
+	addArenaBox(root, textureStone, 304, 480, 208, 336, 544, 288)
+	addArenaBox(root, textureStone, 688, 480, 208, 720, 544, 288)
 	for step := 0; step < 6; step++ {
-		leftX := 256 + step*16
-		rightX := 768 - (step+1)*16
-		top := 208 + step*16
-		addArenaBox(root, textureStage, leftX, 496, 192, leftX+16, 528, top)
-		addArenaBox(root, textureStage, rightX, 496, 192, rightX+16, 528, top)
+		leftX := 208 + step*16
+		rightX := 816 - (step+1)*16
+		top := 224 + step*16
+		addArenaBox(root, textureWood, leftX, 496, 208, leftX+16, 528, top)
+		addArenaBox(root, textureWood, rightX, 496, 208, rightX+16, 528, top)
 	}
 
-	// The south end reads as a venue entrance: a broad central arch leads into
-	// a vestibule, flanked by two service doors and mirrored bar counters.
-	addArenaBox(root, textureWall, 152, 808, 192, 416, 832, 336)
-	addArenaBox(root, textureWall, 608, 808, 192, 872, 832, 336)
-	addNightclubArchY(root, textureArch, textureLime, 800, 840, 432, 592)
-	addArenaBox(root, textureDoor, 472, 856, 192, 552, 872, 304)
-	addArenaBox(root, textureDoor, 256, 792, 192, 336, 808, 304)
-	addArenaBox(root, textureDoor, 688, 792, 192, 768, 808, 304)
-	addArenaBox(root, textureBooth, 208, 736, 192, 400, 768, 240)
-	addArenaBox(root, textureBooth, 624, 736, 192, 816, 768, 240)
+	// Trees use dirt roots, wooden trunks and leaf canopies. Their placement
+	// frames routes and supplies natural cover without blocking spawn doors.
+	addBlockTree(root, 176, 256)
+	addBlockTree(root, 816, 256)
+	addBlockTree(root, 176, 752)
+	addBlockTree(root, 816, 752)
 
-	// Structural ceiling trusses and coloured rails sell the scale of the room
-	// while staying above all player movement and projectile lanes.
-	addArenaBox(root, textureTrim, 224, 248, 416, 800, 264, 440)
-	addArenaBox(root, textureTrim, 224, 760, 416, 800, 776, 440)
-	addArenaBox(root, textureTrim, 248, 248, 416, 264, 776, 440)
-	addArenaBox(root, textureTrim, 760, 248, 416, 776, 776, 440)
-	addArenaBox(root, textureCyan, 384, 248, 424, 400, 776, 440)
-	addArenaBox(root, textureMagenta, 624, 248, 424, 640, 776, 440)
+	// South-side wooden market bars and a large timber entrance gate complete
+	// the outdoor block-party venue.
+	addArenaBox(root, textureStone, 224, 736, 192, 400, 784, 208)
+	addArenaBox(root, textureWood, 224, 736, 208, 400, 784, 256)
+	addArenaBox(root, textureStone, 624, 736, 192, 800, 784, 208)
+	addArenaBox(root, textureWood, 624, 736, 208, 800, 784, 256)
+	addArenaBox(root, textureWood, 416, 800, 192, 464, 832, 336)
+	addArenaBox(root, textureWood, 560, 800, 192, 608, 832, 336)
+	addArenaBox(root, textureRoof, 400, 784, 320, 624, 848, 352)
+	addArenaBox(root, textureLime, 464, 800, 320, 560, 832, 336)
+	addArenaBox(root, textureDoor, 472, 856, 192, 552, 872, 304)
 }
 
 func addNeonVaultEntities(gameMap *GameMap) {
-	// Team starts. Tags 1 and 2 are also valid general spawns in FFA.
+	// Team starts face out of their houses. Untagged starts cover the stage and
+	// south courtyard for FFA.
 	for _, spawn := range []struct {
 		x     float32
 		y     float32
@@ -311,56 +372,52 @@ func addNeonVaultEntities(gameMap *GameMap) {
 		team  int16
 	}{
 		{208, 400, 90, 1}, {208, 512, 90, 1}, {208, 624, 90, 1},
-		{272, 352, 90, 1}, {272, 672, 90, 1},
+		{272, 384, 90, 1}, {272, 640, 90, 1},
 		{816, 400, 270, 2}, {816, 512, 270, 2}, {816, 624, 270, 2},
-		{752, 352, 270, 2}, {752, 672, 270, 2},
-		{424, 272, 0, 0}, {600, 272, 180, 0},
+		{752, 384, 270, 2}, {752, 640, 270, 2},
+		{424, 304, 0, 0}, {600, 304, 180, 0},
 		{424, 752, 0, 0}, {600, 752, 180, 0},
 	} {
-		addArenaEntity(gameMap, C.EntityTypePlayerStart, spawn.x, spawn.y, 216, spawn.angle, spawn.team)
+		addArenaEntity(gameMap, C.EntityTypePlayerStart, spawn.x, spawn.y, 232, spawn.angle, spawn.team)
 	}
 
-	addArenaEntity(gameMap, C.EntityTypeFlag, 224, 512, 216, 90, 1)
-	addArenaEntity(gameMap, C.EntityTypeFlag, 800, 512, 216, 270, 2)
+	addArenaEntity(gameMap, C.EntityTypeFlag, 224, 512, 256, 90, 1)
+	addArenaEntity(gameMap, C.EntityTypeFlag, 800, 512, 256, 270, 2)
 
-	// Weapon and health loops keep all three modes moving through the whole map.
 	for _, position := range [][3]float32{
-		{432, 384, 216}, {592, 384, 216}, {432, 640, 216}, {592, 640, 216},
+		{432, 384, 232}, {592, 384, 232}, {432, 640, 232}, {592, 640, 232},
 	} {
 		addArenaEntity(gameMap, C.EntityTypeRockets, position[0], position[1], position[2])
 	}
 	for _, position := range [][3]float32{
-		{288, 256, 216}, {736, 256, 216}, {288, 768, 216}, {736, 768, 216},
+		{288, 256, 216}, {736, 256, 216}, {288, 800, 216}, {736, 800, 216},
 	} {
 		addArenaEntity(gameMap, C.EntityTypeGrenades, position[0], position[1], position[2])
 	}
 	for _, position := range [][3]float32{
-		{336, 512, 216}, {688, 512, 216}, {512, 288, 216}, {512, 736, 216},
+		{336, 512, 232}, {688, 512, 232}, {512, 304, 232}, {512, 752, 216},
 	} {
 		addArenaEntity(gameMap, C.EntityTypeHealth, position[0], position[1], position[2])
 	}
-	addArenaEntity(gameMap, C.EntityTypeQuad, 512, 512, 232)
-	addArenaEntity(gameMap, C.EntityTypeGreenArmour, 512, 304, 216)
-	addArenaEntity(gameMap, C.EntityTypeYellowArmour, 512, 784, 216)
+	addArenaEntity(gameMap, C.EntityTypeQuad, 512, 512, 240)
+	addArenaEntity(gameMap, C.EntityTypeGreenArmour, 512, 320, 232)
+	addArenaEntity(gameMap, C.EntityTypeYellowArmour, 512, 816, 216)
 
-	// Low-radius coloured lights give the geometry its rave identity without
-	// flooding the whole arena or making opponents hard to read.
+	// A daylight base layer keeps the voxel materials readable. Local coloured
+	// lights retain Bouncecore's rave identity around the stage and team rooms.
 	for _, light := range []struct {
 		x, y, z float32
 		r, g, b int16
 		radius  int16
 	}{
-		{224, 512, 288, 0, 180, 255, 176},
-		{800, 512, 288, 255, 20, 180, 176},
-		{512, 224, 352, 164, 255, 0, 192},
-		{512, 352, 320, 80, 255, 0, 160},
-		{512, 672, 320, 255, 120, 0, 160},
-		{384, 512, 400, 0, 220, 255, 176},
-		{640, 512, 400, 255, 30, 220, 176},
-		{512, 512, 400, 160, 80, 255, 208},
-		{512, 824, 320, 255, 255, 255, 144},
-		{272, 512, 304, 0, 160, 255, 144},
-		{752, 512, 304, 255, 20, 180, 144},
+		{512, 512, 400, 185, 210, 255, 420},
+		{224, 512, 304, 0, 190, 255, 176},
+		{800, 512, 304, 255, 28, 188, 176},
+		{384, 256, 352, 0, 220, 255, 176},
+		{640, 256, 352, 255, 40, 200, 176},
+		{512, 256, 384, 164, 255, 0, 208},
+		{512, 640, 352, 255, 120, 32, 176},
+		{512, 816, 320, 220, 240, 255, 144},
 	} {
 		addArenaEntity(gameMap, C.EntityTypeLight, light.x, light.y, light.z, light.radius, light.r, light.g, light.b)
 	}
@@ -398,7 +455,7 @@ func verifyNeonVault(outputPath string) error {
 	return nil
 }
 
-// BuildNeonVault creates a balanced arena for FFA, team deathmatch and CTF.
+// BuildNeonVault creates a balanced voxel arena for FFA, TDM and CTF.
 func BuildNeonVault(outputPath string) error {
 	gameMap, err := NewMap()
 	if err != nil {
