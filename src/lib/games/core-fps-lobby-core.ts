@@ -108,7 +108,11 @@ export function normalizeCoreFpsLobbyWaitSeconds(value: unknown) {
 }
 
 export function normalizeCoreFpsMapPool(value: unknown) {
-  const candidates = Array.isArray(value) ? value : [];
+  if (!Array.isArray(value)) {
+    return [...coreFpsAvailableMaps];
+  }
+
+  const candidates = value;
   const allowed = new Set<string>(coreFpsAvailableMaps);
   const maps = [
     ...new Set(
@@ -119,7 +123,7 @@ export function normalizeCoreFpsMapPool(value: unknown) {
     )
   ];
 
-  return maps.length ? maps : [...coreFpsAvailableMaps];
+  return ["blocklands", ...maps.filter((mapName) => mapName !== "blocklands")];
 }
 
 export function migrateCoreFpsMapPool(value: unknown, storedCatalogVersion: unknown) {

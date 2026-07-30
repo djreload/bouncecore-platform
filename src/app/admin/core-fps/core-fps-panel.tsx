@@ -118,10 +118,13 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {coreFpsMapDefinitions.map((map) => (
                   <label className="flex min-h-14 items-start gap-2 rounded-md border border-bc-line bg-bc-ink px-3 py-2" key={map.id}>
+                    {map.id === "blocklands" ? (
+                      <input name="mapPool" type="hidden" value={map.id} />
+                    ) : null}
                     <input
                       className="mt-1"
-                      defaultChecked={data.settings.mapPool.includes(map.id)}
-                      disabled={pending}
+                      defaultChecked={map.id === "blocklands" || data.settings.mapPool.includes(map.id)}
+                      disabled={pending || map.id === "blocklands"}
                       name="mapPool"
                       type="checkbox"
                       value={map.id}
@@ -129,7 +132,9 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
                     <span>
                       <span className="block text-sm font-semibold">{map.displayName}</span>
                       <span className="mt-0.5 block text-xs text-bc-muted">
-                        {map.supportedModes.some((mode) => mode === "ctf")
+                        {map.id === "blocklands"
+                          ? "Always included in the vote pool for every supported game mode."
+                          : map.supportedModes.some((mode) => mode === "ctf")
                           ? "Free For All, Team Deathmatch, and Capture the Flag."
                           : "Free For All and Team Deathmatch."}
                       </span>

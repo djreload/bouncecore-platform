@@ -149,9 +149,11 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
   assert.equal(normalizeCoreFpsLobbyWaitSeconds("45"), 45);
   assert.equal(normalizeCoreFpsLobbyWaitSeconds("999"), 180);
   assert.deepEqual(normalizeCoreFpsMapPool(["DUST2", "dust2", "unknown", "complex"]), [
+    "blocklands",
     "dust2",
     "complex"
   ]);
+  assert.deepEqual(normalizeCoreFpsMapPool([]), ["blocklands"]);
   assert.deepEqual(migrateCoreFpsMapPool(["neonvault", "complex", "dust2", "turbine"], 2), [
     "blocklands",
     "complex",
@@ -160,11 +162,12 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
   ]);
   assert.deepEqual(migrateCoreFpsMapPool(["neonvault"], 2), ["blocklands"]);
   assert.deepEqual(migrateCoreFpsMapPool(["complex", "dust2", "turbine"], 3), [
+    "blocklands",
     "complex",
     "dust2",
     "turbine"
   ]);
-  assert.equal(pickRandomCoreFpsMap(["complex", "dust2", "turbine"], 0), "complex");
+  assert.equal(pickRandomCoreFpsMap(["complex", "dust2", "turbine"], 0), "blocklands");
   assert.equal(pickRandomCoreFpsMap(["complex", "dust2", "turbine"], 0.99), "turbine");
 
   const originalDeadline = new Date(now.getTime() + 60_000);
@@ -322,6 +325,10 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   const launcher = await readFile(new URL("../src/app/games/core/play/page.tsx", import.meta.url), "utf8");
   const frame = await readFile(new URL("../src/app/games/core/play/core-fps-game-frame.tsx", import.meta.url), "utf8");
   const pip = await readFile(new URL("../src/app/games/core/play/core-fps-live-pip.tsx", import.meta.url), "utf8");
+  const adminPanel = await readFile(
+    new URL("../src/app/admin/core-fps/core-fps-panel.tsx", import.meta.url),
+    "utf8"
+  );
 
   assert.match(gateway, /location \^~ \/service\/proxy\//);
   assert.match(gateway, /auth_request \/_core_auth/);
@@ -403,6 +410,8 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtimeDockerfile, /--include=game\/src\/engine\/rendergl\.cpp/);
   assert.match(runtimeDockerfile, /GAME_OUTPUT_DIR=\/out\/game bash game\/build/);
   assert.match(runtimeDockerfile, /COPY --from=game-builder \/out\/game \/src\/pkg\/server\/static\/site\/game/);
+  assert.match(adminPanel, /map\.id === "blocklands"/);
+  assert.match(adminPanel, /Always included in the vote pool/);
   assert.match(runtimeDockerfile, /static\/site\/index\.html/);
   assert.match(runtimeDockerfile, /brand_flags\.py/);
   assert.match(runtimeDockerfile, /python3 \/tmp\/brand_flags\.py/);
