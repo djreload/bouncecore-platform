@@ -19,6 +19,7 @@ import {
   buildCoreFpsMatchChoices,
   buildCoreFpsMatchVoteOptions,
   coreFpsModeDefinition,
+  coreFpsMapDefinition,
   coreFpsReadyCountdownSeconds,
   coreFpsLobbyIsReusable,
   coreFpsLobbyShouldStart,
@@ -204,12 +205,17 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
   assert.equal(coreFpsModeDefinition("teamplay").displayName, "Team Deathmatch");
   assert.equal(coreFpsModeDefinition("ctf").runtimeAlias, "lobby-ctf");
   assert.deepEqual(
-    coreFpsMapsForMode(["complex", "dust2", "turbine", "xmwhub"], "ctf"),
-    ["dust2", "xmwhub"]
+    coreFpsMapsForMode(["complex", "dust2", "neonvault", "turbine", "xmwhub"], "ctf"),
+    ["dust2", "neonvault", "xmwhub"]
   );
+  assert.deepEqual(coreFpsMapDefinition("neonvault"), {
+    displayName: "Neon Vault",
+    id: "neonvault",
+    supportedModes: ["ffa", "teamplay", "ctf"]
+  });
   const choices = buildCoreFpsMatchChoices(
     "lobby-vote-test",
-    ["complex", "dust2", "turbine", "xmwhub"],
+    ["complex", "dust2", "neonvault", "turbine", "xmwhub"],
     ["ffa", "teamplay", "ctf"]
   );
 
@@ -218,7 +224,7 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
     choices,
     buildCoreFpsMatchChoices(
       "lobby-vote-test",
-      ["complex", "dust2", "turbine", "xmwhub"],
+      ["complex", "dust2", "neonvault", "turbine", "xmwhub"],
       ["ffa", "teamplay", "ctf"]
     )
   );
@@ -227,7 +233,7 @@ test("Core FPS lobby voting resolves configured maps and modes deterministically
   assert.ok(
     choices.every((choice) =>
       coreFpsMapsForMode(
-        ["complex", "dust2", "turbine", "xmwhub"],
+        ["complex", "dust2", "neonvault", "turbine", "xmwhub"],
         choice.modeName
       ).includes(choice.mapName)
     )
@@ -284,6 +290,18 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   const runtimeDockerfile = await readFile(new URL("../services/core-fps/runtime/Dockerfile", import.meta.url), "utf8");
   const runtimeIndex = await readFile(new URL("../services/core-fps/runtime/index.html", import.meta.url), "utf8");
   const runtimePatch = await readFile(new URL("../services/core-fps/runtime/solo-bot.patch", import.meta.url), "utf8");
+  const arenaPatch = await readFile(
+    new URL("../services/core-fps/runtime/neon-vault-map.patch", import.meta.url),
+    "utf8"
+  );
+  const arenaGenerator = await readFile(
+    new URL("../services/core-fps/runtime/neon_vault_map.go", import.meta.url),
+    "utf8"
+  );
+  const arenaInstaller = await readFile(
+    new URL("../services/core-fps/runtime/install_neon_vault.py", import.meta.url),
+    "utf8"
+  );
   const flagBranding = await readFile(
     new URL("../services/core-fps/runtime/brand_flags.py", import.meta.url),
     "utf8"
@@ -322,7 +340,17 @@ test("Core FPS gateway authenticates play surfaces and blocks the arbitrary prox
   assert.match(runtime, /alias: "lobby"/);
   assert.match(runtime, /defaultMode: "teamplay"[\s\S]*?alias: "lobby-tdm"/);
   assert.match(runtime, /defaultMode: "ctf"[\s\S]*?alias: "lobby-ctf"/);
-  assert.match(runtime, /defaultMode: "ctf"[\s\S]*?maps:\s+- "dust2"\s+- "xmwhub"/);
+  assert.match(
+    runtime,
+    /defaultMode: "ctf"[\s\S]*?maps:\s+- "neonvault"\s+- "dust2"\s+- "xmwhub"/
+  );
+  assert.match(runtimeDockerfile, /neon-vault-map\.patch/);
+  assert.match(runtimeDockerfile, /go run \.\/cmd\/neonvault --output \/out\/neonvault\.ogz/);
+  assert.match(arenaPatch, /p\.Put\(-int32\(numVSlots\)\)/);
+  assert.match(arenaGenerator, /func verifyNeonVault/);
+  assert.match(arenaGenerator, /playerStarts != 14 \|\| flags != 2/);
+  assert.match(arenaInstaller, /"desktop": False/);
+  assert.match(arenaInstaller, /"web": False/);
   assert.match(runtime, /votingCreates: false[\s\S]*?alias: "lobby"/);
   assert.match(runtime, /guibutton \\"Play Bouncecore arena\\" \\"join lobby\\"/);
   assert.match(runtimeDockerfile, /core-index\.html/);

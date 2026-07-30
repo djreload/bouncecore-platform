@@ -20,6 +20,11 @@ export const coreFpsGameModes = [
 ] as const;
 export const coreFpsMapDefinitions = [
   {
+    displayName: "Neon Vault",
+    id: "neonvault",
+    supportedModes: ["ffa", "teamplay", "ctf"]
+  },
+  {
     displayName: "Complex",
     id: "complex",
     supportedModes: ["ffa", "teamplay"]

@@ -1,0 +1,40 @@
+diff --git a/pkg/maps/encode.go b/pkg/maps/encode.go
+index 9bb3dcc..05f7762 100644
+--- a/pkg/maps/encode.go
++++ b/pkg/maps/encode.go
+@@ -49,10 +49,9 @@ func MapToCXX(cube *Cube) worldio.Cube {
+ 			worldio.Cube_settexture(cxx, j, child.Texture[j])
+ 		}
+ 
+-		cxx.SetMaterial(cube.Material)
+-		cxx.SetMaterial(cube.Material)
+-		cxx.SetMerged(cube.Merged)
+-		cxx.SetEscaped(cube.Escaped)
++		cxx.SetMaterial(child.Material)
++		cxx.SetMerged(child.Merged)
++		cxx.SetEscaped(child.Escaped)
+ 
+ 		worldio.CubeArray_setitem(parent, i, cxx)
+ 	}
+@@ -180,7 +179,20 @@ func (m *GameMap) Encode() ([]byte, error) {
+ 		}
+ 	}
+ 
+-	err = SavePartial(&p, m.Header, m.C)
++	if m.WorldRoot != nil {
++		// Default texture slots have no custom properties, so Cube 2 stores
++		// them as one negative run before the octree geometry.
++		numVSlots := worldio.Getnumvslots(m.C)
++		if numVSlots > 0 {
++			if err = p.Put(-int32(numVSlots)); err != nil {
++				return p, err
++			}
++		}
++		err = SaveChildren(&p, m.WorldRoot, m.Header.WorldSize)
++	} else {
++		err = SavePartial(&p, m.Header, m.C)
++	}
++
+ 	if err != nil {
+ 		return p, err
+ 	}

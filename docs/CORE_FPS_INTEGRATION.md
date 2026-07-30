@@ -123,8 +123,22 @@ The lobby supports `Free For All`, `Team Deathmatch`, and `Capture the Flag`.
 Each signed-in participant gets one live map vote and one live mode vote.
 Votes lock authoritatively at the end of the countdown; plurality wins and a
 tie retains the lobby's seeded choice. CTF is limited to maps with valid red
-and blue flag bases (`dust2` and `xmwhub` in the bundled runtime), so an
-incompatible map vote cannot launch a broken CTF match.
+and blue flag bases. Bouncecore's generated `neonvault` arena is the default
+CTF map, with `dust2` and `xmwhub` retained as alternatives.
+
+## Neon Vault arena
+
+`neonvault` is generated during the Core FPS image build rather than copied
+from an upstream game package. It includes symmetrical team bases, red and
+blue flags, team and free-for-all spawns, weapon and health routes, a central
+dancefloor, an upper catwalk, side routes, and original Bouncecore rave
+textures.
+
+The geometry generator lives in
+`services/core-fps/runtime/neon_vault_map.go`.
+`services/core-fps/runtime/install_neon_vault.py` creates the visual assets and
+registers the content-addressed map bundle in Core's asset index. This keeps
+local, staging, and production builds reproducible.
 
 The launch command joins the isolated runtime space for the winning mode after
 assigning the signed runtime player name. CTF uses branded red and blue
