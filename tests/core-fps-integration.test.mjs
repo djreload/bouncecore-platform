@@ -24,6 +24,7 @@ import {
   coreFpsLobbyIsReusable,
   coreFpsLobbyShouldStart,
   coreFpsMapsForMode,
+  migrateCoreFpsMapPool,
   normalizeCoreFpsLobbyWaitSeconds,
   normalizeCoreFpsMapPool,
   normalizeCoreFpsModePool,
@@ -150,6 +151,17 @@ test("Core FPS lobbies normalize countdowns and choose one allowed random map", 
   assert.deepEqual(normalizeCoreFpsMapPool(["DUST2", "dust2", "unknown", "complex"]), [
     "dust2",
     "complex"
+  ]);
+  assert.deepEqual(migrateCoreFpsMapPool(["complex", "dust2", "turbine"], undefined), [
+    "neonvault",
+    "complex",
+    "dust2",
+    "turbine"
+  ]);
+  assert.deepEqual(migrateCoreFpsMapPool(["complex", "dust2", "turbine"], 2), [
+    "complex",
+    "dust2",
+    "turbine"
   ]);
   assert.equal(pickRandomCoreFpsMap(["complex", "dust2", "turbine"], 0), "complex");
   assert.equal(pickRandomCoreFpsMap(["complex", "dust2", "turbine"], 0.99), "turbine");

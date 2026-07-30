@@ -11,6 +11,8 @@ import {
 } from "@/lib/games/core-fps-core";
 import {
   coreFpsDefaultLobbyWaitSeconds,
+  coreFpsMapCatalogVersion,
+  migrateCoreFpsMapPool,
   normalizeCoreFpsLobbyWaitSeconds,
   normalizeCoreFpsMapPool,
   normalizeCoreFpsModePool
@@ -22,6 +24,7 @@ const coreFpsSettingsKey = "games.core-fps";
 export type CoreFpsSettings = {
   enabled: boolean;
   lobbyWaitSeconds: number;
+  mapCatalogVersion: number;
   mapPool: string[];
   modePool: string[];
   publicUrl: string | null;
@@ -48,6 +51,7 @@ function defaultSettings(): CoreFpsSettings {
   return {
     enabled: envEnabled(),
     lobbyWaitSeconds: coreFpsDefaultLobbyWaitSeconds,
+    mapCatalogVersion: coreFpsMapCatalogVersion,
     mapPool: normalizeCoreFpsMapPool(undefined),
     modePool: normalizeCoreFpsModePool(undefined),
     publicUrl: normalizeCoreFpsPublicUrl(process.env.CORE_FPS_PUBLIC_URL)
@@ -75,7 +79,8 @@ function mergeSettings(value: unknown): CoreFpsSettings {
   return {
     enabled: typeof stored.enabled === "boolean" ? stored.enabled : defaults.enabled,
     lobbyWaitSeconds: normalizeCoreFpsLobbyWaitSeconds(stored.lobbyWaitSeconds),
-    mapPool: normalizeCoreFpsMapPool(stored.mapPool),
+    mapCatalogVersion: coreFpsMapCatalogVersion,
+    mapPool: migrateCoreFpsMapPool(stored.mapPool, stored.mapCatalogVersion),
     modePool: normalizeCoreFpsModePool(stored.modePool),
     publicUrl
   };
@@ -147,6 +152,7 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
   const settings: CoreFpsSettings = {
     enabled: input.enabled,
     lobbyWaitSeconds: normalizeCoreFpsLobbyWaitSeconds(input.lobbyWaitSeconds),
+    mapCatalogVersion: coreFpsMapCatalogVersion,
     mapPool: normalizeCoreFpsMapPool(input.mapPool),
     modePool: normalizeCoreFpsModePool(input.modePool),
     publicUrl: input.publicUrl
@@ -195,6 +201,7 @@ export async function updateCoreFpsSettings(input: CoreFpsSettingsInput, actorId
     metadata: {
       enabled: settings.enabled,
       lobbyWaitSeconds: settings.lobbyWaitSeconds,
+      mapCatalogVersion: settings.mapCatalogVersion,
       mapPool: settings.mapPool,
       modePool: settings.modePool,
       publicUrl: settings.publicUrl

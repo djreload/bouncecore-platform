@@ -46,6 +46,7 @@ export const coreFpsMapDefinitions = [
   }
 ] as const;
 export const coreFpsAvailableMaps = coreFpsMapDefinitions.map((map) => map.id);
+export const coreFpsMapCatalogVersion = 2;
 export const coreFpsDefaultLobbyWaitSeconds = 30;
 export const coreFpsMinimumLobbyWaitSeconds = 10;
 export const coreFpsMaximumLobbyWaitSeconds = 180;
@@ -119,6 +120,19 @@ export function normalizeCoreFpsMapPool(value: unknown) {
   ];
 
   return maps.length ? maps : [...coreFpsAvailableMaps];
+}
+
+export function migrateCoreFpsMapPool(value: unknown, storedCatalogVersion: unknown) {
+  const mapPool = normalizeCoreFpsMapPool(value);
+  const parsedVersion = Number(storedCatalogVersion);
+  const catalogVersion = Number.isInteger(parsedVersion) && parsedVersion > 0 ? parsedVersion : 1;
+
+  if (catalogVersion >= coreFpsMapCatalogVersion || mapPool.includes("neonvault")) {
+    return mapPool;
+  }
+
+  const enabledMaps = new Set([...mapPool, "neonvault"]);
+  return coreFpsAvailableMaps.filter((mapName) => enabledMaps.has(mapName));
 }
 
 export function normalizeCoreFpsMode(value: unknown): CoreFpsGameMode | null {
