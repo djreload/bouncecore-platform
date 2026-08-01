@@ -120,6 +120,13 @@ export const adminNavigation: NavigationItem[] = [
   { label: "Reports", href: "/admin/reports", icon: "shield", group: "Chat & Moderation", requiredPermission: "moderation.use" },
   { label: "Bans", href: "/admin/bans", icon: "lock", group: "Chat & Moderation", requiredPermission: "moderation.use" },
   { label: "Core FPS", href: "/admin/core-fps", icon: "gamepad", group: "Games", requiredPermission: "settings.manage" },
+  {
+    label: "Core Level Builder",
+    href: "/admin/core-fps/level-builder",
+    icon: "layout",
+    group: "Games",
+    requiredPermission: "settings.manage"
+  },
   { label: "Tracks", href: "/admin/tracks", icon: "music", group: "Music Marketplace", requiredRoles: ["owner", "admin"] },
   { label: "Producer approvals", href: "/admin/producer-approvals", icon: "shield", group: "Music Marketplace", requiredRoles: ["owner", "admin"] },
   { label: "Products", href: "/admin/products", icon: "shopping-bag", group: "Merch Shop", requiredRoles: ["owner", "admin"] },

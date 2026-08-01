@@ -10,3 +10,4 @@ docker-compose*.yml
 !.env.example
 tsconfig.tsbuildinfo
 public/uploads/*
+.tmp*

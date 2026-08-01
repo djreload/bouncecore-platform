@@ -308,6 +308,8 @@ This creates a staging-only producer and approved paid music track when needed s
 
 ## Documentation
 
+- [Core Level Builder](docs/CORE_LEVEL_BUILDER.md)
+
 - [CHANGELOG.md](CHANGELOG.md)
 - [docs/INSTALL_UBUNTU_DEBIAN.md](docs/INSTALL_UBUNTU_DEBIAN.md)
 - [docs/ANDROID_RELEASE.md](docs/ANDROID_RELEASE.md)

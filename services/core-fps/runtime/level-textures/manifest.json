@@ -1,0 +1,389 @@
+{
+  "generatedAt": "2026-07-30T17:34:25.194Z",
+  "textures": [
+    {
+      "accent": "#79b957",
+      "category": "Natural",
+      "color": "#4f8e3c",
+      "displayName": "Lush grass",
+      "id": "grass-lush",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#42a75e",
+      "category": "Natural",
+      "color": "#254f39",
+      "displayName": "Night grass",
+      "id": "grass-night",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#a47751",
+      "category": "Natural",
+      "color": "#765039",
+      "displayName": "Rich dirt",
+      "id": "dirt-rich",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#9a876f",
+      "category": "Natural",
+      "color": "#66584c",
+      "displayName": "Rocky dirt",
+      "id": "dirt-rocky",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#ead58e",
+      "category": "Natural",
+      "color": "#c9af6a",
+      "displayName": "Golden sand",
+      "id": "sand-gold",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#666a75",
+      "category": "Natural",
+      "color": "#34363c",
+      "displayName": "Black sand",
+      "id": "sand-black",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#a5abb0",
+      "category": "Natural",
+      "color": "#737b82",
+      "displayName": "Grey stone",
+      "id": "stone-grey",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#555f6c",
+      "category": "Natural",
+      "color": "#303640",
+      "displayName": "Dark stone",
+      "id": "stone-dark",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#8ca36f",
+      "category": "Natural",
+      "color": "#596452",
+      "displayName": "Moss stone",
+      "id": "stone-moss",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#d1f4ff",
+      "category": "Natural",
+      "color": "#79c9e8",
+      "displayName": "Blue ice",
+      "id": "ice-blue",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#ff542e",
+      "category": "Natural",
+      "color": "#391c1b",
+      "displayName": "Lava crust",
+      "id": "lava-crust",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#2ba8df",
+      "category": "Natural",
+      "color": "#164d82",
+      "displayName": "Deep water",
+      "id": "water-deep",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#c8955c",
+      "category": "Architectural",
+      "color": "#91683f",
+      "displayName": "Oak planks",
+      "id": "oak-planks",
+      "pattern": "plank"
+    },
+    {
+      "accent": "#786052",
+      "category": "Architectural",
+      "color": "#493a35",
+      "displayName": "Dark planks",
+      "id": "dark-planks",
+      "pattern": "plank"
+    },
+    {
+      "accent": "#45d7e9",
+      "category": "Architectural",
+      "color": "#177f8f",
+      "displayName": "Cyan planks",
+      "id": "painted-planks",
+      "pattern": "plank"
+    },
+    {
+      "accent": "#c66d54",
+      "category": "Architectural",
+      "color": "#8f493b",
+      "displayName": "Red brick",
+      "id": "red-brick",
+      "pattern": "brick"
+    },
+    {
+      "accent": "#676270",
+      "category": "Architectural",
+      "color": "#343239",
+      "displayName": "Charcoal brick",
+      "id": "charcoal-brick",
+      "pattern": "brick"
+    },
+    {
+      "accent": "#ecf1f4",
+      "category": "Architectural",
+      "color": "#b8bec4",
+      "displayName": "White brick",
+      "id": "white-brick",
+      "pattern": "brick"
+    },
+    {
+      "accent": "#b9bdc3",
+      "category": "Architectural",
+      "color": "#85888e",
+      "displayName": "Clean concrete",
+      "id": "concrete",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#ff2bd6",
+      "category": "Architectural",
+      "color": "#383848",
+      "displayName": "Painted concrete",
+      "id": "concrete-rave",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#ffffff",
+      "category": "Architectural",
+      "color": "#d8d9dd",
+      "displayName": "White marble",
+      "id": "marble-white",
+      "pattern": "noise"
+    },
+    {
+      "accent": "#718296",
+      "category": "Architectural",
+      "color": "#3a4654",
+      "displayName": "Slate roof",
+      "id": "roof-slate",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#61e5fa",
+      "category": "Architectural",
+      "color": "#078ea8",
+      "displayName": "Cyan ceramic",
+      "id": "ceramic-cyan",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#ff75da",
+      "category": "Architectural",
+      "color": "#9c247d",
+      "displayName": "Pink ceramic",
+      "id": "ceramic-pink",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#c7d2dc",
+      "category": "Industrial",
+      "color": "#68717c",
+      "displayName": "Clean steel",
+      "id": "steel-clean",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#596271",
+      "category": "Industrial",
+      "color": "#252b35",
+      "displayName": "Dark steel",
+      "id": "steel-dark",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#bd6a3d",
+      "category": "Industrial",
+      "color": "#674032",
+      "displayName": "Rust steel",
+      "id": "steel-rust",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#aab4bd",
+      "category": "Industrial",
+      "color": "#59616b",
+      "displayName": "Diamond plate",
+      "id": "diamond-plate",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#292710",
+      "category": "Industrial",
+      "color": "#d6a712",
+      "displayName": "Yellow hazard",
+      "id": "hazard-yellow",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#241a1e",
+      "category": "Industrial",
+      "color": "#b62d35",
+      "displayName": "Red hazard",
+      "id": "hazard-red",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#4d5967",
+      "category": "Industrial",
+      "color": "#202630",
+      "displayName": "Dark vent",
+      "id": "vent-dark",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#3e94c9",
+      "category": "Industrial",
+      "color": "#195c8e",
+      "displayName": "Blue cargo",
+      "id": "cargo-blue",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#cf586b",
+      "category": "Industrial",
+      "color": "#8d3142",
+      "displayName": "Red cargo",
+      "id": "cargo-red",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#00d5ff",
+      "category": "Industrial",
+      "color": "#1c2933",
+      "displayName": "Tech floor",
+      "id": "tech-floor",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#00d5ff",
+      "category": "Neon",
+      "color": "#063342",
+      "displayName": "Cyan glow",
+      "id": "neon-cyan",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#ff2bd6",
+      "category": "Neon",
+      "color": "#3e0b36",
+      "displayName": "Pink glow",
+      "id": "neon-pink",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#b6ff2e",
+      "category": "Neon",
+      "color": "#29370d",
+      "displayName": "Acid glow",
+      "id": "neon-acid",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#9d68ff",
+      "category": "Neon",
+      "color": "#25143e",
+      "displayName": "Violet glow",
+      "id": "neon-violet",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#f14cff",
+      "category": "Neon",
+      "color": "#160e25",
+      "displayName": "Laser grid",
+      "id": "laser-grid",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#00d5ff",
+      "category": "Neon",
+      "color": "#101928",
+      "displayName": "Cyan dancefloor",
+      "id": "dancefloor-cyan",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#ff2bd6",
+      "category": "Neon",
+      "color": "#20152c",
+      "displayName": "Rave dancefloor",
+      "id": "dancefloor-mix",
+      "pattern": "tile"
+    },
+    {
+      "accent": "#484e59",
+      "category": "Utility",
+      "color": "#111319",
+      "displayName": "Speaker black",
+      "id": "speaker-black",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#d7f7ff",
+      "category": "Utility",
+      "color": "#5ea2bc",
+      "displayName": "Clear glass",
+      "id": "glass-clear",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#ff9ce9",
+      "category": "Utility",
+      "color": "#8d3976",
+      "displayName": "Pink glass",
+      "id": "glass-pink",
+      "pattern": "grid"
+    },
+    {
+      "accent": "#ff416c",
+      "category": "Utility",
+      "color": "#8d2039",
+      "displayName": "Team red",
+      "id": "team-red",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#22bdf5",
+      "category": "Utility",
+      "color": "#125b8b",
+      "displayName": "Team blue",
+      "id": "team-blue",
+      "pattern": "panel"
+    },
+    {
+      "accent": "#00d5ff",
+      "category": "Utility",
+      "color": "#111421",
+      "displayName": "Bouncecore brand",
+      "id": "bouncecore",
+      "pattern": "circuit"
+    },
+    {
+      "accent": "#31374c",
+      "category": "Utility",
+      "color": "#05050a",
+      "displayName": "Void black",
+      "id": "void",
+      "pattern": "noise"
+    }
+  ]
+}

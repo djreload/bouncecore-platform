@@ -7,7 +7,8 @@ import type { StarAlertSettings } from "@/lib/stars/star-alert-settings";
 import { getStarAlertSettings } from "@/lib/stars/star-alert-settings-service";
 import { syncStreamProviderSnapshot } from "@/lib/stream/stream-session-sync-service";
 
-export const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
+export const liveStarSendAmounts = [10, 25, 50, 100, 250, 500, 1000, 2000] as const;
+export const liveStarSendMaximum = 2000;
 
 export type LiveStarSupportData = {
   alertSettings: StarAlertSettings;
@@ -40,11 +41,11 @@ export type LiveStarSupportData = {
   totalStarsSent: number;
 };
 
-function parseStarSendAmount(value: string) {
+export function normalizeLiveStarSendAmount(value: string) {
   const amount = Number(value);
 
   if (!Number.isInteger(amount) || !liveStarSendAmounts.includes(amount as (typeof liveStarSendAmounts)[number])) {
-    throw new Error("Choose a valid star amount.");
+    throw new Error(`Choose a valid star amount up to ${liveStarSendMaximum.toLocaleString("en-GB")}.`);
   }
 
   return amount;
@@ -119,7 +120,7 @@ export async function createLiveChatStarSend(
   await pruneExpiredChatHistory();
   await assertUserCanPostInChat(userId, roomId);
 
-  const amount = parseStarSendAmount(input.amount);
+  const amount = normalizeLiveStarSendAmount(input.amount);
   const note = normalizeNote(input.note);
 
   await syncStreamProviderSnapshot().catch(() => {

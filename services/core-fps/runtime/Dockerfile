@@ -63,6 +63,9 @@ COPY generated-map.patch /tmp/generated-map.patch
 COPY index.html /tmp/core-index.html
 COPY blocklands_map.go /src/pkg/maps/blocklands.go
 COPY blocklands_main.go /src/cmd/blocklands/main.go
+COPY published_level_map.go /src/pkg/maps/published_level.go
+COPY published_level_main.go /src/cmd/published-levels/main.go
+COPY published-levels /tmp/core-published-levels
 
 RUN git apply --check /tmp/solo-bot.patch \
   && git apply /tmp/solo-bot.patch \
@@ -70,6 +73,7 @@ RUN git apply --check /tmp/solo-bot.patch \
   && git apply /tmp/generated-map.patch \
   && mkdir -p /out \
   && go run ./cmd/blocklands --output /out/blocklands.ogz \
+  && go run ./cmd/published-levels --input-dir /tmp/core-published-levels --output-dir /out/published \
   && go test -vet=off ./pkg/gameserver ./pkg/gameserver/relay \
   && cd client \
   && yarn install --frozen-lockfile --non-interactive \
@@ -91,16 +95,21 @@ LABEL uk.co.bouncecore.component="core-fps-runtime"
 
 COPY --from=builder /out/sour /opt/core/sour
 COPY --from=builder /out/blocklands.ogz /tmp/blocklands.ogz
+COPY --from=builder /out/published /tmp/core-published-maps
 COPY core.yaml /opt/core/core.yaml
 COPY brand_flags.py /tmp/brand_flags.py
 COPY install_blocklands.py /tmp/install_blocklands.py
+COPY install_published_levels.py /tmp/install_published_levels.py
+COPY published-levels /tmp/core-published-levels
+COPY level-textures /tmp/core-level-textures
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends fonts-dejavu-core python3-cbor2 python3-pil \
   && python3 /tmp/brand_flags.py \
   && python3 /tmp/install_blocklands.py \
+  && python3 /tmp/install_published_levels.py \
   && apt-get purge -y --auto-remove fonts-dejavu-core python3-cbor2 python3-pil \
-  && rm -rf /var/lib/apt/lists/* /tmp/brand_flags.py /tmp/install_blocklands.py /tmp/blocklands.ogz
+  && rm -rf /var/lib/apt/lists/* /tmp/brand_flags.py /tmp/install_blocklands.py /tmp/install_published_levels.py /tmp/blocklands.ogz /tmp/core-published-levels /tmp/core-published-maps /tmp/core-level-textures
 
 RUN groupadd --system --gid 10001 corefps \
   && useradd --system --uid 10001 --gid corefps --home-dir /var/cache/sour --shell /usr/sbin/nologin corefps \

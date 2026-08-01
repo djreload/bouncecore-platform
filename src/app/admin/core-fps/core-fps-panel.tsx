@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Clock3, ExternalLink, Gamepad2, Map, Save, ShieldCheck } from "lucide-react";
+import { Boxes, Clock3, ExternalLink, Gamepad2, Map, Save, ShieldCheck } from "lucide-react";
 import { adminCoreFpsAction } from "@/app/admin/core-fps/actions";
 import { initialAdminCoreFpsActionState, type AdminCoreFpsActionState } from "@/app/admin/core-fps/state";
 import { Badge } from "@/components/ui/badge";
@@ -212,6 +212,10 @@ export function AdminCoreFpsPanel({ data }: AdminCoreFpsPanelProps) {
           ))}
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
+          <ButtonLink href="/admin/core-fps/level-builder">
+            <Boxes className="h-4 w-4" aria-hidden="true" />
+            Open Level Builder
+          </ButtonLink>
           <ButtonLink href="/games/core" variant="ghost">
             <Gamepad2 className="h-4 w-4" aria-hidden="true" />
             Open launcher
