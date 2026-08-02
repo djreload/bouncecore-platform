@@ -256,17 +256,16 @@ export function AdminStreamControlPanel({
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Badge tone="cyan">Player buffer</Badge>
-            <h3 className="mt-4 text-2xl font-black">Live startup buffer</h3>
+            <Badge tone="cyan">Player settings</Badge>
+            <h3 className="mt-4 text-2xl font-black">Live player and page</h3>
             <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-              Controls how many seconds behind the live edge the public players wait before starting. Higher values smooth
-              unstable connections; lower values reduce delay.
+              Set the player startup buffer and choose whether the public live page shows the upcoming schedule.
             </p>
           </div>
           <Badge tone="acid">{playbackSettings.playbackBufferSeconds}s behind live</Badge>
         </div>
 
-        <form action={formAction} className="mt-5 grid gap-4 md:grid-cols-[minmax(180px,260px)_1fr_auto]">
+        <form action={formAction} className="mt-5 grid gap-4 lg:grid-cols-[minmax(180px,260px)_minmax(260px,1fr)_auto]">
           <input name="intent" type="hidden" value="update-playback-settings" />
           <label className="text-xs font-semibold uppercase text-bc-muted">
             Buffer seconds
@@ -283,9 +282,25 @@ export function AdminStreamControlPanel({
               Allowed range: {streamPlaybackBufferLimits.min}-{streamPlaybackBufferLimits.max} seconds.
             </span>
           </label>
-          <div className="rounded-md border border-bc-line bg-bc-ink p-3 text-sm text-bc-muted">
-            Start around 4 seconds for normal live shows. Use 6-10 seconds if viewers report stalls, or 1-2 seconds when
-            low latency matters more than buffering.
+          <div className="grid gap-3">
+            <div className="rounded-md border border-bc-line bg-bc-ink p-3 text-sm text-bc-muted">
+              Start around 4 seconds for normal live shows. Use 6-10 seconds if viewers report stalls, or 1-2 seconds when
+              low latency matters more than buffering.
+            </div>
+            <label className="flex items-start gap-3 rounded-md border border-bc-line bg-bc-ink p-3 text-sm text-white">
+              <input
+                className="mt-0.5 h-4 w-4 accent-bc-electric"
+                defaultChecked={playbackSettings.showUpcomingSets}
+                name="showUpcomingSets"
+                type="checkbox"
+              />
+              <span>
+                <span className="block font-semibold">Show Upcoming Sets on the live page</span>
+                <span className="mt-1 block text-xs text-bc-muted">
+                  Disabled by default. Turn this on when you want the schedule card visible below the player.
+                </span>
+              </span>
+            </label>
           </div>
           <div className="flex items-end">
             <Button disabled={pending} type="submit" variant="primary">

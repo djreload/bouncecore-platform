@@ -1,9 +1,11 @@
 export type StreamPlaybackSettings = {
   playbackBufferSeconds: number;
+  showUpcomingSets: boolean;
 };
 
 export type StreamPlaybackSettingsInput = {
   playbackBufferSeconds?: number | string;
+  showUpcomingSets?: boolean;
 };
 
 export const streamPlaybackBufferLimits = {
@@ -13,7 +15,8 @@ export const streamPlaybackBufferLimits = {
 };
 
 export const defaultStreamPlaybackSettings: StreamPlaybackSettings = {
-  playbackBufferSeconds: streamPlaybackBufferLimits.default
+  playbackBufferSeconds: streamPlaybackBufferLimits.default,
+  showUpcomingSets: false
 };
 
 function numberValue(value: unknown) {
@@ -48,12 +51,14 @@ export function normalizeStreamPlaybackSettings(value: unknown): StreamPlaybackS
   const settings = value as Partial<Record<keyof StreamPlaybackSettings, unknown>>;
 
   return {
-    playbackBufferSeconds: normalizePlaybackBufferSeconds(settings.playbackBufferSeconds)
+    playbackBufferSeconds: normalizePlaybackBufferSeconds(settings.playbackBufferSeconds),
+    showUpcomingSets: settings.showUpcomingSets === true
   };
 }
 
 export function normalizeStreamPlaybackSettingsInput(input: StreamPlaybackSettingsInput): StreamPlaybackSettings {
   return {
-    playbackBufferSeconds: normalizePlaybackBufferSeconds(input.playbackBufferSeconds)
+    playbackBufferSeconds: normalizePlaybackBufferSeconds(input.playbackBufferSeconds),
+    showUpcomingSets: input.showUpcomingSets === true
   };
 }

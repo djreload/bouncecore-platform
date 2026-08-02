@@ -59,6 +59,7 @@ export function liveStatusSignature(payload: LiveStatusEventPayload) {
     payload.playbackUrl ?? "",
     payload.offlineImageUrl ?? "",
     payload.playbackSettings?.playbackBufferSeconds ?? "",
+    payload.playbackSettings?.showUpcomingSets ? "1" : "0",
     payload.viewerCount,
     payload.channel?.slug ?? "",
     payload.channel?.title ?? "",

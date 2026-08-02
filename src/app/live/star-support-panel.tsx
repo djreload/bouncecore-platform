@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { Star, Trophy } from "lucide-react";
+import { Crown, Star, Trophy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import type { LiveStarSupportData } from "@/lib/stars/star-send-service";
@@ -327,7 +327,48 @@ export function StarSupportOverlay({ initialData }: StarSupportOverlayProps) {
   );
 }
 
-export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
+function StarLeaderboardCard({
+  description,
+  emptyMessage,
+  rows,
+  title,
+  variant
+}: {
+  description: string;
+  emptyMessage: string;
+  rows: LiveStarSupportData["leaderboard"];
+  title: string;
+  variant: "weekly" | "all-time";
+}) {
+  const Icon = variant === "weekly" ? Trophy : Crown;
+
+  return (
+    <div className="rounded-md border border-bc-line bg-bc-panel p-5">
+      <div className="flex items-center justify-between gap-3">
+        <Badge tone={variant === "weekly" ? "acid" : "pink"}>{variant === "weekly" ? "This week" : "All time"}</Badge>
+        <Icon className={variant === "weekly" ? "h-5 w-5 text-bc-acid" : "h-5 w-5 text-bc-pink"} aria-hidden="true" />
+      </div>
+      <h2 className="mt-4 text-xl font-black">{title}</h2>
+      <p className="mt-2 text-sm text-bc-muted">{description}</p>
+      <div className="mt-4 space-y-2">
+        {rows.map((row, index) => (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3" key={row.userId}>
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-bc-line bg-bc-panel text-sm font-black">
+                {index + 1}
+              </span>
+              <span className="truncate font-semibold">{row.displayName}</span>
+            </div>
+            <Badge tone={variant === "weekly" ? "acid" : "pink"}>{row.stars.toLocaleString("en-GB")}</Badge>
+          </div>
+        ))}
+        {!rows.length ? <p className="text-sm text-bc-muted">{emptyMessage}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+export function LiveStarLeaderboards({ initialData }: StarSupportPanelProps) {
   const { effective: performancePreferences } = usePerformancePreferences();
   const [data, setData] = useState(initialData);
 
@@ -364,29 +405,21 @@ export function StarSupportLeaderboard({ initialData }: StarSupportPanelProps) {
   }, [performancePreferences.realtimeUpdatesEnabled]);
 
   return (
-    <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-      <div className="flex items-center justify-between gap-3">
-        <Badge tone="acid">Stars sent</Badge>
-        <Trophy className="h-5 w-5 text-bc-acid" aria-hidden="true" />
-      </div>
-      <h2 className="mt-4 text-xl font-black">Weekly leaderboard</h2>
-      <p className="mt-2 text-sm text-bc-muted">
-        {data.totalStarsSent.toLocaleString("en-GB")} stars sent across {data.sendCount} live chat sends this week.
-      </p>
-      <div className="mt-4 space-y-2">
-        {data.leaderboard.map((row, index) => (
-          <div className="flex items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3" key={row.userId}>
-            <div className="flex items-center gap-3">
-              <span className="grid h-8 w-8 place-items-center rounded-md border border-bc-line bg-bc-panel text-sm font-black">
-                {index + 1}
-              </span>
-              <span className="font-semibold">{row.displayName}</span>
-            </div>
-            <Badge tone="acid">{row.stars.toLocaleString("en-GB")}</Badge>
-          </div>
-        ))}
-        {!data.leaderboard.length ? <p className="text-sm text-bc-muted">No stars have been sent this week yet.</p> : null}
-      </div>
+    <div className="grid gap-4 lg:grid-cols-2">
+      <StarLeaderboardCard
+        description={`${data.totalStarsSent.toLocaleString("en-GB")} stars sent across ${data.sendCount} live chat sends this week.`}
+        emptyMessage="No stars have been sent this week yet."
+        rows={data.leaderboard}
+        title="Weekly stars leaderboard"
+        variant="weekly"
+      />
+      <StarLeaderboardCard
+        description="Top viewers across every recorded live chat star send."
+        emptyMessage="The all-time ranking starts with the first live chat star send."
+        rows={data.allTimeLeaderboard}
+        title="All Time stars leaderboard"
+        variant="all-time"
+      />
     </div>
   );
 }

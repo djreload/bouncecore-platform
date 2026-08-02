@@ -11,6 +11,14 @@ import {
   keepNormalPlaybackSpeed,
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
+import {
+  emptyLivePlayerQualityState,
+  livePlayerQualityRequestEvent,
+  livePlayerQualityStateRequestEvent,
+  publishLivePlayerQualityState,
+  type LivePlayerQualityOption,
+  type LivePlayerQualityState
+} from "@/components/live/live-player-events";
 import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
@@ -19,6 +27,7 @@ import { defaultStreamPlaybackSettings } from "@/lib/stream/stream-playback-sett
 
 const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
+const liveAudioDisableEvent = "bouncecore:live-audio-disable";
 const liveVideoSlotSelector = "[data-live-primary-video-slot]";
 
 type AndroidAudioBridgeWindow = Window & {
@@ -103,6 +112,41 @@ export function requestPersistentLiveAudio() {
   window.dispatchEvent(new Event(liveAudioEnableEvent));
 }
 
+export function mutePersistentLiveAudio() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(liveAudioDisableEvent));
+}
+
+function qualityOptions(hls: Hls, maxLiveHeight: number | null): LivePlayerQualityOption[] {
+  const byHeight = new Map<string, LivePlayerQualityOption>();
+
+  hls.levels.forEach((level, index) => {
+    const height = level.height || null;
+
+    if (maxLiveHeight && height && height > maxLiveHeight) {
+      return;
+    }
+
+    const key = height ? String(height) : `level-${index}`;
+    const option = {
+      bitrate: level.bitrate || null,
+      height,
+      index,
+      label: height ? `${height}p` : `Quality ${index + 1}`
+    };
+    const existing = byHeight.get(key);
+
+    if (!existing || (option.bitrate ?? 0) > (existing.bitrate ?? 0)) {
+      byHeight.set(key, option);
+    }
+  });
+
+  return Array.from(byHeight.values()).sort((left, right) => (right.height ?? 0) - (left.height ?? 0));
+}
+
 const initialLiveStatus: LiveStatusPayload = {
   activeIngests: [],
   channel: null,
@@ -135,6 +179,7 @@ export function PersistentLiveAudio() {
   const reconnectAttemptRef = useRef(0);
   const canPlayRef = useRef(false);
   const playbackBufferSecondsRef = useRef(defaultStreamPlaybackSettings.playbackBufferSeconds);
+  const qualityStateRef = useRef<LivePlayerQualityState>(emptyLivePlayerQualityState);
   const suspendPlaybackRef = useRef(false);
   const userEnabledRef = useRef(false);
   const [liveState, setLiveState] = useState<LiveStatusPayload>(initialLiveStatus);
@@ -199,6 +244,18 @@ export function PersistentLiveAudio() {
     };
   }, []);
 
+  useEffect(() => {
+    function publishCurrentQualityState() {
+      publishLivePlayerQualityState(qualityStateRef.current);
+    }
+
+    window.addEventListener(livePlayerQualityStateRequestEvent, publishCurrentQualityState);
+
+    return () => {
+      window.removeEventListener(livePlayerQualityStateRequestEvent, publishCurrentQualityState);
+    };
+  }, []);
+
   const placeVideo = useCallback((host: HTMLElement, docked: boolean) => {
     const video = videoRef.current;
 
@@ -210,7 +267,7 @@ export function PersistentLiveAudio() {
       host.appendChild(video);
     }
 
-    video.controls = docked;
+    video.controls = false;
     video.setAttribute("aria-label", "Primary live stream");
     video.style.backgroundColor = "#000000";
     video.style.objectFit = "contain";
@@ -429,6 +486,8 @@ export function PersistentLiveAudio() {
 
     hlsRef.current?.destroy();
     hlsRef.current = null;
+    qualityStateRef.current = emptyLivePlayerQualityState;
+    publishLivePlayerQualityState(qualityStateRef.current);
 
     if (!video) {
       return () => {
@@ -451,18 +510,57 @@ export function PersistentLiveAudio() {
 
     if (isLikelyHls(playbackUrl) && Hls.isSupported()) {
       const hls = new Hls(buildLiveHlsConfig(playbackBufferSeconds));
+      let selectedQualityLevel = -1;
       hlsRef.current = hls;
+
+      function updateQualityState(activeLevel = hls.currentLevel) {
+        qualityStateRef.current = {
+          activeLevel,
+          options: qualityOptions(hls, performancePreferences.maxLiveHeight),
+          selectedLevel: selectedQualityLevel
+        };
+        publishLivePlayerQualityState(qualityStateRef.current);
+      }
+
+      function handleQualityRequest(event: Event) {
+        const requestedLevel = (event as CustomEvent<{ level?: unknown }>).detail?.level;
+
+        if (typeof requestedLevel !== "number" || !Number.isInteger(requestedLevel)) {
+          return;
+        }
+
+        if (requestedLevel === -1) {
+          selectedQualityLevel = -1;
+          hls.currentLevel = -1;
+          updateQualityState();
+          return;
+        }
+
+        if (!qualityOptions(hls, performancePreferences.maxLiveHeight).some((option) => option.index === requestedLevel)) {
+          return;
+        }
+
+        selectedQualityLevel = requestedLevel;
+        hls.currentLevel = requestedLevel;
+        updateQualityState(requestedLevel);
+      }
+
+      window.addEventListener(livePlayerQualityRequestEvent, handleQualityRequest);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (cancelled) {
           return;
         }
 
         applyLiveQualityCap(hls, performancePreferences.maxLiveHeight);
+        updateQualityState();
         reconnectAttemptRef.current = 0;
         mediaRecoveryAttempts = 0;
         video.muted = !userEnabledRef.current;
         keepNormalPlaybackSpeed(video);
         void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
+      });
+      hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
+        updateQualityState(data.level);
       });
       hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
         if (!data.details.live || cancelled || !video.paused) {
@@ -500,6 +598,9 @@ export function PersistentLiveAudio() {
         if (reconnectTimer !== null) {
           window.clearTimeout(reconnectTimer);
         }
+        window.removeEventListener(livePlayerQualityRequestEvent, handleQualityRequest);
+        qualityStateRef.current = emptyLivePlayerQualityState;
+        publishLivePlayerQualityState(qualityStateRef.current);
         hls.destroy();
       };
     }
@@ -557,11 +658,18 @@ export function PersistentLiveAudio() {
       }
     }
 
+    function disableAudio() {
+      setUserEnabled(false);
+      setAudiblePreference(false, videoRef.current);
+    }
+
     window.addEventListener(liveAudioEnableEvent, enableAudio);
+    window.addEventListener(liveAudioDisableEvent, disableAudio);
     window.addEventListener("bouncecore:live-video-play", enableAudio);
 
     return () => {
       window.removeEventListener(liveAudioEnableEvent, enableAudio);
+      window.removeEventListener(liveAudioDisableEvent, disableAudio);
       window.removeEventListener("bouncecore:live-video-play", enableAudio);
     };
   }, []);

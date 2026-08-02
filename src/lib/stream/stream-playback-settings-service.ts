@@ -26,12 +26,12 @@ export async function updateStreamPlaybackSettings(input: StreamPlaybackSettings
       key: streamPlaybackSettingsKey
     },
     update: {
-      description: "Public livestream player startup buffer settings.",
+      description: "Public livestream player and live-page display settings.",
       isSecret: false,
       value: settings
     },
     create: {
-      description: "Public livestream player startup buffer settings.",
+      description: "Public livestream player and live-page display settings.",
       isSecret: false,
       key: streamPlaybackSettingsKey,
       value: settings
@@ -44,7 +44,8 @@ export async function updateStreamPlaybackSettings(input: StreamPlaybackSettings
     target: "stream:playback",
     severity: "info",
     metadata: {
-      playbackBufferSeconds: settings.playbackBufferSeconds
+      playbackBufferSeconds: settings.playbackBufferSeconds,
+      showUpcomingSets: settings.showUpcomingSets
     }
   });
 

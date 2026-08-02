@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { ChatRoomPanel } from "@/app/chat/chat-room-panel";
 import { LivePlaybackPlayer } from "@/app/live/live-playback-player";
-import { StarSupportLeaderboard } from "@/app/live/star-support-panel";
+import { LiveStarLeaderboards } from "@/app/live/star-support-panel";
 import type { PublicChatAssetRow, PublicChatMessageRow, PublicChatPresenceUserRow, PublicChatRoomRow } from "@/app/chat/state";
 import { PublicShell } from "@/components/layout/public-shell";
 import { Badge } from "@/components/ui/badge";
@@ -121,7 +121,7 @@ export default async function LivePage() {
     getChatSheepThrowReadiness(currentUser?.id, sheepSettings),
     getRaveWarReadiness(currentUser?.id, raveWarSettings)
   ]);
-  const { activeIngests, channel, status, playbackUrl, offlineImageUrl, playbackSettings, viewerCount, health } = liveState;
+  const { activeIngests, channel, status, playbackUrl, offlineImageUrl, playbackSettings, viewerCount } = liveState;
   const roomRows: PublicChatRoomRow[] = chatData.rooms.map((room) => ({
     id: room.id,
     lockedAt: room.lockedAt,
@@ -200,31 +200,19 @@ export default async function LivePage() {
                 playbackSettings={playbackSettings}
                 status={status}
                 title={channel?.title ?? "Bouncecore Live"}
+                viewerCount={viewerCount}
               />
             </div>
             <div className="hidden lg:block">
               <LiveSocialLinks links={siteSettings.liveSocialLinks} />
             </div>
 
-            <section className="mt-4 hidden gap-4 lg:grid lg:grid-cols-2">
-              <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-                <Badge tone={status === "live" ? "acid" : "muted"}>{status.toUpperCase()}</Badge>
-                <h2 className="mt-4 text-xl font-black">Stream status</h2>
-                <p className="mt-2 text-sm text-bc-muted">
-                  {viewerCount.toLocaleString("en-GB")} viewers on {channel ? `/${channel.slug}` : "the primary live channel"}.
-                </p>
-              </div>
-              <div className="rounded-md border border-bc-line bg-bc-panel p-5">
-                <Badge tone="cyan">{health.status.toUpperCase()}</Badge>
-                <h2 className="mt-4 text-xl font-black">Stream health</h2>
-                <p className="mt-2 text-sm text-bc-muted">
-                  Ingest connected: {health.ingestConnected ? "yes" : "no"}. Checked {health.checkedAt}.
-                </p>
-              </div>
+            <section className="mt-4 hidden lg:block">
+              <LiveStarLeaderboards initialData={starSupport} />
             </section>
 
-            <section className="mt-4 hidden gap-4 lg:grid lg:grid-cols-[minmax(0,420px)_1fr]">
-              <StarSupportLeaderboard initialData={starSupport} />
+            {playbackSettings.showUpcomingSets ? (
+              <section className="mt-4 hidden lg:block">
               <div className="rounded-md border border-bc-line bg-bc-panel p-5">
                 <div className="flex items-center justify-between gap-3">
                   <Badge tone="pink">Schedule</Badge>
@@ -256,7 +244,8 @@ export default async function LivePage() {
                   {!schedules.length ? <p className="text-sm text-bc-muted">No upcoming stream slots have been scheduled yet.</p> : null}
                 </div>
               </div>
-            </section>
+              </section>
+            ) : null}
           </div>
 
           <aside className="relative z-30 flex min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden px-0 pb-0 lg:fixed lg:right-0 lg:top-[65px] lg:h-[calc(100dvh-65px)] lg:w-[340px] lg:overflow-visible lg:px-0 xl:w-[360px] 2xl:w-[380px]">

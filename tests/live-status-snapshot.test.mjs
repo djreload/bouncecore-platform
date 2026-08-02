@@ -20,7 +20,8 @@ function livePayload(overrides = {}) {
     },
     offlineImageUrl: null,
     playbackSettings: {
-      playbackBufferSeconds: 4
+      playbackBufferSeconds: 4,
+      showUpcomingSets: false
     },
     playbackUrl: "https://example.test/live/master.m3u8",
     provider: {
@@ -92,7 +93,20 @@ test("live status signature changes when playback buffer settings change", () =>
   const first = livePayload();
   const second = livePayload({
     playbackSettings: {
-      playbackBufferSeconds: 8
+      playbackBufferSeconds: 8,
+      showUpcomingSets: false
+    }
+  });
+
+  assert.notEqual(liveStatusSignature(first), liveStatusSignature(second));
+});
+
+test("live status signature changes when upcoming sets visibility changes", () => {
+  const first = livePayload();
+  const second = livePayload({
+    playbackSettings: {
+      playbackBufferSeconds: 4,
+      showUpcomingSets: true
     }
   });
 

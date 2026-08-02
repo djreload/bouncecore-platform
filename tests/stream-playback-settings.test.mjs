@@ -9,6 +9,7 @@ import {
 
 test("stream playback settings default to a small live buffer", () => {
   assert.equal(defaultStreamPlaybackSettings.playbackBufferSeconds, 4);
+  assert.equal(defaultStreamPlaybackSettings.showUpcomingSets, false);
   assert.deepEqual(normalizeStreamPlaybackSettings(null), defaultStreamPlaybackSettings);
 });
 
@@ -16,4 +17,9 @@ test("stream playback settings clamp unsafe admin values", () => {
   assert.equal(normalizePlaybackBufferSeconds(-30), streamPlaybackBufferLimits.min);
   assert.equal(normalizePlaybackBufferSeconds(999), streamPlaybackBufferLimits.max);
   assert.equal(normalizePlaybackBufferSeconds("7"), 7);
+});
+
+test("upcoming sets visibility is explicit and defaults off", () => {
+  assert.equal(normalizeStreamPlaybackSettings({ playbackBufferSeconds: 6 }).showUpcomingSets, false);
+  assert.equal(normalizeStreamPlaybackSettings({ playbackBufferSeconds: 6, showUpcomingSets: true }).showUpcomingSets, true);
 });

@@ -88,7 +88,8 @@ function restreamSettingsInput(formData: FormData) {
 
 function playbackSettingsInput(formData: FormData) {
   return {
-    playbackBufferSeconds: formNumber(formData, "playbackBufferSeconds")
+    playbackBufferSeconds: formNumber(formData, "playbackBufferSeconds"),
+    showUpcomingSets: formBoolean(formData, "showUpcomingSets")
   };
 }
 
@@ -185,7 +186,7 @@ export async function adminStreamAction(
 
       return {
         status: "success",
-        message: "Live playback buffer updated."
+        message: "Live player settings updated."
       };
     }
 
