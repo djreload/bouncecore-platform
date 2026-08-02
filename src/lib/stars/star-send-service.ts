@@ -24,6 +24,11 @@ export type LiveStarSupportData = {
     displayName: string;
     note: string | null;
   }>;
+  allTimeLeaderboard: Array<{
+    displayName: string;
+    stars: number;
+    userId: string;
+  }>;
   leaderboard: Array<{
     displayName: string;
     stars: number;
@@ -233,20 +238,36 @@ export async function createLiveChatStarSend(
 export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
   const session = await currentOpenStreamSession();
   const leaderboardPeriod = weeklyStarLeaderboardWindow();
+  const liveRoomWhere = {
+    room: {
+      type: "live"
+    }
+  } as const;
   const where = {
     createdAt: {
       gte: leaderboardPeriod.startsAt,
       lt: leaderboardPeriod.endsAt
     },
-    room: {
-      type: "live"
-    }
+    ...liveRoomWhere
   };
-  const [alertSettings, sends, aggregate, sendCount, recentSends] = await Promise.all([
+  const [alertSettings, sends, allTimeSends, aggregate, sendCount, recentSends] = await Promise.all([
     getStarAlertSettings(),
     prisma.starSend.groupBy({
       by: ["userId"],
       where,
+      _sum: {
+        amount: true
+      },
+      orderBy: {
+        _sum: {
+          amount: "desc"
+        }
+      },
+      take: 20
+    }),
+    prisma.starSend.groupBy({
+      by: ["userId"],
+      where: liveRoomWhere,
       _sum: {
         amount: true
       },
@@ -284,7 +305,7 @@ export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
   const users = await prisma.user.findMany({
     where: {
       id: {
-        in: sends.map((send) => send.userId)
+        in: Array.from(new Set([...sends, ...allTimeSends].map((send) => send.userId)))
       }
     },
     select: {
@@ -305,6 +326,11 @@ export async function getLiveStarSupportData(): Promise<LiveStarSupportData> {
 
   return {
     alertSettings,
+    allTimeLeaderboard: allTimeSends.map((send) => ({
+      displayName: userById.get(send.userId) ?? "Viewer",
+      stars: send._sum.amount ?? 0,
+      userId: send.userId
+    })),
     latestSend: recentSendRows.at(-1) ?? null,
     recentSends: recentSendRows,
     leaderboard: sends.map((send) => ({
