@@ -76,6 +76,7 @@ import {
   type PublicChatUser
 } from "@/app/chat/state";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
+import { liveStarSendAmounts } from "@/lib/stars/star-send-core";
 
 type ChatRoomPanelProps = {
   assets: PublicChatAssetRow[];
@@ -162,7 +163,6 @@ const inlineBanDurationOptions = [
   { label: "7 days", value: "7d" },
   { label: "Permanent", value: "permanent" }
 ] as const;
-const liveStarSendAmounts = [10, 25, 50, 100, 250] as const;
 const messageActionButtonClass =
   "bc-focus-ring inline-flex min-h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-bc-line bg-bc-ink px-2 text-xs font-black text-white transition hover:border-bc-electric/60 disabled:pointer-events-none disabled:opacity-50";
 
