@@ -32,6 +32,7 @@ import {
   Reply,
   Search,
   Send,
+  ShieldAlert,
   Smile,
   Sparkles,
   Star,
@@ -492,6 +493,7 @@ export function ChatRoomPanel({
   const [editingMessage, setEditingMessage] = useState<PublicChatMessageRow | null>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
+  const [openModerationMessageId, setOpenModerationMessageId] = useState<string | null>(null);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedPresence, setSyncedPresence] = useState<SyncedPresence | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
@@ -903,6 +905,7 @@ export function ChatRoomPanel({
     const resetTimer = window.setTimeout(() => {
       setComposerBody("");
       setOpenMessageActionsId(null);
+      setOpenModerationMessageId(null);
       closeComposerPanels();
       setReplyTarget(null);
       setEditingMessage(null);
@@ -1128,12 +1131,30 @@ export function ChatRoomPanel({
       starNote: message.starNote
     });
     setOpenMessageActionsId(null);
+    setOpenModerationMessageId(null);
     textareaRef.current?.focus();
   }
 
   function startEditingChatMessage(message: PublicChatMessageRow) {
     setEditingMessage(message);
     setOpenMessageActionsId(null);
+    setOpenModerationMessageId(null);
+  }
+
+  function confirmMessageRemoval(event: FormEvent<HTMLFormElement>, displayName: string) {
+    if (!window.confirm(`Remove ${displayName}'s message from live chat? This action is recorded in the audit log.`)) {
+      event.preventDefault();
+    }
+  }
+
+  function confirmChatBan(event: FormEvent<HTMLFormElement>, displayName: string) {
+    const durationValue = new FormData(event.currentTarget).get("duration");
+    const durationLabel =
+      inlineBanDurationOptions.find((option) => option.value === durationValue)?.label.toLowerCase() ?? "the selected duration";
+
+    if (!window.confirm(`Ban ${displayName} from chat for ${durationLabel}? They will not be able to post during this ban.`)) {
+      event.preventDefault();
+    }
   }
 
   function handleComposerFocus() {
@@ -1439,6 +1460,7 @@ export function ChatRoomPanel({
                 onlinePresenceUserIds.has(message.authorUserId)
             );
             const messageActionsOpen = openMessageActionsId === message.id;
+            const moderationMenuOpen = openModerationMessageId === message.id;
             const editingThisMessage = editingMessage?.id === message.id;
             const isCustomAssetMessage = (message.kind === "sticker" || message.kind === "emoji") && Boolean(message.mediaUrl);
             const isImageAttachment = message.kind === "attachment-image" && Boolean(message.mediaUrl);
@@ -1556,7 +1578,10 @@ export function ChatRoomPanel({
                             ? "border-bc-electric/60 bg-bc-electric/15"
                             : "border-bc-line bg-bc-panel hover:border-bc-electric/60"
                         )}
-                        onClick={() => setOpenMessageActionsId(messageActionsOpen ? null : message.id)}
+                        onClick={() => {
+                          setOpenMessageActionsId(messageActionsOpen ? null : message.id);
+                          setOpenModerationMessageId(null);
+                        }}
                         title="Message actions"
                         type="button"
                       >
@@ -1843,60 +1868,99 @@ export function ChatRoomPanel({
                     ) : null}
 
                     {canModerateMessage ? (
-                      <div className="space-y-2 border-t border-bc-line pt-2">
-                        <p className="text-[11px] font-black uppercase text-bc-muted">Moderation</p>
-                        <form action={formAction} className="flex flex-wrap items-center gap-1.5">
-                          <input name="intent" type="hidden" value="delete-message" />
-                          <input name="roomId" type="hidden" value={selectedRoom.id} />
-                          <input name="messageId" type="hidden" value={message.id} />
-                          <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="pink">
-                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                            Remove message
-                          </Button>
-                        </form>
+                      <div className="border-t border-bc-line pt-2">
+                        <button
+                          aria-controls={`message-moderation-${message.id}`}
+                          aria-expanded={moderationMenuOpen}
+                          className={cn(
+                            messageActionButtonClass,
+                            "w-full justify-between border-bc-amber/35 bg-bc-amber/5 text-bc-amber hover:border-bc-amber/70"
+                          )}
+                          onClick={() => setOpenModerationMessageId(moderationMenuOpen ? null : message.id)}
+                          type="button"
+                        >
+                          <span className="inline-flex items-center gap-1.5">
+                            <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                            Moderation
+                          </span>
+                          <ChevronRight
+                            className={cn("h-3.5 w-3.5 transition", moderationMenuOpen && "rotate-90")}
+                            aria-hidden="true"
+                          />
+                        </button>
 
-                        {canBanMessageAuthor ? (
-                          <form action={formAction} className="grid gap-1.5">
-                            <input name="intent" type="hidden" value="ban-user" />
-                            <input name="roomId" type="hidden" value={selectedRoom.id} />
-                            <input name="targetUserId" type="hidden" value={message.authorUserId ?? ""} />
-                            <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-                              <select
-                                aria-label="Ban duration"
-                                className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
-                                defaultValue="24h"
-                                name="duration"
+                        {moderationMenuOpen ? (
+                          <div
+                            aria-label={`Moderation actions for ${message.authorDisplayName}'s message`}
+                            className="mt-2 grid gap-2 rounded-md border border-bc-amber/25 bg-black/25 p-2"
+                            id={`message-moderation-${message.id}`}
+                            role="group"
+                          >
+                            <p className="text-[11px] font-semibold text-bc-amber">
+                              Restricted actions. You will be asked to confirm before anything changes.
+                            </p>
+                            <form
+                              action={formAction}
+                              className="flex flex-wrap items-center gap-1.5"
+                              onSubmit={(event) => confirmMessageRemoval(event, message.authorDisplayName)}
+                            >
+                              <input name="intent" type="hidden" value="delete-message" />
+                              <input name="roomId" type="hidden" value={selectedRoom.id} />
+                              <input name="messageId" type="hidden" value={message.id} />
+                              <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="pink">
+                                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                Remove message
+                              </Button>
+                            </form>
+
+                            {canBanMessageAuthor ? (
+                              <form
+                                action={formAction}
+                                className="grid gap-1.5 border-t border-bc-line pt-2"
+                                onSubmit={(event) => confirmChatBan(event, message.authorDisplayName)}
                               >
-                                {inlineBanDurationOptions.map((duration) => (
-                                  <option key={duration.value} value={duration.value}>
-                                    {duration.label}
-                                  </option>
-                                ))}
-                              </select>
-                              <select
-                                aria-label="Ban reason"
-                                className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
-                                defaultValue="spam"
-                                name="banReason"
-                              >
-                                {reportReasonOptions.map((reason) => (
-                                  <option key={reason} value={reason}>
-                                    {reason}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <input
-                              className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
-                              maxLength={160}
-                              name="banNotes"
-                              placeholder="Optional moderation note"
-                            />
-                            <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="dark">
-                              <Ban className="h-3.5 w-3.5" aria-hidden="true" />
-                              Ban user from chat
-                            </Button>
-                          </form>
+                                <input name="intent" type="hidden" value="ban-user" />
+                                <input name="roomId" type="hidden" value={selectedRoom.id} />
+                                <input name="targetUserId" type="hidden" value={message.authorUserId ?? ""} />
+                                <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                                  <select
+                                    aria-label="Ban duration"
+                                    className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                    defaultValue="24h"
+                                    name="duration"
+                                  >
+                                    {inlineBanDurationOptions.map((duration) => (
+                                      <option key={duration.value} value={duration.value}>
+                                        {duration.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <select
+                                    aria-label="Ban reason"
+                                    className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                    defaultValue="spam"
+                                    name="banReason"
+                                  >
+                                    {reportReasonOptions.map((reason) => (
+                                      <option key={reason} value={reason}>
+                                        {reason}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <input
+                                  className="min-h-8 min-w-0 rounded-md border border-bc-line bg-bc-ink px-2 py-1 text-xs text-white"
+                                  maxLength={160}
+                                  name="banNotes"
+                                  placeholder="Optional moderation note"
+                                />
+                                <Button className="min-h-8 px-2 text-[11px]" disabled={pending} size="sm" type="submit" variant="dark">
+                                  <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                                  Ban user from chat
+                                </Button>
+                              </form>
+                            ) : null}
+                          </div>
                         ) : null}
                       </div>
                     ) : null}

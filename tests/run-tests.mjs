@@ -10,6 +10,7 @@ import "./chat-effects.test.mjs";
 import "./chat-composer-reset.test.mjs";
 import "./chat-attachments.test.mjs";
 import "./chat-message-edit.test.mjs";
+import "./chat-moderation-menu.test.mjs";
 import "./chat-mention-notifications.test.mjs";
 import "./chat-mentions.test.mjs";
 import "./chat-presence-core.test.mjs";
