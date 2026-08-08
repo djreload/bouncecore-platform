@@ -17,7 +17,7 @@ import {
   VolumeX,
   WifiOff
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   buildLiveHlsConfig,
   applyLiveQualityCap,
@@ -114,15 +114,69 @@ function LivePlayerControls({
   viewerCount: number;
 }) {
   const controlledVideoRef = useRef<HTMLVideoElement | null>(null);
+  const controlsHideTimerRef = useRef<number | null>(null);
   const qualityMenuRef = useRef<HTMLDivElement | null>(null);
   const [atLiveEdge, setAtLiveEdge] = useState(true);
   const [buffering, setBuffering] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [isPlaying, setIsPlaying] = useState(true);
   const [muted, setMuted] = useState(true);
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false);
   const [qualityState, setQualityState] = useState<LivePlayerQualityState>(emptyLivePlayerQualityState);
   const [volume, setVolume] = useState(1);
+
+  const clearControlsHideTimer = useCallback(() => {
+    if (controlsHideTimerRef.current !== null) {
+      window.clearTimeout(controlsHideTimerRef.current);
+      controlsHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimer();
+    controlsHideTimerRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+      controlsHideTimerRef.current = null;
+    }, 3_200);
+  }, [clearControlsHideTimer]);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleControlsHide();
+  }, [scheduleControlsHide]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+
+    if (!host) {
+      return;
+    }
+
+    function handlePlayerPress(event: PointerEvent) {
+      if (event.pointerType !== "mouse") {
+        revealControls();
+      }
+    }
+
+    host.addEventListener("pointerup", handlePlayerPress);
+
+    return () => {
+      host.removeEventListener("pointerup", handlePlayerPress);
+      clearControlsHideTimer();
+    };
+  }, [clearControlsHideTimer, hostRef, revealControls]);
+
+  useEffect(() => {
+    if (qualityMenuOpen) {
+      clearControlsHideTimer();
+      return;
+    }
+
+    if (controlsVisible) {
+      scheduleControlsHide();
+    }
+  }, [clearControlsHideTimer, controlsVisible, qualityMenuOpen, scheduleControlsHide]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -363,7 +417,11 @@ function LivePlayerControls({
 
   return (
     <div
-      className="pointer-events-none absolute inset-0 z-40 flex flex-col justify-between opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+      className={cn(
+        "pointer-events-none absolute inset-0 z-40 flex flex-col justify-between transition-opacity duration-200 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+        controlsVisible || qualityMenuOpen ? "opacity-100 md:opacity-100" : "opacity-0 md:opacity-0"
+      )}
+      data-controls-visible={controlsVisible || qualityMenuOpen ? "true" : "false"}
       data-live-player-controls
     >
       <div className="hidden items-start justify-between gap-4 bg-black/65 px-4 py-2 text-white sm:flex">

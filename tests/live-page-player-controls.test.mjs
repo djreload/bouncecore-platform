@@ -24,11 +24,15 @@ test("upcoming sets card is controlled by the disabled-by-default player setting
   assert.match(admin, /name="showUpcomingSets"/);
 });
 
-test("live player exposes custom hover controls and bridges HLS quality selection", () => {
+test("live player auto-hides custom hover and touch controls while preserving HLS quality selection", () => {
   const player = readFileSync(join(process.cwd(), "src/app/live/live-playback-player.tsx"), "utf8");
   const persistentPlayer = readFileSync(join(process.cwd(), "src/components/live/persistent-live-audio.tsx"), "utf8");
 
   assert.match(player, /data-live-player-controls/);
+  assert.match(player, /data-controls-visible/);
+  assert.match(player, /handlePlayerPress/);
+  assert.match(player, /3_200/);
+  assert.match(player, /group-hover:opacity-100/);
   assert.match(player, /viewerCount\.toLocaleString/);
   assert.match(player, /selectLivePlayerQuality/);
   assert.match(player, /requestFullscreen/);

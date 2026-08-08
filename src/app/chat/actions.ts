@@ -14,7 +14,6 @@ import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { createChatBan, createChatReport } from "@/lib/chat/moderation-service";
 import { createChatSheepThrow } from "@/lib/chat/sheep-throw-service";
 import { getCurrentUser } from "@/lib/auth/session";
-import { activateCoreFpsFromChat } from "@/lib/games/core-fps-invite-service";
 import { createRaveWarChallenge } from "@/lib/rave-wars/rave-war-service";
 import { createLiveChatStarSend } from "@/lib/stars/star-send-service";
 import type { PublicChatActionState } from "@/app/chat/state";
@@ -50,9 +49,6 @@ export async function publicChatAction(
   }
 
   try {
-    let actionUrl: string | undefined;
-    let invitedUserCount = 0;
-
     if (intent === "report") {
       await createChatReport(
         {
@@ -116,10 +112,6 @@ export async function publicChatAction(
       );
     } else if (intent === "rave-war") {
       await createRaveWarChallenge(roomId, user.id, formString(formData, "targetUserId"));
-    } else if (intent === "core-fps") {
-      const activation = await activateCoreFpsFromChat(roomId, user.id);
-      actionUrl = activation.actionUrl;
-      invitedUserCount = activation.invitedUserCount;
     } else if (intent === "stars") {
       await createLiveChatStarSend(roomId, user.id, {
         amount: formString(formData, "amount"),
@@ -139,7 +131,6 @@ export async function publicChatAction(
     revalidatePath("/admin/audit-logs");
 
     return {
-      actionUrl,
       intent,
       revision: Date.now(),
       status: "success",
@@ -164,10 +155,6 @@ export async function publicChatAction(
                   ? "Sheep thrown."
                 : intent === "rave-war"
                   ? "Rave War challenge sent."
-                  : intent === "core-fps"
-                    ? invitedUserCount > 0
-                      ? `Game started. ${invitedUserCount.toLocaleString("en-GB")} online ${invitedUserCount === 1 ? "chatter was" : "chatters were"} invited.`
-                      : "Joining the active Core FPS game."
             : intent === "stars"
               ? "Stars sent to live chat."
               : "Message sent."
@@ -208,8 +195,6 @@ export async function publicChatAction(
                   ? "Sheep was not thrown."
                 : intent === "rave-war"
                   ? "Rave War challenge was not sent."
-                  : intent === "core-fps"
-                    ? "Core FPS could not be started."
             : intent === "stars"
               ? "Stars were not sent."
             : "Message was not sent. Keep it between 1 and 500 characters."

@@ -17,7 +17,7 @@ The project is built to run as a normal web app plus optional worker and stream 
 - Merch shop with product images, inventory, PayPal checkout, orders, and fulfilment workflow.
 - Mobile v1 APIs for public feeds, auth, account data, notifications, orders, downloads, rewards, chat, stars, shop checkout, music checkout, and push devices.
 - Background worker for chat pruning, stream-provider sync, mobile push dispatch, push receipt polling, and worker health.
-- Optional isolated Core FPS WebAssembly game with signed Bouncecore launch tickets, mobile controls, and a dedicated security gateway.
+- Unified games hub for mobile-friendly chat games, Rave Wars, and the Rewards Wheel.
 - Backup and restore scripts for PostgreSQL and Docker volumes.
 
 ## Stack
@@ -50,7 +50,6 @@ prisma/                  Prisma schema, migrations, and seed data
 public/                  Public assets and upload mount point
 android-webview/         Native Android WebView wrapper and Gradle project
 deploy/                  Reverse-proxy and service support files
-services/core-fps/       Isolated Core FPS runtime and authenticated gateway
 docs/                    Architecture, install, backup, and operations docs
 scripts/                 Install, backup, restore, stream smoke, and utility scripts
 tests/                   Node-based unit and integration test runner
@@ -308,15 +307,11 @@ This creates a staging-only producer and approved paid music track when needed s
 
 ## Documentation
 
-- [Core Level Builder](docs/CORE_LEVEL_BUILDER.md)
-
 - [CHANGELOG.md](CHANGELOG.md)
 - [docs/INSTALL_UBUNTU_DEBIAN.md](docs/INSTALL_UBUNTU_DEBIAN.md)
 - [docs/ANDROID_RELEASE.md](docs/ANDROID_RELEASE.md)
 - [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 - [docs/EMBEDDED_STREAM_CORE.md](docs/EMBEDDED_STREAM_CORE.md)
-- [docs/CORE_FPS_SOURCE_AUDIT.md](docs/CORE_FPS_SOURCE_AUDIT.md)
-- [docs/CORE_FPS_INTEGRATION.md](docs/CORE_FPS_INTEGRATION.md)
 - [docs/STREAM_CORE_BOUNDARY.md](docs/STREAM_CORE_BOUNDARY.md)
 - [docs/BOUNCECORE_PLATFORM_BLUEPRINT.md](docs/BOUNCECORE_PLATFORM_BLUEPRINT.md)
 - [docs/IMPLEMENTATION_PHASES.md](docs/IMPLEMENTATION_PHASES.md)

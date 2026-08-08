@@ -1,5 +1,8 @@
 # Changelog
 
+- Removed the legacy Core FPS game, level builder, chat launcher, admin controls, runtime containers, and telemetry worker; added a single mobile-friendly Games hub for Rave Wars, Rewards Wheel, and future games.
+- Updated the live video player controls to stay hidden until desktop hover, keyboard focus, or a touch press, then fade away automatically after inactivity.
+
 ## Unreleased
 
 - Replaced the former Neon Vault arena with Bouncecore Blocklands, a completely new outdoor voxel world featuring stepped grass-and-dirt terrain, a river and timber bridge, oak-and-stone village houses, forest, crop farm, mine, castle, balanced team routes, and a physical `BOUNCECORE` block mural spanning the castle wall.
