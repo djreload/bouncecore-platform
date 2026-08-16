@@ -16,6 +16,7 @@ import {
 import {
   AtSign,
   Ban,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -51,6 +52,7 @@ import { ChatEffectText } from "@/app/chat/chat-effect-text";
 import { roleBadgeTone, roleDisplayName, visibleRoleBadges, type RoleDisplayNameMap } from "@/lib/auth/role-display";
 import { hasPermission, hasRole } from "@/lib/auth/rbac";
 import { chatReactionOptions } from "@/lib/chat/reactions";
+import { countNewChatMessageIds, shouldFollowLatestChatMessage } from "@/lib/chat/chat-scroll-core";
 import { canEditChatMessage } from "@/lib/chat/chat-message-edit-core";
 import { getActiveMentionQuery, mentionTokenFromDisplayName, replaceActiveMention } from "@/lib/chat/mentions";
 import {
@@ -494,6 +496,7 @@ export function ChatRoomPanel({
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [openMessageActionsId, setOpenMessageActionsId] = useState<string | null>(null);
   const [openModerationMessageId, setOpenModerationMessageId] = useState<string | null>(null);
+  const [unseenMessageCount, setUnseenMessageCount] = useState(0);
   const [syncedMessages, setSyncedMessages] = useState<SyncedMessages | null>(null);
   const [syncedPresence, setSyncedPresence] = useState<SyncedPresence | null>(null);
   const [syncedRoom, setSyncedRoom] = useState<PublicChatRoomRow | null>(null);
@@ -503,6 +506,9 @@ export function ChatRoomPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const messagesViewportRef = useRef<HTMLDivElement>(null);
+  const followLatestMessagesRef = useRef(true);
+  const knownMessageIdsRef = useRef<Set<string>>(new Set());
+  const knownMessagesRoomIdRef = useRef<string | undefined>(undefined);
   const gifResultsViewportRef = useRef<HTMLDivElement>(null);
   const gifLoadingRef = useRef(false);
   const chatActionPendingRef = useRef(false);
@@ -563,7 +569,6 @@ export function ChatRoomPanel({
     () => new Set(visiblePresence.filter((user) => user.status === "online").map((user) => user.id)),
     [visiblePresence]
   );
-  const latestMessageId = visibleMessages.length ? visibleMessages[visibleMessages.length - 1]?.id : "empty";
   const currentUserCanModerate = hasPermission(currentUser, "moderation.use");
   const currentUserCanClearChat = Boolean(currentUser && (hasRole(currentUser, "admin") || hasRole(currentUser, "owner")));
   const currentUserCanThrowSheep = Boolean(currentUser && hasRole(currentUser, "supporter"));
@@ -679,17 +684,32 @@ export function ChatRoomPanel({
     };
   }, [presenceRailOpen, showPresenceRail]);
 
-  const scrollToLatestMessage = useCallback(() => {
+  const scrollToLatestMessage = useCallback((force = false) => {
     const viewport = messagesViewportRef.current;
 
-    if (!viewport) {
+    if (!viewport || (!force && !followLatestMessagesRef.current)) {
       return;
     }
 
+    followLatestMessagesRef.current = true;
+    setUnseenMessageCount(0);
     window.requestAnimationFrame(() => {
       viewport.scrollTop = viewport.scrollHeight;
     });
   }, []);
+
+  const handleMessagesScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    const followsLatest = shouldFollowLatestChatMessage(event.currentTarget);
+    followLatestMessagesRef.current = followsLatest;
+
+    if (followsLatest) {
+      setUnseenMessageCount(0);
+    }
+  }, []);
+
+  const jumpToLatestMessages = useCallback(() => {
+    scrollToLatestMessage(true);
+  }, [scrollToLatestMessage]);
 
   const loadLatestMessages = useCallback(async (roomId: string) => {
     const response = await fetch(`/api/chat/rooms/${encodeURIComponent(roomId)}/messages`, {
@@ -940,8 +960,30 @@ export function ChatRoomPanel({
   ]);
 
   useEffect(() => {
-    scrollToLatestMessage();
-  }, [latestMessageId, scrollToLatestMessage]);
+    const roomChanged = knownMessagesRoomIdRef.current !== selectedRoomId;
+    const messageIds = visibleMessages.map((message) => message.id);
+    const newMessageCount = roomChanged ? 0 : countNewChatMessageIds(knownMessageIdsRef.current, messageIds);
+
+    knownMessagesRoomIdRef.current = selectedRoomId;
+    knownMessageIdsRef.current = new Set(messageIds);
+
+    if (roomChanged) {
+      followLatestMessagesRef.current = true;
+      setUnseenMessageCount(0);
+      scrollToLatestMessage(true);
+      return;
+    }
+
+    if (newMessageCount === 0) {
+      return;
+    }
+
+    if (followLatestMessagesRef.current) {
+      scrollToLatestMessage();
+    } else {
+      setUnseenMessageCount((count) => count + newMessageCount);
+    }
+  }, [scrollToLatestMessage, selectedRoomId, visibleMessages]);
 
   useEffect(() => {
     if (state.status !== "success" || !state.message || state.revision === undefined) {
@@ -1429,6 +1471,7 @@ export function ChatRoomPanel({
           messagesClassName
         )}
         data-testid="chat-message-list"
+        onScroll={handleMessagesScroll}
         ref={messagesViewportRef}
       >
         <div className="space-y-3">
@@ -1654,7 +1697,7 @@ export function ChatRoomPanel({
                       alt={message.mediaAlt ?? "Chat image attachment"}
                       className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
                       height={mediaSize.height}
-                      onLoad={scrollToLatestMessage}
+                      onLoad={() => scrollToLatestMessage()}
                       sizes={compact ? "320px" : "520px"}
                       src={message.mediaUrl ?? ""}
                       unoptimized
@@ -1681,7 +1724,7 @@ export function ChatRoomPanel({
                       className={`h-auto w-auto max-w-full rounded-md border border-bc-line object-contain ${compact ? "max-h-40" : "max-h-72"}`}
                       data-chat-media-motion={performancePreferences.animatedMediaEnabled ? "animated" : "preview"}
                       height={mediaSize.height}
-                      onLoad={scrollToLatestMessage}
+                      onLoad={() => scrollToLatestMessage()}
                       sizes={compact ? "320px" : "520px"}
                       src={
                         performancePreferences.animatedMediaEnabled
@@ -1701,7 +1744,7 @@ export function ChatRoomPanel({
                       }`}
                       data-chat-media-motion={performancePreferences.animatedMediaEnabled ? "animated" : "visible"}
                       height={message.kind === "emoji" ? 96 : 240}
-                      onLoad={scrollToLatestMessage}
+                      onLoad={() => scrollToLatestMessage()}
                       sizes={message.kind === "emoji" ? "96px" : compact ? "220px" : "320px"}
                       src={message.mediaPreviewUrl ?? message.mediaUrl ?? ""}
                       unoptimized
@@ -1981,6 +2024,19 @@ export function ChatRoomPanel({
           ) : null}
         </div>
       </div>
+
+      {unseenMessageCount > 0 ? (
+        <div aria-live="polite" className="shrink-0 border-t border-bc-line bg-bc-panel/95 px-2 py-1.5 text-center">
+          <button
+            className="bc-focus-ring inline-flex min-h-8 items-center gap-1.5 rounded-full border border-bc-electric/45 bg-bc-electric/10 px-3 text-xs font-black text-bc-electric transition hover:border-bc-electric hover:bg-bc-electric/20 hover:text-white"
+            onClick={jumpToLatestMessages}
+            type="button"
+          >
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+            {unseenMessageCount.toLocaleString("en-GB")} new {unseenMessageCount === 1 ? "message" : "messages"}
+          </button>
+        </div>
+      ) : null}
 
       <div
         className={cn(

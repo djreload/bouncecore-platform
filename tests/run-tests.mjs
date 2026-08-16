@@ -15,6 +15,7 @@ import "./chat-mention-notifications.test.mjs";
 import "./chat-mentions.test.mjs";
 import "./chat-presence-core.test.mjs";
 import "./chat-reaction-summary-display.test.mjs";
+import "./chat-scroll-follow.test.mjs";
 import "./chat-sheep-throw-notifications.test.mjs";
 import "./cart-events.test.mjs";
 import "./games-hub.test.mjs";

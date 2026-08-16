@@ -1,5 +1,6 @@
 # Changelog
 
+- Kept live chat pinned to incoming messages only while the viewer is near the bottom; readers browsing older messages now retain their position and receive a new-message jump control.
 - Moved destructive live-chat moderation controls into a moderator-only dropdown and added named confirmation prompts for message removal and chat bans to prevent accidental actions.
 - Removed the legacy Core FPS game, level builder, chat launcher, admin controls, runtime containers, and telemetry worker; added a single mobile-friendly Games hub for Rave Wars, Rewards Wheel, and future games.
 - Updated the live video player controls to stay hidden until desktop hover, keyboard focus, or a touch press, then fade away automatically after inactivity.
