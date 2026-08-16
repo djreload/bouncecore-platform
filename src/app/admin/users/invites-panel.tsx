@@ -30,22 +30,6 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-GB", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 }
 
-function inviteStatusTone(status: string) {
-  if (status === "accepted") {
-    return "acid" as const;
-  }
-
-  if (status === "revoked") {
-    return "pink" as const;
-  }
-
-  return "amber" as const;
-}
-
-function inviteIsRevocable(invite: AdminUserInvitesData[number]) {
-  return invite.status === "pending" && !invite.acceptedAt && !invite.revokedAt && new Date(invite.expiresAt) > new Date();
-}
-
 export function AdminUserInvitesPanel({ invites, roleDisplayLabels, roles }: AdminUserInvitesPanelProps) {
   const [state, formAction, pending] = useActionState<AdminUserInviteActionState, FormData>(
     createAdminUserInviteAction,
@@ -71,7 +55,7 @@ export function AdminUserInvitesPanel({ invites, roleDisplayLabels, roles }: Adm
           <h3 className="text-xl font-black">User invites</h3>
           <p className="mt-1 text-sm text-bc-muted">Create registration links with preselected roles and expiry.</p>
         </div>
-        <Badge tone="cyan">{invites.length} recent</Badge>
+        <Badge tone="cyan">{invites.length} pending</Badge>
       </div>
 
       <div className="grid gap-5 p-4 xl:grid-cols-[minmax(320px,420px)_1fr]">
@@ -208,13 +192,7 @@ export function AdminUserInvitesPanel({ invites, roleDisplayLabels, roles }: Adm
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge tone={inviteStatusTone(invite.status)}>{invite.status}</Badge>
-                    {invite.acceptedByDisplayName ? (
-                      <p className="mt-2 text-xs text-bc-muted">Accepted by {invite.acceptedByDisplayName}</p>
-                    ) : null}
-                    {invite.revokedByDisplayName ? (
-                      <p className="mt-2 text-xs text-bc-muted">Revoked by {invite.revokedByDisplayName}</p>
-                    ) : null}
+                    <Badge tone="amber">{invite.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-bc-muted">
                     <div className="flex items-center gap-2">
@@ -222,22 +200,16 @@ export function AdminUserInvitesPanel({ invites, roleDisplayLabels, roles }: Adm
                       Created {formatDate(invite.createdAt)}
                     </div>
                     <p className="mt-1 text-xs">Expires {formatDate(invite.expiresAt)}</p>
-                    {invite.acceptedAt ? <p className="mt-1 text-xs">Accepted {formatDate(invite.acceptedAt)}</p> : null}
-                    {invite.revokedAt ? <p className="mt-1 text-xs">Revoked {formatDate(invite.revokedAt)}</p> : null}
                   </td>
                   <td className="px-4 py-3">
-                    {inviteIsRevocable(invite) ? (
-                      <RevokeInviteForm inviteId={invite.id} />
-                    ) : (
-                      <Badge tone="muted">Closed</Badge>
-                    )}
+                    <RevokeInviteForm inviteId={invite.id} />
                   </td>
                 </tr>
               ))}
               {!invites.length ? (
                 <tr className="border-t border-bc-line">
                   <td className="px-4 py-8 text-center text-bc-muted" colSpan={5}>
-                    No invites have been created yet.
+                    No pending invites.
                   </td>
                 </tr>
               ) : null}

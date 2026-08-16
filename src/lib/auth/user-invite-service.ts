@@ -14,16 +14,12 @@ export type UserInviteInput = {
 };
 
 export type AdminUserInvitesData = Array<{
-  acceptedAt: string | null;
-  acceptedByDisplayName: string | null;
   createdAt: string;
   createdByDisplayName: string;
   email: string;
   expiresAt: string;
   id: string;
   note: string | null;
-  revokedAt: string | null;
-  revokedByDisplayName: string | null;
   roles: Role[];
   status: string;
 }>;
@@ -95,19 +91,20 @@ function inviteIsUsable(invite: {
 }
 
 export async function getAdminUserInvites(): Promise<AdminUserInvitesData> {
+  const now = new Date();
+  await pruneInactiveUserInvites(now);
+
   const invites = await prisma.userInvite.findMany({
+    where: {
+      acceptedAt: null,
+      expiresAt: {
+        gt: now
+      },
+      revokedAt: null,
+      status: "pending"
+    },
     include: {
-      acceptedBy: {
-        select: {
-          displayName: true
-        }
-      },
       createdBy: {
-        select: {
-          displayName: true
-        }
-      },
-      revokedBy: {
         select: {
           displayName: true
         }
@@ -120,19 +117,39 @@ export async function getAdminUserInvites(): Promise<AdminUserInvitesData> {
   });
 
   return invites.map((invite) => ({
-    acceptedAt: invite.acceptedAt?.toISOString() ?? null,
-    acceptedByDisplayName: invite.acceptedBy?.displayName ?? null,
     createdAt: invite.createdAt.toISOString(),
     createdByDisplayName: invite.createdBy.displayName,
     email: invite.email,
     expiresAt: invite.expiresAt.toISOString(),
     id: invite.id,
     note: invite.note,
-    revokedAt: invite.revokedAt?.toISOString() ?? null,
-    revokedByDisplayName: invite.revokedBy?.displayName ?? null,
     roles: rolesFromInviteJson(invite.roles),
     status: invite.status
   }));
+}
+
+export async function pruneInactiveUserInvites(now = new Date()) {
+  const result = await prisma.userInvite.deleteMany({
+    where: {
+      OR: [
+        {
+          acceptedAt: {
+            not: null
+          }
+        },
+        {
+          status: "accepted"
+        },
+        {
+          expiresAt: {
+            lte: now
+          }
+        }
+      ]
+    }
+  });
+
+  return result.count;
 }
 
 export async function createAdminUserInvite(input: UserInviteInput, actorId: string) {

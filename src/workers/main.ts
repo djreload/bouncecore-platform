@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { writeFile } from "node:fs/promises";
+import { pruneInactiveUserInvites } from "../lib/auth/user-invite-service";
 import { pruneExpiredChatHistory } from "../lib/chat/chat-service";
 import { prisma } from "../lib/db/prisma";
 import { checkExpoMobilePushReceipts, processQueuedMobilePushDeliveries } from "../lib/mobile/push-dispatch-service";
@@ -123,6 +124,14 @@ process.once("SIGTERM", () => {
 
 const mobilePushLimit = envNumber("WORKER_MOBILE_PUSH_LIMIT", 50);
 const tasks: WorkerTask[] = [
+  {
+    enabled: envBoolean("WORKER_USER_INVITE_PRUNE_ENABLED", true),
+    intervalMs: envNumber("WORKER_USER_INVITE_PRUNE_INTERVAL_SECONDS", 60) * 1000,
+    name: "user-invite-prune",
+    run: async () => ({
+      deletedInvites: await pruneInactiveUserInvites()
+    })
+  },
   {
     enabled: envBoolean("WORKER_CHAT_PRUNE_ENABLED", true),
     intervalMs: envNumber("WORKER_CHAT_PRUNE_INTERVAL_SECONDS", 3600) * 1000,

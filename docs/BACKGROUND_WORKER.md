@@ -11,6 +11,7 @@ docker compose --env-file .env.instance -f docker-compose.instance.yml --profile
 ## Current Jobs
 
 - Chat history pruning for messages older than 24 hours.
+- Accepted and expired user invitation cleanup.
 - Stream provider state synchronization.
 - Authoritative Rave War challenge, turn, and match deadline reconciliation.
 - Stalled Rave War alerts for active owners and admins, linked to match diagnostics.
@@ -22,6 +23,8 @@ docker compose --env-file .env.instance -f docker-compose.instance.yml --profile
 ```bash
 WORKER_CHAT_PRUNE_ENABLED=true
 WORKER_CHAT_PRUNE_INTERVAL_SECONDS=3600
+WORKER_USER_INVITE_PRUNE_ENABLED=true
+WORKER_USER_INVITE_PRUNE_INTERVAL_SECONDS=60
 WORKER_STREAM_SYNC_ENABLED=true
 WORKER_STREAM_SYNC_INTERVAL_SECONDS=15
 WORKER_RAVE_WAR_RECONCILE_ENABLED=true

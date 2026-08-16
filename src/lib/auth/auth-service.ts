@@ -135,14 +135,9 @@ export async function registerUser(input: RegisterInput): Promise<AuthResult> {
       await assignRegistrationRoles(tx, user.id, invite?.roles ?? ["viewer"], invite?.createdById ?? null);
 
       if (invite) {
-        await tx.userInvite.update({
+        await tx.userInvite.delete({
           where: {
             id: invite.id
-          },
-          data: {
-            acceptedAt: now,
-            acceptedById: user.id,
-            status: "accepted"
           }
         });
       }

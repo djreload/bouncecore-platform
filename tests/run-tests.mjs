@@ -102,6 +102,7 @@ import "./system-health-paypal-readiness.test.mjs";
 import "./tenor-service.test.mjs";
 import "./transcoder-source.test.mjs";
 import "./upload-cleanup-core.test.mjs";
+import "./user-invite-lifecycle.test.mjs";
 import "./worker-heartbeat.test.mjs";
 import "./weekly-star-leaderboard.test.mjs";
 import "./live-star-send-amounts.test.mjs";

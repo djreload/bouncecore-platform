@@ -1,5 +1,7 @@
 # Changelog
 
+- User invitations are now consumed immediately after acceptance, expired records are removed automatically by the worker, and Admin Users shows only active pending invitations.
+
 - Kept live chat pinned to incoming messages only while the viewer is near the bottom; readers browsing older messages now retain their position and receive a new-message jump control.
 - Moved destructive live-chat moderation controls into a moderator-only dropdown and added named confirmation prompts for message removal and chat bans to prevent accidental actions.
 - Removed the legacy Core FPS game, level builder, chat launcher, admin controls, runtime containers, and telemetry worker; added a single mobile-friendly Games hub for Rave Wars, Rewards Wheel, and future games.
