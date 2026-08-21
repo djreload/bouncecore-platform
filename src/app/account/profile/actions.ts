@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { updateAccountProfile, type AccountProfileInput } from "@/lib/account/account-service";
-import { saveOptionalProfileAvatarUpload } from "@/lib/media/media-service";
 import type { AccountProfileActionState } from "@/app/account/profile/state";
 
 function formString(formData: FormData, key: string) {
@@ -11,16 +10,9 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
-function formFile(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return value instanceof File ? value : null;
-}
-
-async function profileInput(formData: FormData): Promise<AccountProfileInput> {
-  const uploadedAvatarUrl = await saveOptionalProfileAvatarUpload(formFile(formData, "avatarFile"));
-
+function profileInput(formData: FormData): AccountProfileInput {
   return {
-    avatarUrl: uploadedAvatarUrl ?? formString(formData, "avatarUrl"),
+    avatarUrl: formString(formData, "avatarUrl"),
     bio: formString(formData, "bio"),
     displayName: formString(formData, "displayName"),
     isPublic: formData.get("isPublic") === "on",
@@ -37,7 +29,7 @@ export async function updateAccountProfileAction(
   const actor = await requireSignedInUser();
 
   try {
-    const profile = await updateAccountProfile(actor.id, await profileInput(formData));
+    const profile = await updateAccountProfile(actor.id, profileInput(formData));
 
     revalidatePath("/account");
     revalidatePath("/account/profile");

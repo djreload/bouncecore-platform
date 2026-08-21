@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { hasPermission } from "@/lib/auth/rbac";
 import { requireSignedInUser } from "@/lib/auth/guards";
 import { updateStreamerProfile, type StreamerProfileInput } from "@/lib/profile/dj-profile-service";
-import { saveOptionalProfileAvatarUpload } from "@/lib/media/media-service";
 import type { StreamerProfileActionState } from "@/app/streamer/profile/state";
 
 function formString(formData: FormData, key: string) {
@@ -12,16 +11,9 @@ function formString(formData: FormData, key: string) {
   return typeof value === "string" ? value : "";
 }
 
-function formFile(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return value instanceof File ? value : null;
-}
-
-async function profileInput(formData: FormData): Promise<StreamerProfileInput> {
-  const uploadedAvatarUrl = await saveOptionalProfileAvatarUpload(formFile(formData, "avatarFile"));
-
+function profileInput(formData: FormData): StreamerProfileInput {
   return {
-    avatarUrl: uploadedAvatarUrl ?? formString(formData, "avatarUrl"),
+    avatarUrl: formString(formData, "avatarUrl"),
     bio: formString(formData, "bio"),
     isPublic: formData.get("isPublic") === "on",
     location: formString(formData, "location"),
@@ -44,7 +36,7 @@ export async function updateStreamerProfileAction(
   }
 
   try {
-    const profile = await updateStreamerProfile(actor.id, await profileInput(formData));
+    const profile = await updateStreamerProfile(actor.id, profileInput(formData));
 
     revalidatePath("/streamer/profile");
     revalidatePath("/djs");

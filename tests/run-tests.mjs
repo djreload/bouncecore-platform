@@ -65,6 +65,7 @@ import "./performance-preferences.test.mjs";
 import "./play-store-preflight.test.mjs";
 import "./privacy-consent.test.mjs";
 import "./privacy-rights.test.mjs";
+import "./profile-avatar-editor.test.mjs";
 import "./public-account-deletion.test.mjs";
 import "./public-smoke-check.test.mjs";
 import "./rave-war-diagnostics.test.mjs";

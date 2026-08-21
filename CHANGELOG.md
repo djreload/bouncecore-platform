@@ -1,5 +1,7 @@
 # Changelog
 
+- Profile pictures now use a dedicated authenticated upload route with a drag, zoom, and position editor that creates an optimized square avatar without sending large phone photos through profile Server Actions.
+
 - User invitations are now consumed immediately after acceptance, expired records are removed automatically by the worker, and Admin Users shows only active pending invitations.
 
 - Kept live chat pinned to incoming messages only while the viewer is near the bottom; readers browsing older messages now retain their position and receive a new-message jump control.
