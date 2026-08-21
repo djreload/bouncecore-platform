@@ -28,4 +28,14 @@ for (const composeFile of composeFiles) {
     assert.match(content, /-force_key_frames "expr:gte\(t,n_forced\*\$\$RESTREAM_KEYFRAME_SECONDS\)"/);
     assert.match(content, /RESTREAM_TRANSCODE:-true/);
   });
+
+  test(`${composeFile} runs two independent external restream outputs`, () => {
+    const content = readFileSync(join(process.cwd(), composeFile), "utf8");
+
+    assert.match(content, /media-restreamer:/);
+    assert.match(content, /media-restreamer-secondary:/);
+    assert.match(content, /RESTREAM_TARGET_URL: http:\/\/app:3000\/internal\/stream\/restream-target\n/);
+    assert.match(content, /RESTREAM_TARGET_URL: http:\/\/app:3000\/internal\/stream\/restream-target-secondary\n/);
+    assert.match(content, /Starting secondary external restream output/);
+  });
 }

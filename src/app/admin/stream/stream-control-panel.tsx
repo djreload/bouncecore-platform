@@ -24,7 +24,7 @@ type AdminStreamControlPanelProps = {
   playbackSettings: AdminStreamPlaybackSettingsRow;
   provider: AdminStreamProviderState;
   repairFilter?: AdminStreamRepairFilter | null;
-  restreamSettings: AdminRestreamSettingsRow;
+  restreamSettings: AdminRestreamSettingsRow[];
   streamProfiles: AdminStreamProfileRow[];
 };
 
@@ -166,91 +166,103 @@ export function AdminStreamControlPanel({
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Badge tone={restreamSettings.enabled ? "acid" : "muted"}>
-              {restreamSettings.enabled ? "Restream on" : "Restream off"}
-            </Badge>
-            <h3 className="mt-4 text-2xl font-black">External restream output</h3>
-            <p className="mt-2 max-w-2xl text-sm text-bc-muted">
-              Push the current primary DJ feed to one external RTMP/RTMPS destination. When DJ 1 disconnects, the outbound
-              feed follows the promoted primary DJ.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge tone="cyan">{restreamSettings.provider}</Badge>
-            <Badge tone={restreamSettings.streamKeyConfigured ? "acid" : "amber"}>
-              {restreamSettings.streamKeyConfigured ? "Key saved" : "No key"}
-            </Badge>
-            <Badge tone={restreamSettings.targetHost ? "muted" : "amber"}>
-              {restreamSettings.targetHost ?? "No target"}
-            </Badge>
-          </div>
-        </div>
+        <Badge tone={restreamSettings.some((target) => target.enabled) ? "acid" : "muted"}>
+          {restreamSettings.filter((target) => target.enabled).length} of 2 outputs enabled
+        </Badge>
+        <h3 className="mt-4 text-2xl font-black">External restream outputs</h3>
+        <p className="mt-2 max-w-3xl text-sm text-bc-muted">
+          Send the current primary DJ feed to two independent YouTube, Facebook, or custom RTMP/RTMPS destinations. Each
+          output runs separately, so a failure or configuration change on one does not stop the other.
+        </p>
 
-        <form action={formAction} className="mt-5 grid gap-4 xl:grid-cols-[170px_1fr_1.5fr_1.5fr_auto]">
-          <input name="intent" type="hidden" value="update-restream" />
-          <label className="text-xs font-semibold uppercase text-bc-muted">
-            Provider
-            <select
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={restreamSettings.provider}
-              name="provider"
-            >
-              {restreamProviders.map((providerOption) => (
-                <option key={providerOption} value={providerOption}>
-                  {providerOption === "youtube" ? "YouTube Live" : providerOption === "facebook" ? "Facebook Live" : "Custom"}
-                </option>
-              ))}
-            </select>
-            <span className="mt-1 block normal-case text-bc-muted">Destination preset label.</span>
-          </label>
-          <label className="text-xs font-semibold uppercase text-bc-muted">
-            Display label
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={restreamSettings.label}
-              name="label"
-              placeholder="Main YouTube feed"
-            />
-            <span className="mt-1 block normal-case text-bc-muted">Shown only in admin logs and status.</span>
-          </label>
-          <label className="text-xs font-semibold uppercase text-bc-muted">
-            RTMP server URL
-            <input
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              defaultValue={restreamSettings.serverUrl}
-              name="serverUrl"
-              placeholder="rtmps://live-api-s.facebook.com:443/rtmp/"
-            />
-            <span className="mt-1 block normal-case text-bc-muted">Use a public RTMP or RTMPS ingest host.</span>
-          </label>
-          <label className="text-xs font-semibold uppercase text-bc-muted">
-            Stream key
-            <input
-              autoComplete="off"
-              className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-              name="streamKey"
-              placeholder={restreamSettings.streamKeyConfigured ? "Saved - leave blank to keep" : "Paste stream key"}
-              type="password"
-            />
-            <span className="mt-1 block normal-case text-bc-muted">Stored as a secret app setting.</span>
-          </label>
-          <div className="flex flex-col justify-end gap-3">
-            <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
-              <input defaultChecked={restreamSettings.enabled} name="enabled" type="checkbox" />
-              Enabled
-            </label>
-            <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
-              <input name="clearStreamKey" type="checkbox" />
-              Clear key
-            </label>
-            <Button disabled={pending} type="submit" variant="primary">
-              <Share2 className="h-4 w-4" aria-hidden="true" />
-              Save
-            </Button>
-          </div>
-        </form>
+        <div className="mt-5 divide-y divide-bc-line border-y border-bc-line">
+          {restreamSettings.map((target, index) => (
+            <div className="py-5" key={target.slot}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="text-lg font-black">Destination {index + 1}</h4>
+                  <Badge tone={target.enabled ? "acid" : "muted"}>{target.enabled ? "Enabled" : "Disabled"}</Badge>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="cyan">{target.provider}</Badge>
+                  <Badge tone={target.streamKeyConfigured ? "acid" : "amber"}>
+                    {target.streamKeyConfigured ? "Key saved" : "No key"}
+                  </Badge>
+                  <Badge tone={target.targetHost ? "muted" : "amber"}>{target.targetHost ?? "No target"}</Badge>
+                </div>
+              </div>
+
+              <form action={formAction} className="mt-4 grid gap-4 xl:grid-cols-[170px_1fr_1.5fr_1.5fr_auto]">
+                <input name="intent" type="hidden" value="update-restream" />
+                <input name="targetSlot" type="hidden" value={target.slot} />
+                <label className="text-xs font-semibold uppercase text-bc-muted">
+                  Provider
+                  <select
+                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    defaultValue={target.provider}
+                    name="provider"
+                  >
+                    {restreamProviders.map((providerOption) => (
+                      <option key={providerOption} value={providerOption}>
+                        {providerOption === "youtube"
+                          ? "YouTube Live"
+                          : providerOption === "facebook"
+                            ? "Facebook Live"
+                            : "Custom"}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-1 block normal-case text-bc-muted">Choose the service for this output.</span>
+                </label>
+                <label className="text-xs font-semibold uppercase text-bc-muted">
+                  Display label
+                  <input
+                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    defaultValue={target.label}
+                    name="label"
+                    placeholder={index === 0 ? "YouTube channel 1" : "Facebook channel 2"}
+                  />
+                  <span className="mt-1 block normal-case text-bc-muted">Identifies this destination in admin logs.</span>
+                </label>
+                <label className="text-xs font-semibold uppercase text-bc-muted">
+                  RTMP server URL
+                  <input
+                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    defaultValue={target.serverUrl}
+                    name="serverUrl"
+                    placeholder="rtmps://a.rtmps.youtube.com/live2"
+                  />
+                  <span className="mt-1 block normal-case text-bc-muted">Use the RTMP or RTMPS URL supplied by the service.</span>
+                </label>
+                <label className="text-xs font-semibold uppercase text-bc-muted">
+                  Stream key
+                  <input
+                    autoComplete="off"
+                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    name="streamKey"
+                    placeholder={target.streamKeyConfigured ? "Saved - leave blank to keep" : "Paste stream key"}
+                    type="password"
+                  />
+                  <span className="mt-1 block normal-case text-bc-muted">Encrypted secret; the saved value is never displayed.</span>
+                </label>
+                <div className="flex flex-col justify-end gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
+                    <input defaultChecked={target.enabled} name="enabled" type="checkbox" />
+                    Enabled
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
+                    <input name="clearStreamKey" type="checkbox" />
+                    Clear key
+                  </label>
+                  <Button disabled={pending} type="submit" variant="primary">
+                    <Share2 className="h-4 w-4" aria-hidden="true" />
+                    Save {index + 1}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="rounded-md border border-bc-line bg-bc-panel p-5">

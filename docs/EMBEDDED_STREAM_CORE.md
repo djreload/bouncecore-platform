@@ -61,7 +61,7 @@ RTMPS requires `server.crt` and `server.key` in `MEDIA_GATEWAY_RTMPS_CERT_DIR`. 
 
 Stream-core also exposes `GET /api/transcoder/source` for internal FFmpeg workers. It requires `Authorization: Bearer <STREAM_CORE_INTERNAL_TOKEN>` and returns the current source URL resolved from `TRANSCODER_INPUT_URL`; do not expose this endpoint publicly.
 
-The `media-restreamer` worker reads `GET /api/restream/source` and the application restream target, then sends the outgoing feed to external RTMP/RTMPS platforms. Leave `RESTREAM_TRANSCODE=true` for Facebook Live and YouTube Live; it enforces `RESTREAM_KEYFRAME_SECONDS=2` with libx264 and prevents low-keyframe-rate warnings. `RESTREAM_TRANSCODE=false` keeps the old packet-copy behavior and depends entirely on the incoming OBS keyframe interval.
+The independent `media-restreamer` and `media-restreamer-secondary` workers read `GET /api/restream/source` and their own protected application target endpoint, then send the outgoing feed to up to two external RTMP/RTMPS platforms. Leave `RESTREAM_TRANSCODE=true` for Facebook Live and YouTube Live; it enforces `RESTREAM_KEYFRAME_SECONDS=2` with libx264 and prevents low-keyframe-rate warnings. `RESTREAM_TRANSCODE=false` keeps the old packet-copy behavior and depends entirely on the incoming OBS keyframe interval.
 
 Mutating endpoints require `Authorization: Bearer <STREAM_CORE_INTERNAL_TOKEN>` or `x-internal-stream-token`.
 

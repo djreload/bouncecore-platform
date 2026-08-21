@@ -4,32 +4,50 @@ import {
   buildRestreamTargetUrl,
   mergeRestreamSettingsInput,
   normalizeRestreamSettings,
+  restreamTargetSlots,
   toAdminRestreamSettings,
-  type RestreamSettingsInput
+  type RestreamSettingsInput,
+  type RestreamTargetSlot
 } from "@/lib/stream/restream-settings";
 
-const restreamSettingsKey = "stream.restream_settings";
+const restreamSettingsKeys: Record<RestreamTargetSlot, string> = {
+  primary: "stream.restream_settings",
+  secondary: "stream.restream_settings.secondary"
+};
 
-export async function getRestreamSettings() {
+export async function getRestreamSettings(slot: RestreamTargetSlot = "primary") {
   const setting = await prisma.appSetting.findUnique({
     where: {
-      key: restreamSettingsKey
+      key: restreamSettingsKeys[slot]
     }
   });
 
   return normalizeRestreamSettings(setting?.value);
 }
 
-export async function getAdminRestreamSettings() {
-  return toAdminRestreamSettings(await getRestreamSettings());
+export async function getAdminRestreamSettings(slot: RestreamTargetSlot = "primary") {
+  return toAdminRestreamSettings(await getRestreamSettings(slot));
 }
 
-export async function getRestreamTargetUrl() {
-  return buildRestreamTargetUrl(await getRestreamSettings());
+export async function getAdminRestreamTargets() {
+  return Promise.all(
+    restreamTargetSlots.map(async (slot) => ({
+      ...toAdminRestreamSettings(await getRestreamSettings(slot)),
+      slot
+    }))
+  );
 }
 
-export async function updateRestreamSettings(input: RestreamSettingsInput, actorId: string) {
-  const existing = await getRestreamSettings();
+export async function getRestreamTargetUrl(slot: RestreamTargetSlot = "primary") {
+  return buildRestreamTargetUrl(await getRestreamSettings(slot));
+}
+
+export async function updateRestreamSettings(
+  input: RestreamSettingsInput,
+  actorId: string,
+  slot: RestreamTargetSlot = "primary"
+) {
+  const existing = await getRestreamSettings(slot);
   const settings = mergeRestreamSettingsInput(input, existing);
 
   if (settings.enabled) {
@@ -42,17 +60,17 @@ export async function updateRestreamSettings(input: RestreamSettingsInput, actor
 
   await prisma.appSetting.upsert({
     where: {
-      key: restreamSettingsKey
+      key: restreamSettingsKeys[slot]
     },
     update: {
-      description: "Secret external stream restream target settings.",
+      description: `Secret external stream restream ${slot} target settings.`,
       isSecret: true,
       value: settings
     },
     create: {
-      description: "Secret external stream restream target settings.",
+      description: `Secret external stream restream ${slot} target settings.`,
       isSecret: true,
-      key: restreamSettingsKey,
+      key: restreamSettingsKeys[slot],
       value: settings
     }
   });
@@ -62,10 +80,11 @@ export async function updateRestreamSettings(input: RestreamSettingsInput, actor
   await writeAuditLog({
     actorId,
     action: "stream.restream_settings.update",
-    target: "stream:restream",
+    target: `stream:restream:${slot}`,
     severity: settings.enabled ? "warning" : "info",
     metadata: {
       enabled: settings.enabled,
+      slot,
       provider: settings.provider,
       targetHost: adminSettings.targetHost,
       streamKeyConfigured: adminSettings.streamKeyConfigured

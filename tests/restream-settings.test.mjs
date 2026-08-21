@@ -1,11 +1,34 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import {
   buildRestreamTargetUrl,
   defaultRestreamSettings,
   mergeRestreamSettingsInput,
+  restreamTargetSlotValue,
   toAdminRestreamSettings
 } from "../src/lib/stream/restream-settings.ts";
+
+test("restream target slots accept only the two isolated outputs", () => {
+  assert.equal(restreamTargetSlotValue("primary"), "primary");
+  assert.equal(restreamTargetSlotValue("secondary"), "secondary");
+  assert.throws(() => restreamTargetSlotValue("unexpected"), /Invalid restream destination/);
+});
+
+test("secondary restream storage and endpoint do not replace the legacy primary target", () => {
+  const service = readFileSync(join(process.cwd(), "src/lib/stream/restream-settings-service.ts"), "utf8");
+  const primaryRoute = readFileSync(join(process.cwd(), "src/app/internal/stream/restream-target/route.ts"), "utf8");
+  const secondaryRoute = readFileSync(
+    join(process.cwd(), "src/app/internal/stream/restream-target-secondary/route.ts"),
+    "utf8"
+  );
+
+  assert.match(service, /primary: "stream\.restream_settings"/);
+  assert.match(service, /secondary: "stream\.restream_settings\.secondary"/);
+  assert.match(primaryRoute, /getRestreamTargetUrl\(\)/);
+  assert.match(secondaryRoute, /getRestreamTargetUrl\("secondary"\)/);
+});
 
 test("restream target appends stream keys to RTMPS server URLs", () => {
   assert.equal(

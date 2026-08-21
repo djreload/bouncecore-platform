@@ -10,6 +10,7 @@ import {
   updateStreamChannel
 } from "@/lib/stream/stream-channel-service";
 import { updateRestreamSettings } from "@/lib/stream/restream-settings-service";
+import { restreamTargetSlotValue } from "@/lib/stream/restream-settings";
 import { updateStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { ensureDefaultStreamProfiles, updateStreamProfile } from "@/lib/stream/stream-profile-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
@@ -171,12 +172,13 @@ export async function adminStreamAction(
     }
 
     if (intent === "update-restream") {
-      await updateRestreamSettings(restreamSettingsInput(formData), actor.id);
+      const slot = restreamTargetSlotValue(formString(formData, "targetSlot"));
+      await updateRestreamSettings(restreamSettingsInput(formData), actor.id, slot);
       revalidateStreamViews();
 
       return {
         status: "success",
-        message: "Restream output settings updated."
+        message: `Restream destination ${slot === "primary" ? "1" : "2"} updated.`
       };
     }
 

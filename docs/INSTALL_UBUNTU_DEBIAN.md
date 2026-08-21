@@ -337,7 +337,7 @@ Encoder: x264 or hardware H.264
 Output: RTMPS
 ```
 
-External restreaming to Facebook Live, YouTube Live, or similar RTMP services uses the `media-restreamer` FFmpeg worker. By default it transcodes the outgoing restream and forces a 2 second keyframe interval so those platforms do not warn about low keyframe rates:
+External restreaming uses two isolated FFmpeg workers: `media-restreamer` for destination 1 and `media-restreamer-secondary` for destination 2. Configure both under Admin -> Stream with any combination of Facebook Live, YouTube Live, or custom RTMP/RTMPS targets. A target failure or configuration change restarts only its own worker. By default both workers transcode the outgoing feed and force a 2 second keyframe interval so external platforms do not warn about low keyframe rates:
 
 ```env
 RESTREAM_TRANSCODE=true

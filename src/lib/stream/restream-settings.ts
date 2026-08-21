@@ -1,6 +1,8 @@
 export const restreamProviders = ["custom", "youtube", "facebook"] as const;
+export const restreamTargetSlots = ["primary", "secondary"] as const;
 
 export type RestreamProvider = (typeof restreamProviders)[number];
+export type RestreamTargetSlot = (typeof restreamTargetSlots)[number];
 
 export type RestreamSettings = {
   enabled: boolean;
@@ -31,6 +33,14 @@ export const defaultRestreamSettings: RestreamSettings = {
   serverUrl: "",
   streamKey: ""
 };
+
+export function restreamTargetSlotValue(value: unknown): RestreamTargetSlot {
+  if (!restreamTargetSlots.includes(value as RestreamTargetSlot)) {
+    throw new Error("Invalid restream destination.");
+  }
+
+  return value as RestreamTargetSlot;
+}
 
 function textValue(value: unknown, maxLength: number) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";

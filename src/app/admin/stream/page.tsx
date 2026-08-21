@@ -36,7 +36,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
     events: channel.events
   }));
   const profileRows: AdminStreamProfileRow[] = streamProfiles;
-  const restreamSettingsRow: AdminRestreamSettingsRow = restreamSettings;
+  const restreamSettingsRows: AdminRestreamSettingsRow[] = restreamSettings;
   const playbackSettingsRow: AdminStreamPlaybackSettingsRow = playbackSettings;
 
   return (
@@ -49,7 +49,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
         playbackSettings={playbackSettingsRow}
         provider={provider}
         repairFilter={repairFilter(params.repair)}
-        restreamSettings={restreamSettingsRow}
+        restreamSettings={restreamSettingsRows}
         streamProfiles={profileRows}
       />
     </AdminShell>

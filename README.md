@@ -175,7 +175,7 @@ Adaptive HLS transcoder:
 docker compose -f docker-compose.instance.yml --env-file .env.instance --profile stream-core --profile media-gateway --profile transcoder up -d stream-core media-gateway hls-origin media-transcoder
 ```
 
-External restream targets such as Facebook Live and YouTube Live are transcoded by default so the outgoing RTMP feed has a stable 2 second keyframe interval:
+Admin -> Stream provides two independent external outputs. Each can target a different YouTube channel, Facebook channel, or custom RTMP/RTMPS service, and either output can be disabled without stopping the other. Both relay workers transcode by default so each outgoing feed has a stable 2 second keyframe interval:
 
 ```env
 RESTREAM_TRANSCODE=true
@@ -188,6 +188,12 @@ RESTREAM_AUDIO_BITRATE=160k
 ```
 
 Set `RESTREAM_TRANSCODE=false` only if you intentionally want to packet-copy the incoming OBS encoder settings to the external platform.
+
+Start both independent outputs with the `restream` profile:
+
+```bash
+docker compose -f docker-compose.instance.yml --env-file .env.instance --profile restream up -d media-restreamer media-restreamer-secondary
+```
 
 For OBS, use a separate server URL and stream key:
 

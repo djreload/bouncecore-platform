@@ -1,5 +1,7 @@
 # Changelog
 
+- Added two independent external restream destinations so any combination of YouTube, Facebook, or custom RTMP/RTMPS channels can receive the primary DJ feed without one relay interrupting the other.
+
 - Profile pictures now use a dedicated authenticated upload route with a drag, zoom, and position editor that creates an optimized square avatar without sending large phone photos through profile Server Actions.
 
 - User invitations are now consumed immediately after acceptance, expired records are removed automatically by the worker, and Admin Users shows only active pending invitations.

@@ -10,7 +10,7 @@ import {
   streamProfileToSummary,
   type StreamProfileSummary
 } from "@/lib/stream/stream-profile-service";
-import { getAdminRestreamSettings } from "@/lib/stream/restream-settings-service";
+import { getAdminRestreamTargets } from "@/lib/stream/restream-settings-service";
 import { getStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 import { getLiveViewerPresenceCount } from "@/lib/presence/live-viewer-presence";
@@ -178,7 +178,7 @@ export async function getAdminStreamControlData() {
     }),
     getStreamPlaybackSettings(),
     getProviderSnapshot(),
-    getAdminRestreamSettings(),
+    getAdminRestreamTargets(),
     getStreamProfiles({
       includeDisabled: true
     })
