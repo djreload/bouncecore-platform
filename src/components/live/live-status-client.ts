@@ -73,7 +73,7 @@ function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
   }
 
   return value
-    .map((item, index): StreamPlaybackSource | null => {
+    .map((item): StreamPlaybackSource | null => {
       if (!item || typeof item !== "object") {
         return null;
       }
@@ -96,7 +96,7 @@ function normalizeActiveIngests(value: unknown): StreamPlaybackSource[] {
         startedAt: stringOrNull(source.startedAt) ?? new Date().toISOString(),
         status: status === "starting" || status === "degraded" || status === "offline" ? status : "live",
         streamKeyFingerprint: stringOrNull(source.streamKeyFingerprint),
-        title: stringOrNull(source.title) ?? (index === 0 ? "Primary DJ" : "Connecting DJ")
+        title: stringOrNull(source.title)
       };
     })
     .filter((source): source is StreamPlaybackSource => Boolean(source))

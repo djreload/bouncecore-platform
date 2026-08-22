@@ -96,8 +96,8 @@ function usePageVisible() {
   return pageVisible;
 }
 
-function sourceLabel(source: StreamPlaybackSource | null, fallback: string) {
-  return source?.presenterName ?? source?.title ?? fallback;
+function sourceLabel(source: StreamPlaybackSource | null) {
+  return source?.presenterName?.trim() || "Streamer";
 }
 
 function LivePlayerControls({
@@ -825,7 +825,7 @@ export function LivePlaybackPlayer({
       {hasSecondaryPlayback && primarySource ? (
         <div className="absolute left-2 top-2 z-20 max-w-40 rounded border border-bc-pink/55 bg-black/65 px-2 py-1 text-left shadow-md shadow-black/30 backdrop-blur-sm">
           <p className="text-[8px] font-black uppercase text-bc-pink">Live now</p>
-          <p className="truncate text-[11px] font-black leading-tight text-white">{sourceLabel(primarySource, "Main DJ")}</p>
+          <p className="truncate text-[11px] font-black leading-tight text-white">{sourceLabel(primarySource)}</p>
         </div>
       ) : null}
 
@@ -844,7 +844,7 @@ export function LivePlaybackPlayer({
               <div className="min-w-0">
                 <p className="text-[8px] font-black uppercase text-[#22c55e] max-sm:hidden">Up next</p>
                 <p className="truncate text-[11px] font-black leading-tight text-white max-sm:text-[9px]">
-                  {sourceLabel(secondarySource, "Next DJ")}
+                  {sourceLabel(secondarySource)}
                 </p>
               </div>
               <span className="grid h-5 w-5 shrink-0 place-items-center rounded-sm bg-black/60 text-[#22c55e] max-sm:h-4 max-sm:w-4" title="Secondary stream muted">

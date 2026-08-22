@@ -72,11 +72,15 @@ test("install defaults proxy opaque secondary HLS separately from adaptive prima
 
 test("secondary DJ video uses a compact muted corner PiP", () => {
   const player = readFileSync(join(process.cwd(), "src/app/live/live-playback-player.tsx"), "utf8");
+  const liveStatusClient = readFileSync(join(process.cwd(), "src/components/live/live-status-client.ts"), "utf8");
 
   assert.match(player, /w-\[clamp\(9rem,22%,20rem\)\]/);
   assert.match(player, /border-2 border-\[#22c55e\]\/80/);
   assert.match(player, /secondaryPlaybackUrl/);
   assert.match(player, /muted/);
+  assert.match(player, /source\?\.presenterName\?\.trim\(\) \|\| "Streamer"/);
   assert.doesNotMatch(player, /w-\[min\(34rem,36%\)\]/);
   assert.doesNotMatch(player, /border-4 border-\[#22c55e\]/);
+  assert.doesNotMatch(player, /Main DJ|Next DJ|1st DJ|2nd DJ/);
+  assert.doesNotMatch(liveStatusClient, /Primary DJ|Connecting DJ/);
 });
