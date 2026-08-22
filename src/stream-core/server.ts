@@ -2,9 +2,16 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { Readable } from "node:stream";
+import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { resolveTranscoderSourceUrlTemplate } from "../lib/stream/transcoder-source";
 import { mediaGatewayPathOnline } from "../lib/stream/media-gateway-state";
-import { mediaGatewayHlsUrlFromTemplate, resolveStreamCorePlaybackUrls } from "../lib/stream/stream-core-playback-url";
+import {
+  mediaGatewayHlsAssetUrl,
+  mediaGatewayHlsUrlFromTemplate,
+  resolveStreamCorePlaybackUrls,
+  secondaryPlaybackUrlFromTemplate
+} from "../lib/stream/stream-core-playback-url";
 import {
   createActiveIngestId,
   removeActiveIngestState,
@@ -94,6 +101,9 @@ const playbackUrls = resolveStreamCorePlaybackUrls({
   transcoderHlsPublicUrl: envValue("TRANSCODER_HLS_PUBLIC_URL")
 });
 const mediaGatewayPlaybackUrl = playbackUrls.directMediaGatewayPlaybackUrl;
+const mediaGatewayInternalHlsUrl =
+  envValue("MEDIA_GATEWAY_INTERNAL_HLS_URL") || "http://media-gateway:8888/{path}/index.m3u8";
+const secondaryPlaybackUrlTemplate = envValue("STREAM_CORE_SECONDARY_PLAYBACK_URL");
 const mediaGatewayApiUrl = envValue("MEDIA_GATEWAY_API_URL").replace(/\/+$/, "");
 const transcoderSourceUrlTemplate =
   envValue("STREAM_CORE_TRANSCODER_SOURCE_URL") || envValue("TRANSCODER_INPUT_URL") || "rtmp://media-gateway:1935/{path}";
@@ -415,11 +425,72 @@ function publicPlaybackUrlForIngest(ingest: ActiveIngest, index: number) {
     return publicPlaybackUrl;
   }
 
-  return ingest.playbackUrl;
+  return secondaryPlaybackUrlFromTemplate(secondaryPlaybackUrlTemplate, ingest.id);
 }
 
 function publicActiveIngests(now = new Date()) {
   return toPublicActiveIngests(sortedActiveIngests(now), publicPlaybackUrlForIngest);
+}
+
+async function handleSecondaryPlayback(request: IncomingMessage, response: ServerResponse, url: URL) {
+  if (request.method !== "GET") {
+    methodNotAllowed(response);
+    return;
+  }
+
+  const routeParts = url.pathname.slice("/api/playback/".length).split("/").filter(Boolean);
+  const ingestId = routeParts.shift() ?? "";
+  const assetPath = routeParts.join("/");
+
+  if (!/^[a-f0-9]{16}$/.test(ingestId) || !assetPath) {
+    notFound(response);
+    return;
+  }
+
+  const ingest = state.activeIngests.find((candidate) => candidate.id === ingestId && candidate.status !== "offline");
+
+  if (!ingest) {
+    notFound(response);
+    return;
+  }
+
+  const upstreamUrl = mediaGatewayHlsAssetUrl(mediaGatewayInternalHlsUrl, ingest.ingestPath, assetPath, url.search);
+
+  if (!upstreamUrl) {
+    notFound(response);
+    return;
+  }
+
+  const upstream = await fetch(upstreamUrl, {
+    headers: {
+      accept: request.headers.accept ?? "*/*",
+      ...(request.headers.range ? { range: request.headers.range } : {})
+    }
+  });
+  const responseHeaders: Record<string, string> = {
+    "access-control-allow-origin": "*",
+    "cache-control": upstream.headers.get("cache-control") ?? "no-store",
+    "cross-origin-resource-policy": "cross-origin"
+  };
+
+  for (const header of ["accept-ranges", "content-length", "content-range", "content-type", "etag", "last-modified"]) {
+    const value = upstream.headers.get(header);
+
+    if (value) {
+      responseHeaders[header] = value;
+    }
+  }
+
+  response.writeHead(upstream.status, responseHeaders);
+
+  if (!upstream.body) {
+    response.end();
+    return;
+  }
+
+  Readable.fromWeb(upstream.body as unknown as NodeReadableStream)
+    .on("error", () => response.destroy())
+    .pipe(response);
 }
 
 function syncLegacyStateFromActiveIngests(now = new Date()) {
@@ -1201,6 +1272,11 @@ async function route(request: IncomingMessage, response: ServerResponse) {
       json(response, 200, {
         playbackUrl: (await refreshedState()).playbackUrl
       });
+      return;
+    }
+
+    if (url.pathname.startsWith("/api/playback/")) {
+      await handleSecondaryPlayback(request, response, url);
       return;
     }
 

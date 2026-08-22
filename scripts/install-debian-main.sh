@@ -316,6 +316,16 @@ server {
 
     client_max_body_size 512m;
 
+    location /hls-secondary/ {
+        proxy_pass http://127.0.0.1:18088/api/playback/;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_buffering off;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+
     location /hls/ {
         proxy_pass http://127.0.0.1:18889/;
         proxy_http_version 1.1;
@@ -440,7 +450,9 @@ MEDIA_GATEWAY_RTMPS_BIND_PORT=1936
 MEDIA_GATEWAY_RTMPS_CERT_DIR=./.instance-certs/rtmps
 MEDIA_GATEWAY_HLS_BIND_HOST=127.0.0.1
 MEDIA_GATEWAY_HLS_BIND_PORT=18888
-MEDIA_GATEWAY_PUBLIC_HLS_URL=$APP_URL/hls/{path}/index.m3u8
+MEDIA_GATEWAY_PUBLIC_HLS_URL=
+MEDIA_GATEWAY_INTERNAL_HLS_URL=http://media-gateway:8888/{path}/index.m3u8
+STREAM_CORE_SECONDARY_PLAYBACK_URL=$APP_URL/hls-secondary/{id}/index.m3u8
 HLS_PLAYBACK_HEALTH_URL=http://hls-origin/live/master.m3u8
 TRANSCODER_ENABLED=true
 HLS_ORIGIN_CONTAINER=bouncecore-hls-origin

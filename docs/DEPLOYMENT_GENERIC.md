@@ -41,6 +41,7 @@ The public HTTPS vhost should proxy:
 
 - `/` to `http://127.0.0.1:3000`
 - `/hls/` to `http://127.0.0.1:18889/` when adaptive HLS is enabled
+- `/hls-secondary/` to `http://127.0.0.1:18088/api/playback/` for the opaque, muted secondary-DJ picture-in-picture feed
 
 Set the public request body limit to at least `512m`.
 

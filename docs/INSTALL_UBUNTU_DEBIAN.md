@@ -200,6 +200,16 @@ server {
 
     client_max_body_size 512m;
 
+    location /hls-secondary/ {
+        proxy_pass http://127.0.0.1:18088/api/playback/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+
     location /hls/ {
         proxy_pass http://127.0.0.1:18889/;
         proxy_http_version 1.1;
@@ -248,6 +258,12 @@ bouncecore.example.com {
         max_size 512MB
     }
 
+    handle /hls-secondary/* {
+        uri replace /hls-secondary/ /api/playback/
+        reverse_proxy 127.0.0.1:18088
+        header Access-Control-Allow-Origin "*"
+    }
+
     handle_path /hls/* {
         reverse_proxy 127.0.0.1:18889
         header Access-Control-Allow-Origin "*"
@@ -262,6 +278,15 @@ Reload:
 ```bash
 sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl reload caddy
+```
+
+Plesk/Apache installations need equivalent rules before the catch-all application proxy:
+
+```apache
+ProxyPass /hls-secondary/ http://127.0.0.1:18088/api/playback/ retry=0 timeout=60
+ProxyPassReverse /hls-secondary/ http://127.0.0.1:18088/api/playback/
+ProxyPass /hls/ http://127.0.0.1:18889/ retry=0 timeout=60
+ProxyPassReverse /hls/ http://127.0.0.1:18889/
 ```
 
 ## 8. RTMPS Certificate

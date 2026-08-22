@@ -1,5 +1,7 @@
 # Changelog
 
+- Fixed secondary-DJ playback through an opaque stream-core HLS proxy that hides ingest paths, and redesigned the two-DJ player with a compact corner PiP, thin border, and smaller labels.
+
 - Added two independent external restream destinations so any combination of YouTube, Facebook, or custom RTMP/RTMPS channels can receive the primary DJ feed without one relay interrupting the other.
 
 - Profile pictures now use a dedicated authenticated upload route with a drag, zoom, and position editor that creates an optimized square avatar without sending large phone photos through profile Server Actions.

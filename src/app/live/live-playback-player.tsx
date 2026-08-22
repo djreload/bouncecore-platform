@@ -803,8 +803,7 @@ export function LivePlaybackPlayer({
   return (
     <section
       className={cn(
-        "group bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 fullscreen:h-screen fullscreen:w-screen fullscreen:rounded-none fullscreen:border-0 lg:rounded-t-md lg:border-x",
-        hasSecondaryPlayback ? "ring-1 ring-bc-pink/45" : null
+        "group bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 fullscreen:h-screen fullscreen:w-screen fullscreen:rounded-none fullscreen:border-0 lg:rounded-t-md lg:border-x"
       )}
       ref={playerRef}
     >
@@ -824,14 +823,14 @@ export function LivePlaybackPlayer({
       )}
 
       {hasSecondaryPlayback && primarySource ? (
-        <div className="absolute left-3 top-3 z-20 rounded-md border border-bc-pink/70 bg-black/70 px-3 py-2 text-left shadow-lg shadow-black/40 backdrop-blur">
-          <p className="text-[11px] font-black uppercase tracking-wide text-bc-pink">1st DJ stream</p>
-          <p className="max-w-52 truncate text-sm font-black text-white">{sourceLabel(primarySource, "Main DJ")}</p>
+        <div className="absolute left-2 top-2 z-20 max-w-40 rounded border border-bc-pink/55 bg-black/65 px-2 py-1 text-left shadow-md shadow-black/30 backdrop-blur-sm">
+          <p className="text-[8px] font-black uppercase text-bc-pink">Live now</p>
+          <p className="truncate text-[11px] font-black leading-tight text-white">{sourceLabel(primarySource, "Main DJ")}</p>
         </div>
       ) : null}
 
       {hasSecondaryPlayback && secondaryPlaybackUrl ? (
-        <div className="absolute bottom-16 right-4 z-30 w-[min(34rem,36%)] min-w-[18rem] overflow-hidden rounded-md border-4 border-[#22c55e] bg-black shadow-[0_18px_54px_rgba(0,0,0,0.72)] max-sm:bottom-14 max-sm:right-3 max-sm:w-[45%] max-sm:min-w-[10rem]">
+        <div className="absolute bottom-12 right-2 z-30 w-[clamp(9rem,22%,20rem)] overflow-hidden rounded border-2 border-[#22c55e]/80 bg-black shadow-[0_8px_24px_rgba(0,0,0,0.6)] max-sm:bottom-11 max-sm:right-1.5 max-sm:w-[38%]">
           <div className="relative aspect-video bg-black">
             <HlsVideo
               ariaLabel={secondarySource?.presenterName ? `${secondarySource.presenterName} secondary stream` : "Secondary live stream"}
@@ -841,13 +840,15 @@ export function LivePlaybackPlayer({
               playbackBufferSeconds={liveState.playbackSettings.playbackBufferSeconds}
               playbackUrl={secondaryPlaybackUrl}
             />
-            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-2 bg-gradient-to-b from-black/85 via-black/35 to-transparent p-3 max-sm:p-2">
+            <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-1 bg-gradient-to-b from-black/80 via-black/25 to-transparent p-1.5 max-sm:p-1">
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#22c55e] max-sm:text-[9px]">2nd DJ stream</p>
-                <p className="truncate text-base font-black text-white max-sm:text-xs">{sourceLabel(secondarySource, "Next DJ")}</p>
+                <p className="text-[8px] font-black uppercase text-[#22c55e] max-sm:hidden">Up next</p>
+                <p className="truncate text-[11px] font-black leading-tight text-white max-sm:text-[9px]">
+                  {sourceLabel(secondarySource, "Next DJ")}
+                </p>
               </div>
-              <span className="shrink-0 rounded border border-[#22c55e]/60 bg-black/70 px-2 py-1 text-[10px] font-black uppercase text-[#22c55e] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[8px]">
-                Muted
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-sm bg-black/60 text-[#22c55e] max-sm:h-4 max-sm:w-4" title="Secondary stream muted">
+                <VolumeX className="h-3 w-3" aria-hidden="true" />
               </span>
             </div>
           </div>
@@ -855,7 +856,7 @@ export function LivePlaybackPlayer({
       ) : null}
 
       {hasSecondaryPlayback ? (
-        <div className="absolute right-3 top-3 z-20 rounded-md border border-bc-line bg-bc-ink/85 px-2 py-1 text-xs font-black text-white backdrop-blur">
+        <div className="absolute right-2 top-2 z-20 rounded border border-bc-line/70 bg-black/65 px-1.5 py-1 text-[9px] font-black text-white backdrop-blur-sm">
           {liveState.activeIngests.length} DJs connected
         </div>
       ) : null}
