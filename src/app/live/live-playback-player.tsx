@@ -23,6 +23,7 @@ import {
   applyLiveQualityCap,
   installLiveStallWatchdog,
   keepNormalPlaybackSpeed,
+  recoverBufferedLivePlayback,
   seekToBufferedLivePosition,
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
@@ -322,11 +323,10 @@ function LivePlayerControls({
       return;
     }
 
-    seekToBufferedLivePosition(video, playbackBufferSeconds);
     if (!video.muted) {
       requestPersistentLiveAudio();
     }
-    void video.play().catch(() => undefined);
+    void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
   }
 
   function toggleMute() {
@@ -374,7 +374,7 @@ function LivePlayerControls({
     if (!video.muted) {
       requestPersistentLiveAudio();
     }
-    void video.play().catch(() => undefined);
+    void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
   }
 
   async function toggleFullscreen() {
@@ -612,8 +612,12 @@ function HlsVideo({
     }
 
     function recoverLivePlayback() {
-      hlsRef.current?.startLoad(-1);
-      void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
+      void recoverBufferedLivePlayback(
+        activeVideo,
+        playbackBufferSeconds,
+        hlsRef.current,
+        onPlaybackStarted
+      ).catch(() => undefined);
     }
 
     function requestFullReconnect(immediate = false) {
@@ -669,14 +673,6 @@ function HlsVideo({
           void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
         }
       });
-      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
-        if (!data.details.live || cancelled || !activeVideo.paused) {
-          return;
-        }
-
-        void startBufferedLivePlayback(activeVideo, playbackBufferSeconds, onPlaybackStarted).catch(() => undefined);
-      });
-
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (cancelled || !data.fatal) {
           return;

@@ -1,5 +1,7 @@
 # Changelog
 
+- Stabilized buffered livestream playback by deduplicating play requests, preventing backward buffer seeks, and waiting for a confirmed stall before recovery instead of restarting on normal HLS buffering events.
+
 - Fixed Android push recovery by persisting refreshed FCM tokens, retrying authenticated device registration, reconnecting Account notification opt-in to Android permission recovery, and keeping opted-in devices registered across app launches.
 - Removed native advertising from per-user performance controls; ad availability, placements, and frequency now come from Admin Mobile settings while required privacy consent remains user-controlled.
 

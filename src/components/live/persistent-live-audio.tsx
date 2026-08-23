@@ -9,6 +9,7 @@ import {
   applyLiveQualityCap,
   installLiveStallWatchdog,
   keepNormalPlaybackSpeed,
+  recoverBufferedLivePlayback,
   startBufferedLivePlayback
 } from "@/components/live/live-playback-buffer";
 import {
@@ -365,9 +366,12 @@ export function PersistentLiveAudio() {
         return;
       }
 
-      hlsRef.current?.startLoad(-1);
       activeVideo.muted = !userEnabledRef.current;
-      void startBufferedLivePlayback(activeVideo, playbackBufferSecondsRef.current).catch(() => undefined);
+      void recoverBufferedLivePlayback(
+        activeVideo,
+        playbackBufferSecondsRef.current,
+        hlsRef.current
+      ).catch(() => undefined);
     }
 
     updateVideoPlacement();
@@ -561,14 +565,6 @@ export function PersistentLiveAudio() {
       });
       hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
         updateQualityState(data.level);
-      });
-      hls.on(Hls.Events.LEVEL_LOADED, (_event, data) => {
-        if (!data.details.live || cancelled || !video.paused) {
-          return;
-        }
-
-        video.muted = !userEnabledRef.current;
-        void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
       });
       hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
         if (!data.fatal || cancelled) {

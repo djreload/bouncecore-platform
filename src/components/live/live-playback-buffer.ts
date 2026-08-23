@@ -2,8 +2,10 @@ import { defaultStreamPlaybackSettings, normalizePlaybackBufferSeconds } from "@
 
 const bufferedPlaybackTimeoutMs = 8000;
 const liveStallCheckMs = 1000;
-const liveStallRecoveryMs = 5000;
-const minimumRecoveryGapMs = 4500;
+const liveStallRecoveryMs = 10_000;
+const minimumRecoveryGapMs = 12_000;
+const minimumForwardSeekSeconds = 0.35;
+const pendingPlaybackStarts = new WeakMap<HTMLVideoElement, Promise<void>>();
 
 type LiveHlsController = {
   startLoad: (startPosition?: number) => void;
@@ -81,8 +83,17 @@ export function seekToBufferedLivePosition(video: HTMLVideoElement, playbackBuff
   const end = seekable.end(seekable.length - 1);
   const start = seekable.start(seekable.length - 1);
 
-  if (Number.isFinite(end)) {
-    video.currentTime = Math.max(start, end - bufferSeconds);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return;
+  }
+
+  const target = Math.max(start, end - bufferSeconds);
+  const currentTime = video.currentTime;
+  const currentTimeOutsideWindow =
+    !Number.isFinite(currentTime) || currentTime < start - minimumForwardSeekSeconds || currentTime > end;
+
+  if (currentTimeOutsideWindow || target > currentTime + minimumForwardSeekSeconds) {
+    video.currentTime = target;
   }
 }
 
@@ -148,12 +159,40 @@ export async function startBufferedLivePlayback(
   playbackBufferSeconds = defaultStreamPlaybackSettings.playbackBufferSeconds,
   onPlaybackStarted?: () => void
 ) {
-  seekToBufferedLivePosition(video, playbackBufferSeconds);
   keepNormalPlaybackSpeed(video);
-  await waitForLiveBuffer(video, playbackBufferSeconds);
-  keepNormalPlaybackSpeed(video);
-  await video.play();
-  onPlaybackStarted?.();
+
+  if (!video.paused && !video.ended) {
+    onPlaybackStarted?.();
+    return;
+  }
+
+  const pendingStart = pendingPlaybackStarts.get(video);
+
+  if (pendingStart) {
+    return pendingStart;
+  }
+
+  const startRequest = (async () => {
+    seekToBufferedLivePosition(video, playbackBufferSeconds);
+    await waitForLiveBuffer(video, playbackBufferSeconds);
+
+    if (!video.paused && !video.ended) {
+      onPlaybackStarted?.();
+      return;
+    }
+
+    seekToBufferedLivePosition(video, playbackBufferSeconds);
+    keepNormalPlaybackSpeed(video);
+    await video.play();
+    onPlaybackStarted?.();
+  })().finally(() => {
+    if (pendingPlaybackStarts.get(video) === startRequest) {
+      pendingPlaybackStarts.delete(video);
+    }
+  });
+
+  pendingPlaybackStarts.set(video, startRequest);
+  return startRequest;
 }
 
 export async function recoverBufferedLivePlayback(
@@ -162,7 +201,16 @@ export async function recoverBufferedLivePlayback(
   hls?: LiveHlsController | null,
   onPlaybackStarted?: () => void
 ) {
-  hls?.startLoad(-1);
+  if (!video.paused && !video.ended) {
+    seekToBufferedLivePosition(video, playbackBufferSeconds);
+    keepNormalPlaybackSpeed(video);
+    return;
+  }
+
+  if (video.ended) {
+    hls?.startLoad(-1);
+  }
+
   await startBufferedLivePlayback(video, playbackBufferSeconds, onPlaybackStarted);
 }
 
@@ -231,15 +279,15 @@ export function installLiveStallWatchdog({
   video.addEventListener("canplay", markProgress);
   video.addEventListener("playing", markProgress);
   video.addEventListener("timeupdate", markProgress);
-  video.addEventListener("stalled", recoverIfNeeded);
-  video.addEventListener("waiting", recoverIfNeeded);
+  video.addEventListener("stalled", checkForStall);
+  video.addEventListener("waiting", checkForStall);
 
   return () => {
     window.clearInterval(interval);
     video.removeEventListener("canplay", markProgress);
     video.removeEventListener("playing", markProgress);
     video.removeEventListener("timeupdate", markProgress);
-    video.removeEventListener("stalled", recoverIfNeeded);
-    video.removeEventListener("waiting", recoverIfNeeded);
+    video.removeEventListener("stalled", checkForStall);
+    video.removeEventListener("waiting", checkForStall);
   };
 }
