@@ -29,11 +29,12 @@ export async function GET() {
   const user = await getCurrentUser();
 
   if (!user) {
-    return NextResponse.json({ challenges: [] });
+    return NextResponse.json({ authenticated: false, challenges: [] });
   }
 
   try {
     return NextResponse.json({
+      authenticated: true,
       challenges: await getPendingRaveWarChallenges(user.id)
     });
   } catch {

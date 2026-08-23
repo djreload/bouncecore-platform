@@ -10,6 +10,7 @@ import type { RaveWarChallengeSummary } from "@/lib/rave-wars/rave-war-types";
 import { cn } from "@/lib/utils";
 
 type ChallengePayload = {
+  authenticated?: boolean;
   challenges?: RaveWarChallengeSummary[];
   error?: string;
 };
@@ -104,12 +105,13 @@ function useRaveWarChallengeContext() {
 
 export function RaveWarChallengeProvider({ children }: { children: ReactNode }) {
   const { effective: performancePreferences } = usePerformancePreferences();
+  const [pollingEnabled, setPollingEnabled] = useState(true);
   const [challenges, setChallenges] = useState<RaveWarChallengeSummary[]>([]);
   const [busyWarId, setBusyWarId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const refreshChallenges = useCallback(async () => {
-    if (document.visibilityState === "hidden") {
+    if (!pollingEnabled || document.visibilityState === "hidden") {
       return;
     }
 
@@ -120,12 +122,13 @@ export function RaveWarChallengeProvider({ children }: { children: ReactNode }) 
       const payload = (await response.json()) as ChallengePayload;
 
       if (response.ok) {
+        setPollingEnabled(payload.authenticated !== false);
         setChallenges(payload.challenges ?? []);
       }
     } catch {
       // Challenge prompts are best-effort; the game route still enforces access.
     }
-  }, []);
+  }, [pollingEnabled]);
 
   const navigateToWar = useCallback((warId: string) => {
     window.sessionStorage.setItem(`rave-war-opened:${warId}`, "1");
@@ -187,6 +190,10 @@ export function RaveWarChallengeProvider({ children }: { children: ReactNode }) 
   }, [challenges, navigateToWar]);
 
   useEffect(() => {
+    if (!pollingEnabled) {
+      return;
+    }
+
     const initialRefresh = window.setTimeout(refreshChallenges, 0);
     const interval = window.setInterval(
       refreshChallenges,
@@ -206,7 +213,7 @@ export function RaveWarChallengeProvider({ children }: { children: ReactNode }) 
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [performancePreferences.realtimeUpdatesEnabled, refreshChallenges]);
+  }, [performancePreferences.realtimeUpdatesEnabled, pollingEnabled, refreshChallenges]);
 
   return (
     <RaveWarChallengeContext.Provider

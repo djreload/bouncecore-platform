@@ -1,5 +1,6 @@
 # Changelog
 
+- Reduced idle browser and mobile-app work by limiting livestream decoding to the live page until continuous audio is enabled, disconnecting temporary player placement observers as soon as the video is docked, and avoiding targeted throw and Rave War polling for signed-out visitors.
 - Added live connection tiers that automatically favour 240p with a 12-second buffer on low-speed links, 480p with an eight-second buffer on medium links, and full adaptive HD with the admin buffer on high-speed links, with in-place quality changes that do not reload playback.
 - Stabilized buffered livestream playback by deduplicating play requests, preventing backward buffer seeks, and waiting for a confirmed stall before recovery instead of restarting on normal HLS buffering events.
 

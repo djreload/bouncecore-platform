@@ -27,14 +27,26 @@ test("persistent livestream playback stays alive after user-enabled background a
 
   assert.match(runtime, /bouncecoreAndroidUserAgentToken/);
   assert.match(player, /shouldSuspendPersistentPlayback/);
-  assert.match(player, /if \(userEnabled\)/);
+  assert.match(player, /backgroundPlaybackEnabled && userEnabled/);
   assert.match(player, /setAndroidPersistentAudioActive/);
   assert.match(player, /persistentAudioActive = userEnabled && canPlay/);
-  assert.match(player, /isBouncecoreAndroidRuntime\(\) && !isLivePath\(pathname\)/);
-  assert.match(player, /document\.visibilityState === "hidden"/);
+  assert.match(player, /return pageHidden \|\| !isLivePath\(pathname\)/);
   assert.match(player, /suspendPlayback/);
   assert.match(player, /activeVideo\.preload = "metadata"/);
   assert.doesNotMatch(player, /activeVideo\.preload = "auto"/);
+});
+
+test("non-listeners do not decode the livestream away from the live page", () => {
+  const player = readFileSync(join(process.cwd(), "src/components/live/persistent-live-audio.tsx"), "utf8");
+  const shell = readFileSync(join(process.cwd(), "src/components/layout/public-shell.tsx"), "utf8");
+  const challenges = readFileSync(join(process.cwd(), "src/components/rave-wars/rave-war-challenge-overlay.tsx"), "utf8");
+
+  assert.match(player, /backgroundPlaybackEnabled && userEnabled/);
+  assert.match(player, /return pageHidden \|\| !isLivePath\(pathname\)/);
+  assert.match(player, /observer\.disconnect\(\)/);
+  assert.match(player, /document\.querySelector\(liveVideoSlotSelector\)/);
+  assert.match(shell, /\{signedIn \? <SheepThrowOverlay \/> : null\}/);
+  assert.match(challenges, /setPollingEnabled\(payload\.authenticated !== false\)/);
 });
 
 test("live status and overlays sleep when the page is hidden", () => {

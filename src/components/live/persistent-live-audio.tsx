@@ -78,20 +78,17 @@ function isLivePath(pathname: string | null) {
   return pathname === "/live" || Boolean(pathname?.startsWith("/live/"));
 }
 
-function shouldSuspendPersistentPlayback(pathname: string | null, userEnabled: boolean, backgroundPlaybackEnabled = true) {
-  if (!backgroundPlaybackEnabled) {
-    return (typeof document !== "undefined" && document.visibilityState === "hidden") || !isLivePath(pathname);
-  }
-
-  if (userEnabled) {
+export function shouldSuspendPersistentPlayback(
+  pathname: string | null,
+  userEnabled: boolean,
+  backgroundPlaybackEnabled = true,
+  pageHidden = typeof document !== "undefined" && document.visibilityState === "hidden"
+) {
+  if (backgroundPlaybackEnabled && userEnabled) {
     return false;
   }
 
-  if (typeof document !== "undefined" && document.visibilityState === "hidden") {
-    return true;
-  }
-
-  return isBouncecoreAndroidRuntime() && !isLivePath(pathname);
+  return pageHidden || !isLivePath(pathname);
 }
 
 function setAndroidPersistentAudioActive(active: boolean) {
@@ -377,29 +374,7 @@ export function PersistentLiveAudio() {
 
     updateVideoPlacement();
 
-    let frame = 0;
-    const schedulePlacementUpdate = () => {
-      if (frame) {
-        return;
-      }
-
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        updateVideoPlacement();
-      });
-    };
-    const throttledObserver = new MutationObserver(schedulePlacementUpdate);
-    throttledObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-
     return () => {
-      if (frame) {
-        window.cancelAnimationFrame(frame);
-      }
-
-      throttledObserver.disconnect();
       stopStallWatchdog();
       activeVideo.removeEventListener("pointerdown", enableAudioFromUserGesture);
       activeVideo.removeEventListener("keydown", enableAudioFromUserGesture);
@@ -412,6 +387,39 @@ export function PersistentLiveAudio() {
 
   useEffect(() => {
     updateVideoPlacement();
+
+    if (!isLivePath(pathname) || document.querySelector(liveVideoSlotSelector)) {
+      return;
+    }
+
+    let frame = 0;
+    const observer = new MutationObserver(() => {
+      if (frame) {
+        return;
+      }
+
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+
+        if (document.querySelector(liveVideoSlotSelector)) {
+          updateVideoPlacement();
+          observer.disconnect();
+        }
+      });
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    return () => {
+      observer.disconnect();
+
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+      }
+    };
   }, [pathname, updateVideoPlacement]);
 
   useEffect(() => {

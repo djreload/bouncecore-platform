@@ -102,7 +102,7 @@ export async function PublicShell({ children, hideFooterOnMobile = false, mobile
         </div>
       </header>
       <StarSupportOverlay />
-      <SheepThrowOverlay />
+      {signedIn ? <SheepThrowOverlay /> : null}
       {children}
       <footer
         className={`${hideFooterOnMobile ? "hidden lg:block" : ""} bc-site-footer border-t border-bc-line bg-bc-ink`}
