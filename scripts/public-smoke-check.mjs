@@ -17,7 +17,7 @@ function publicHtmlCheck({ id, label, path, requiredText = [] }) {
 
 export const defaultSmokeChecks = [
   publicHtmlCheck({ id: "home", label: "Home page", path: "/", requiredText: ["Platform modules"] }),
-  publicHtmlCheck({ id: "live", label: "Live page", path: "/live", requiredText: ["Stream status"] }),
+  publicHtmlCheck({ id: "live", label: "Live page", path: "/live", requiredText: ["data-live-primary-video-slot"] }),
   publicHtmlCheck({ id: "chat", label: "Chat page", path: "/chat", requiredText: ["Bouncecore Chat"] }),
   publicHtmlCheck({ id: "music", label: "Music catalogue", path: "/music", requiredText: ["Bouncecore Music"] }),
   publicHtmlCheck({ id: "shop", label: "Shop catalogue", path: "/shop", requiredText: ["Merch shop"] }),
