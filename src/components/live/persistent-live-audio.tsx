@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   buildLiveHlsConfig,
   applyLiveQualityCap,
+  installLiveConnectionAdaptation,
   installLiveStallWatchdog,
   keepNormalPlaybackSpeed,
   recoverBufferedLivePlayback,
@@ -516,6 +517,14 @@ export function PersistentLiveAudio() {
       const hls = new Hls(buildLiveHlsConfig(playbackBufferSeconds));
       let selectedQualityLevel = -1;
       hlsRef.current = hls;
+      const stopConnectionAdaptation = installLiveConnectionAdaptation((profile) => {
+        if (cancelled || selectedQualityLevel !== -1 || !hls.levels.length) {
+          return;
+        }
+
+        applyLiveQualityCap(hls, performancePreferences.maxLiveHeight, profile);
+        updateQualityState();
+      });
 
       function updateQualityState(activeLevel = hls.currentLevel) {
         qualityStateRef.current = {
@@ -535,6 +544,7 @@ export function PersistentLiveAudio() {
 
         if (requestedLevel === -1) {
           selectedQualityLevel = -1;
+          applyLiveQualityCap(hls, performancePreferences.maxLiveHeight);
           hls.currentLevel = -1;
           updateQualityState();
           return;
@@ -595,6 +605,7 @@ export function PersistentLiveAudio() {
           window.clearTimeout(reconnectTimer);
         }
         window.removeEventListener(livePlayerQualityRequestEvent, handleQualityRequest);
+        stopConnectionAdaptation();
         qualityStateRef.current = emptyLivePlayerQualityState;
         publishLivePlayerQualityState(qualityStateRef.current);
         hls.destroy();

@@ -1,5 +1,6 @@
 # Changelog
 
+- Added live connection tiers that automatically favour 240p with a 12-second buffer on low-speed links, 480p with an eight-second buffer on medium links, and full adaptive HD with the admin buffer on high-speed links, with in-place quality changes that do not reload playback.
 - Stabilized buffered livestream playback by deduplicating play requests, preventing backward buffer seeks, and waiting for a confirmed stall before recovery instead of restarting on normal HLS buffering events.
 
 - Fixed Android push recovery by persisting refreshed FCM tokens, retrying authenticated device registration, reconnecting Account notification opt-in to Android permission recovery, and keeping opted-in devices registered across app launches.

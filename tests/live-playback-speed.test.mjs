@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  connectionAdjustedPlaybackBufferSeconds,
+  resolveLiveConnectionProfile,
   seekToBufferedLivePosition,
   startBufferedLivePlayback
 } from "../src/components/live/live-playback-buffer.ts";
@@ -23,7 +25,8 @@ for (const playerFile of livePlayerFiles) {
 test("shared live playback helper uses admin buffer without catch-up acceleration", () => {
   const content = readFileSync(join(process.cwd(), "src/components/live/live-playback-buffer.ts"), "utf8");
 
-  assert.match(content, /liveSyncDuration:\s*bufferSeconds/, "HLS live sync must use the configured buffer seconds");
+  assert.match(content, /connectionAdjustedPlaybackBufferSeconds/, "HLS live sync must adapt the admin buffer to connection quality");
+  assert.match(content, /liveSyncDuration:\s*bufferSeconds/, "HLS live sync must use the connection-adjusted buffer seconds");
   assert.match(content, /liveMaxLatencyDuration:\s*Math\.max\(bufferSeconds \+ 8, bufferSeconds \* 2\)/, "HLS max latency must scale with the configured buffer");
   assert.match(content, /maxLiveSyncPlaybackRate:\s*1[\s,]/, "HLS must never speed up live audio to catch up");
   assert.match(content, /playbackRate\s*=\s*1/, "shared helper must reset browser playback rate to 1x");
@@ -32,6 +35,26 @@ test("shared live playback helper uses admin buffer without catch-up acceleratio
   assert.match(content, /video\.addEventListener\("stalled", checkForStall\)/, "stalled events must wait for watchdog confirmation");
   assert.match(content, /video\.addEventListener\("waiting", checkForStall\)/, "normal buffer waits must not restart playback immediately");
   assert.match(content, /Date\.now\(\) - lastProgressAt >= liveStallRecoveryMs/, "helper must detect frozen mobile playback");
+});
+
+test("live connection profiles tune automatic quality and safety buffer", () => {
+  const low = resolveLiveConnectionProfile({ downlink: 0.8, effectiveType: "4g" });
+  const medium = resolveLiveConnectionProfile({ downlink: 3, effectiveType: "4g" });
+  const high = resolveLiveConnectionProfile({ downlink: 20, effectiveType: "4g" });
+
+  assert.deepEqual(
+    { buffer: connectionAdjustedPlaybackBufferSeconds(4, low), height: low.maxAutoHeight, tier: low.tier },
+    { buffer: 12, height: 240, tier: "low" }
+  );
+  assert.deepEqual(
+    { buffer: connectionAdjustedPlaybackBufferSeconds(4, medium), height: medium.maxAutoHeight, tier: medium.tier },
+    { buffer: 8, height: 480, tier: "medium" }
+  );
+  assert.deepEqual(
+    { buffer: connectionAdjustedPlaybackBufferSeconds(6, high), height: high.maxAutoHeight, tier: high.tier },
+    { buffer: 6, height: null, tier: "high" }
+  );
+  assert.equal(resolveLiveConnectionProfile({ saveData: true }).tier, "low");
 });
 
 test("buffer alignment only moves playback forward", () => {

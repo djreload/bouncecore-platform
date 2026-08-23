@@ -21,6 +21,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import {
   buildLiveHlsConfig,
   applyLiveQualityCap,
+  installLiveConnectionAdaptation,
   installLiveStallWatchdog,
   keepNormalPlaybackSpeed,
   recoverBufferedLivePlayback,
@@ -664,6 +665,11 @@ function HlsVideo({
     if (hlsPlayback && Hls.isSupported()) {
       const hls = new Hls(buildLiveHlsConfig(playbackBufferSeconds));
       hlsRef.current = hls;
+      const stopConnectionAdaptation = installLiveConnectionAdaptation((profile) => {
+        if (!cancelled && hls.levels.length) {
+          applyLiveQualityCap(hls, maxLiveHeight, profile);
+        }
+      });
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (!cancelled) {
@@ -705,6 +711,7 @@ function HlsVideo({
         if (reconnectTimer !== null) {
           window.clearTimeout(reconnectTimer);
         }
+        stopConnectionAdaptation();
         hls.destroy();
       };
     }

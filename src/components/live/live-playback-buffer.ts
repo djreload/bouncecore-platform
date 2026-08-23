@@ -7,6 +7,30 @@ const minimumRecoveryGapMs = 12_000;
 const minimumForwardSeekSeconds = 0.35;
 const pendingPlaybackStarts = new WeakMap<HTMLVideoElement, Promise<void>>();
 
+export type LiveConnectionTier = "high" | "low" | "medium";
+
+export type LiveConnectionHints = {
+  downlink?: number | null;
+  effectiveType?: string | null;
+  rtt?: number | null;
+  saveData?: boolean;
+};
+
+export type LiveConnectionProfile = {
+  bufferMinimumSeconds: number;
+  estimatedBandwidth: number;
+  maxAutoHeight: number | null;
+  maxBufferLength: number;
+  tier: LiveConnectionTier;
+};
+
+type BrowserNetworkConnection = LiveConnectionHints & {
+  addEventListener?: (type: "change", listener: () => void) => void;
+  addListener?: (listener: () => void) => void;
+  removeEventListener?: (type: "change", listener: () => void) => void;
+  removeListener?: (listener: () => void) => void;
+};
+
 type LiveHlsController = {
   startLoad: (startPosition?: number) => void;
 };
@@ -26,11 +50,103 @@ type LiveStallWatchdogOptions = {
   video: HTMLVideoElement;
 };
 
-export function buildLiveHlsConfig(playbackBufferSeconds: number) {
-  const bufferSeconds = normalizePlaybackBufferSeconds(playbackBufferSeconds);
+const liveConnectionProfiles: Record<LiveConnectionTier, LiveConnectionProfile> = {
+  low: {
+    bufferMinimumSeconds: 12,
+    estimatedBandwidth: 450_000,
+    maxAutoHeight: 240,
+    maxBufferLength: 60,
+    tier: "low"
+  },
+  medium: {
+    bufferMinimumSeconds: 8,
+    estimatedBandwidth: 1_400_000,
+    maxAutoHeight: 480,
+    maxBufferLength: 45,
+    tier: "medium"
+  },
+  high: {
+    bufferMinimumSeconds: 0,
+    estimatedBandwidth: 3_000_000,
+    maxAutoHeight: null,
+    maxBufferLength: 30,
+    tier: "high"
+  }
+};
+
+function browserNetworkConnection(): BrowserNetworkConnection | null {
+  if (typeof navigator === "undefined") {
+    return null;
+  }
+
+  return (navigator as Navigator & { connection?: BrowserNetworkConnection }).connection ?? null;
+}
+
+export function resolveLiveConnectionProfile(hints: LiveConnectionHints = {}): LiveConnectionProfile {
+  const effectiveType = hints.effectiveType?.trim().toLowerCase() ?? "";
+  const downlink = typeof hints.downlink === "number" && Number.isFinite(hints.downlink) ? hints.downlink : null;
+  const rtt = typeof hints.rtt === "number" && Number.isFinite(hints.rtt) ? hints.rtt : null;
+
+  if (
+    hints.saveData === true ||
+    effectiveType === "slow-2g" ||
+    effectiveType === "2g" ||
+    (downlink !== null && downlink <= 1.25) ||
+    (rtt !== null && rtt >= 650)
+  ) {
+    return liveConnectionProfiles.low;
+  }
+
+  if (
+    effectiveType === "3g" ||
+    (downlink !== null && downlink <= 4) ||
+    (rtt !== null && rtt >= 250)
+  ) {
+    return liveConnectionProfiles.medium;
+  }
+
+  return liveConnectionProfiles.high;
+}
+
+export function currentLiveConnectionProfile() {
+  return resolveLiveConnectionProfile(browserNetworkConnection() ?? {});
+}
+
+export function connectionAdjustedPlaybackBufferSeconds(
+  playbackBufferSeconds: number,
+  profile = currentLiveConnectionProfile()
+) {
+  return normalizePlaybackBufferSeconds(Math.max(playbackBufferSeconds, profile.bufferMinimumSeconds));
+}
+
+export function installLiveConnectionAdaptation(onChange: (profile: LiveConnectionProfile) => void) {
+  const connection = browserNetworkConnection();
+
+  if (!connection) {
+    return () => undefined;
+  }
+
+  const handleChange = () => onChange(resolveLiveConnectionProfile(connection));
+
+  if (connection.addEventListener) {
+    connection.addEventListener("change", handleChange);
+    return () => connection.removeEventListener?.("change", handleChange);
+  }
+
+  connection.addListener?.(handleChange);
+  return () => connection.removeListener?.(handleChange);
+}
+
+export function buildLiveHlsConfig(
+  playbackBufferSeconds: number,
+  connectionProfile = currentLiveConnectionProfile()
+) {
+  const bufferSeconds = connectionAdjustedPlaybackBufferSeconds(playbackBufferSeconds, connectionProfile);
 
   return {
-    abrEwmaDefaultEstimate: 3_000_000,
+    abrBandWidthFactor: 0.75,
+    abrBandWidthUpFactor: 0.6,
+    abrEwmaDefaultEstimate: connectionProfile.estimatedBandwidth,
     backBufferLength: 30,
     capLevelToPlayerSize: true,
     enableWorker: true,
@@ -41,21 +157,29 @@ export function buildLiveHlsConfig(playbackBufferSeconds: number) {
     liveSyncDuration: bufferSeconds,
     lowLatencyMode: bufferSeconds <= 2,
     manifestLoadingMaxRetry: 8,
-    maxBufferLength: Math.max(30, bufferSeconds + 12),
+    maxBufferLength: Math.max(connectionProfile.maxBufferLength, bufferSeconds + 12),
     maxLiveSyncPlaybackRate: 1,
     startLevel: -1
   };
 }
 
-export function applyLiveQualityCap(hls: LiveHlsQualityController, maxLiveHeight: number | null) {
-  if (!maxLiveHeight) {
+export function applyLiveQualityCap(
+  hls: LiveHlsQualityController,
+  maxLiveHeight: number | null,
+  connectionProfile = currentLiveConnectionProfile()
+) {
+  const effectiveMaxHeight = [maxLiveHeight, connectionProfile.maxAutoHeight]
+    .filter((height): height is number => typeof height === "number" && Number.isFinite(height))
+    .reduce<number | null>((lowest, height) => (lowest === null ? height : Math.min(lowest, height)), null);
+
+  if (!effectiveMaxHeight) {
     hls.autoLevelCapping = -1;
     return -1;
   }
 
   const eligibleLevels = hls.levels
     .map((level, index) => ({ height: level.height ?? Number.POSITIVE_INFINITY, index }))
-    .filter((level) => level.height <= maxLiveHeight);
+    .filter((level) => level.height <= effectiveMaxHeight);
   const cappedLevel = eligibleLevels.length
     ? eligibleLevels.reduce((highest, level) => (level.height >= highest.height ? level : highest)).index
     : 0;
@@ -79,7 +203,7 @@ export function seekToBufferedLivePosition(video: HTMLVideoElement, playbackBuff
     return;
   }
 
-  const bufferSeconds = normalizePlaybackBufferSeconds(playbackBufferSeconds);
+  const bufferSeconds = connectionAdjustedPlaybackBufferSeconds(playbackBufferSeconds);
   const end = seekable.end(seekable.length - 1);
   const start = seekable.start(seekable.length - 1);
 
@@ -111,7 +235,7 @@ function bufferedAheadSeconds(video: HTMLVideoElement) {
 }
 
 function hasEnoughBuffer(video: HTMLVideoElement, playbackBufferSeconds: number) {
-  const bufferSeconds = normalizePlaybackBufferSeconds(playbackBufferSeconds);
+  const bufferSeconds = connectionAdjustedPlaybackBufferSeconds(playbackBufferSeconds);
   const minimumReadySeconds = Math.min(4, Math.max(1, bufferSeconds / 2));
 
   return video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA || bufferedAheadSeconds(video) >= minimumReadySeconds;

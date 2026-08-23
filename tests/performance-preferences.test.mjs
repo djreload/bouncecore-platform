@@ -8,7 +8,7 @@ import {
   mergePerformancePreferences,
   recommendedMobileProtectionPreferences
 } from "../src/lib/account/performance-preferences-core.ts";
-import { applyLiveQualityCap } from "../src/components/live/live-playback-buffer.ts";
+import { applyLiveQualityCap, resolveLiveConnectionProfile } from "../src/components/live/live-playback-buffer.ts";
 
 test("performance preferences merge untrusted values onto stable defaults", () => {
   assert.deepEqual(mergePerformancePreferences(null), defaultPerformancePreferences);
@@ -74,6 +74,8 @@ test("livestream quality cap chooses the highest eligible HLS level", () => {
   assert.equal(hls.autoLevelCapping, 1);
   assert.equal(applyLiveQualityCap(hls, 720), 2);
   assert.equal(applyLiveQualityCap(hls, null), -1);
+  assert.equal(applyLiveQualityCap(hls, null, resolveLiveConnectionProfile({ downlink: 1 })), 0);
+  assert.equal(applyLiveQualityCap(hls, null, resolveLiveConnectionProfile({ downlink: 3 })), 1);
 });
 
 test("resource monitor is account-accessible and preferences persist per user", () => {
