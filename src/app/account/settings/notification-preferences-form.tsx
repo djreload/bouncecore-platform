@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { Bell, Mail, Save, Smartphone } from "lucide-react";
 import { updateNotificationPreferencesAction } from "@/app/account/settings/actions";
 import {
@@ -19,13 +19,39 @@ type NotificationPreferencesFormProps = {
 };
 
 export function NotificationPreferencesForm({ preferences }: NotificationPreferencesFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState<NotificationPreferencesActionState, FormData>(
     updateNotificationPreferencesAction,
     initialNotificationPreferencesActionState
   );
 
+  useEffect(() => {
+    const initialPushEnabled = notificationPreferenceCategories.some((category) => preferences[category.key].push);
+    const savedPushEnabled = Array.from(
+      formRef.current?.querySelectorAll<HTMLInputElement>('input[name$=":push"]:checked') ?? []
+    ).length > 0;
+
+    const shouldRequestNativePush = state.status === "success" ? savedPushEnabled : initialPushEnabled;
+
+    if (!shouldRequestNativePush) {
+      return;
+    }
+
+    try {
+      (
+        window as Window & {
+          BouncecoreAndroid?: {
+            requestPushNotifications?: () => void;
+          };
+        }
+      ).BouncecoreAndroid?.requestPushNotifications?.();
+    } catch {
+      // Native permission recovery is only available inside the Android shell.
+    }
+  }, [preferences, state.status]);
+
   return (
-    <form action={formAction} className="rounded-md border border-bc-line bg-bc-panel p-5">
+    <form action={formAction} className="rounded-md border border-bc-line bg-bc-panel p-5" ref={formRef}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">

@@ -1,5 +1,8 @@
 # Changelog
 
+- Fixed Android push recovery by persisting refreshed FCM tokens, retrying authenticated device registration, reconnecting Account notification opt-in to Android permission recovery, and keeping opted-in devices registered across app launches.
+- Removed native advertising from per-user performance controls; ad availability, placements, and frequency now come from Admin Mobile settings while required privacy consent remains user-controlled.
+
 - Fixed secondary-DJ playback through an opaque stream-core HLS proxy that hides ingest paths, and redesigned the two-DJ player with a compact corner PiP, thin border, and smaller labels.
 
 - Added two independent external restream destinations so any combination of YouTube, Facebook, or custom RTMP/RTMPS channels can receive the primary DJ feed without one relay interrupting the other.

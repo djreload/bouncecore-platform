@@ -87,7 +87,6 @@ export function applyPerformancePreferences(value: unknown, options: { persist?:
   setBooleanDataset(root, "bcBackgroundPlaybackEnabled", snapshot.effective.backgroundPlaybackEnabled);
   setBooleanDataset(root, "bcBatterySaver", snapshot.effective.batterySaverActive);
   setBooleanDataset(root, "bcHapticsEnabled", snapshot.effective.hapticsEnabled);
-  setBooleanDataset(root, "bcNativeAdsEnabled", snapshot.effective.nativeAdsEnabled);
   setBooleanDataset(root, "bcParticlesEnabled", snapshot.effective.particlesEnabled);
   setBooleanDataset(root, "bcRealtimeUpdatesEnabled", snapshot.effective.realtimeUpdatesEnabled);
   setBooleanDataset(root, "bcSecondaryVideoEnabled", snapshot.effective.secondaryVideoEnabled);
@@ -105,8 +104,7 @@ export function applyPerformancePreferences(value: unknown, options: { persist?:
     (window as AndroidPerformanceBridgeWindow).BouncecoreAndroid?.setPerformancePreferences?.(
       JSON.stringify({
         batterySaverActive: snapshot.effective.batterySaverActive,
-        hapticsEnabled: snapshot.effective.hapticsEnabled,
-        nativeAdsEnabled: snapshot.effective.nativeAdsEnabled
+        hapticsEnabled: snapshot.effective.hapticsEnabled
       })
     );
   } catch {

@@ -19,6 +19,7 @@ import android.os.Looper;
 import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
+import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
@@ -77,14 +78,19 @@ public class MainActivity extends Activity {
     private static final String APP_OPEN_INTERSTITIAL_ONCE_PER_SESSION = "once_per_session";
     private static final String MOBILE_PRIVACY_CHOICES_PATH = "/mobile/privacy-choices";
     private static final String PRIVACY_PREFS_NAME = "bouncecore_privacy";
+    static final String PUSH_PREFS_NAME = "bouncecore_push";
+    static final String PREF_FCM_TOKEN = "fcm_token";
     private static final String PERFORMANCE_PREFS_NAME = "bouncecore_performance";
     private static final String PREF_ADS_CONSENT_SET = "ads_consent_set";
     private static final String PREF_ADS_MARKETING_CONSENT = "ads_marketing_consent";
-    private static final String PREF_NOTIFICATION_DISCLOSURE_SHOWN = "notification_disclosure_shown";
+    private static final String PREF_NOTIFICATIONS_OPTED_IN = "notifications_opted_in";
+    private static final String PREF_NOTIFICATION_PERMISSION_REQUESTED = "notification_permission_requested";
+    private static final String PREF_NOTIFICATION_PROMPT_DISMISSED_AT = "notification_prompt_dismissed_at";
     private static final String PREF_HAPTICS_ENABLED = "haptics_enabled";
-    private static final String PREF_NATIVE_ADS_ENABLED = "native_ads_enabled";
     private static final long BANNER_RETRY_DELAY_MS = 15_000L;
     private static final long CONFIG_REFRESH_INTERVAL_MS = 300_000L;
+    private static final long FCM_REGISTRATION_TIMEOUT_MS = 12_000L;
+    private static final long NOTIFICATION_PROMPT_RETRY_MS = 86_400_000L;
     private static final int NOTIFICATION_PERMISSION_REQUEST_CODE = 2101;
     private static final int FILE_CHOOSER_REQUEST_CODE = 2102;
     private static final int MAX_BANNER_RETRIES = 6;
@@ -121,13 +127,15 @@ public class MainActivity extends Activity {
     private boolean pausedForInterstitial = false;
     private boolean firebaseInitialized = false;
     private boolean fcmTokenRequestInFlight = false;
+    private boolean fcmRegistrationInFlight = false;
     private boolean adConsentDialogShowing = false;
     private boolean notificationDisclosureShowing = false;
     private boolean raveWarModeActive = false;
     private boolean persistentAudioActive = false;
     private boolean hapticsEnabled = true;
-    private boolean nativeAdsEnabled = true;
     private int bannerRetryCount = 0;
+    private int fcmRegistrationAttemptId = 0;
+    private int fcmRegistrationRetryCount = 0;
     private String fcmToken = "";
     private long lastConfigFetchedAt = 0L;
     private MobileRuntimeConfig runtimeConfig = MobileRuntimeConfig.fromBuildConfig();
@@ -137,7 +145,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         SharedPreferences performancePreferences = getSharedPreferences(PERFORMANCE_PREFS_NAME, MODE_PRIVATE);
         hapticsEnabled = performancePreferences.getBoolean(PREF_HAPTICS_ENABLED, true);
-        nativeAdsEnabled = performancePreferences.getBoolean(PREF_NATIVE_ADS_ENABLED, true);
+        fcmToken = getSharedPreferences(PUSH_PREFS_NAME, MODE_PRIVATE).getString(PREF_FCM_TOKEN, "");
         configureWindow();
         NotificationChannels.ensureDefaultChannel(this);
         setContentView(createLayout());
@@ -628,17 +636,25 @@ public class MainActivity extends Activity {
         public void setPerformancePreferences(String preferencesJson) {
             mainHandler.post(() -> applyPerformancePreferences(preferencesJson));
         }
+
+        @JavascriptInterface
+        public void requestPushNotifications() {
+            mainHandler.post(() -> requestPushNotificationsFromAccount());
+        }
+
+        @JavascriptInterface
+        public void onPushRegistrationResult(boolean success, int statusCode) {
+            mainHandler.post(() -> handleFcmRegistrationResult(success, statusCode));
+        }
     }
 
     private void applyPerformancePreferences(String preferencesJson) {
         try {
             JSONObject preferences = new JSONObject(preferencesJson);
             hapticsEnabled = preferences.optBoolean("hapticsEnabled", true);
-            nativeAdsEnabled = preferences.optBoolean("nativeAdsEnabled", true);
             getSharedPreferences(PERFORMANCE_PREFS_NAME, MODE_PRIVATE)
                 .edit()
                 .putBoolean(PREF_HAPTICS_ENABLED, hapticsEnabled)
-                .putBoolean(PREF_NATIVE_ADS_ENABLED, nativeAdsEnabled)
                 .apply();
 
             if (!hapticsEnabled) {
@@ -648,12 +664,6 @@ public class MainActivity extends Activity {
                 }
             }
 
-            if (!nativeAdsEnabled) {
-                destroyBanner();
-                disableInterstitialAds();
-            } else {
-                maybeInitializeLevelPlayWithConsent(runtimeConfig);
-            }
         } catch (Exception error) {
             Log.w(TAG, "Performance preferences could not be applied: " + error.getMessage());
         }
@@ -940,7 +950,7 @@ public class MainActivity extends Activity {
     }
 
     private void maybeInitializeLevelPlayWithConsent(MobileRuntimeConfig config) {
-        if (!nativeAdsEnabled) {
+        if (!config.adsEnabled) {
             destroyBanner();
             disableInterstitialAds();
             return;
@@ -1032,37 +1042,68 @@ public class MainActivity extends Activity {
 
     private boolean notificationPermissionReady() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            markNotificationsOptedIn();
             return true;
         }
 
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            markNotificationsOptedIn();
             return true;
         }
 
-        showNotificationPermissionDisclosure();
+        showNotificationPermissionDisclosure(false);
         return false;
     }
 
-    private void showNotificationPermissionDisclosure() {
-        if (notificationDisclosureShowing || privacyPreferences().getBoolean(PREF_NOTIFICATION_DISCLOSURE_SHOWN, false)) {
+    private void requestPushNotificationsFromAccount() {
+        markNotificationsOptedIn();
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+            || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            initializeFirebaseMessaging(runtimeConfig);
             return;
         }
 
+        showNotificationPermissionDisclosure(true);
+    }
+
+    private void markNotificationsOptedIn() {
+        privacyPreferences().edit().putBoolean(PREF_NOTIFICATIONS_OPTED_IN, true).apply();
+    }
+
+    private void showNotificationPermissionDisclosure(boolean userInitiated) {
+        SharedPreferences preferences = privacyPreferences();
+        long dismissedAt = preferences.getLong(PREF_NOTIFICATION_PROMPT_DISMISSED_AT, 0L);
+
+        if (notificationDisclosureShowing
+            || (!userInitiated && dismissedAt > 0L && System.currentTimeMillis() - dismissedAt < NOTIFICATION_PROMPT_RETRY_MS)) {
+            return;
+        }
+
+        boolean permissionPreviouslyRequested = preferences.getBoolean(PREF_NOTIFICATION_PERMISSION_REQUESTED, false);
+        boolean optedIn = preferences.getBoolean(PREF_NOTIFICATIONS_OPTED_IN, false);
         notificationDisclosureShowing = true;
         AlertDialog dialog = new AlertDialog.Builder(this)
-            .setTitle("Enable Bouncecore notifications")
+            .setTitle(permissionPreviouslyRequested || optedIn ? "Turn Bouncecore notifications back on" : "Enable Bouncecore notifications")
             .setMessage(
-                "Bouncecore uses notifications for chat mentions, livestream updates, order and download updates, account security, and admin messages you choose in notification settings. Android will ask for permission before notifications can be shown."
+                "Bouncecore uses notifications for chat mentions, livestream updates, order and download updates, account security, and admin messages selected in your account preferences. Once enabled, Bouncecore keeps this device registered automatically."
             )
             .setPositiveButton("Continue", (dialogInterface, which) -> {
-                privacyPreferences().edit().putBoolean(PREF_NOTIFICATION_DISCLOSURE_SHOWN, true).apply();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                markNotificationsOptedIn();
+                preferences.edit()
+                    .putBoolean(PREF_NOTIFICATION_PERMISSION_REQUESTED, true)
+                    .remove(PREF_NOTIFICATION_PROMPT_DISMISSED_AT)
+                    .apply();
+
+                if (permissionPreviouslyRequested) {
+                    openNotificationSettings();
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, NOTIFICATION_PERMISSION_REQUEST_CODE);
                 }
             })
-            .setNegativeButton("Not now", (dialogInterface, which) ->
-                privacyPreferences().edit().putBoolean(PREF_NOTIFICATION_DISCLOSURE_SHOWN, true).apply()
-            )
+            .setNegativeButton("Not now", (dialogInterface, which) -> preferences.edit()
+                .putLong(PREF_NOTIFICATION_PROMPT_DISMISSED_AT, System.currentTimeMillis())
+                .apply())
             .create();
 
         dialog.setCanceledOnTouchOutside(false);
@@ -1070,9 +1111,14 @@ public class MainActivity extends Activity {
         dialog.show();
     }
 
+    private void openNotificationSettings() {
+        Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName());
+        startActivity(intent);
+    }
+
     private void requestFcmToken() {
-        if (fcmTokenRequestInFlight || !TextUtils.isEmpty(fcmToken)) {
-            registerFcmTokenWithCurrentSession();
+        if (fcmTokenRequestInFlight) {
             return;
         }
 
@@ -1087,13 +1133,18 @@ public class MainActivity extends Activity {
             }
 
             fcmToken = task.getResult();
+            getSharedPreferences(PUSH_PREFS_NAME, MODE_PRIVATE).edit().putString(PREF_FCM_TOKEN, fcmToken).apply();
             Log.d(TAG, "FCM token received; registering after authenticated page load.");
             registerFcmTokenWithCurrentSession();
         });
     }
 
     private void registerFcmTokenWithCurrentSession() {
-        if (TextUtils.isEmpty(fcmToken) || webView == null || webView.getUrl() == null || webView.getUrl().startsWith("data:")) {
+        if (fcmRegistrationInFlight
+            || TextUtils.isEmpty(fcmToken)
+            || webView == null
+            || webView.getUrl() == null
+            || webView.getUrl().startsWith("data:")) {
             return;
         }
 
@@ -1105,13 +1156,46 @@ public class MainActivity extends Activity {
                 .put("platform", "android")
                 .put("provider", "fcm")
                 .put("pushToken", fcmToken);
+            int attemptId = ++fcmRegistrationAttemptId;
+            fcmRegistrationInFlight = true;
             String script = "(function(){fetch('/api/mobile/v1/account/devices',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:"
                 + JSONObject.quote(payload.toString())
-                + "}).catch(function(){});})();";
+                + "}).then(function(response){BouncecoreAndroid.onPushRegistrationResult(response.ok,response.status);})"
+                + ".catch(function(){BouncecoreAndroid.onPushRegistrationResult(false,0);});})();";
             webView.evaluateJavascript(script, null);
+            mainHandler.postDelayed(() -> {
+                if (fcmRegistrationInFlight && attemptId == fcmRegistrationAttemptId) {
+                    handleFcmRegistrationResult(false, 0);
+                }
+            }, FCM_REGISTRATION_TIMEOUT_MS);
         } catch (Exception error) {
+            fcmRegistrationInFlight = false;
             Log.w(TAG, "FCM token registration script failed: " + error.getMessage());
+            scheduleFcmRegistrationRetry();
         }
+    }
+
+    private void handleFcmRegistrationResult(boolean success, int statusCode) {
+        fcmRegistrationInFlight = false;
+
+        if (success) {
+            fcmRegistrationRetryCount = 0;
+            Log.d(TAG, "FCM token registered for the signed-in account.");
+            return;
+        }
+
+        Log.w(TAG, "FCM token registration failed with HTTP " + statusCode + "; retrying after authentication settles.");
+        scheduleFcmRegistrationRetry();
+    }
+
+    private void scheduleFcmRegistrationRetry() {
+        if (fcmRegistrationRetryCount >= 6) {
+            return;
+        }
+
+        long delayMs = Math.min(60_000L, 5_000L * (1L << fcmRegistrationRetryCount));
+        fcmRegistrationRetryCount += 1;
+        mainHandler.postDelayed(this::registerFcmTokenWithCurrentSession, delayMs);
     }
 
     private void initializeLevelPlay(MobileRuntimeConfig config) {
@@ -1152,7 +1236,7 @@ public class MainActivity extends Activity {
     }
 
     private void syncLevelPlayAds() {
-        if (!nativeAdsEnabled) {
+        if (!runtimeConfig.adsEnabled || !adConsentGranted()) {
             destroyBanner();
             disableInterstitialAds();
             return;
@@ -1185,7 +1269,7 @@ public class MainActivity extends Activity {
     }
 
     private void createAndLoadBanner() {
-        if (!nativeAdsEnabled || raveWarModeActive) {
+        if (!runtimeConfig.adsEnabled || !adConsentGranted() || raveWarModeActive) {
             return;
         }
 
@@ -1254,7 +1338,8 @@ public class MainActivity extends Activity {
     }
 
     private void createAndLoadInterstitial() {
-        if (!nativeAdsEnabled
+        if (!runtimeConfig.adsEnabled
+            || !adConsentGranted()
             || !levelPlayReady
             || !runtimeConfig.appOpenInterstitialEnabled
             || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)
@@ -1312,7 +1397,8 @@ public class MainActivity extends Activity {
     }
 
     private void loadInterstitial() {
-        if (nativeAdsEnabled
+        if (runtimeConfig.adsEnabled
+            && adConsentGranted()
             && interstitialAd != null
             && runtimeConfig.appOpenInterstitialEnabled
             && !APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
@@ -1326,7 +1412,8 @@ public class MainActivity extends Activity {
     }
 
     private void maybeShowAppOpenInterstitial(String reason) {
-        if (!nativeAdsEnabled
+        if (!runtimeConfig.adsEnabled
+            || !adConsentGranted()
             || raveWarModeActive
             || !runtimeConfig.appOpenInterstitialEnabled
             || APP_OPEN_INTERSTITIAL_DISABLED.equals(runtimeConfig.appOpenInterstitialFrequency)) {
@@ -1352,7 +1439,7 @@ public class MainActivity extends Activity {
     }
 
     private void retryBannerLoad() {
-        if (!nativeAdsEnabled || bannerRetryCount >= MAX_BANNER_RETRIES) {
+        if (!runtimeConfig.adsEnabled || !adConsentGranted() || bannerRetryCount >= MAX_BANNER_RETRIES) {
             return;
         }
 
@@ -1391,9 +1478,13 @@ public class MainActivity extends Activity {
         fetchMobileConfig(false);
         mainHandler.removeCallbacks(configRefreshRunnable);
         mainHandler.postDelayed(configRefreshRunnable, CONFIG_REFRESH_INTERVAL_MS);
+        if (runtimeConfig.pushEnabled) {
+            initializeFirebaseMessaging(runtimeConfig);
+            registerFcmTokenWithCurrentSession();
+        }
         maybeShowAppOpenInterstitial("resume");
 
-        if (nativeAdsEnabled && bannerAdView != null) {
+        if (bannerAdView != null) {
             bannerAdView.resumeAutoRefresh();
         }
     }
@@ -1432,10 +1523,16 @@ public class MainActivity extends Activity {
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
 
-        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE
-            && grantResults.length > 0
-            && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            initializeFirebaseMessaging(runtimeConfig);
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST_CODE && grantResults.length > 0) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                markNotificationsOptedIn();
+                privacyPreferences().edit().remove(PREF_NOTIFICATION_PROMPT_DISMISSED_AT).apply();
+                initializeFirebaseMessaging(runtimeConfig);
+            } else {
+                privacyPreferences().edit()
+                    .putLong(PREF_NOTIFICATION_PROMPT_DISMISSED_AT, System.currentTimeMillis())
+                    .apply();
+            }
         }
     }
 

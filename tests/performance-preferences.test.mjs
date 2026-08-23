@@ -48,7 +48,6 @@ test("optional automatic mobile protection reduces expensive work but preserves 
   assert.equal(effective.backgroundPlaybackEnabled, true);
   assert.equal(effective.hapticsEnabled, false);
   assert.equal(effective.maxLiveHeight, 480);
-  assert.equal(effective.nativeAdsEnabled, false);
   assert.equal(effective.particlesEnabled, false);
   assert.equal(effective.realtimeUpdatesEnabled, false);
   assert.equal(effective.secondaryVideoEnabled, false);
@@ -96,7 +95,8 @@ test("resource monitor is account-accessible and preferences persist per user", 
   assert.match(monitor, /Quick protection/);
   assert.match(monitor, /Visuals and chat media/);
   assert.match(monitor, /Livestream playback/);
-  assert.match(monitor, /Network and Android app/);
+  assert.match(monitor, /Network activity/);
+  assert.doesNotMatch(monitor, /Disable native Android ads/);
   assert.match(monitor, /Off means the feature remains available/);
   assert.match(monitor, /Turn off all reductions/);
   assert.match(monitor, /New accounts start at maximum performance/);
@@ -134,6 +134,8 @@ test("expensive browser and Android features obey effective performance settings
   assert.doesNotMatch(chat, /Animated chat media paused/);
   assert.match(activity, /setOffscreenPreRaster\(false\)/);
   assert.match(activity, /setPerformancePreferences\(String preferencesJson\)/);
-  assert.match(activity, /if \(!nativeAdsEnabled\)/);
+  assert.doesNotMatch(activity, /nativeAdsEnabled|PREF_NATIVE_ADS_ENABLED/);
+  assert.match(activity, /runtimeConfig\.adsEnabled/);
+  assert.match(activity, /adConsentGranted\(\)/);
   assert.match(activity, /if \(!hapticsEnabled \|\| TextUtils\.isEmpty\(patternCsv\)\)/);
 });

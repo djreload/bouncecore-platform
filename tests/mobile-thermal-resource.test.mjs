@@ -62,7 +62,7 @@ test("resource saver marks runtime state and disables constant Android backgroun
   assert.match(css, /content-visibility: auto/);
 });
 
-test("Android resource controls stop optional ads, haptics, and offscreen prerastering", () => {
+test("Android resource controls stop haptics and offscreen prerastering without overriding admin ads", () => {
   const activity = readFileSync(
     join(process.cwd(), "android-webview/app/src/main/java/uk/co/bouncecore/app/MainActivity.java"),
     "utf8"
@@ -70,9 +70,9 @@ test("Android resource controls stop optional ads, haptics, and offscreen preras
 
   assert.match(activity, /setOffscreenPreRaster\(false\)/);
   assert.match(activity, /setPerformancePreferences\(String preferencesJson\)/);
-  assert.match(activity, /nativeAdsEnabled/);
   assert.match(activity, /hapticsEnabled/);
-  assert.match(activity, /destroyBanner\(\)/);
-  assert.match(activity, /disableInterstitialAds\(\)/);
+  assert.doesNotMatch(activity, /nativeAdsEnabled|PREF_NATIVE_ADS_ENABLED/);
+  assert.match(activity, /runtimeConfig\.adsEnabled/);
+  assert.match(activity, /adConsentGranted\(\)/);
   assert.match(activity, /vibrator\.cancel\(\)/);
 });

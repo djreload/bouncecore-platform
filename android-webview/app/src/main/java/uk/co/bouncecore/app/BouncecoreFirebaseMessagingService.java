@@ -26,7 +26,11 @@ public class BouncecoreFirebaseMessagingService extends FirebaseMessagingService
 
     @Override
     public void onNewToken(String token) {
-        Log.d(TAG, "FCM token refreshed. It will be registered on next authenticated app launch.");
+        getSharedPreferences(MainActivity.PUSH_PREFS_NAME, MODE_PRIVATE)
+            .edit()
+            .putString(MainActivity.PREF_FCM_TOKEN, token)
+            .apply();
+        Log.d(TAG, "FCM token refreshed and saved for registration on the next authenticated app launch.");
     }
 
     private void showNotification(String title, String body, String actionUrl) {

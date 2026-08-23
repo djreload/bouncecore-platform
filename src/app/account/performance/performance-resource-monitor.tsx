@@ -418,7 +418,7 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
           />
           <ToggleRow
             checked={preferences.automaticMobileSaverEnabled}
-            description="Optional for phones. Automatically applies visual, media, ad, and refresh reductions on Android or lower-resource devices while keeping background audio available. It is off by default."
+              description="Optional for phones. Automatically applies visual, media, and refresh reductions on Android or lower-resource devices while keeping background audio available. It is off by default."
             label="Automatic mobile protection - recommended"
             onChange={(checked) => updateBoolean("automaticMobileSaverEnabled", checked)}
           />
@@ -497,8 +497,8 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
         </div>
 
         <fieldset className="mt-7 border-t border-bc-line pt-3">
-          <legend className="pr-3 text-sm font-black uppercase text-bc-electric">Network and Android app</legend>
-          <p className="mt-1 text-xs leading-5 text-bc-muted">These controls reduce background requests and optional native app work. Chat messages and essential live status updates continue.</p>
+          <legend className="pr-3 text-sm font-black uppercase text-bc-electric">Network activity</legend>
+          <p className="mt-1 text-xs leading-5 text-bc-muted">This control reduces background requests. Chat messages and essential live status updates continue.</p>
           <div className="grid gap-x-8 lg:grid-cols-2">
             <ToggleRow
               checked={!snapshot.effective.realtimeUpdatesEnabled}
@@ -506,13 +506,6 @@ export function PerformanceResourceMonitor({ initialPreferences }: PerformanceRe
               disabled={snapshot.effective.batterySaverActive}
               label="Reduce background refresh frequency"
               onChange={(checked) => updateBoolean("realtimeUpdatesEnabled", !checked)}
-            />
-            <ToggleRow
-              checked={!snapshot.effective.nativeAdsEnabled}
-              description="Stops Unity LevelPlay banner and app-open ad loading inside the Android app. Website advertising is unaffected."
-              disabled={snapshot.effective.batterySaverActive}
-              label="Disable native Android ads"
-              onChange={(checked) => updateBoolean("nativeAdsEnabled", !checked)}
             />
           </div>
         </fieldset>

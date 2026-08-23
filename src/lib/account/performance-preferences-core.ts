@@ -10,7 +10,6 @@ export type PerformancePreferences = {
   batterySaverEnabled: boolean;
   hapticsEnabled: boolean;
   maxLiveQuality: LiveQualityPreference;
-  nativeAdsEnabled: boolean;
   particlesEnabled: boolean;
   realtimeUpdatesEnabled: boolean;
   secondaryVideoEnabled: boolean;
@@ -30,7 +29,6 @@ export const defaultPerformancePreferences: PerformancePreferences = {
   batterySaverEnabled: false,
   hapticsEnabled: true,
   maxLiveQuality: "auto",
-  nativeAdsEnabled: true,
   particlesEnabled: true,
   realtimeUpdatesEnabled: true,
   secondaryVideoEnabled: true
@@ -72,7 +70,6 @@ export function mergePerformancePreferences(value: unknown): PerformancePreferen
     batterySaverEnabled: booleanValue(source.batterySaverEnabled, defaultPerformancePreferences.batterySaverEnabled),
     hapticsEnabled: booleanValue(source.hapticsEnabled, defaultPerformancePreferences.hapticsEnabled),
     maxLiveQuality: qualityValue(source.maxLiveQuality),
-    nativeAdsEnabled: booleanValue(source.nativeAdsEnabled, defaultPerformancePreferences.nativeAdsEnabled),
     particlesEnabled: booleanValue(source.particlesEnabled, defaultPerformancePreferences.particlesEnabled),
     realtimeUpdatesEnabled: booleanValue(
       source.realtimeUpdatesEnabled,
@@ -101,7 +98,6 @@ export function effectivePerformancePreferences(
     batterySaverActive,
     hapticsEnabled: batterySaverActive ? false : preferences.hapticsEnabled,
     maxLiveHeight: batterySaverActive ? Math.min(selectedMaxHeight ?? 480, 480) : selectedMaxHeight,
-    nativeAdsEnabled: batterySaverActive ? false : preferences.nativeAdsEnabled,
     particlesEnabled: batterySaverActive ? false : preferences.particlesEnabled,
     realtimeUpdatesEnabled: batterySaverActive ? false : preferences.realtimeUpdatesEnabled,
     secondaryVideoEnabled: batterySaverActive ? false : preferences.secondaryVideoEnabled

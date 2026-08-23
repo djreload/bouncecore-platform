@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
   defaultNotificationPreferences,
@@ -73,4 +75,30 @@ test("disabled notification preference blocks only the selected delivery channel
     email: true,
     push: false
   });
+});
+
+test("Android push opt-in persists tokens and retries authenticated device registration", () => {
+  const activity = readFileSync(
+    join(process.cwd(), "android-webview/app/src/main/java/uk/co/bouncecore/app/MainActivity.java"),
+    "utf8"
+  );
+  const messagingService = readFileSync(
+    join(process.cwd(), "android-webview/app/src/main/java/uk/co/bouncecore/app/BouncecoreFirebaseMessagingService.java"),
+    "utf8"
+  );
+  const preferenceForm = readFileSync(
+    join(process.cwd(), "src/app/account/settings/notification-preferences-form.tsx"),
+    "utf8"
+  );
+
+  assert.match(activity, /PREF_NOTIFICATIONS_OPTED_IN/);
+  assert.match(activity, /PREF_NOTIFICATION_PROMPT_DISMISSED_AT/);
+  assert.match(activity, /requestPushNotifications\(\)/);
+  assert.match(activity, /onPushRegistrationResult\(boolean success, int statusCode\)/);
+  assert.match(activity, /scheduleFcmRegistrationRetry\(\)/);
+  assert.match(activity, /putString\(PREF_FCM_TOKEN, fcmToken\)/);
+  assert.doesNotMatch(activity, /PREF_NOTIFICATION_DISCLOSURE_SHOWN/);
+  assert.match(messagingService, /putString\(MainActivity\.PREF_FCM_TOKEN, token\)/);
+  assert.match(preferenceForm, /requestPushNotifications/);
+  assert.match(preferenceForm, /input\[name\$=":push"\]:checked/);
 });
