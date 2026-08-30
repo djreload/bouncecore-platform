@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  buildFacebookAuthorizationUrl,
   createFacebookOAuthState,
   decodeFacebookOAuthStateCookie,
   encodeFacebookOAuthStateCookie
@@ -25,6 +26,22 @@ test("facebook oauth state is bound to the actor and restream slot and expires",
   };
 
   assert.equal(decodeFacebookOAuthStateCookie(encodeFacebookOAuthStateCookie(expired)), null);
+});
+
+test("facebook business login uses a configuration id instead of rejected direct scopes", () => {
+  const url = buildFacebookAuthorizationUrl({
+    appId: "meta-app-1",
+    configurationId: "business-config-1",
+    redirectUri: "https://bouncecore.example.com/admin/stream/facebook/callback",
+    state: "oauth-state"
+  });
+
+  assert.equal(url.searchParams.get("client_id"), "meta-app-1");
+  assert.equal(url.searchParams.get("config_id"), "business-config-1");
+  assert.equal(url.searchParams.get("redirect_uri"), "https://bouncecore.example.com/admin/stream/facebook/callback");
+  assert.equal(url.searchParams.get("response_type"), "code");
+  assert.equal(url.searchParams.get("state"), "oauth-state");
+  assert.equal(url.searchParams.has("scope"), false);
 });
 
 test("facebook automation creates and ends Page live videos using generated secure RTMPS", () => {
@@ -63,6 +80,7 @@ test("facebook relay target is generated server-side and never exposed in admin"
   assert.match(syncService, /finishFacebookRestreams/);
   assert.match(adminPanel, /Connect Facebook Page/);
   assert.match(adminPanel, /How to obtain the Meta app credentials/);
+  assert.match(adminPanel, /Facebook Login configuration ID/);
   assert.match(adminPanel, /pages_manage_posts/);
   assert.match(adminPanel, /How to configure Destination 2/);
   assert.doesNotMatch(adminPanel, /secureStreamUrlCiphertext|pageAccessTokenCiphertext/);

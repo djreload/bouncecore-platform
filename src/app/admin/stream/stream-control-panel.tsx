@@ -331,7 +331,7 @@ export function AdminStreamControlPanel({
             </div>
           </div>
 
-          <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+          <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-2">
             <input name="intent" type="hidden" value="update-facebook-oauth" />
             <label className="text-xs font-semibold uppercase text-bc-muted">
               Meta app ID
@@ -344,6 +344,18 @@ export function AdminStreamControlPanel({
               <span className="mt-1 block normal-case text-bc-muted">Use a Meta app with Facebook Login and Live Video API access.</span>
             </label>
             <label className="text-xs font-semibold uppercase text-bc-muted">
+              Facebook Login configuration ID
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={facebookOAuthCredentials.configurationId}
+                name="configurationId"
+                placeholder="Facebook Login for Business configuration ID"
+              />
+              <span className="mt-1 block normal-case text-bc-muted">
+                Copy the User access token configuration ID from Facebook Login for Business. This replaces direct OAuth scopes.
+              </span>
+            </label>
+            <label className="text-xs font-semibold uppercase text-bc-muted">
               Meta app secret
               <input
                 autoComplete="off"
@@ -354,7 +366,7 @@ export function AdminStreamControlPanel({
               />
               <span className="mt-1 block normal-case text-bc-muted">Encrypted before storage and never shown again.</span>
             </label>
-            <div className="flex flex-col justify-end gap-3">
+            <div className="flex flex-col justify-end gap-3 lg:items-start">
               <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
                 <input name="clearAppSecret" type="checkbox" />
                 Clear secret
@@ -385,20 +397,24 @@ export function AdminStreamControlPanel({
                 >
                   Meta for Developers
                 </a>
-                , create or open the app that will manage the Facebook Page, and add Facebook Login for Business.
+                , create or open a Business type app that will manage the Facebook Page, and add Facebook Login for Business.
               </li>
               <li>
-                In App settings, copy the App ID and reveal the App secret. Paste them above and select Save Meta OAuth.
+                In App settings, copy the App ID and reveal the App secret.
+              </li>
+              <li>
+                In Facebook Login for Business, create a User access token configuration. Include Page assets and the
+                <code className="mx-1 text-bc-electric">pages_show_list</code>,
+                <code className="mx-1 text-bc-electric">pages_read_engagement</code>, and
+                <code className="ml-1 text-bc-electric">pages_manage_posts</code> permissions. Copy its Configuration ID.
               </li>
               <li>
                 In Facebook Login settings, enable Client OAuth Login and Web OAuth Login, then add the exact Valid OAuth
-                redirect URI shown above.
+                redirect URI shown above. Paste the App ID, secret, and Configuration ID above, then select Save Meta OAuth.
               </li>
               <li>
-                Configure the app domain, privacy policy, terms, and data-deletion URL, then request or retain access to
-                <code className="mx-1 text-bc-electric">pages_show_list</code>,
-                <code className="mx-1 text-bc-electric">pages_read_engagement</code>, and
-                <code className="ml-1 text-bc-electric">pages_manage_posts</code>.
+                Configure the app domain, privacy policy, terms, and data-deletion URL. Advanced Access and App Review are
+                required when Facebook accounts outside the Meta app&apos;s assigned roles will connect Pages.
               </li>
               <li>
                 Put the Meta app in Live mode when it is ready for non-developer accounts. App administrators and testers

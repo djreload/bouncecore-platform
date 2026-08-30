@@ -106,7 +106,8 @@ function facebookOAuthCredentialsInput(formData: FormData) {
   return {
     appId: formString(formData, "appId"),
     appSecret: formString(formData, "appSecret"),
-    clearAppSecret: formBoolean(formData, "clearAppSecret")
+    clearAppSecret: formBoolean(formData, "clearAppSecret"),
+    configurationId: formString(formData, "configurationId")
   };
 }
 

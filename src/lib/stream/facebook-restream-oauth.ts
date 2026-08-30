@@ -7,7 +7,6 @@ import { decryptSecret, encryptSecret, secretEncryptionConfigured } from "@/lib/
 import { restreamTargetSlotValue, type RestreamTargetSlot } from "@/lib/stream/restream-settings";
 
 const facebookApiVersion = "v26.0";
-const facebookOAuthScope = "pages_show_list,pages_read_engagement,pages_manage_posts";
 const facebookCredentialsSettingKey = "stream.facebook_oauth_credentials";
 const facebookConnectionSettingKeys: Record<RestreamTargetSlot, string> = {
   primary: "stream.facebook_oauth.primary",
@@ -44,6 +43,7 @@ export type FacebookRestreamConnectionRecord = {
 export type AdminFacebookOAuthCredentials = {
   appId: string;
   appSecretConfigured: boolean;
+  configurationId: string;
   configured: boolean;
   redirectUri: string | null;
   source: "admin" | "environment" | "missing";
@@ -63,6 +63,7 @@ type FacebookOAuthCredentialsInput = {
   appId: string;
   appSecret?: string;
   clearAppSecret?: boolean;
+  configurationId: string;
 };
 
 export type FacebookTokenResponse = {
@@ -143,7 +144,8 @@ async function storedCredentials() {
 
   return {
     appId: textValue(value.appId, 500),
-    appSecretCiphertext: textValue(value.appSecretCiphertext, 12000)
+    appSecretCiphertext: textValue(value.appSecretCiphertext, 12000),
+    configurationId: textValue(value.configurationId, 500)
   };
 }
 
@@ -154,18 +156,25 @@ async function facebookOAuthCredentials() {
     return {
       appId: stored.appId,
       appSecret: decryptSecret(stored.appSecretCiphertext),
+      configurationId: stored.configurationId || (process.env.FACEBOOK_LOGIN_CONFIG_ID?.trim() ?? ""),
       source: "admin" as const
     };
   }
 
   const appId = process.env.FACEBOOK_APP_ID?.trim() ?? "";
   const appSecret = process.env.FACEBOOK_APP_SECRET?.trim() ?? "";
+  const configurationId = process.env.FACEBOOK_LOGIN_CONFIG_ID?.trim() ?? "";
 
   if (appId && appSecret) {
-    return { appId, appSecret, source: "environment" as const };
+    return { appId, appSecret, configurationId, source: "environment" as const };
   }
 
-  return { appId: stored.appId, appSecret: "", source: "missing" as const };
+  return {
+    appId: stored.appId,
+    appSecret: "",
+    configurationId: stored.configurationId || configurationId,
+    source: "missing" as const
+  };
 }
 
 export async function getAdminFacebookOAuthCredentials(): Promise<AdminFacebookOAuthCredentials> {
@@ -175,7 +184,10 @@ export async function getAdminFacebookOAuthCredentials(): Promise<AdminFacebookO
   return {
     appId: credentials.appId,
     appSecretConfigured: Boolean(credentials.appSecret),
-    configured: Boolean(credentials.appId && credentials.appSecret && secretEncryptionConfigured()),
+    configurationId: credentials.configurationId,
+    configured: Boolean(
+      credentials.appId && credentials.appSecret && credentials.configurationId && secretEncryptionConfigured()
+    ),
     redirectUri: origin ? new URL("/admin/stream/facebook/callback", origin).toString() : null,
     source: credentials.source
   };
@@ -184,6 +196,7 @@ export async function getAdminFacebookOAuthCredentials(): Promise<AdminFacebookO
 export async function updateFacebookOAuthCredentials(input: FacebookOAuthCredentialsInput, actorId: string) {
   const existing = await storedCredentials();
   const appId = textValue(input.appId, 500);
+  const configurationId = textValue(input.configurationId, 500);
   const providedSecret = textValue(input.appSecret, 4000);
   let appSecretCiphertext = input.clearAppSecret ? "" : existing.appSecretCiphertext;
 
@@ -200,13 +213,13 @@ export async function updateFacebookOAuthCredentials(input: FacebookOAuthCredent
     update: {
       description: "Encrypted Meta app credentials for Facebook Live OAuth.",
       isSecret: true,
-      value: { appId, appSecretCiphertext }
+      value: { appId, appSecretCiphertext, configurationId }
     },
     create: {
       description: "Encrypted Meta app credentials for Facebook Live OAuth.",
       isSecret: true,
       key: facebookCredentialsSettingKey,
-      value: { appId, appSecretCiphertext }
+      value: { appId, appSecretCiphertext, configurationId }
     }
   });
 
@@ -215,7 +228,8 @@ export async function updateFacebookOAuthCredentials(input: FacebookOAuthCredent
     actorId,
     metadata: {
       appIdConfigured: Boolean(appId),
-      appSecretConfigured: Boolean(appSecretCiphertext)
+      appSecretConfigured: Boolean(appSecretCiphertext),
+      configurationIdConfigured: Boolean(configurationId)
     },
     severity: "warning",
     target: "stream:facebook-oauth"
@@ -267,6 +281,26 @@ export function facebookOAuthRedirectUri(request: Request) {
   return appUrl(request, "/admin/stream/facebook/callback").toString();
 }
 
+export function buildFacebookAuthorizationUrl({
+  appId,
+  configurationId,
+  redirectUri,
+  state
+}: {
+  appId: string;
+  configurationId: string;
+  redirectUri: string;
+  state: string;
+}) {
+  const url = new URL(`https://www.facebook.com/${facebookApiVersion}/dialog/oauth`);
+  url.searchParams.set("client_id", appId);
+  url.searchParams.set("config_id", configurationId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("state", state);
+  return url;
+}
+
 export async function facebookAuthorizationUrl(request: Request, state: FacebookOAuthState) {
   const credentials = await facebookOAuthCredentials();
 
@@ -278,14 +312,16 @@ export async function facebookAuthorizationUrl(request: Request, state: Facebook
     throw new Error("Push token encryption must be configured before connecting a Facebook Page.");
   }
 
-  const url = new URL(`https://www.facebook.com/${facebookApiVersion}/dialog/oauth`);
-  url.searchParams.set("client_id", credentials.appId);
-  url.searchParams.set("redirect_uri", facebookOAuthRedirectUri(request));
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", facebookOAuthScope);
-  url.searchParams.set("state", state.state);
+  if (!credentials.configurationId) {
+    throw new Error("Save a Facebook Login for Business configuration ID before connecting a Facebook Page.");
+  }
 
-  return url;
+  return buildFacebookAuthorizationUrl({
+    appId: credentials.appId,
+    configurationId: credentials.configurationId,
+    redirectUri: facebookOAuthRedirectUri(request),
+    state: state.state
+  });
 }
 
 async function graphTokenRequest(params: Record<string, string>) {
