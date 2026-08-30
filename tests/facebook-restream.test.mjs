@@ -58,6 +58,7 @@ test("facebook relay target is generated server-side and never exposed in admin"
   const adminPanel = source("src/app/admin/stream/stream-control-panel.tsx");
 
   assert.match(settingsService, /getActiveFacebookRestreamTargetUrl/);
+  assert.match(settingsService, /connectedFacebookPage/);
   assert.match(syncService, /syncFacebookRestreams/);
   assert.match(syncService, /finishFacebookRestreams/);
   assert.match(adminPanel, /Connect Facebook Page/);

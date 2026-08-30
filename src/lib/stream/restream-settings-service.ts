@@ -87,10 +87,16 @@ export async function updateRestreamSettings(
   );
 
   if (settings.enabled) {
-    try {
-      buildRestreamTargetUrl(settings);
-    } catch (error) {
-      throw new Error(error instanceof Error ? error.message : "Restream target is invalid.");
+    const connectedFacebookPage = settings.provider === "facebook"
+      ? await getFacebookRestreamConnectionRecord(slot)
+      : null;
+
+    if (!connectedFacebookPage) {
+      try {
+        buildRestreamTargetUrl(settings);
+      } catch (error) {
+        throw new Error(error instanceof Error ? error.message : "Restream target is invalid.");
+      }
     }
   }
 
