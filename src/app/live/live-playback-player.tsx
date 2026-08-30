@@ -818,7 +818,7 @@ export function LivePlaybackPlayer({
           role="region"
         />
       ) : (
-        <div className="absolute inset-0">
+        <div className="absolute inset-0" data-live-primary-video-slot="offline">
           {liveState.offlineImageUrl ? (
             <img alt="" className="absolute inset-0 h-full w-full object-cover" src={liveState.offlineImageUrl} />
           ) : null}
