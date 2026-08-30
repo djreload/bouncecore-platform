@@ -81,8 +81,8 @@ async function facebookApiRequest<T>(
 async function createFacebookLiveVideo(
   slot: RestreamTargetSlot,
   sessionId: string,
-  channelTitle: string,
-  hostDisplayName: string | null
+  title: string,
+  description: string
 ): Promise<FacebookRestreamSyncResult> {
   const { connection, pageAccessToken } = await getFacebookPageAccess(slot);
   const lastAttemptAt = new Date().toISOString();
@@ -96,12 +96,11 @@ async function createFacebookLiveVideo(
     })
   );
 
-  const title = hostDisplayName ? `${channelTitle} - ${hostDisplayName}` : channelTitle;
   const response = await facebookApiRequest<{
     id?: string;
     secure_stream_url?: string;
   }>(`/${encodeURIComponent(connection.pageId)}/live_videos`, pageAccessToken, {
-    description: `${title} is live now on Bouncecore.`,
+    description,
     status: "LIVE_NOW",
     title
   });
@@ -111,6 +110,8 @@ async function createFacebookLiveVideo(
   }
 
   const secureStreamUrl = buildRestreamTargetUrl({
+    broadcastDescription: "",
+    broadcastTitle: "",
     enabled: true,
     facebookPageId: connection.pageId,
     label: connection.pageName,
@@ -217,11 +218,17 @@ export async function syncFacebookRestream(input: {
   }
 
   try {
+    const fallbackTitle = input.hostDisplayName
+      ? `${input.channelTitle} - ${input.hostDisplayName}`
+      : input.channelTitle;
+    const broadcastTitle = settings.broadcastTitle || fallbackTitle;
+    const broadcastDescription = settings.broadcastDescription || `${broadcastTitle} is live now on Bouncecore.`;
+
     return await createFacebookLiveVideo(
       input.slot,
       input.sessionId,
-      input.channelTitle,
-      input.hostDisplayName
+      broadcastTitle,
+      broadcastDescription
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Facebook Live creation failed.";

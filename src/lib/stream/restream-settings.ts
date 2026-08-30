@@ -5,6 +5,8 @@ export type RestreamProvider = (typeof restreamProviders)[number];
 export type RestreamTargetSlot = (typeof restreamTargetSlots)[number];
 
 export type RestreamSettings = {
+  broadcastDescription: string;
+  broadcastTitle: string;
   enabled: boolean;
   facebookPageId: string;
   label: string;
@@ -19,6 +21,8 @@ export type AdminRestreamSettings = Omit<RestreamSettings, "streamKey"> & {
 };
 
 export type RestreamSettingsInput = {
+  broadcastDescription?: string;
+  broadcastTitle?: string;
   clearStreamKey?: boolean;
   enabled: boolean;
   facebookPageId?: string;
@@ -29,6 +33,8 @@ export type RestreamSettingsInput = {
 };
 
 export const defaultRestreamSettings: RestreamSettings = {
+  broadcastDescription: "",
+  broadcastTitle: "",
   enabled: false,
   facebookPageId: "",
   label: "",
@@ -43,6 +49,10 @@ export function restreamTargetSlotValue(value: unknown): RestreamTargetSlot {
   }
 
   return value as RestreamTargetSlot;
+}
+
+export function restreamProviderForSlot(slot: RestreamTargetSlot): Extract<RestreamProvider, "youtube" | "facebook"> {
+  return slot === "primary" ? "youtube" : "facebook";
 }
 
 function textValue(value: unknown, maxLength: number) {
@@ -138,6 +148,8 @@ export function normalizeRestreamSettings(value: unknown): RestreamSettings {
   const candidate = value as Partial<Record<keyof RestreamSettings, unknown>>;
 
   return {
+    broadcastDescription: textValue(candidate.broadcastDescription, 5000),
+    broadcastTitle: textValue(candidate.broadcastTitle, 100),
     enabled: boolValue(candidate.enabled),
     facebookPageId: textValue(candidate.facebookPageId, 100),
     label: textValue(candidate.label, 80),
@@ -149,6 +161,8 @@ export function normalizeRestreamSettings(value: unknown): RestreamSettings {
 
 export function mergeRestreamSettingsInput(input: RestreamSettingsInput, existing = defaultRestreamSettings): RestreamSettings {
   return {
+    broadcastDescription: textValue(input.broadcastDescription, 5000),
+    broadcastTitle: textValue(input.broadcastTitle, 100),
     enabled: input.enabled,
     facebookPageId: textValue(input.facebookPageId, 100),
     label: textValue(input.label, 80),
@@ -197,6 +211,8 @@ export function toAdminRestreamSettings(settings: RestreamSettings): AdminRestre
   }
 
   return {
+    broadcastDescription: settings.broadcastDescription,
+    broadcastTitle: settings.broadcastTitle,
     enabled: settings.enabled,
     facebookPageId: settings.facebookPageId,
     label: settings.label,

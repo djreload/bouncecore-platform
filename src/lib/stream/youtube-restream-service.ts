@@ -142,7 +142,7 @@ async function readYouTubeBroadcast(accessToken: string, broadcastId: string) {
   return body.items?.[0] ?? null;
 }
 
-async function createPublicBroadcast(accessToken: string, title: string) {
+async function createPublicBroadcast(accessToken: string, title: string, description: string) {
   return youtubeApiRequest<YouTubeLiveBroadcast>(
     accessToken,
     apiUrl("/liveBroadcasts", {
@@ -162,7 +162,7 @@ async function createPublicBroadcast(accessToken: string, title: string) {
           recordFromStart: true
         },
         snippet: {
-          description: "Live from Bouncecore.",
+          description: description.slice(0, 5000),
           scheduledStartTime: new Date(Date.now() + 10_000).toISOString(),
           title: title.slice(0, 100)
         },
@@ -387,8 +387,10 @@ async function syncYouTubeSlot({
       throw new Error("The saved stream key was not found on the connected YouTube channel.");
     }
 
-    const broadcastTitle = hostDisplayName ? `${channelTitle} - ${hostDisplayName}` : channelTitle;
-    const broadcast = await createPublicBroadcast(accessToken, broadcastTitle);
+    const fallbackTitle = hostDisplayName ? `${channelTitle} - ${hostDisplayName}` : channelTitle;
+    const broadcastTitle = settings.broadcastTitle || fallbackTitle;
+    const broadcastDescription = settings.broadcastDescription || "Live from Bouncecore.";
+    const broadcast = await createPublicBroadcast(accessToken, broadcastTitle, broadcastDescription);
 
     if (!broadcast.id) {
       throw new Error("YouTube created a broadcast without returning its ID.");

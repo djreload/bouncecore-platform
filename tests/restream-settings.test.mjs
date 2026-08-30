@@ -6,6 +6,7 @@ import {
   buildRestreamTargetUrl,
   defaultRestreamSettings,
   mergeRestreamSettingsInput,
+  restreamProviderForSlot,
   restreamTargetSlotValue,
   toAdminRestreamSettings
 } from "../src/lib/stream/restream-settings.ts";
@@ -14,6 +15,11 @@ test("restream target slots accept only the two isolated outputs", () => {
   assert.equal(restreamTargetSlotValue("primary"), "primary");
   assert.equal(restreamTargetSlotValue("secondary"), "secondary");
   assert.throws(() => restreamTargetSlotValue("unexpected"), /Invalid restream destination/);
+});
+
+test("restream destinations have fixed public providers", () => {
+  assert.equal(restreamProviderForSlot("primary"), "youtube");
+  assert.equal(restreamProviderForSlot("secondary"), "facebook");
 });
 
 test("secondary restream storage and endpoint do not replace the legacy primary target", () => {
@@ -96,6 +102,18 @@ test("restream settings preserve an existing saved key when the admin leaves the
   );
 });
 
+test("restream broadcast metadata is normalized without storing arbitrary payloads", () => {
+  const settings = mergeRestreamSettingsInput({
+    broadcastDescription: `  ${"d".repeat(5_100)}  `,
+    broadcastTitle: `  ${"t".repeat(120)}  `,
+    enabled: true,
+    provider: "youtube"
+  });
+
+  assert.equal(settings.broadcastDescription.length, 5_000);
+  assert.equal(settings.broadcastTitle.length, 100);
+});
+
 test("admin restream settings never expose the saved stream key", () => {
   assert.deepEqual(
     toAdminRestreamSettings({
@@ -106,6 +124,8 @@ test("admin restream settings never expose the saved stream key", () => {
       streamKey: "hidden"
     }),
     {
+      broadcastDescription: "",
+      broadcastTitle: "",
       enabled: true,
       facebookPageId: "",
       label: "",

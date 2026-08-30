@@ -10,7 +10,11 @@ import {
   updateStreamChannel
 } from "@/lib/stream/stream-channel-service";
 import { updateRestreamSettings } from "@/lib/stream/restream-settings-service";
-import { restreamTargetSlotValue } from "@/lib/stream/restream-settings";
+import {
+  restreamProviderForSlot,
+  restreamTargetSlotValue,
+  type RestreamTargetSlot
+} from "@/lib/stream/restream-settings";
 import {
   disconnectYouTubeRestream,
   updateYouTubeOAuthCredentials
@@ -84,13 +88,15 @@ function streamProfileInput(formData: FormData) {
   };
 }
 
-function restreamSettingsInput(formData: FormData) {
+function restreamSettingsInput(formData: FormData, slot: RestreamTargetSlot) {
   return {
+    broadcastDescription: formString(formData, "broadcastDescription"),
+    broadcastTitle: formString(formData, "broadcastTitle"),
     clearStreamKey: formBoolean(formData, "clearStreamKey"),
     enabled: formBoolean(formData, "enabled"),
     facebookPageId: formString(formData, "facebookPageId"),
     label: formString(formData, "label"),
-    provider: formString(formData, "provider"),
+    provider: restreamProviderForSlot(slot),
     serverUrl: formString(formData, "serverUrl"),
     streamKey: formString(formData, "streamKey")
   };
@@ -198,7 +204,7 @@ export async function adminStreamAction(
 
     if (intent === "update-restream") {
       const slot = restreamTargetSlotValue(formString(formData, "targetSlot"));
-      await updateRestreamSettings(restreamSettingsInput(formData), actor.id, slot);
+      await updateRestreamSettings(restreamSettingsInput(formData, slot), actor.id, slot);
       revalidateStreamViews();
 
       return {

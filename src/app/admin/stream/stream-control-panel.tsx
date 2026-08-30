@@ -18,7 +18,6 @@ import {
 } from "@/app/admin/stream/state";
 import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 import { streamStatusOptions } from "@/lib/stream/stream-status";
-import { restreamProviders } from "@/lib/stream/restream-settings";
 import { streamPlaybackBufferLimits } from "@/lib/stream/stream-playback-settings";
 
 type AdminStreamControlPanelProps = {
@@ -338,23 +337,29 @@ export function AdminStreamControlPanel({
             <div className="py-5" key={target.slot}>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="text-lg font-black">Destination {index + 1}</h4>
+                  <h4 className="text-lg font-black">
+                    Destination {index + 1}: {target.slot === "primary" ? "YouTube" : "Facebook"}
+                  </h4>
                   <Badge tone={target.enabled ? "acid" : "muted"}>{target.enabled ? "Enabled" : "Disabled"}</Badge>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge tone="cyan">{target.provider}</Badge>
-                  <Badge tone={target.streamKeyConfigured ? "acid" : "amber"}>
-                    {target.streamKeyConfigured ? "Key saved" : "No key"}
-                  </Badge>
-                  <Badge tone={target.targetHost ? "muted" : "amber"}>{target.targetHost ?? "No target"}</Badge>
-                  {target.provider === "youtube" ? (
+                  <Badge tone="cyan">{target.slot === "primary" ? "YouTube Live" : "Facebook Live"}</Badge>
+                  {target.slot === "primary" ? (
+                    <>
+                      <Badge tone={target.streamKeyConfigured ? "acid" : "amber"}>
+                        {target.streamKeyConfigured ? "YouTube key saved" : "No YouTube key"}
+                      </Badge>
+                      <Badge tone={target.targetHost ? "muted" : "amber"}>{target.targetHost ?? "No target"}</Badge>
+                    </>
+                  ) : null}
+                  {target.slot === "primary" ? (
                     <Badge tone={target.youtubeConnection.connected ? "acid" : "amber"}>
                       {target.youtubeConnection.connected
                         ? `Connected: ${target.youtubeConnection.channelTitle}`
                         : "YouTube not connected"}
                     </Badge>
                   ) : null}
-                  {target.provider === "facebook" ? (
+                  {target.slot === "secondary" ? (
                     <Badge tone={target.facebookConnection.connected ? "acid" : "amber"}>
                       {target.facebookConnection.connected
                         ? `Connected: ${target.facebookConnection.pageName}`
@@ -364,7 +369,7 @@ export function AdminStreamControlPanel({
                 </div>
               </div>
 
-              {target.provider === "youtube" ? (
+              {target.slot === "primary" ? (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3">
                   <div className="min-w-0 text-sm">
                     <p className="font-semibold text-white">
@@ -402,7 +407,7 @@ export function AdminStreamControlPanel({
                 </div>
               ) : null}
 
-              {target.provider === "facebook" ? (
+              {target.slot === "secondary" ? (
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3">
                   <div className="min-w-0 text-sm">
                     <p className="font-semibold text-white">
@@ -440,82 +445,102 @@ export function AdminStreamControlPanel({
                 </div>
               ) : null}
 
-              <form action={formAction} className="mt-4 grid gap-4 xl:grid-cols-[160px_1fr_1fr_1.2fr_1.2fr_auto]">
+              <form action={formAction} className="mt-4 space-y-4">
                 <input name="intent" type="hidden" value="update-restream" />
                 <input name="targetSlot" type="hidden" value={target.slot} />
-                <label className="text-xs font-semibold uppercase text-bc-muted">
-                  Provider
-                  <select
-                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    defaultValue={target.provider}
-                    name="provider"
-                  >
-                    {restreamProviders.map((providerOption) => (
-                      <option key={providerOption} value={providerOption}>
-                        {providerOption === "youtube"
-                          ? "YouTube Live"
-                          : providerOption === "facebook"
-                            ? "Facebook Live"
-                            : "Custom"}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="mt-1 block normal-case text-bc-muted">Choose the service for this output.</span>
-                </label>
-                <label className="text-xs font-semibold uppercase text-bc-muted">
-                  Display label
-                  <input
-                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    defaultValue={target.label}
-                    name="label"
-                    placeholder={index === 0 ? "YouTube channel 1" : "Facebook channel 2"}
-                  />
-                  <span className="mt-1 block normal-case text-bc-muted">Identifies this destination in admin logs.</span>
-                </label>
-                <label className="text-xs font-semibold uppercase text-bc-muted">
-                  Facebook Page ID
-                  <input
-                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    defaultValue={target.facebookPageId}
-                    inputMode="numeric"
-                    name="facebookPageId"
-                    placeholder="Page ID for Facebook outputs"
-                  />
-                  <span className="mt-1 block normal-case text-bc-muted">Required for Page OAuth; ignored by other providers.</span>
-                </label>
-                <label className="text-xs font-semibold uppercase text-bc-muted">
-                  RTMP server URL
-                  <input
-                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    defaultValue={target.serverUrl}
-                    name="serverUrl"
-                    placeholder="rtmps://a.rtmps.youtube.com/live2"
-                  />
-                  <span className="mt-1 block normal-case text-bc-muted">Use the RTMP or RTMPS URL supplied by the service.</span>
-                </label>
-                <label className="text-xs font-semibold uppercase text-bc-muted">
-                  Stream key
-                  <input
-                    autoComplete="off"
-                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
-                    name="streamKey"
-                    placeholder={target.streamKeyConfigured ? "Saved - leave blank to keep" : "Paste stream key"}
-                    type="password"
-                  />
-                  <span className="mt-1 block normal-case text-bc-muted">Encrypted secret; the saved value is never displayed.</span>
-                </label>
-                <div className="flex flex-col justify-end gap-3">
+                <input
+                  name="label"
+                  type="hidden"
+                  value={target.label || (target.slot === "primary" ? "YouTube" : "Facebook")}
+                />
+                <input name="provider" type="hidden" value={target.slot === "primary" ? "youtube" : "facebook"} />
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <label className="text-xs font-semibold uppercase text-bc-muted">
+                    Live title
+                    <input
+                      className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      defaultValue={target.broadcastTitle}
+                      maxLength={100}
+                      name="broadcastTitle"
+                      placeholder={target.slot === "primary" ? "Bouncecore Live on YouTube" : "Bouncecore Live on Facebook"}
+                    />
+                    <span className="mt-1 block normal-case text-bc-muted">
+                      Used for the new {target.slot === "primary" ? "YouTube broadcast" : "Facebook Page live post"}. Leave blank for the automatic stream title.
+                    </span>
+                  </label>
+                  <label className="text-xs font-semibold uppercase text-bc-muted">
+                    Live description
+                    <textarea
+                      className="mt-2 min-h-24 w-full resize-y rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                      defaultValue={target.broadcastDescription}
+                      maxLength={5000}
+                      name="broadcastDescription"
+                      placeholder="Describe the live show for viewers."
+                    />
+                    <span className="mt-1 block normal-case text-bc-muted">
+                      Published with this destination&apos;s new live broadcast. Leave blank for the Bouncecore default.
+                    </span>
+                  </label>
+                </div>
+
+                {target.slot === "primary" ? (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <label className="text-xs font-semibold uppercase text-bc-muted">
+                      YouTube RTMPS server URL
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        defaultValue={target.serverUrl}
+                        name="serverUrl"
+                        placeholder="rtmps://a.rtmps.youtube.com/live2"
+                      />
+                      <span className="mt-1 block normal-case text-bc-muted">The YouTube Live server URL paired with the saved key.</span>
+                    </label>
+                    <label className="text-xs font-semibold uppercase text-bc-muted">
+                      YouTube stream key
+                      <input
+                        autoComplete="off"
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        name="streamKey"
+                        placeholder={target.streamKeyConfigured ? "Saved and active - leave blank to keep" : "Paste YouTube stream key"}
+                        type="password"
+                      />
+                      <span className="mt-1 block normal-case text-bc-muted">
+                        Leaving this blank keeps the currently saved key. It is never displayed after saving.
+                      </span>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <input name="serverUrl" type="hidden" value={target.serverUrl} />
+                    <label className="text-xs font-semibold uppercase text-bc-muted">
+                      Facebook Page ID
+                      <input
+                        className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                        defaultValue={target.facebookPageId}
+                        inputMode="numeric"
+                        name="facebookPageId"
+                        placeholder="Facebook Page ID"
+                      />
+                      <span className="mt-1 block normal-case text-bc-muted">The Page authorized by the Facebook connection above.</span>
+                    </label>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-end gap-4">
                   <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
                     <input defaultChecked={target.enabled} name="enabled" type="checkbox" />
-                    Enabled
+                    Enable {target.slot === "primary" ? "YouTube" : "Facebook"} destination
                   </label>
-                  <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
-                    <input name="clearStreamKey" type="checkbox" />
-                    Clear key
-                  </label>
+                  {target.slot === "primary" ? (
+                    <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
+                      <input name="clearStreamKey" type="checkbox" />
+                      Clear YouTube key
+                    </label>
+                  ) : null}
                   <Button disabled={pending} type="submit" variant="primary">
                     <Share2 className="h-4 w-4" aria-hidden="true" />
-                    Save {index + 1}
+                    Save {target.slot === "primary" ? "YouTube" : "Facebook"}
                   </Button>
                 </div>
               </form>

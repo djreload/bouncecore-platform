@@ -37,6 +37,8 @@ test("youtube restream automation creates a public auto-start broadcast and bind
   assert.match(service, /\/liveBroadcasts\/bind/);
   assert.match(service, /\/liveBroadcasts\/transition/);
   assert.match(service, /Promise\.allSettled/);
+  assert.match(service, /settings\.broadcastTitle/);
+  assert.match(service, /settings\.broadcastDescription/);
 });
 
 test("youtube oauth routes require stream settings permission and use an http-only state cookie", () => {
@@ -58,6 +60,8 @@ test("active stream sessions invoke public youtube sync without exposing channel
 
   assert.match(syncService, /syncPublicYouTubeRestreams/);
   assert.match(adminPanel, /Connect YouTube/);
+  assert.match(adminPanel, /Destination \{index \+ 1\}: \{target\.slot === "primary" \? "YouTube" : "Facebook"\}/);
+  assert.doesNotMatch(adminPanel, /restreamProviders\.map/);
   assert.match(adminPanel, /type="password"/);
   assert.match(oauthService, /encryptSecret\(token\.refresh_token/);
   assert.doesNotMatch(adminPanel, /refreshToken|streamKey\}/);

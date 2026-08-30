@@ -36,6 +36,8 @@ test("facebook automation creates and ends Page live videos using generated secu
   assert.match(service, /end_live_video: "true"/);
   assert.match(service, /Promise\.allSettled/);
   assert.match(service, /encryptSecret\(secureStreamUrl\)/);
+  assert.match(service, /settings\.broadcastTitle/);
+  assert.match(service, /settings\.broadcastDescription/);
 });
 
 test("facebook oauth routes enforce stream permission and protect state with an http-only cookie", () => {
