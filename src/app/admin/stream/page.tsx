@@ -2,6 +2,7 @@ import { AdminShell } from "@/components/layout/admin-shell";
 import { AdminStreamControlPanel } from "@/app/admin/stream/stream-control-panel";
 import type {
   AdminRestreamSettingsRow,
+  AdminFacebookOAuthCredentialsRow,
   AdminStreamChannelRow,
   AdminStreamPlaybackSettingsRow,
   AdminStreamProfileRow,
@@ -13,11 +14,26 @@ import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
 export const dynamic = "force-dynamic";
 
 type AdminStreamPageProps = {
-  searchParams?: Promise<{ message?: string; repair?: string; youtube?: string }>;
+  searchParams?: Promise<{ facebook?: string; message?: string; repair?: string; youtube?: string }>;
 };
 
 function repairFilter(value: string | undefined) {
   return value === "missing-offline-image" ? value : null;
+}
+
+function facebookNotice(status: string | undefined, message: string | undefined) {
+  if (!status) {
+    return null;
+  }
+
+  return {
+    message:
+      message ||
+      (status === "connected"
+        ? "Facebook Page connected. Automatic Facebook Live publishing is ready for this destination."
+        : "Facebook Page connection could not be completed."),
+    status: status === "connected" ? ("success" as const) : ("error" as const)
+  };
 }
 
 function youtubeNotice(status: string | undefined, message: string | undefined) {
@@ -38,8 +54,15 @@ function youtubeNotice(status: string | undefined, message: string | undefined) 
 export default async function AdminStreamPage({ searchParams }: AdminStreamPageProps) {
   await requireUserPermission("stream.dashboard");
   const params = searchParams ? await searchParams : {};
-  const { channels, playbackSettings, provider, restreamSettings, streamProfiles, youtubeOAuthCredentials } =
-    await getAdminStreamControlData();
+  const {
+    channels,
+    facebookOAuthCredentials,
+    playbackSettings,
+    provider,
+    restreamSettings,
+    streamProfiles,
+    youtubeOAuthCredentials
+  } = await getAdminStreamControlData();
   const channelRows: AdminStreamChannelRow[] = channels.map((channel) => ({
     id: channel.id,
     slug: channel.slug,
@@ -56,6 +79,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
   const restreamSettingsRows: AdminRestreamSettingsRow[] = restreamSettings;
   const playbackSettingsRow: AdminStreamPlaybackSettingsRow = playbackSettings;
   const youtubeOAuthCredentialsRow: AdminYouTubeOAuthCredentialsRow = youtubeOAuthCredentials;
+  const facebookOAuthCredentialsRow: AdminFacebookOAuthCredentialsRow = facebookOAuthCredentials;
 
   return (
     <AdminShell
@@ -64,6 +88,8 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
     >
       <AdminStreamControlPanel
         channels={channelRows}
+        facebookNotice={facebookNotice(params.facebook, params.message)}
+        facebookOAuthCredentials={facebookOAuthCredentialsRow}
         playbackSettings={playbackSettingsRow}
         provider={provider}
         repairFilter={repairFilter(params.repair)}

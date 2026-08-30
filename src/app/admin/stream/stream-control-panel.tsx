@@ -8,6 +8,7 @@ import { adminStreamAction } from "@/app/admin/stream/actions";
 import {
   initialAdminStreamActionState,
   type AdminStreamActionState,
+  type AdminFacebookOAuthCredentialsRow,
   type AdminRestreamSettingsRow,
   type AdminStreamChannelRow,
   type AdminStreamPlaybackSettingsRow,
@@ -22,6 +23,8 @@ import { streamPlaybackBufferLimits } from "@/lib/stream/stream-playback-setting
 
 type AdminStreamControlPanelProps = {
   channels: AdminStreamChannelRow[];
+  facebookNotice?: { message: string; status: "success" | "error" } | null;
+  facebookOAuthCredentials: AdminFacebookOAuthCredentialsRow;
   playbackSettings: AdminStreamPlaybackSettingsRow;
   provider: AdminStreamProviderState;
   repairFilter?: AdminStreamRepairFilter | null;
@@ -62,6 +65,8 @@ function matchesRepairFilter(channel: AdminStreamChannelRow, filter: AdminStream
 
 export function AdminStreamControlPanel({
   channels,
+  facebookNotice = null,
+  facebookOAuthCredentials,
   playbackSettings,
   provider,
   repairFilter = null,
@@ -193,6 +198,19 @@ export function AdminStreamControlPanel({
           </div>
         ) : null}
 
+        {facebookNotice ? (
+          <div
+            className={`mt-4 rounded-md border p-3 text-sm ${
+              facebookNotice.status === "success"
+                ? "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
+                : "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
+            }`}
+            role={facebookNotice.status === "error" ? "alert" : "status"}
+          >
+            {facebookNotice.message}
+          </div>
+        ) : null}
+
         <div className="mt-5 border-y border-bc-line bg-bc-ink/45 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -252,6 +270,69 @@ export function AdminStreamControlPanel({
           </p>
         </div>
 
+        <div className="mt-5 border-y border-bc-line bg-bc-ink/45 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Radio className="h-5 w-5 text-blue-400" aria-hidden="true" />
+                <h4 className="font-black">Facebook Page auto-live</h4>
+              </div>
+              <p className="mt-1 max-w-3xl text-sm text-bc-muted">
+                OAuth lets a Page administrator connect the destination. Bouncecore then creates the Facebook Live post,
+                relays over the generated secure RTMPS URL, and ends it when the local stream disconnects.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={facebookOAuthCredentials.configured ? "acid" : "amber"}>
+                OAuth {facebookOAuthCredentials.configured ? "ready" : "setup needed"}
+              </Badge>
+              <Badge tone="muted">Source: {facebookOAuthCredentials.source}</Badge>
+            </div>
+          </div>
+
+          <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+            <input name="intent" type="hidden" value="update-facebook-oauth" />
+            <label className="text-xs font-semibold uppercase text-bc-muted">
+              Meta app ID
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={facebookOAuthCredentials.appId}
+                name="appId"
+                placeholder="Meta app ID"
+              />
+              <span className="mt-1 block normal-case text-bc-muted">Use a Meta app with Facebook Login and Live Video API access.</span>
+            </label>
+            <label className="text-xs font-semibold uppercase text-bc-muted">
+              Meta app secret
+              <input
+                autoComplete="off"
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                name="appSecret"
+                placeholder={facebookOAuthCredentials.appSecretConfigured ? "Saved - leave blank to keep" : "Paste Meta app secret"}
+                type="password"
+              />
+              <span className="mt-1 block normal-case text-bc-muted">Encrypted before storage and never shown again.</span>
+            </label>
+            <div className="flex flex-col justify-end gap-3">
+              <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
+                <input name="clearAppSecret" type="checkbox" />
+                Clear secret
+              </label>
+              <Button disabled={pending} type="submit" variant="ghost">
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Save Meta OAuth
+              </Button>
+            </div>
+          </form>
+
+          <p className="mt-3 break-all text-xs text-bc-muted">
+            Valid OAuth redirect URI: <code className="text-bc-electric">{facebookOAuthCredentials.redirectUri ?? "Set NEXT_PUBLIC_APP_URL first"}</code>
+          </p>
+          <p className="mt-1 text-xs text-bc-muted">
+            The Facebook account used during Connect must administer the destination Page; it does not need to be the site owner&apos;s Facebook account.
+          </p>
+        </div>
+
         <div className="mt-5 divide-y divide-bc-line border-y border-bc-line">
           {restreamSettings.map((target, index) => (
             <div className="py-5" key={target.slot}>
@@ -271,6 +352,13 @@ export function AdminStreamControlPanel({
                       {target.youtubeConnection.connected
                         ? `Connected: ${target.youtubeConnection.channelTitle}`
                         : "YouTube not connected"}
+                    </Badge>
+                  ) : null}
+                  {target.provider === "facebook" ? (
+                    <Badge tone={target.facebookConnection.connected ? "acid" : "amber"}>
+                      {target.facebookConnection.connected
+                        ? `Connected: ${target.facebookConnection.pageName}`
+                        : "Facebook Page not connected"}
                     </Badge>
                   ) : null}
                 </div>
@@ -314,7 +402,45 @@ export function AdminStreamControlPanel({
                 </div>
               ) : null}
 
-              <form action={formAction} className="mt-4 grid gap-4 xl:grid-cols-[170px_1fr_1.5fr_1.5fr_auto]">
+              {target.provider === "facebook" ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3">
+                  <div className="min-w-0 text-sm">
+                    <p className="font-semibold text-white">
+                      {target.facebookConnection.connected
+                        ? `Automatic live posts use ${target.facebookConnection.pageName}.`
+                        : "Save the destination Page ID, then connect a Page administrator."}
+                    </p>
+                    <p className="mt-1 text-xs text-bc-muted">
+                      {target.facebookConnection.lastError
+                        ? `Last automation error: ${target.facebookConnection.lastError}`
+                        : target.facebookConnection.lastLiveVideoId
+                          ? `Last live video ${target.facebookConnection.lastLiveVideoId} (${target.facebookConnection.runtimeStatus}).`
+                          : "A new LIVE_NOW Page post and secure RTMPS target are created once per Bouncecore live session."}
+                    </p>
+                  </div>
+                  {target.facebookConnection.connected ? (
+                    <form action={formAction}>
+                      <input name="intent" type="hidden" value="disconnect-facebook" />
+                      <input name="targetSlot" type="hidden" value={target.slot} />
+                      <Button disabled={pending} type="submit" variant="ghost">
+                        <Unplug className="h-4 w-4" aria-hidden="true" />
+                        Disconnect
+                      </Button>
+                    </form>
+                  ) : (
+                    <ButtonLink
+                      href={`/admin/stream/facebook/connect?slot=${target.slot}`}
+                      size="sm"
+                      variant={facebookOAuthCredentials.configured ? "primary" : "ghost"}
+                    >
+                      <Radio className="h-4 w-4" aria-hidden="true" />
+                      Connect Facebook Page
+                    </ButtonLink>
+                  )}
+                </div>
+              ) : null}
+
+              <form action={formAction} className="mt-4 grid gap-4 xl:grid-cols-[160px_1fr_1fr_1.2fr_1.2fr_auto]">
                 <input name="intent" type="hidden" value="update-restream" />
                 <input name="targetSlot" type="hidden" value={target.slot} />
                 <label className="text-xs font-semibold uppercase text-bc-muted">
@@ -345,6 +471,17 @@ export function AdminStreamControlPanel({
                     placeholder={index === 0 ? "YouTube channel 1" : "Facebook channel 2"}
                   />
                   <span className="mt-1 block normal-case text-bc-muted">Identifies this destination in admin logs.</span>
+                </label>
+                <label className="text-xs font-semibold uppercase text-bc-muted">
+                  Facebook Page ID
+                  <input
+                    className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-ink px-3 py-2 text-sm text-white"
+                    defaultValue={target.facebookPageId}
+                    inputMode="numeric"
+                    name="facebookPageId"
+                    placeholder="Page ID for Facebook outputs"
+                  />
+                  <span className="mt-1 block normal-case text-bc-muted">Required for Page OAuth; ignored by other providers.</span>
                 </label>
                 <label className="text-xs font-semibold uppercase text-bc-muted">
                   RTMP server URL

@@ -5,6 +5,10 @@ import type {
   AdminYouTubeOAuthCredentials,
   AdminYouTubeRestreamConnection
 } from "@/lib/stream/youtube-restream-oauth";
+import type {
+  AdminFacebookOAuthCredentials,
+  AdminFacebookRestreamConnection
+} from "@/lib/stream/facebook-restream-oauth";
 import type { StreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
 export type AdminStreamChannelRow = {
@@ -23,11 +27,14 @@ export type AdminStreamChannelRow = {
 export type AdminStreamProfileRow = StreamProfileSummary;
 
 export type AdminRestreamSettingsRow = AdminRestreamSettings & {
+  facebookConnection: AdminFacebookRestreamConnection;
   slot: RestreamTargetSlot;
   youtubeConnection: AdminYouTubeRestreamConnection;
 };
 
 export type AdminYouTubeOAuthCredentialsRow = AdminYouTubeOAuthCredentials;
+
+export type AdminFacebookOAuthCredentialsRow = AdminFacebookOAuthCredentials;
 
 export type AdminStreamPlaybackSettingsRow = StreamPlaybackSettings;
 

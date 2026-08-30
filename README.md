@@ -195,6 +195,14 @@ https://bouncecore.example.com/admin/stream/youtube/callback
 
 Save the OAuth client ID and secret under Admin -> Stream, then press `Connect YouTube` for each YouTube destination. Connections are per destination, so two outputs can authorize two different channels. The client secret and channel refresh tokens are encrypted at rest with `PUSH_TOKEN_ENCRYPTION_KEY`. Credentials may instead be supplied through `YOUTUBE_OAUTH_CLIENT_ID` and `YOUTUBE_OAUTH_CLIENT_SECRET`.
 
+For Facebook Page outputs, create a Meta app with Facebook Login and Live Video API access, request `pages_show_list`, `pages_read_engagement`, and `pages_manage_posts`, and register this exact valid OAuth redirect URI:
+
+```text
+https://bouncecore.example.com/admin/stream/facebook/callback
+```
+
+Save the Meta app ID and secret under Admin -> Stream, save the destination's Facebook Page ID, then press `Connect Facebook Page`. The person signing in must administer that Page, but does not need to own the Bouncecore site account. Bouncecore creates a `LIVE_NOW` Page video for each local stream session, relays to Meta's generated secure RTMPS URL, and ends the Facebook broadcast when the local ingest disconnects. Page tokens and generated ingest URLs are encrypted at rest. `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET` are optional environment alternatives.
+
 Set `RESTREAM_TRANSCODE=false` only if you intentionally want to packet-copy the incoming OBS encoder settings to the external platform.
 
 Start both independent outputs with the `restream` profile:

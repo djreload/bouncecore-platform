@@ -10,6 +10,11 @@ import {
   type RestreamTargetSlot
 } from "@/lib/stream/restream-settings";
 import { getAdminYouTubeRestreamConnection } from "@/lib/stream/youtube-restream-oauth";
+import {
+  getActiveFacebookRestreamTargetUrl,
+  getAdminFacebookRestreamConnection,
+  getFacebookRestreamConnectionRecord
+} from "@/lib/stream/facebook-restream-oauth";
 
 const restreamSettingsKeys: Record<RestreamTargetSlot, string> = {
   primary: "stream.restream_settings",
@@ -33,13 +38,15 @@ export async function getAdminRestreamSettings(slot: RestreamTargetSlot = "prima
 export async function getAdminRestreamTargets() {
   return Promise.all(
     restreamTargetSlots.map(async (slot) => {
-      const [settings, youtubeConnection] = await Promise.all([
+      const [settings, facebookConnection, youtubeConnection] = await Promise.all([
         getRestreamSettings(slot),
+        getAdminFacebookRestreamConnection(slot),
         getAdminYouTubeRestreamConnection(slot)
       ]);
 
       return {
         ...toAdminRestreamSettings(settings),
+        facebookConnection,
         slot,
         youtubeConnection
       };
@@ -48,7 +55,17 @@ export async function getAdminRestreamTargets() {
 }
 
 export async function getRestreamTargetUrl(slot: RestreamTargetSlot = "primary") {
-  return buildRestreamTargetUrl(await getRestreamSettings(slot));
+  const settings = await getRestreamSettings(slot);
+
+  if (settings.provider === "facebook") {
+    const connection = await getFacebookRestreamConnectionRecord(slot);
+
+    if (connection) {
+      return getActiveFacebookRestreamTargetUrl(slot);
+    }
+  }
+
+  return buildRestreamTargetUrl(settings);
 }
 
 export async function updateRestreamSettings(

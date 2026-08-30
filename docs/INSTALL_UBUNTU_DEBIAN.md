@@ -396,6 +396,27 @@ YOUTUBE_OAUTH_CLIENT_SECRET="your-web-client-secret"
 
 For each new Bouncecore live session, the worker creates one public YouTube broadcast, enables automatic start/stop, binds the saved YouTube stream, and requests the live transition after YouTube reports active ingest. Facebook and custom restream destinations are unaffected.
 
+### Automatic Facebook Page broadcasts
+
+Bouncecore can create a new Facebook Page live post and obtain a fresh secure ingest URL whenever the local stream starts:
+
+1. Create a Meta app, add Facebook Login, and enable access to the Live Video API.
+2. Configure the app's privacy policy, data deletion URL, app domain, and production mode as required by Meta.
+3. Add `https://bouncecore.example.com/admin/stream/facebook/callback` as an exact valid OAuth redirect URI.
+4. Request or complete Meta App Review for `pages_show_list`, `pages_read_engagement`, and `pages_manage_posts` when users outside the app's assigned roles will connect Pages.
+5. Keep `PUSH_TOKEN_ENCRYPTION_KEY` configured so Page tokens and generated secure ingest URLs can be encrypted.
+6. Save the Meta app ID and secret under Admin -> Stream, or configure:
+
+```env
+FACEBOOK_APP_ID="your-meta-app-id"
+FACEBOOK_APP_SECRET="your-meta-app-secret"
+```
+
+7. Set the destination provider to Facebook, enter the destination Page ID, enable and save it, then press `Connect Facebook Page`.
+8. Have an administrator of that Facebook Page complete the authorization. This can be a different person from the Bouncecore owner.
+
+At the start of each Bouncecore stream session the worker calls the Page Live Video API with `status=LIVE_NOW`, and its isolated FFmpeg worker starts once the generated `secure_stream_url` is available. On local disconnect Bouncecore ends that LiveVideo as VOD. If no Page OAuth connection exists, an existing manually saved Facebook RTMPS URL and persistent stream key continue to work as before.
+
 The public player should read:
 
 ```text

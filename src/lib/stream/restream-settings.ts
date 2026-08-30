@@ -6,6 +6,7 @@ export type RestreamTargetSlot = (typeof restreamTargetSlots)[number];
 
 export type RestreamSettings = {
   enabled: boolean;
+  facebookPageId: string;
   label: string;
   provider: RestreamProvider;
   serverUrl: string;
@@ -20,6 +21,7 @@ export type AdminRestreamSettings = Omit<RestreamSettings, "streamKey"> & {
 export type RestreamSettingsInput = {
   clearStreamKey?: boolean;
   enabled: boolean;
+  facebookPageId?: string;
   label: string;
   provider: string;
   serverUrl: string;
@@ -28,6 +30,7 @@ export type RestreamSettingsInput = {
 
 export const defaultRestreamSettings: RestreamSettings = {
   enabled: false,
+  facebookPageId: "",
   label: "",
   provider: "custom",
   serverUrl: "",
@@ -136,6 +139,7 @@ export function normalizeRestreamSettings(value: unknown): RestreamSettings {
 
   return {
     enabled: boolValue(candidate.enabled),
+    facebookPageId: textValue(candidate.facebookPageId, 100),
     label: textValue(candidate.label, 80),
     provider: providerValue(candidate.provider),
     serverUrl: textValue(candidate.serverUrl, 400),
@@ -146,6 +150,7 @@ export function normalizeRestreamSettings(value: unknown): RestreamSettings {
 export function mergeRestreamSettingsInput(input: RestreamSettingsInput, existing = defaultRestreamSettings): RestreamSettings {
   return {
     enabled: input.enabled,
+    facebookPageId: textValue(input.facebookPageId, 100),
     label: textValue(input.label, 80),
     provider: providerValue(input.provider),
     serverUrl: textValue(input.serverUrl, 400),
@@ -193,6 +198,7 @@ export function toAdminRestreamSettings(settings: RestreamSettings): AdminRestre
 
   return {
     enabled: settings.enabled,
+    facebookPageId: settings.facebookPageId,
     label: settings.label,
     provider: settings.provider,
     serverUrl: settings.serverUrl,

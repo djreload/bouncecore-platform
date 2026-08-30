@@ -10,6 +10,11 @@ import {
   syncPublicYouTubeRestreams,
   type YouTubeRestreamSyncResult
 } from "@/lib/stream/youtube-restream-service";
+import {
+  finishFacebookRestreams,
+  syncFacebookRestreams,
+  type FacebookRestreamSyncResult
+} from "@/lib/stream/facebook-restream-service";
 
 type StreamSyncPayload = {
   bitrateKbps: number | null;
@@ -25,6 +30,7 @@ type StreamSyncPayload = {
 export type StreamSessionSyncResult = {
   channelId: string;
   eventTypes: string[];
+  facebookRestreams: FacebookRestreamSyncResult[];
   ingestConnected: boolean;
   liveNotification: MobileEventNotificationQueueResult | { error: string } | null;
   openSessionId: string | null;
@@ -225,18 +231,46 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
   });
 
   let hostDisplayName: string | null = null;
+  let facebookRestreams: FacebookRestreamSyncResult[] = [];
   let youtubeRestreams: YouTubeRestreamSyncResult[] = [];
 
   if (result.ingestConnected && result.openSessionId) {
     try {
       hostDisplayName = await getLiveNotificationHostDisplayName(snapshot);
-      youtubeRestreams = await syncPublicYouTubeRestreams({
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Live presenter lookup failed.";
+
+      await writeAuditLog({
+        action: "stream.presenter_lookup.failed",
+        actorId: null,
+        metadata: {
+          error: message,
+          sessionId: result.openSessionId
+        },
+        severity: "warning",
+        target: `stream-session:${result.openSessionId}`
+      });
+    }
+
+    const [youtubeResult, facebookResult] = await Promise.allSettled([
+      syncPublicYouTubeRestreams({
         channelTitle: channel.title,
         hostDisplayName,
         sessionId: result.openSessionId
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "YouTube restream synchronization failed.";
+      }),
+      syncFacebookRestreams({
+        channelTitle: channel.title,
+        hostDisplayName,
+        sessionId: result.openSessionId
+      })
+    ]);
+
+    if (youtubeResult.status === "fulfilled") {
+      youtubeRestreams = youtubeResult.value;
+    } else {
+      const message = youtubeResult.reason instanceof Error
+        ? youtubeResult.reason.message
+        : "YouTube restream synchronization failed.";
 
       await writeAuditLog({
         action: "stream.youtube_broadcast.sync_failed",
@@ -249,10 +283,32 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
         target: `stream-session:${result.openSessionId}`
       });
     }
+
+    if (facebookResult.status === "fulfilled") {
+      facebookRestreams = facebookResult.value;
+    } else {
+      const message = facebookResult.reason instanceof Error
+        ? facebookResult.reason.message
+        : "Facebook restream synchronization failed.";
+
+      await writeAuditLog({
+        action: "stream.facebook_live.sync_failed",
+        actorId: null,
+        metadata: {
+          error: message,
+          sessionId: result.openSessionId
+        },
+        severity: "warning",
+        target: `stream-session:${result.openSessionId}`
+      });
+    }
+  } else {
+    facebookRestreams = await finishFacebookRestreams();
   }
 
   const syncedResult = {
     ...result,
+    facebookRestreams,
     youtubeRestreams
   };
 

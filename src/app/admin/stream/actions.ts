@@ -15,6 +15,10 @@ import {
   disconnectYouTubeRestream,
   updateYouTubeOAuthCredentials
 } from "@/lib/stream/youtube-restream-oauth";
+import {
+  disconnectFacebookRestream,
+  updateFacebookOAuthCredentials
+} from "@/lib/stream/facebook-restream-oauth";
 import { updateStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { ensureDefaultStreamProfiles, updateStreamProfile } from "@/lib/stream/stream-profile-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
@@ -84,10 +88,19 @@ function restreamSettingsInput(formData: FormData) {
   return {
     clearStreamKey: formBoolean(formData, "clearStreamKey"),
     enabled: formBoolean(formData, "enabled"),
+    facebookPageId: formString(formData, "facebookPageId"),
     label: formString(formData, "label"),
     provider: formString(formData, "provider"),
     serverUrl: formString(formData, "serverUrl"),
     streamKey: formString(formData, "streamKey")
+  };
+}
+
+function facebookOAuthCredentialsInput(formData: FormData) {
+  return {
+    appId: formString(formData, "appId"),
+    appSecret: formString(formData, "appSecret"),
+    clearAppSecret: formBoolean(formData, "clearAppSecret")
   };
 }
 
@@ -201,6 +214,27 @@ export async function adminStreamAction(
       return {
         status: "success",
         message: "YouTube OAuth credentials updated."
+      };
+    }
+
+    if (intent === "update-facebook-oauth") {
+      await updateFacebookOAuthCredentials(facebookOAuthCredentialsInput(formData), actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "Meta OAuth credentials updated."
+      };
+    }
+
+    if (intent === "disconnect-facebook") {
+      const slot = restreamTargetSlotValue(formString(formData, "targetSlot"));
+      await disconnectFacebookRestream(slot, actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: `Facebook destination ${slot === "primary" ? "1" : "2"} disconnected.`
       };
     }
 

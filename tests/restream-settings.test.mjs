@@ -107,6 +107,7 @@ test("admin restream settings never expose the saved stream key", () => {
     }),
     {
       enabled: true,
+      facebookPageId: "",
       label: "",
       provider: "facebook",
       serverUrl: "rtmps://live-api-s.facebook.com:443/rtmp/",
