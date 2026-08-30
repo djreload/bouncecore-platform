@@ -376,6 +376,26 @@ RESTREAM_AUDIO_BITRATE=160k
 
 Only set `RESTREAM_TRANSCODE=false` if you want the external restream to copy the incoming OBS encoder exactly. Packet-copy mode can reintroduce Facebook keyframe warnings when the streamer has not set a 2 second keyframe interval.
 
+### Automatic public YouTube broadcasts
+
+An RTMP stream key alone cannot choose a YouTube broadcast's visibility. To make YouTube go live publicly whenever Bouncecore goes live:
+
+1. Open Google Cloud Console and enable **YouTube Data API v3**.
+2. Configure the OAuth consent screen and create an OAuth 2.0 **Web application** client.
+3. Add `https://bouncecore.example.com/admin/stream/youtube/callback` as an exact authorized redirect URI.
+4. Keep `PUSH_TOKEN_ENCRYPTION_KEY` configured. Bouncecore uses it to encrypt Google client and channel refresh secrets.
+5. Save the client ID and secret under Admin -> Stream, or set these environment values and restart the app and worker:
+
+```env
+YOUTUBE_OAUTH_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+YOUTUBE_OAUTH_CLIENT_SECRET="your-web-client-secret"
+```
+
+6. Set a restream destination's provider to YouTube and save its RTMPS server URL and stream key.
+7. Press `Connect YouTube` on that destination and authorize the YouTube channel that owns the saved stream key. Repeat for destination 2 if it uses another channel.
+
+For each new Bouncecore live session, the worker creates one public YouTube broadcast, enables automatic start/stop, binds the saved YouTube stream, and requests the live transition after YouTube reports active ingest. Facebook and custom restream destinations are unaffected.
+
 The public player should read:
 
 ```text

@@ -4,7 +4,8 @@ import type {
   AdminRestreamSettingsRow,
   AdminStreamChannelRow,
   AdminStreamPlaybackSettingsRow,
-  AdminStreamProfileRow
+  AdminStreamProfileRow,
+  AdminYouTubeOAuthCredentialsRow
 } from "@/app/admin/stream/state";
 import { requireUserPermission } from "@/lib/auth/guards";
 import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
@@ -12,17 +13,33 @@ import { getAdminStreamControlData } from "@/lib/stream/stream-channel-service";
 export const dynamic = "force-dynamic";
 
 type AdminStreamPageProps = {
-  searchParams?: Promise<{ repair?: string }>;
+  searchParams?: Promise<{ message?: string; repair?: string; youtube?: string }>;
 };
 
 function repairFilter(value: string | undefined) {
   return value === "missing-offline-image" ? value : null;
 }
 
+function youtubeNotice(status: string | undefined, message: string | undefined) {
+  if (!status) {
+    return null;
+  }
+
+  return {
+    message:
+      message ||
+      (status === "connected"
+        ? "YouTube channel connected. Public auto-start is ready for this destination."
+        : "YouTube channel connection could not be completed."),
+    status: status === "connected" ? ("success" as const) : ("error" as const)
+  };
+}
+
 export default async function AdminStreamPage({ searchParams }: AdminStreamPageProps) {
   await requireUserPermission("stream.dashboard");
   const params = searchParams ? await searchParams : {};
-  const { channels, playbackSettings, provider, restreamSettings, streamProfiles } = await getAdminStreamControlData();
+  const { channels, playbackSettings, provider, restreamSettings, streamProfiles, youtubeOAuthCredentials } =
+    await getAdminStreamControlData();
   const channelRows: AdminStreamChannelRow[] = channels.map((channel) => ({
     id: channel.id,
     slug: channel.slug,
@@ -38,6 +55,7 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
   const profileRows: AdminStreamProfileRow[] = streamProfiles;
   const restreamSettingsRows: AdminRestreamSettingsRow[] = restreamSettings;
   const playbackSettingsRow: AdminStreamPlaybackSettingsRow = playbackSettings;
+  const youtubeOAuthCredentialsRow: AdminYouTubeOAuthCredentialsRow = youtubeOAuthCredentials;
 
   return (
     <AdminShell
@@ -51,6 +69,8 @@ export default async function AdminStreamPage({ searchParams }: AdminStreamPageP
         repairFilter={repairFilter(params.repair)}
         restreamSettings={restreamSettingsRows}
         streamProfiles={profileRows}
+        youtubeNotice={youtubeNotice(params.youtube, params.message)}
+        youtubeOAuthCredentials={youtubeOAuthCredentialsRow}
       />
     </AdminShell>
   );

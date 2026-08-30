@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Activity, Plus, Radio, Save, Share2, SlidersHorizontal } from "lucide-react";
+import { Activity, Plus, Radio, Save, Share2, SlidersHorizontal, TvMinimalPlay, Unplug } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { adminStreamAction } from "@/app/admin/stream/actions";
@@ -12,7 +12,8 @@ import {
   type AdminStreamChannelRow,
   type AdminStreamPlaybackSettingsRow,
   type AdminStreamProfileRow,
-  type AdminStreamProviderState
+  type AdminStreamProviderState,
+  type AdminYouTubeOAuthCredentialsRow
 } from "@/app/admin/stream/state";
 import { uploadAdminMedia } from "@/lib/media/admin-upload-client";
 import { streamStatusOptions } from "@/lib/stream/stream-status";
@@ -26,6 +27,8 @@ type AdminStreamControlPanelProps = {
   repairFilter?: AdminStreamRepairFilter | null;
   restreamSettings: AdminRestreamSettingsRow[];
   streamProfiles: AdminStreamProfileRow[];
+  youtubeNotice?: { message: string; status: "success" | "error" } | null;
+  youtubeOAuthCredentials: AdminYouTubeOAuthCredentialsRow;
 };
 
 type AdminStreamRepairFilter = "missing-offline-image";
@@ -63,7 +66,9 @@ export function AdminStreamControlPanel({
   provider,
   repairFilter = null,
   restreamSettings,
-  streamProfiles
+  streamProfiles,
+  youtubeNotice = null,
+  youtubeOAuthCredentials
 }: AdminStreamControlPanelProps) {
   const [state, formAction, pending] = useActionState<AdminStreamActionState, FormData>(
     adminStreamAction,
@@ -175,6 +180,78 @@ export function AdminStreamControlPanel({
           output runs separately, so a failure or configuration change on one does not stop the other.
         </p>
 
+        {youtubeNotice ? (
+          <div
+            className={`mt-4 rounded-md border p-3 text-sm ${
+              youtubeNotice.status === "success"
+                ? "border-bc-acid/30 bg-bc-acid/10 text-bc-acid"
+                : "border-bc-pink/30 bg-bc-pink/10 text-bc-pink"
+            }`}
+            role={youtubeNotice.status === "error" ? "alert" : "status"}
+          >
+            {youtubeNotice.message}
+          </div>
+        ) : null}
+
+        <div className="mt-5 border-y border-bc-line bg-bc-ink/45 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <TvMinimalPlay className="h-5 w-5 text-red-400" aria-hidden="true" />
+                <h4 className="font-black">YouTube public auto-start</h4>
+              </div>
+              <p className="mt-1 max-w-3xl text-sm text-bc-muted">
+                OAuth lets Bouncecore create a public broadcast, bind the saved YouTube stream key, and start it when the primary DJ connects.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone={youtubeOAuthCredentials.configured ? "acid" : "amber"}>
+                OAuth {youtubeOAuthCredentials.configured ? "ready" : "setup needed"}
+              </Badge>
+              <Badge tone="muted">Source: {youtubeOAuthCredentials.source}</Badge>
+            </div>
+          </div>
+
+          <form action={formAction} className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr_auto]">
+            <input name="intent" type="hidden" value="update-youtube-oauth" />
+            <label className="text-xs font-semibold uppercase text-bc-muted">
+              Google OAuth client ID
+              <input
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                defaultValue={youtubeOAuthCredentials.clientId}
+                name="clientId"
+                placeholder="Google OAuth web client ID"
+              />
+              <span className="mt-1 block normal-case text-bc-muted">Use a Web application client with YouTube Data API v3 enabled.</span>
+            </label>
+            <label className="text-xs font-semibold uppercase text-bc-muted">
+              Google OAuth client secret
+              <input
+                autoComplete="off"
+                className="mt-2 min-h-10 w-full rounded-md border border-bc-line bg-bc-panel px-3 py-2 text-sm text-white"
+                name="clientSecret"
+                placeholder={youtubeOAuthCredentials.clientSecretConfigured ? "Saved - leave blank to keep" : "Paste OAuth client secret"}
+                type="password"
+              />
+              <span className="mt-1 block normal-case text-bc-muted">Encrypted before storage and never shown again.</span>
+            </label>
+            <div className="flex flex-col justify-end gap-3">
+              <label className="inline-flex items-center gap-2 text-sm text-bc-muted">
+                <input name="clearClientSecret" type="checkbox" />
+                Clear secret
+              </label>
+              <Button disabled={pending} type="submit" variant="ghost">
+                <Save className="h-4 w-4" aria-hidden="true" />
+                Save OAuth
+              </Button>
+            </div>
+          </form>
+
+          <p className="mt-3 break-all text-xs text-bc-muted">
+            Authorized redirect URI: <code className="text-bc-electric">{youtubeOAuthCredentials.redirectUri ?? "Set NEXT_PUBLIC_APP_URL first"}</code>
+          </p>
+        </div>
+
         <div className="mt-5 divide-y divide-bc-line border-y border-bc-line">
           {restreamSettings.map((target, index) => (
             <div className="py-5" key={target.slot}>
@@ -189,8 +266,53 @@ export function AdminStreamControlPanel({
                     {target.streamKeyConfigured ? "Key saved" : "No key"}
                   </Badge>
                   <Badge tone={target.targetHost ? "muted" : "amber"}>{target.targetHost ?? "No target"}</Badge>
+                  {target.provider === "youtube" ? (
+                    <Badge tone={target.youtubeConnection.connected ? "acid" : "amber"}>
+                      {target.youtubeConnection.connected
+                        ? `Connected: ${target.youtubeConnection.channelTitle}`
+                        : "YouTube not connected"}
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
+
+              {target.provider === "youtube" ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-bc-line bg-bc-ink p-3">
+                  <div className="min-w-0 text-sm">
+                    <p className="font-semibold text-white">
+                      {target.youtubeConnection.connected
+                        ? `Public auto-start uses ${target.youtubeConnection.channelTitle}.`
+                        : "Connect the YouTube channel used by this destination."}
+                    </p>
+                    <p className="mt-1 text-xs text-bc-muted">
+                      {target.youtubeConnection.lastError
+                        ? `Last automation error: ${target.youtubeConnection.lastError}`
+                        : target.youtubeConnection.lastBroadcastId
+                          ? `Last broadcast ${target.youtubeConnection.lastBroadcastId} (${target.youtubeConnection.runtimeStatus}).`
+                          : "A new public broadcast is created once per Bouncecore live session."}
+                    </p>
+                  </div>
+                  {target.youtubeConnection.connected ? (
+                    <form action={formAction}>
+                      <input name="intent" type="hidden" value="disconnect-youtube" />
+                      <input name="targetSlot" type="hidden" value={target.slot} />
+                      <Button disabled={pending} type="submit" variant="ghost">
+                        <Unplug className="h-4 w-4" aria-hidden="true" />
+                        Disconnect
+                      </Button>
+                    </form>
+                  ) : (
+                    <ButtonLink
+                      href={`/admin/stream/youtube/connect?slot=${target.slot}`}
+                      size="sm"
+                      variant={youtubeOAuthCredentials.configured ? "primary" : "ghost"}
+                    >
+                      <TvMinimalPlay className="h-4 w-4" aria-hidden="true" />
+                      Connect YouTube
+                    </ButtonLink>
+                  )}
+                </div>
+              ) : null}
 
               <form action={formAction} className="mt-4 grid gap-4 xl:grid-cols-[170px_1fr_1.5fr_1.5fr_auto]">
                 <input name="intent" type="hidden" value="update-restream" />

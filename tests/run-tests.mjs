@@ -80,6 +80,7 @@ import "./rave-war-mobile-layout.test.mjs";
 import "./rave-war-network.test.mjs";
 import "./rave-war-private-flow.test.mjs";
 import "./restream-settings.test.mjs";
+import "./youtube-restream.test.mjs";
 import "./release-candidate-check.test.mjs";
 import "./release-drill-safety.test.mjs";
 import "./request-rate-limit.test.mjs";

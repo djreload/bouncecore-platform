@@ -6,6 +6,10 @@ import {
 } from "@/lib/mobile/event-notification-service";
 import { getDefaultStreamProfile } from "@/lib/stream/stream-profile-service";
 import { getProviderSnapshot, type StreamProviderSnapshot } from "@/lib/stream/stream-channel-service";
+import {
+  syncPublicYouTubeRestreams,
+  type YouTubeRestreamSyncResult
+} from "@/lib/stream/youtube-restream-service";
 
 type StreamSyncPayload = {
   bitrateKbps: number | null;
@@ -30,6 +34,7 @@ export type StreamSessionSyncResult = {
   sessionStarted: boolean;
   status: string;
   viewerCount: number;
+  youtubeRestreams: YouTubeRestreamSyncResult[];
 };
 
 function providerIsActive(snapshot: StreamProviderSnapshot) {
@@ -219,17 +224,49 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
     };
   });
 
+  let hostDisplayName: string | null = null;
+  let youtubeRestreams: YouTubeRestreamSyncResult[] = [];
+
+  if (result.ingestConnected && result.openSessionId) {
+    try {
+      hostDisplayName = await getLiveNotificationHostDisplayName(snapshot);
+      youtubeRestreams = await syncPublicYouTubeRestreams({
+        channelTitle: channel.title,
+        hostDisplayName,
+        sessionId: result.openSessionId
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "YouTube restream synchronization failed.";
+
+      await writeAuditLog({
+        action: "stream.youtube_broadcast.sync_failed",
+        actorId: null,
+        metadata: {
+          error: message,
+          sessionId: result.openSessionId
+        },
+        severity: "warning",
+        target: `stream-session:${result.openSessionId}`
+      });
+    }
+  }
+
+  const syncedResult = {
+    ...result,
+    youtubeRestreams
+  };
+
   if (!result.sessionStarted || !result.openSessionId) {
-    return result;
+    return syncedResult;
   }
 
   try {
     return {
-      ...result,
+      ...syncedResult,
       liveNotification: await queueStreamLiveNotifications({
         channelId: result.channelId,
         channelTitle: channel.title,
-        hostDisplayName: await getLiveNotificationHostDisplayName(snapshot),
+        hostDisplayName,
         sessionId: result.openSessionId
       })
     };
@@ -249,7 +286,7 @@ export async function syncStreamProviderSnapshot(snapshot?: StreamProviderSnapsh
     });
 
     return {
-      ...result,
+      ...syncedResult,
       liveNotification: {
         error: message
       }

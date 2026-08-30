@@ -9,6 +9,7 @@ import {
   type RestreamSettingsInput,
   type RestreamTargetSlot
 } from "@/lib/stream/restream-settings";
+import { getAdminYouTubeRestreamConnection } from "@/lib/stream/youtube-restream-oauth";
 
 const restreamSettingsKeys: Record<RestreamTargetSlot, string> = {
   primary: "stream.restream_settings",
@@ -31,10 +32,18 @@ export async function getAdminRestreamSettings(slot: RestreamTargetSlot = "prima
 
 export async function getAdminRestreamTargets() {
   return Promise.all(
-    restreamTargetSlots.map(async (slot) => ({
-      ...toAdminRestreamSettings(await getRestreamSettings(slot)),
-      slot
-    }))
+    restreamTargetSlots.map(async (slot) => {
+      const [settings, youtubeConnection] = await Promise.all([
+        getRestreamSettings(slot),
+        getAdminYouTubeRestreamConnection(slot)
+      ]);
+
+      return {
+        ...toAdminRestreamSettings(settings),
+        slot,
+        youtubeConnection
+      };
+    })
   );
 }
 

@@ -11,6 +11,7 @@ import {
   type StreamProfileSummary
 } from "@/lib/stream/stream-profile-service";
 import { getAdminRestreamTargets } from "@/lib/stream/restream-settings-service";
+import { getAdminYouTubeOAuthCredentials } from "@/lib/stream/youtube-restream-oauth";
 import { getStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
 import { getLiveViewerPresenceCount } from "@/lib/presence/live-viewer-presence";
@@ -160,7 +161,7 @@ export async function getProviderSnapshot(): Promise<StreamProviderSnapshot> {
 export async function getAdminStreamControlData() {
   await ensureDefaultStreamProfiles();
 
-  const [channels, playbackSettings, provider, restreamSettings, streamProfiles] = await Promise.all([
+  const [channels, playbackSettings, provider, restreamSettings, streamProfiles, youtubeOAuthCredentials] = await Promise.all([
     prisma.streamChannel.findMany({
       orderBy: {
         slug: "asc"
@@ -181,7 +182,8 @@ export async function getAdminStreamControlData() {
     getAdminRestreamTargets(),
     getStreamProfiles({
       includeDisabled: true
-    })
+    }),
+    getAdminYouTubeOAuthCredentials()
   ]);
 
   return {
@@ -189,7 +191,8 @@ export async function getAdminStreamControlData() {
     playbackSettings,
     provider,
     restreamSettings,
-    streamProfiles
+    streamProfiles,
+    youtubeOAuthCredentials
   };
 }
 

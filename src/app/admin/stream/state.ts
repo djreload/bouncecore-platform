@@ -1,6 +1,10 @@
 import type { StreamHealth, StreamStatus } from "@/lib/stream/stream-provider";
 import type { StreamProfileSummary } from "@/lib/stream/stream-profile-service";
 import type { AdminRestreamSettings, RestreamTargetSlot } from "@/lib/stream/restream-settings";
+import type {
+  AdminYouTubeOAuthCredentials,
+  AdminYouTubeRestreamConnection
+} from "@/lib/stream/youtube-restream-oauth";
 import type { StreamPlaybackSettings } from "@/lib/stream/stream-playback-settings";
 
 export type AdminStreamChannelRow = {
@@ -20,7 +24,10 @@ export type AdminStreamProfileRow = StreamProfileSummary;
 
 export type AdminRestreamSettingsRow = AdminRestreamSettings & {
   slot: RestreamTargetSlot;
+  youtubeConnection: AdminYouTubeRestreamConnection;
 };
+
+export type AdminYouTubeOAuthCredentialsRow = AdminYouTubeOAuthCredentials;
 
 export type AdminStreamPlaybackSettingsRow = StreamPlaybackSettings;
 

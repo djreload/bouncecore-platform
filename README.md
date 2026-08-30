@@ -187,6 +187,14 @@ RESTREAM_VIDEO_BUFSIZE=9000k
 RESTREAM_AUDIO_BITRATE=160k
 ```
 
+For a YouTube output, Bouncecore can also create the YouTube broadcast as **Public** and start it automatically with the local livestream. Enable YouTube Data API v3 in Google Cloud, create an OAuth Web application, and add this authorized redirect URI:
+
+```text
+https://bouncecore.example.com/admin/stream/youtube/callback
+```
+
+Save the OAuth client ID and secret under Admin -> Stream, then press `Connect YouTube` for each YouTube destination. Connections are per destination, so two outputs can authorize two different channels. The client secret and channel refresh tokens are encrypted at rest with `PUSH_TOKEN_ENCRYPTION_KEY`. Credentials may instead be supplied through `YOUTUBE_OAUTH_CLIENT_ID` and `YOUTUBE_OAUTH_CLIENT_SECRET`.
+
 Set `RESTREAM_TRANSCODE=false` only if you intentionally want to packet-copy the incoming OBS encoder settings to the external platform.
 
 Start both independent outputs with the `restream` profile:

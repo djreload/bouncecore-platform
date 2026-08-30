@@ -11,6 +11,10 @@ import {
 } from "@/lib/stream/stream-channel-service";
 import { updateRestreamSettings } from "@/lib/stream/restream-settings-service";
 import { restreamTargetSlotValue } from "@/lib/stream/restream-settings";
+import {
+  disconnectYouTubeRestream,
+  updateYouTubeOAuthCredentials
+} from "@/lib/stream/youtube-restream-oauth";
 import { updateStreamPlaybackSettings } from "@/lib/stream/stream-playback-settings-service";
 import { ensureDefaultStreamProfiles, updateStreamProfile } from "@/lib/stream/stream-profile-service";
 import { streamStatusOptions, type ChannelStatus } from "@/lib/stream/stream-status";
@@ -84,6 +88,14 @@ function restreamSettingsInput(formData: FormData) {
     provider: formString(formData, "provider"),
     serverUrl: formString(formData, "serverUrl"),
     streamKey: formString(formData, "streamKey")
+  };
+}
+
+function youtubeOAuthCredentialsInput(formData: FormData) {
+  return {
+    clearClientSecret: formBoolean(formData, "clearClientSecret"),
+    clientId: formString(formData, "clientId"),
+    clientSecret: formString(formData, "clientSecret")
   };
 }
 
@@ -179,6 +191,27 @@ export async function adminStreamAction(
       return {
         status: "success",
         message: `Restream destination ${slot === "primary" ? "1" : "2"} updated.`
+      };
+    }
+
+    if (intent === "update-youtube-oauth") {
+      await updateYouTubeOAuthCredentials(youtubeOAuthCredentialsInput(formData), actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: "YouTube OAuth credentials updated."
+      };
+    }
+
+    if (intent === "disconnect-youtube") {
+      const slot = restreamTargetSlotValue(formString(formData, "targetSlot"));
+      await disconnectYouTubeRestream(slot, actor.id);
+      revalidateStreamViews();
+
+      return {
+        status: "success",
+        message: `YouTube destination ${slot === "primary" ? "1" : "2"} disconnected.`
       };
     }
 
