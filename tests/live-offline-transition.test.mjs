@@ -13,6 +13,7 @@ test("offline artwork cannot be covered by the persistent live video", () => {
   assert.match(persistentPlayer, /liveVideoSlotSelector = '\[data-live-primary-video-slot="true"\]'/);
   assert.match(persistentPlayer, /if \(!canPlay \|\| !isLivePath\(pathname\)\) \{\s*parkVideo\(\)/);
   assert.match(persistentPlayer, /\[canPlay, parkVideo, pathname, updateVideoPlacement\]/);
+  assert.match(livePlayer, /data-live-playback-player="true"/);
   assert.match(livePlayer, /data-live-primary-video-slot="true"/);
   assert.match(livePlayer, /data-live-offline-image-slot="true"/);
   assert.doesNotMatch(livePlayer, /data-live-primary-video-slot="offline"/);

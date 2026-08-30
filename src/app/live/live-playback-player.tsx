@@ -214,7 +214,7 @@ function LivePlayerControls({
     }
 
     function connectMediaEvents() {
-      const nextVideo = host?.querySelector<HTMLVideoElement>("[data-live-primary-video-slot] video") ?? null;
+      const nextVideo = host?.querySelector<HTMLVideoElement>('[data-live-primary-video-slot="true"] video') ?? null;
 
       if (nextVideo === activeVideo) {
         return;
@@ -808,6 +808,7 @@ export function LivePlaybackPlayer({
       className={cn(
         "group bc-scanlines relative aspect-video overflow-hidden border-y border-bc-line bg-black shadow-2xl shadow-bc-electric/10 fullscreen:h-screen fullscreen:w-screen fullscreen:rounded-none fullscreen:border-0 lg:rounded-t-md lg:border-x"
       )}
+      data-live-playback-player="true"
       ref={playerRef}
     >
       {canAttemptPlayback && primaryPlaybackUrl ? (
