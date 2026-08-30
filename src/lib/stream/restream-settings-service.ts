@@ -4,6 +4,7 @@ import {
   buildRestreamTargetUrl,
   mergeRestreamSettingsInput,
   normalizeRestreamSettings,
+  restreamProviderForSlot,
   restreamTargetSlots,
   toAdminRestreamSettings,
   type RestreamSettingsInput,
@@ -28,7 +29,10 @@ export async function getRestreamSettings(slot: RestreamTargetSlot = "primary") 
     }
   });
 
-  return normalizeRestreamSettings(setting?.value);
+  return {
+    ...normalizeRestreamSettings(setting?.value),
+    provider: restreamProviderForSlot(slot)
+  };
 }
 
 export async function getAdminRestreamSettings(slot: RestreamTargetSlot = "primary") {
@@ -74,7 +78,13 @@ export async function updateRestreamSettings(
   slot: RestreamTargetSlot = "primary"
 ) {
   const existing = await getRestreamSettings(slot);
-  const settings = mergeRestreamSettingsInput(input, existing);
+  const settings = mergeRestreamSettingsInput(
+    {
+      ...input,
+      provider: restreamProviderForSlot(slot)
+    },
+    existing
+  );
 
   if (settings.enabled) {
     try {

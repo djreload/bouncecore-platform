@@ -32,6 +32,7 @@ test("secondary restream storage and endpoint do not replace the legacy primary 
 
   assert.match(service, /primary: "stream\.restream_settings"/);
   assert.match(service, /secondary: "stream\.restream_settings\.secondary"/);
+  assert.match(service, /provider: restreamProviderForSlot\(slot\)/);
   assert.match(primaryRoute, /getRestreamTargetUrl\(\)/);
   assert.match(secondaryRoute, /getRestreamTargetUrl\("secondary"\)/);
 });
