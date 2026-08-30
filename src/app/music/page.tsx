@@ -8,6 +8,7 @@ import { getTopDownloadedMusicTracks } from "@/lib/music/music-ranking";
 import { getOwnProducerTrackIds, getPublicMusicTracks, getPurchasedMusicTrackIds, type PublicMusicTrack } from "@/lib/music/music-service";
 import { getPayPalIntegrationData, getPayPalMusicReadiness } from "@/lib/payments/paypal-service";
 import { MusicCartButton, MusicCartProvider, type MusicCartTrack } from "./music-cart-panel";
+import { TrackPreviewPlayer } from "./track-preview-player";
 
 export const dynamic = "force-dynamic";
 
@@ -185,6 +186,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                 const ownTrack = ownTrackIds.has(track.id);
                 const canBuyTrack = track.pricePence > 0 && Boolean(track.downloadUrl);
                 const cartLabel = track.pricePence <= 0 ? "Free track" : track.downloadUrl ? "Add to cart" : "Delivery missing";
+                const previewPlayerId = `track-preview-${track.id}`;
 
                 return (
                   <article className="grid gap-4 p-4 md:grid-cols-[6rem_minmax(0,1fr)_14rem] md:items-center" key={track.id}>
@@ -212,9 +214,7 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                       {track.previewUrl ? (
                         <div className="mt-4 rounded-md border border-bc-line bg-bc-ink p-3">
                           <p className="mb-2 text-xs font-semibold uppercase text-bc-muted">Sample audio</p>
-                          <audio className="w-full" controls preload="none" src={track.previewUrl}>
-                            <a href={track.previewUrl}>Preview track</a>
-                          </audio>
+                          <TrackPreviewPlayer playerId={previewPlayerId} previewUrl={track.previewUrl} title={track.title} />
                         </div>
                       ) : null}
                     </div>
@@ -230,9 +230,9 @@ export default async function MusicPage({ searchParams }: MusicPageProps) {
                           Producer
                         </ButtonLink>
                         {track.previewUrl ? (
-                          <ButtonLink href={track.previewUrl} size="sm" target="_blank" variant="ghost">
+                          <ButtonLink href={`#${previewPlayerId}`} size="sm" variant="ghost">
                             <Play className="h-4 w-4" aria-hidden="true" />
-                            Preview
+                            Sample player
                           </ButtonLink>
                         ) : null}
                         {ownTrack ? (

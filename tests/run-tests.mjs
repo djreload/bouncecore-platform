@@ -45,6 +45,7 @@ import "./mobile-chat-payload.test.mjs";
 import "./music-delivery-recovery-core.test.mjs";
 import "./music-checkout-errors.test.mjs";
 import "./music-ranking.test.mjs";
+import "./music-preview-audio-focus.test.mjs";
 import "./mobile-music-payload.test.mjs";
 import "./mobile-paypal-checkout-status.test.mjs";
 import "./mobile-shop-payload.test.mjs";

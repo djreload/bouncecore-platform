@@ -1,5 +1,6 @@
 # Changelog
 
+- Music catalogue samples now take temporary audio focus: starting a preview mutes the connected livestream without stopping it, only one sample plays at a time, and the viewer's previous live-audio state returns when the sample pauses or ends.
 - Added per-destination YouTube OAuth and public broadcast automation: YouTube restream targets can now create a public broadcast, bind the saved channel stream key, and go live automatically with each Bouncecore stream session without changing Facebook or custom outputs.
 - Reduced idle browser and mobile-app work by limiting livestream decoding to the live page until continuous audio is enabled, disconnecting temporary player placement observers as soon as the video is docked, avoiding targeted throw and Rave War polling for signed-out visitors, and aligning the public release smoke check with the current live player.
 - Added live connection tiers that automatically favour 240p with a 12-second buffer on low-speed links, 480p with an eight-second buffer on medium links, and full adaptive HD with the admin buffer on high-speed links, with in-place quality changes that do not reload playback.

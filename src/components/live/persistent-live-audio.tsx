@@ -21,6 +21,11 @@ import {
   type LivePlayerQualityOption,
   type LivePlayerQualityState
 } from "@/components/live/live-player-events";
+import {
+  liveAudioFocusChangeEvent,
+  shouldMuteLiveAudio,
+  type LiveAudioFocusChangeDetail
+} from "@/components/live/live-audio-focus";
 import { usePerformancePreferences } from "@/components/performance/use-performance-preferences";
 import { subscribeToLiveStatus, type LiveStatusPayload } from "@/components/live/live-status-client";
 import { reconnectDelayMs } from "@/lib/realtime/reconnect";
@@ -66,9 +71,9 @@ function storeAudioEnabled(enabled: boolean) {
   }
 }
 
-function setAudiblePreference(enabled: boolean, video?: HTMLVideoElement | null) {
+function setAudiblePreference(enabled: boolean, video?: HTMLVideoElement | null, temporaryAudioFocus = false) {
   if (video) {
-    video.muted = !enabled;
+    video.muted = shouldMuteLiveAudio(enabled, temporaryAudioFocus);
   }
 
   storeAudioEnabled(enabled);
@@ -176,6 +181,8 @@ export function PersistentLiveAudio() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const reconnectAttemptRef = useRef(0);
+  const audioFocusHoldersRef = useRef(new Set<string>());
+  const audioFocusSuppressedRef = useRef(false);
   const canPlayRef = useRef(false);
   const playbackBufferSecondsRef = useRef(defaultStreamPlaybackSettings.playbackBufferSeconds);
   const qualityStateRef = useRef<LivePlayerQualityState>(emptyLivePlayerQualityState);
@@ -207,6 +214,38 @@ export function PersistentLiveAudio() {
   useEffect(() => {
     userEnabledRef.current = userEnabled;
   }, [userEnabled]);
+
+  useEffect(() => {
+    const audioFocusHolders = audioFocusHoldersRef.current;
+
+    function handleAudioFocusChange(event: Event) {
+      const detail = (event as CustomEvent<LiveAudioFocusChangeDetail>).detail;
+
+      if (!detail || typeof detail.sourceId !== "string" || typeof detail.active !== "boolean") {
+        return;
+      }
+
+      if (detail.active) {
+        audioFocusHolders.add(detail.sourceId);
+      } else {
+        audioFocusHolders.delete(detail.sourceId);
+      }
+
+      audioFocusSuppressedRef.current = audioFocusHolders.size > 0;
+
+      if (videoRef.current) {
+        videoRef.current.muted = shouldMuteLiveAudio(userEnabledRef.current, audioFocusSuppressedRef.current);
+      }
+    }
+
+    window.addEventListener(liveAudioFocusChangeEvent, handleAudioFocusChange);
+
+    return () => {
+      window.removeEventListener(liveAudioFocusChangeEvent, handleAudioFocusChange);
+      audioFocusHolders.clear();
+      audioFocusSuppressedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     function updateSuspendState() {
@@ -329,16 +368,16 @@ export function PersistentLiveAudio() {
       }
 
       setUserEnabled(true);
-      setAudiblePreference(true, activeVideo);
+      setAudiblePreference(true, activeVideo, audioFocusSuppressedRef.current);
     }
 
     function enableAudioFromUserGesture() {
       setUserEnabled(true);
-      setAudiblePreference(true, activeVideo);
+      setAudiblePreference(true, activeVideo, audioFocusSuppressedRef.current);
     }
 
     activeVideo.autoplay = true;
-    activeVideo.muted = !userEnabledRef.current;
+    activeVideo.muted = shouldMuteLiveAudio(userEnabledRef.current, audioFocusSuppressedRef.current);
     activeVideo.playsInline = true;
     activeVideo.preload = "metadata";
     keepNormalPlaybackSpeed(activeVideo);
@@ -364,7 +403,7 @@ export function PersistentLiveAudio() {
         return;
       }
 
-      activeVideo.muted = !userEnabledRef.current;
+      activeVideo.muted = shouldMuteLiveAudio(userEnabledRef.current, audioFocusSuppressedRef.current);
       void recoverBufferedLivePlayback(
         activeVideo,
         playbackBufferSecondsRef.current,
@@ -577,7 +616,7 @@ export function PersistentLiveAudio() {
         updateQualityState();
         reconnectAttemptRef.current = 0;
         mediaRecoveryAttempts = 0;
-        video.muted = !userEnabledRef.current;
+        video.muted = shouldMuteLiveAudio(userEnabledRef.current, audioFocusSuppressedRef.current);
         keepNormalPlaybackSpeed(video);
         void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
       });
@@ -652,7 +691,7 @@ export function PersistentLiveAudio() {
       return;
     }
 
-    video.muted = !userEnabled;
+    video.muted = shouldMuteLiveAudio(userEnabled, audioFocusSuppressedRef.current);
     keepNormalPlaybackSpeed(video);
     void startBufferedLivePlayback(video, playbackBufferSeconds).catch(() => undefined);
   }, [canPlay, playbackBufferSeconds, suspendPlayback, userEnabled]);
@@ -660,7 +699,7 @@ export function PersistentLiveAudio() {
   useEffect(() => {
     function enableAudio() {
       setUserEnabled(true);
-      setAudiblePreference(true, videoRef.current);
+      setAudiblePreference(true, videoRef.current, audioFocusSuppressedRef.current);
 
       if (canPlayRef.current && !suspendPlaybackRef.current) {
         if (videoRef.current) {
