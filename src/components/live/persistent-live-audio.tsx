@@ -35,7 +35,7 @@ import { defaultStreamPlaybackSettings } from "@/lib/stream/stream-playback-sett
 const liveAudioEnabledStorageKey = "bouncecore.liveAudio.enabled";
 const liveAudioEnableEvent = "bouncecore:live-audio-enable";
 const liveAudioDisableEvent = "bouncecore:live-audio-disable";
-const liveVideoSlotSelector = "[data-live-primary-video-slot]";
+const liveVideoSlotSelector = '[data-live-primary-video-slot="true"]';
 
 type AndroidAudioBridgeWindow = Window & {
   BouncecoreAndroid?: {
@@ -425,9 +425,14 @@ export function PersistentLiveAudio() {
   }, [updateVideoPlacement]);
 
   useEffect(() => {
+    if (!canPlay || !isLivePath(pathname)) {
+      parkVideo();
+      return;
+    }
+
     updateVideoPlacement();
 
-    if (!isLivePath(pathname) || document.querySelector(liveVideoSlotSelector)) {
+    if (document.querySelector(liveVideoSlotSelector)) {
       return;
     }
 
@@ -459,7 +464,7 @@ export function PersistentLiveAudio() {
         window.cancelAnimationFrame(frame);
       }
     };
-  }, [pathname, updateVideoPlacement]);
+  }, [canPlay, parkVideo, pathname, updateVideoPlacement]);
 
   useEffect(() => {
     function sameSiteNavigationAwayFromLive(event: Event) {

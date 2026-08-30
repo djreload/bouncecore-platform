@@ -815,10 +815,11 @@ export function LivePlaybackPlayer({
           aria-label={primarySource?.presenterName ? `${primarySource.presenterName} primary stream` : "Primary live stream"}
           className="absolute inset-0 bg-black"
           data-live-primary-video-slot="true"
+          key="live"
           role="region"
         />
       ) : (
-        <div className="absolute inset-0" data-live-primary-video-slot="offline">
+        <div className="absolute inset-0" data-live-offline-image-slot="true" key="offline">
           {liveState.offlineImageUrl ? (
             <img alt="" className="absolute inset-0 h-full w-full object-cover" src={liveState.offlineImageUrl} />
           ) : null}
