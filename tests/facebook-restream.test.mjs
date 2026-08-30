@@ -62,5 +62,8 @@ test("facebook relay target is generated server-side and never exposed in admin"
   assert.match(syncService, /syncFacebookRestreams/);
   assert.match(syncService, /finishFacebookRestreams/);
   assert.match(adminPanel, /Connect Facebook Page/);
+  assert.match(adminPanel, /How to obtain the Meta app credentials/);
+  assert.match(adminPanel, /pages_manage_posts/);
+  assert.match(adminPanel, /How to configure Destination 2/);
   assert.doesNotMatch(adminPanel, /secureStreamUrlCiphertext|pageAccessTokenCiphertext/);
 });

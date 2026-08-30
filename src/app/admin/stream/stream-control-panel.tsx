@@ -180,8 +180,8 @@ export function AdminStreamControlPanel({
         </Badge>
         <h3 className="mt-4 text-2xl font-black">External restream outputs</h3>
         <p className="mt-2 max-w-3xl text-sm text-bc-muted">
-          Send the current primary DJ feed to two independent YouTube, Facebook, or custom RTMP/RTMPS destinations. Each
-          output runs separately, so a failure or configuration change on one does not stop the other.
+          Send the current primary DJ feed to YouTube on Destination 1 and Facebook on Destination 2. Each output runs
+          separately, so a failure or configuration change on one does not stop the other.
         </p>
 
         {youtubeNotice ? (
@@ -267,6 +267,48 @@ export function AdminStreamControlPanel({
           <p className="mt-3 break-all text-xs text-bc-muted">
             Authorized redirect URI: <code className="text-bc-electric">{youtubeOAuthCredentials.redirectUri ?? "Set NEXT_PUBLIC_APP_URL first"}</code>
           </p>
+          <details className="mt-4 border-t border-bc-line pt-3 text-sm text-bc-muted">
+            <summary className="cursor-pointer font-semibold text-white">How to obtain the Google OAuth credentials</summary>
+            <ol className="mt-3 list-decimal space-y-2 pl-5">
+              <li>
+                Open the{" "}
+                <a
+                  className="text-bc-electric underline underline-offset-2"
+                  href="https://console.cloud.google.com/apis/library/youtube.googleapis.com"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  YouTube Data API v3 page
+                </a>
+                , select the Google Cloud project that will own this integration, and enable the API.
+              </li>
+              <li>
+                Configure the OAuth consent screen. If the app remains in testing, add the Google account that owns the
+                destination YouTube channel as a test user.
+              </li>
+              <li>
+                Open{" "}
+                <a
+                  className="text-bc-electric underline underline-offset-2"
+                  href="https://console.cloud.google.com/apis/credentials"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Google Cloud Credentials
+                </a>
+                , create an OAuth client ID, and select <strong className="text-white">Web application</strong>.
+              </li>
+              <li>
+                Add the exact Authorized redirect URI shown above. Scheme, domain, path, and trailing slash must match
+                exactly.
+              </li>
+              <li>Copy the generated client ID and client secret into these fields, then select Save OAuth.</li>
+              <li>
+                In Destination 1, select Connect YouTube and sign in as the owner or manager of the intended channel. It
+                does not have to be your personal YouTube account.
+              </li>
+            </ol>
+          </details>
         </div>
 
         <div className="mt-5 border-y border-bc-line bg-bc-ink/45 p-4">
@@ -330,6 +372,41 @@ export function AdminStreamControlPanel({
           <p className="mt-1 text-xs text-bc-muted">
             The Facebook account used during Connect must administer the destination Page; it does not need to be the site owner&apos;s Facebook account.
           </p>
+          <details className="mt-4 border-t border-bc-line pt-3 text-sm text-bc-muted">
+            <summary className="cursor-pointer font-semibold text-white">How to obtain the Meta app credentials</summary>
+            <ol className="mt-3 list-decimal space-y-2 pl-5">
+              <li>
+                Open{" "}
+                <a
+                  className="text-bc-electric underline underline-offset-2"
+                  href="https://developers.facebook.com/apps/"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Meta for Developers
+                </a>
+                , create or open the app that will manage the Facebook Page, and add Facebook Login for Business.
+              </li>
+              <li>
+                In App settings, copy the App ID and reveal the App secret. Paste them above and select Save Meta OAuth.
+              </li>
+              <li>
+                In Facebook Login settings, enable Client OAuth Login and Web OAuth Login, then add the exact Valid OAuth
+                redirect URI shown above.
+              </li>
+              <li>
+                Configure the app domain, privacy policy, terms, and data-deletion URL, then request or retain access to
+                <code className="mx-1 text-bc-electric">pages_show_list</code>,
+                <code className="mx-1 text-bc-electric">pages_read_engagement</code>, and
+                <code className="ml-1 text-bc-electric">pages_manage_posts</code>.
+              </li>
+              <li>
+                Put the Meta app in Live mode when it is ready for non-developer accounts. App administrators and testers
+                can authorize while it remains in development mode.
+              </li>
+              <li>Save Destination 2, then select Connect Facebook Page and sign in with an account that administers it.</li>
+            </ol>
+          </details>
         </div>
 
         <div className="mt-5 divide-y divide-bc-line border-y border-bc-line">
@@ -413,7 +490,7 @@ export function AdminStreamControlPanel({
                     <p className="font-semibold text-white">
                       {target.facebookConnection.connected
                         ? `Automatic live posts use ${target.facebookConnection.pageName}.`
-                        : "Save the destination Page ID, then connect a Page administrator."}
+                        : "Save the destination settings, then connect a Page administrator."}
                     </p>
                     <p className="mt-1 text-xs text-bc-muted">
                       {target.facebookConnection.lastError
@@ -444,6 +521,57 @@ export function AdminStreamControlPanel({
                   )}
                 </div>
               ) : null}
+
+              <details className="mt-4 text-sm text-bc-muted">
+                <summary className="cursor-pointer font-semibold text-white">
+                  {target.slot === "primary"
+                    ? "How to configure Destination 1"
+                    : "How to configure Destination 2"}
+                </summary>
+                {target.slot === "primary" ? (
+                  <ol className="mt-3 list-decimal space-y-2 pl-5">
+                    <li>
+                      Ask the intended channel owner to open{" "}
+                      <a
+                        className="text-bc-electric underline underline-offset-2"
+                        href="https://studio.youtube.com/"
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        YouTube Studio
+                      </a>
+                      , select Create, Go live, and open Stream settings.
+                    </li>
+                    <li>Copy the RTMPS stream URL and stream key. Never share the key outside this protected admin page.</li>
+                    <li>
+                      Paste the URL and key below. Leaving the key blank after it has been saved keeps the current key
+                      unchanged.
+                    </li>
+                    <li>
+                      For automatic public broadcasts and automatic title/description updates, complete the YouTube OAuth
+                      setup above and connect the channel that owns this stream key.
+                    </li>
+                    <li>Enable Destination 1 and save it. Bouncecore starts relaying when its primary DJ feed goes live.</li>
+                  </ol>
+                ) : (
+                  <ol className="mt-3 list-decimal space-y-2 pl-5">
+                    <li>
+                      Enter the Facebook Page ID below. If the connecting account manages only one Page, the ID can be left
+                      blank for automatic selection.
+                    </li>
+                    <li>
+                      If it manages several Pages, the first connection attempt lists the available Page names and IDs;
+                      enter the required ID, save, and connect again.
+                    </li>
+                    <li>Complete the Meta OAuth setup above, then connect an account that administers the selected Page.</li>
+                    <li>Set the title and description, enable Destination 2, and save it.</li>
+                    <li>
+                      No Facebook stream key is needed here. Bouncecore creates the Page live post and receives a temporary
+                      secure RTMPS destination automatically for each local live session.
+                    </li>
+                  </ol>
+                )}
+              </details>
 
               <form action={formAction} className="mt-4 space-y-4">
                 <input name="intent" type="hidden" value="update-restream" />

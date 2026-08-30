@@ -60,6 +60,9 @@ test("active stream sessions invoke public youtube sync without exposing channel
 
   assert.match(syncService, /syncPublicYouTubeRestreams/);
   assert.match(adminPanel, /Connect YouTube/);
+  assert.match(adminPanel, /How to obtain the Google OAuth credentials/);
+  assert.match(adminPanel, /YouTube Data API v3 page/);
+  assert.match(adminPanel, /How to configure Destination 1/);
   assert.match(adminPanel, /Destination \{index \+ 1\}: \{target\.slot === "primary" \? "YouTube" : "Facebook"\}/);
   assert.doesNotMatch(adminPanel, /restreamProviders\.map/);
   assert.match(adminPanel, /type="password"/);
